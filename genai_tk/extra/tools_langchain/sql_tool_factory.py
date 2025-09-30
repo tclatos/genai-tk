@@ -111,7 +111,6 @@ class SQLToolFactory:
         return self.create_tool(config)
 
 
-
 def create_sql_tool_from_config(config: dict[str, Any], llm: BaseChatModel | None = None) -> BaseTool:
     """Create a SQL tool from a configuration dictionary.
 

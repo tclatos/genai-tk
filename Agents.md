@@ -1,6 +1,6 @@
 # GenAI Toolkit Agents and Components
 
-This document outlines the core agents, components, and capabilities provided by the GenAI Toolkit (`genai_tk`).
+This document outlines the core agents, components, and capabilities provided by the GenAI Toolkit (`genai-tk`).
 
 ## Core Components (`genai_tk.core`)
 
@@ -115,7 +115,7 @@ This document outlines the core agents, components, and capabilities provided by
 uv pip install git+https://github.com/tcaminel-pro/genai-tk@main
 
 # Install with all extras
-uv pip install "genai_tk[extra] @ git+https://github.com/tcaminel-pro/genai-tk@main"
+uv pip install "genai-tk[extra] @ git+https://github.com/tcaminel-pro/genai-tk@main"
 ```
 
 ```python

@@ -70,7 +70,6 @@ def register_commands(cli_app: typer.Typer) -> None:
             llm_id = resolved_id
 
         # Handle configuration loading using shared loader
-        demo_config = None
         config_tools = []
         config_mcp_servers = []
 
@@ -92,6 +91,7 @@ def register_commands(cli_app: typer.Typer) -> None:
                 print(f"❌ Error: Configuration '{config}' not found in config/demos/react_agent.yaml")
                 print()
                 from genai_tk.utils.cli.config_display import display_react_agent_configs
+
                 display_react_agent_configs()
                 return
 
@@ -159,9 +159,9 @@ def register_commands(cli_app: typer.Typer) -> None:
         from genai_tk.core.llm_factory import LlmFactory
         from genai_tk.extra.tools_smolagents.config_loader import (
             CONF_YAML_FILE,
+            convert_langchain_tools,
             load_smolagent_demo_config,
             process_tools_from_config,
-            convert_langchain_tools,
         )
         from genai_tk.utils.cli.langchain_setup import setup_langchain
 
@@ -189,6 +189,7 @@ def register_commands(cli_app: typer.Typer) -> None:
                 print(f"❌ Error: Configuration '{config}' not found in {CONF_YAML_FILE}")
                 print()
                 from genai_tk.utils.cli.config_display import display_smolagents_configs
+
                 display_smolagents_configs()
                 return
 

@@ -107,8 +107,7 @@ def create_pg_vector_store(
     debug(vector_store)
     if hybrid_search and hybrid_search_config:
         try:
-            tsv_index_query = f"""CREATE INDEX langchain_tsv_index ON "{schema_name}"."{table_name}"                   
-            USING GIN("content_tsv);"""
+          #  tsv_index_query = f"""CREATE INDEX langchain_tsv_index ON "{schema_name}"."{table_name}" USING GIN("content_tsv);"""
             #  Always fail : apply_hybrid_search_index not implemented (only async version exists)
             vector_store._engine._run_as_async(vector_store.apply_hybrid_search_index())
             logger.info(f"Applied hybrid search index on {table_name}")

@@ -2,11 +2,42 @@
 Common code for Langgraph
 """
 
+import re
 from typing import Any, AsyncIterator, Iterator
 
 from langchain_core.messages import AIMessage
 
 from genai_tk.utils.markdown import looks_like_markdown
+
+
+def _is_likely_markdown(text: str) -> bool:
+    """
+    Determine if a string is likely to be Markdown content.
+
+    Args:
+        text (str): The input string to evaluate.
+
+    Returns:
+        bool: True if the string is likely Markdown, False otherwise.
+    """
+    # Common Markdown patterns
+    markdown_patterns = [
+        r"^#{1,6} ",  # Headers
+        r"^\* ",  # Unordered lists
+        r"^\d+\. ",  # Ordered lists
+        r"\[.*?\]\(.*?\)",  # Links
+        r"\*\*.*?\*\*",  # Bold
+        r"\*.*?\*",  # Italics
+        r"`.*?`",  # Inline code
+        r"```.*?```",  # Code blocks
+    ]
+
+    # Check if any pattern matches the text
+    for pattern in markdown_patterns:
+        if re.search(pattern, text, re.MULTILINE):
+            return True
+
+    return False
 
 
 def stream_node_response_content(stream: Iterator, node: str = "agent") -> Iterator:

@@ -173,7 +173,7 @@ class EmbeddingsFactory(BaseModel):
             item.id: item
             for item in EmbeddingsFactory.known_list()
             if get_provider_api_env_var(item.provider) is not None
-            or get_provider_api_env_var(item.provider) in os.environ
+            and (get_provider_api_env_var(item.provider) == "" or get_provider_api_env_var(item.provider) in os.environ)
         }
 
     @staticmethod
@@ -209,7 +209,8 @@ class EmbeddingsFactory(BaseModel):
         """Create an embeddings model instance."""
         provider = self.info.provider
         env_var = get_provider_api_env_var(provider)
-        if env_var is None or env_var not in os.environ:
+        # Only require API key if provider needs one (env_var is not empty string)
+        if env_var is None or (env_var != "" and env_var not in os.environ):
             raise EnvironmentError(f"No known API key for : {self.info.id}")
         embeddings = self.model_factory()
         if self.cache_embeddings:

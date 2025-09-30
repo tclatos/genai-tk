@@ -1,4 +1,4 @@
-# Makefile for GenAI Toolkit (genai_tk)
+# Makefile for GenAI Toolkit (genai-tk)
 # Provides commands for development, testing, and maintenance
 
 .PHONY: help install install-dev fmt lint test test-unit test-integration clean check
@@ -28,7 +28,7 @@ fmt: ## Format code with ruff
 	uv run ruff check --select I --fix .
 
 lint: ## Lint code with ruff
-	uv run ruff check .
+	uv run ruff check genai_tk.
 
 test: ## Run all tests
 	uv run pytest unit_tests/ integration_tests/

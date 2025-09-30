@@ -1,0 +1,70 @@
+# GenAI Toolkit Configuration
+# Basic configuration for running tests
+
+# AI Components
+llm:
+  list: config/providers/llm.yaml
+  models:
+    default: parrot_local_fake   # Use fake model as default for testing
+    fake: parrot_local_fake 
+    test: parrot_local_fake  # Using fake model for test tag
+  cache: sqlite
+  cache_path: data/llm_cache/langchain.db
+
+embeddings:
+  list: config/providers/embeddings.yaml
+  models:
+    default: embeddings_768_fake  # Use fake embeddings as default for testing
+    local: artic_22_ollama
+    fake: embeddings_768_fake  # For testing
+  cache: data/hf_models
+
+vector_store:
+  default: InMemory
+
+
+# Key-Value Store configuration
+kv_store:
+  engine: "memory"  # Use memory store for tests
+  
+# LLM Cache configuration  
+llm_cache:
+  method: "memory"  # Use memory cache for tests
+
+# Command Line Interface configuration
+cli:
+  commands:  # List modules:functions to register CLI commands
+    - genai_tk.main.commands_core:register_commands
+    - genai_tk.main.commands_extra:register_commands
+    - genai_tk.main.commands_agents:register_commands
+    - genai_tk.main.cli:register_commands
+
+# Logging configuration
+logging:
+  level: "INFO"
+
+# Other test configurations
+test:
+  timeout: 30
+
+# Pytest-specific configuration
+pytest:
+  # Use  for pytest
+  llm:
+    models:
+      default: parrot_local_fake
+      fake: parrot_local_fake
+      test: gpt_41mini_openai
+  embeddings:
+    models:
+      default: embeddings_768_fake
+      fake: embeddings_768_fake
+      test: openai/text-embedding-ada-002
+  kv_store:
+    engine: "memory"
+  llm_cache:
+    method: "memory"
+  logging:
+    level: "INFO"
+  vector_store:
+    postgres_url: null  # No postgres for tests

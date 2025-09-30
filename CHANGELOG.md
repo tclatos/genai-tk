@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to genai_tk will be documented in this file.
+All notable changes to genai-tk will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -76,7 +76,7 @@ This is the initial standalone release of the GenAI Toolkit, extracted from the 
 uv pip install git+https://github.com/tcaminel-pro/genai-tk@main
 
 # Install with all extras
-uv pip install "genai_tk[extra] @ git+https://github.com/tcaminel-pro/genai-tk@main"
+uv pip install "genai-tk[extra] @ git+https://github.com/tcaminel-pro/genai-tk@main"
 ```
 
 ### Supported Providers

@@ -1,0 +1,57 @@
+########################
+# LLM service provider
+########################
+
+# Registered LLMs Services
+
+# LLM_id should follow Python variables constraints - ie no '-' no space etc
+# Use pattern {self.model_family_name}_{version}
+# model_name is provider specific.  It can contains several fields decoded in the factory.
+
+# Capabilities can be : 'reasonning', 'structured_outputs', 'pdf', 'vision'
+# !!! THE ONE HERE ARE INCOMPLETE, AND POSSIBLY INCORRECT !!!! 
+
+# Provider documentation links:
+# OpenAI: https://platform.openai.com/docs/models
+# DeepInfra: https://deepinfra.com/models
+# Groq: https://console.groq.com/docs/models
+# Together: https://docs.together.ai/docs/inference-models
+# Google/Vertex AI: https://cloud.google.com/vertex-ai/docs/generative-ai/model-reference/text
+# Ollama: https://ollama.ai/library
+# EdenAI: :https//app.edenai.run/v2/feat/generative/chat ; https://app.edenai.run/bricks/text/chat  
+# Azure OpenAI: https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models
+# OpenRouter: https://openrouter.ai/docs#models
+# Amazon : https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
+# DeepSeek: https://api-docs.deepseek.com/quick_start/pricing 
+# HuggingFace: https://huggingface.co/models
+# ...
+
+#cSpell: disable
+
+llm:
+- model:
+  id: deepseek_v31
+  providers:
+    - deepseek: deepseek-chat
+    - openrouter: deepseek/deepseek-chat-v3.1
+    - edenai: deepseek/deepseek-chat
+  capabilities: ['structured_outputs']
+
+- model:  # fake model for tests
+  id: parrot_local
+  providers:
+    - fake: parrot
+
+- model:
+  id: gpt_oss120
+  providers:
+    - openrouter: openai/gpt-oss-120b
+  capabilities: ['structured_outputs']
+
+- model:
+  id: gpt_41mini
+  providers:
+    - openrouter: openai/gpt-4.1-mini
+    - edenai: gpt-4.1-mini-2025-04-14
+    - openai: gpt-4.1-mini-2025-04-14
+  capabilities: ['structured_outputs']

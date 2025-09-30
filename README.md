@@ -1,4 +1,4 @@
-# GenAI Toolkit (`genai_tk`)
+# GenAI Toolkit (`genai-tk`)
 
 A comprehensive toolkit for building AI applications with LangChain, LangGraph, and modern AI frameworks.
 
@@ -20,7 +20,7 @@ GenAI Toolkit provides reusable components, agents, and utilities for building s
 uv pip install git+https://github.com/tcaminel-pro/genai-tk@main
 
 # Install with all extras  
-uv pip install "genai_tk[extra] @ git+https://github.com/tcaminel-pro/genai-tk@main"
+uv pip install "genai-tk[extra] @ git+https://github.com/tcaminel-pro/genai-tk@main"
 
 # Development installation
 git clone https://github.com/tcaminel-pro/genai-tk.git
@@ -174,7 +174,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Related Projects
 
-- **GenAI Blueprint** (`genai_bp`) - Application framework built on genai_tk
+- **GenAI Blueprint** (`genai_bp`) - Application framework built on genai-tk
 - **LangChain** - Core LLM application framework
 - **LangGraph** - Multi-agent workflow engine
 

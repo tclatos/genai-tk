@@ -1,0 +1,35 @@
+########################
+#  Embeddings service provider
+########################
+
+# Dimension is optional
+
+# Registered Embeddings Services
+
+# Provider documentation links:
+# Ollama: https://ollama.com/search?q=embeddings&c=embedding 
+# DeepInfra : https://deepinfra.com/models/embeddings/ 
+# ...
+
+#cSpell: disable
+
+embeddings:
+  - model:
+      id: ada_002
+    providers:
+      - openai: text-embedding-ada-002
+      - edenai: openai/text-embedding-ada-002
+      - azure: text-embedding-ada-002/2023-05-15
+    dimension: 1536
+
+  - model:
+      id: qwen3_06b
+    providers:
+      - deepinfra: Qwen/Qwen3-Embedding-0.6B
+    dimension: 1024
+
+  - model:  # fake embeddings for tests
+      id: embeddings_768
+    providers:
+      - fake: fake-embeddings
+    dimension: 768

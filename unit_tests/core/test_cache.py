@@ -30,14 +30,14 @@ class TestLlmCache:
         assert "default" in values
         assert len(values) == 4
 
-    @patch("src.ai_core.cache.global_config")
+    @patch("genai_tk.core.cache.global_config")
     def test_from_value_memory(self, mock_config: MagicMock) -> None:
         """Test from_value with memory cache."""
         result = LlmCache.from_value("memory")
         assert result is not None
         assert str(type(result)) == "<class 'langchain_community.cache.InMemoryCache'>"
 
-    @patch("src.ai_core.cache.global_config")
+    @patch("genai_tk.core.cache.global_config")
     @patch("pathlib.Path.mkdir")
     @patch("langchain_community.cache.SQLiteCache")
     def test_from_value_sqlite(
@@ -52,26 +52,26 @@ class TestLlmCache:
         result = LlmCache.from_value("sqlite")
         assert result == mock_sqlite_instance
 
-    @patch("src.ai_core.cache.global_config")
+    @patch("genai_tk.core.cache.global_config")
     def test_from_value_no_cache(self, mock_config: MagicMock) -> None:
         """Test from_value with no_cache."""
         result = LlmCache.from_value("no_cache")
         assert result is None
 
-    @patch("src.ai_core.cache.global_config")
+    @patch("genai_tk.core.cache.global_config")
     def test_from_value_default(self, mock_config: MagicMock) -> None:
         """Test from_value with default cache."""
         mock_config.return_value.get_str.return_value = "memory"
         result = LlmCache.from_value("default")
         assert result is not None
 
-    @patch("src.ai_core.cache.global_config")
+    @patch("genai_tk.core.cache.global_config")
     def test_from_value_invalid(self, mock_config: MagicMock) -> None:
         """Test from_value with invalid cache method."""
         with pytest.raises(ValueError, match="Unknown cache method 'invalid'"):
             LlmCache.from_value("invalid")
 
-    @patch("src.ai_core.cache.global_config")
+    @patch("genai_tk.core.cache.global_config")
     def test_from_value_invalid_default_config(self, mock_config: MagicMock) -> None:
         """Test from_value with invalid default config."""
         mock_config.return_value.get_str.return_value = "invalid"

@@ -1,20 +1,21 @@
 [project]
-name = "genai_tk"
+name = "genai-tk"
 version = "0.1.0"
 description = "GenAI Toolkit - Core components for building AI applications"
 authors = [{ name = "Thierry Caminel", email = "thierry.caminel@atos.net" }]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # Core dependencies - minimal set for the toolkit
-    "pydantic>=2.7.0,<3",         # Data validation framework
-    "loguru>=0.7.3",              # Logging library  
-    "typer>=0.13.0",              # CLI framework
-    "omegaconf>=2.3.0",           # Configuration management
-    "rich[jupyter]>=13.9.4",      # Terminal formatting
-    "universal-pathlib>=0.2.6",   # Cross-platform paths
-    "python-dotenv>=1.1.1",       # Environment variables
-    "beartype>=0.21.0",           # Runtime type checking
-    
+    "pydantic>=2.7.0,<3",       # Data validation framework
+    "loguru>=0.7.3",            # Logging library  
+    "typer>=0.13.0",            # CLI framework
+    "omegaconf>=2.3.0",         # Configuration management
+    "rich[jupyter]>=13.9.4",    # Terminal formatting
+    "universal-pathlib>=0.2.6", # Cross-platform paths
+    "python-dotenv>=1.1.1",     # Environment variables
+    "beartype>=0.21.0",         # Runtime type checking
+    "devtools>=0.12.2",         # Development utilities
+
     # AI/ML Core Dependencies
     "langchain>=0.3",                                          # LLM framework
     "langchain-core>=0.3",                                     # Core LangChain components
@@ -52,37 +53,37 @@ extra = [
     "openpyxl>=3.1.5",          # Excel file handling
     "fuzzysearch>=0.8.0",       # Fuzzy string matching
     "markpickle>=1.6.1",        # Markdown serialization
-    
+
     # Knowledge Graphs
-    "baml-cli>=0.1.0",         # Graph modeling CLI
-    "cognee>=0.2.3",           # Knowledge graph engine
-    "langchain-kuzu>=0.3.0",   # Kuzu graph database integration
-    "kuzu>=0.7.1",             # Graph database
-    "langchain-cognee>=0.1.1", # Cognee graph integration
-    
+    "baml-cli>=0.1.0", # Graph modeling CLI
+    #   "cognee>=0.2.3",           # Knowledge graph engine
+    "langchain-kuzu>=0.3.0", # Kuzu graph database integration
+    "kuzu>=0.7.1",           # Graph database
+    #   "langchain-cognee>=0.1.1", # Cognee graph integration
+
     # PostgreSQL
     "langchain-postgres>=0.0.15", # PostgreSQL integration for LangChain
     "psycopg[binary]>=3.2.9",     # PostgreSQL adapter v3
     "psycopg2-binary>=2.9.10",    # PostgreSQL adapter v2
-    
+
     # NLP & Search
-    "spacy>=3.7.4",     # NLP library
-    "rank-bm25>=0.2.2", # BM25 ranking algorithm
-    "bm25s>=0.2.13",    # Fast BM25 implementation
+    "spacy>=3.7.4",                                                                                                                           # NLP library
+    "rank-bm25>=0.2.2",                                                                                                                       # BM25 ranking algorithm
+    "bm25s>=0.2.13",                                                                                                                          # Fast BM25 implementation
     "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", # Small English Spacy model
     "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl", # Large English Spacy model
     "abbreviations>=0.2.5",                                                                                                                   # Text abbreviation handling
-    
+
     # Browser Control
     "playwright>=1.51.0",     # Browser automation
     "helium>=5.1.0,<6",       # Web automation wrapper
     "browser-use-sdk>=2.0.4", # Browser automation agent
-    
+
     # AutoGen
     "autogen-openaiext-client>=0.0.3", # OpenAI extension client
     "autogen-agentchat>=0.4.3",        # Multi-agent chat framework
     "autogen-ext[openai]>=0.4.3",      # AutoGen OpenAI extensions
-    
+
     # Transformers (large dependency)
     "accelerate>=1.4.0",            # Model acceleration
     "langchain-huggingface>=0.1.2", # Hugging Face integration
@@ -90,18 +91,19 @@ extra = [
 ]
 
 dev = [
-    "ruff>=0.9.1",       # Python linter
-    "pytest>=8.1.1",     # Testing framework
-    "ipykernel>=6.29.4", # Jupyter kernel
-    "ipywidgets>=8.1.2", # Jupyter widgets
+    "ruff>=0.9.1",                  # Python linter
+    "pytest>=8.1.1",                # Testing framework
+    "pytest-asyncio>=0.24.0",       # Async test support
+    "faker>=25.0.0",                # Fake data generation for tests
+    "presidio-analyzer>=2.2.360",   # PII detection
+    "presidio-anonymizer>=2.2.360", # PII anonymization
+    "ipykernel>=6.29.4",            # Jupyter kernel
+    "ipywidgets>=8.1.2",            # Jupyter widgets
 ]
 
 [tool.uv]
 package = true
-default-groups = [
-    "extra",
-    "dev",
-]
+default-groups = ["extra", "dev"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["genai_tk"]
@@ -121,20 +123,19 @@ select = [
     "I", # isort rules (import sorting)
     "W", # Pycodestyle warnings (style issues that aren't errors)
     "B", # Bugbear - catches common bugs and anti-patterns                                                                                      
-    "C",     # Better comprehensions    
-    "ASYNC", # Async 
-    "ANN",   # Annotations
+    "C", # Better comprehensions    
+    #   "ASYNC", # Async 
+    #   "ANN",   # Annotations
     "PIE",
-    "PD",    # Pandas
-    "FURB",  # refurbishing and modernizing
+    "PD",   # Pandas
+    "FURB", # refurbishing and modernizing
 ]
 
 ignore = [
-    "E501", # Line too long (we use 120 chars instead of default 88) 
-    "W291", # Trailing whitespace 
-    "B006", # Do not use mutable data structures for argument defaults
-    "C901", # Function is too complex , 
-    "PD901", # pandas-df-variable-name',
+    "E501",   # Line too long (we use 120 chars instead of default 88) 
+    "W291",   # Trailing whitespace 
+    "B006",   # Do not use mutable data structures for argument defaults
+    "C901",   # Function is too complex , 
     "ANN401", # Annotated with Any
     "ANN002", # Annotate *args
     "ANN003", # Annotate **kwarg
@@ -156,3 +157,7 @@ reportTypedDictNotRequiredAccess = false
 [tool.pytest.ini_options]
 testpaths = ["unit_tests", "integration_tests"]
 python_files = ["test_*.py", "*_test.py"]
+
+
+[project.scripts]
+cli = "genai_tk.main.cli:main"

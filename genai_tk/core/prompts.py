@@ -24,7 +24,6 @@ Example:
     ... )
 """
 
-import re
 from textwrap import dedent
 
 from langchain_core.prompts import (
