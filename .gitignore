@@ -122,8 +122,9 @@ logs/
 *.db-journal
 
 # Package managers
-uv.lock
+# uv.lock should be committed for reproducible builds
 *.lock
+!uv.lock
 node_modules/
 
 # Linting and formatting tools
