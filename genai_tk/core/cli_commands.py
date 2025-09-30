@@ -35,9 +35,9 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.panel import Panel
         from rich.table import Table
 
-        from genai_tk.ai_core.embeddings_factory import EmbeddingsFactory
-        from genai_tk.ai_core.llm_factory import PROVIDER_INFO, LlmFactory
-        from genai_tk.ai_core.vector_store_factory import VectorStoreFactory
+        from genai_tk.core.embeddings_factory import EmbeddingsFactory
+        from genai_tk.core.llm_factory import PROVIDER_INFO, LlmFactory
+        from genai_tk.core.vector_store_factory import VectorStoreFactory
 
         config = global_config()
         console = Console()
@@ -177,7 +177,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         from langchain_core.output_parsers import StrOutputParser
         from rich import print as pprint
 
-        from genai_tk.ai_core.llm_factory import LlmFactory
+        from genai_tk.core.llm_factory import LlmFactory
         from genai_tk.utils.cli.langchain_setup import setup_langchain
 
         # For compatibility with setup_langchain, resolve the llm to an llm_id if provided
@@ -261,8 +261,8 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         from devtools import pprint
 
-        from genai_tk.ai_core.chain_registry import ChainRegistry
-        from genai_tk.ai_core.llm_factory import LlmFactory
+        from genai_tk.core.chain_registry import ChainRegistry
+        from genai_tk.core.llm_factory import LlmFactory
         from genai_tk.utils.cli.langchain_setup import setup_langchain
         from genai_tk.utils.config_mngr import global_config
 
@@ -335,9 +335,9 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.console import Console
         from rich.panel import Panel
 
-        from genai_tk.ai_core.embeddings_factory import EmbeddingsFactory
-        from genai_tk.ai_core.llm_factory import LlmFactory
-        from genai_tk.ai_core.vector_store_factory import VectorStoreFactory
+        from genai_tk.core.embeddings_factory import EmbeddingsFactory
+        from genai_tk.core.llm_factory import LlmFactory
+        from genai_tk.core.vector_store_factory import VectorStoreFactory
 
         console = Console()
 
@@ -374,7 +374,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         """
         import yaml
 
-        from genai_tk.ai_core.llm_factory import LlmFactory
+        from genai_tk.core.llm_factory import LlmFactory
 
         data = [llm.model_dump() for llm in LlmFactory.known_list()]
         with open(file_name, "w") as file:
@@ -394,7 +394,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.console import Console
         from rich.table import Table
 
-        from genai_tk.ai_core.embeddings_factory import EmbeddingsFactory
+        from genai_tk.core.embeddings_factory import EmbeddingsFactory
 
         if model_id is not None:
             if model_id not in EmbeddingsFactory.known_items():
@@ -433,7 +433,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.console import Console
         from rich.table import Table
 
-        from genai_tk.ai_core.mcp_client import get_mcp_tools_info
+        from genai_tk.core.mcp_client import get_mcp_tools_info
 
         async def display_tools():
             tools_info = await get_mcp_tools_info(filter)
@@ -475,7 +475,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         """
         from langchain_community.utils.math import cosine_similarity
 
-        from genai_tk.ai_core.embeddings_factory import EmbeddingsFactory, get_embeddings
+        from genai_tk.core.embeddings_factory import EmbeddingsFactory, get_embeddings
 
         if len(sentences) < 2:
             print("Error: At least 2 sentences are required")
@@ -527,7 +527,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         """
         import asyncio
 
-        from genai_tk.ai_core.mcp_client import get_mcp_prompts
+        from genai_tk.core.mcp_client import get_mcp_prompts
 
         async def display_prompts():
             prompt_info = await get_mcp_prompts(filter)

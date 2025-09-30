@@ -52,8 +52,8 @@ from litellm.litellm_core_utils.get_llm_provider_logic import get_llm_provider
 from loguru import logger
 from pydantic import BaseModel, Field, computed_field, field_validator
 
-from genai_tk.ai_core.cache import LlmCache
-from genai_tk.ai_core.providers import PROVIDER_INFO, get_provider_api_env_var, get_provider_api_key
+from genai_tk.core.cache import LlmCache
+from genai_tk.core.providers import PROVIDER_INFO, get_provider_api_env_var, get_provider_api_key
 from genai_tk.utils.config_mngr import global_config
 
 SEED = 42  # Arbitrary value....
@@ -458,7 +458,7 @@ class LlmFactory(BaseModel):
         from langchain.chat_models.base import _SUPPORTED_PROVIDERS
         from langchain.globals import get_llm_cache
 
-        from genai_tk.ai_core.cache import LlmCache
+        from genai_tk.core.cache import LlmCache
 
         if self.cache:
             lc_cache = LlmCache.from_value(self.cache)
@@ -794,8 +794,8 @@ def get_configurable_llm(
 
     Example :
     .. code-block:: python
-        from genai_tk.ai_core.prompts import def_prompt
-        from genai_tk.ai_core.llm_factory import get_configurable_llm, llm_config
+        from genai_tk.core.prompts import def_prompt
+        from genai_tk.core.llm_factory import get_configurable_llm, llm_config
 
         chain = def_prompt("tell me a joke") | get_configurable_llm()
         r = chain.with_config(llm_config("claude_haiku35_openrouter")).invoke({})
@@ -865,7 +865,7 @@ def get_print_chain(string: str = "") -> RunnableLambda:
 
     Example:
     ```
-        from genai_tk.ai_core.llm_factory import configurable, get_print_chain
+        from genai_tk.core.llm_factory import configurable, get_print_chain
 
         add_1 = get_print_chain("before") | RunnableLambda(lambda x: x + 1) | get_print_chain("after")
         chain = add_1.with_config(configurable({"my_conf": "my_conf_value"}))

@@ -55,8 +55,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         Use --chat to start an interactive shell where you can send multiple prompts to the agent.
         """
 
-        from genai_tk.ai_core.llm_factory import LlmFactory
-        from genai_tk.ai_core.mcp_client import call_react_agent
+        from genai_tk.core.llm_factory import LlmFactory
+        from genai_tk.core.mcp_client import call_react_agent
         from genai_tk.utils.cli.langchain_setup import setup_langchain
         from genai_tk.utils.cli.langgraph_agent_shell import run_langgraph_agent_shell
 
@@ -75,8 +75,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         config_mcp_servers = []
 
         if config:
-            from genai_tk.ai_core.llm_factory import get_llm
-            from genai_tk.ai_extra.tools_langchain.shared_config_loader import create_langchain_agent_config
+            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.extra.tools_langchain.shared_config_loader import create_langchain_agent_config
 
             # Get the LLM instance that will be used by the agent
             agent_llm = get_llm(llm_id=llm_id) if llm_id else None
@@ -156,8 +156,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         from smolagents import CodeAgent, Tool
         from smolagents.default_tools import TOOL_MAPPING
 
-        from genai_tk.ai_core.llm_factory import LlmFactory
-        from genai_tk.ai_extra.tools_smolagents.config_loader import (
+        from genai_tk.core.llm_factory import LlmFactory
+        from genai_tk.extra.tools_smolagents.config_loader import (
             CONF_YAML_FILE,
             load_smolagent_demo_config,
             process_tools_from_config,
@@ -282,8 +282,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.console import Console
         from rich.progress import Progress, SpinnerColumn, TextColumn
 
-        from genai_tk.ai_core.deep_agents import DeepAgentConfig, deep_agent_factory, run_deep_agent
-        from genai_tk.ai_extra.tools_smolagents.deep_config_loader import (
+        from genai_tk.core.deep_agents import DeepAgentConfig, deep_agent_factory, run_deep_agent
+        from genai_tk.extra.tools_smolagents.deep_config_loader import (
             DEEP_AGENT_CONF_YAML_FILE,
             load_deep_agent_demo_config,
         )
@@ -347,7 +347,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         # Resolve LLM identifier if provided
         llm_id = None
         if llm:
-            from genai_tk.ai_core.llm_factory import LlmFactory
+            from genai_tk.core.llm_factory import LlmFactory
 
             resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
             if error_msg:
@@ -377,7 +377,7 @@ def register_commands(cli_app: typer.Typer) -> None:
                     from langchain_core.tools import tool
                     from smolagents import Tool as SmolAgentTool
 
-                    from genai_tk.ai_extra.tools_smolagents.config_loader import process_tools_from_config
+                    from genai_tk.extra.tools_smolagents.config_loader import process_tools_from_config
 
                     # Process tools using the smolagents processor
                     processed_tools = process_tools_from_config(config_tools)
@@ -496,8 +496,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.panel import Panel
         from rich.table import Table
 
-        from genai_tk.ai_core.deep_agents import deep_agent_factory
-        from genai_tk.ai_extra.tools_smolagents.deep_config_loader import load_all_deep_agent_demos_from_config
+        from genai_tk.core.deep_agents import deep_agent_factory
+        from genai_tk.extra.tools_smolagents.deep_config_loader import load_all_deep_agent_demos_from_config
 
         console = Console()
 

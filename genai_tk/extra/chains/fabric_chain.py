@@ -17,9 +17,9 @@ from langchain_core.runnables import (
 )
 from rich import print  # noqa: F401
 
-from genai_tk.ai_core.chain_registry import Example, RunnableItem, register_runnable
-from genai_tk.ai_core.llm_factory import get_llm
-from genai_tk.ai_core.prompts import def_prompt
+from genai_tk.core.chain_registry import Example, RunnableItem, register_runnable
+from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.prompts import def_prompt
 
 FABRIC_PATTERNS_URL = "https://raw.githubusercontent.com/danielmiessler/fabric/refs/heads/main/patterns/"
 

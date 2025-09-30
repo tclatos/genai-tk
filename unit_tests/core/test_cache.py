@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from genai_tk.ai_core.cache import CacheMethod, LlmCache
+from genai_tk.core.cache import CacheMethod, LlmCache
 
 
 class TestCacheMethod:

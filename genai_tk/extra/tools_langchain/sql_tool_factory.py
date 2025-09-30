@@ -12,7 +12,7 @@ from langchain_community.utilities.sql_database import SQLDatabase
 from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel, Field
 
-from genai_tk.ai_extra.graphs.sql_agent import create_sql_querying_graph
+from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph
 
 
 class SQLToolConfig(BaseModel):
@@ -144,7 +144,7 @@ def create_sql_tool_from_config(config: dict[str, Any], llm: BaseChatModel | Non
     """
     # Get LLM if not provided
     if llm is None:
-        from genai_tk.ai_core.llm_factory import get_llm
+        from genai_tk.core.llm_factory import get_llm
 
         llm = get_llm()
 

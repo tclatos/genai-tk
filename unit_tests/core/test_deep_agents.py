@@ -14,7 +14,7 @@ from langchain.tools import tool
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import BaseTool
 
-from genai_tk.ai_core.deep_agents import (
+from genai_tk.core.deep_agents import (
     DeepAgentConfig,
     SubAgentConfig,
     DeepAgentFactory,

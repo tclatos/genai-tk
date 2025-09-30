@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 from typing_extensions import deprecated
 from unidecode import unidecode
 
-from genai_tk.ai_extra.kv_store_factory import KvStoreFactory
+from genai_tk.extra.kv_store_factory import KvStoreFactory
 
 T = TypeVar("T", bound=BaseModel)
 

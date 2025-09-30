@@ -3,7 +3,7 @@
 This module contains basic regression tests for the embeddings factory and utilities.
 """
 
-from genai_tk.ai_core.embeddings_factory import EmbeddingsFactory, get_embeddings
+from genai_tk.core.embeddings_factory import EmbeddingsFactory, get_embeddings
 from genai_tk.utils.config_mngr import global_config
 
 SENTENCE_1 = "Tokenization is the process of breaking down a text into individual units."

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from mcp import StdioServerParameters
 
-from genai_tk.ai_core.mcp_client import (
+from genai_tk.core.mcp_client import (
     dict_to_stdio_server_list,
     get_mcp_servers_dict,
     get_mcp_tools_info,

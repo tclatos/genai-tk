@@ -1,8 +1,8 @@
 import pytest
 from langchain.schema import Document
 
-from genai_tk.ai_core.embeddings_factory import EmbeddingsFactory
-from genai_tk.ai_core.vector_store_factory import VectorStoreFactory
+from genai_tk.core.embeddings_factory import EmbeddingsFactory
+from genai_tk.core.vector_store_factory import VectorStoreFactory
 from genai_tk.utils.config_mngr import global_config
 
 try:

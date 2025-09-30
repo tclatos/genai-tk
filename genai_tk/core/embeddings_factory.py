@@ -39,9 +39,9 @@ from langchain.embeddings.base import Embeddings
 from loguru import logger
 from pydantic import BaseModel, Field, computed_field
 
-from genai_tk.ai_extra.kv_store_factory import KvStoreFactory
+from genai_tk.extra.kv_store_factory import KvStoreFactory
 from genai_tk.utils.config_mngr import global_config
-from genai_tk.ai_core.providers import get_provider_api_env_var, get_provider_api_key
+from genai_tk.core.providers import get_provider_api_env_var, get_provider_api_key
 
 _ = load_dotenv(verbose=True)
 

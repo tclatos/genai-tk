@@ -39,7 +39,7 @@ def register_commands(cli_app: typer.Typer) -> None:
             python -m src.ai_extra.mistral_ocr ocr_pdf "*.pdf" "data/*.pdf" --output-dir=./ocr_results
         """
 
-        from genai_tk.ai_extra.loaders.mistral_ocr import process_pdf_batch
+        from genai_tk.extra.loaders.mistral_ocr import process_pdf_batch
 
         # Collect all PDF files matching the patterns
         all_files = []
@@ -89,7 +89,7 @@ def register_commands(cli_app: typer.Typer) -> None:
             uv run cli gpt-researcher "Latest developments in AI" --config detailed
             uv run cli gpt-researcher "Climate change impacts" --llm-id gpt-4o
         """
-        from genai_tk.ai_extra.chains.gpt_researcher_chain import run_gpt_researcher
+        from genai_tk.extra.chains.gpt_researcher_chain import run_gpt_researcher
 
         try:
             print(f"Running GPT Researcher with config: {config_name}")
@@ -123,8 +123,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         """
         from browser_use import Agent, BrowserSession
 
-        from genai_tk.ai_core.llm_factory import LlmFactory, get_llm_unified
-        from genai_tk.ai_extra.browser_use_langchain import ChatLangchain
+        from genai_tk.core.llm_factory import LlmFactory, get_llm_unified
+        from genai_tk.extra.browser_use_langchain import ChatLangchain
 
         # Validate the LLM identifier if provided
         if llm is not None:
@@ -162,8 +162,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         """
         from langchain.globals import set_debug, set_verbose
 
-        from genai_tk.ai_core.llm_factory import LlmFactory
-        from genai_tk.ai_extra.chains.fabric_chain import get_fabric_chain
+        from genai_tk.core.llm_factory import LlmFactory
+        from genai_tk.extra.chains.fabric_chain import get_fabric_chain
 
         set_debug(debug_mode)
         set_verbose(verbose)

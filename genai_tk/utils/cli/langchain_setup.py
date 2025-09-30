@@ -8,8 +8,8 @@ from langchain.globals import set_debug, set_verbose
 from rich.console import Console
 from rich.panel import Panel
 
-from genai_tk.ai_core.cache import LlmCache
-from genai_tk.ai_core.llm_factory import LlmFactory
+from genai_tk.core.cache import LlmCache
+from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.utils.config_mngr import global_config
 
 

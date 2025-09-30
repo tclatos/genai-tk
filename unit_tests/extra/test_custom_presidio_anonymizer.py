@@ -1,6 +1,6 @@
 """Tests for the CustomizedPresidioAnonymizer class."""
 
-from genai_tk.ai_extra.custom_presidio_anonymizer import CustomizedPresidioAnonymizer
+from genai_tk.extra.custom_presidio_anonymizer import CustomizedPresidioAnonymizer
 
 
 class TestCustomizedPresidioAnonymizer:

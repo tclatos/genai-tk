@@ -85,7 +85,7 @@ from langchain_postgres.v2.hybrid_search_config import HybridSearchConfig
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
-from genai_tk.ai_core.embeddings_factory import EmbeddingsFactory
+from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.utils.config_mngr import global_config, global_config_reload
 
 # List of known Vector Stores (created as Literal so can be checked by MyPy)
@@ -302,7 +302,7 @@ class VectorStoreFactory(BaseModel):
 
     def _create_pg_vector_store(self) -> VectorStore:
         """Create and configure a PgVector store."""
-        from genai_tk.ai_extra.pgvector_factory import create_pg_vector_store
+        from genai_tk.extra.pgvector_factory import create_pg_vector_store
 
         return create_pg_vector_store(
             embeddings_factory=self.embeddings_factory,
@@ -341,7 +341,7 @@ if __name__ == "__main__":
 
     from langchain_core.documents import Document
 
-    from genai_tk.ai_core.embeddings_factory import EmbeddingsFactory
+    from genai_tk.core.embeddings_factory import EmbeddingsFactory
 
     # Test configuration
     os.environ["POSTGRES_USER"] = "tcl"

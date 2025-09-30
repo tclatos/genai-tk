@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from genai_tk.ai_core.llm_factory import LlmFactory
+from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.utils.config_mngr import global_config
 
 try:

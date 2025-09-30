@@ -14,8 +14,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from genai_tk.ai_core.llm_factory import get_llm
-from genai_tk.ai_core.mcp_client import get_mcp_servers_dict
+from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.mcp_client import get_mcp_servers_dict
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.langgraph import print_astream
 

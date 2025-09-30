@@ -10,8 +10,8 @@ from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
 from loguru import logger
 
-from genai_tk.ai_core.embeddings_factory import EmbeddingsFactory
-from genai_tk.ai_core.providers import get_provider_api_key
+from genai_tk.core.embeddings_factory import EmbeddingsFactory
+from genai_tk.core.providers import get_provider_api_key
 from genai_tk.utils.config_mngr import global_config
 
 load_dotenv()
@@ -24,7 +24,7 @@ def set_cognee_config(llm_id: str | None = None, embeddings_id: str | None = "ad
 
     """Generate Cognee LLM configuration from LLM factory information."""
 
-    from genai_tk.ai_core.llm_factory import LlmFactory
+    from genai_tk.core.llm_factory import LlmFactory
 
     llm_factory = LlmFactory(llm_id=llm_id)
     llm_info = llm_factory.info

@@ -14,7 +14,7 @@ from smolagents import Tool
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-from genai_tk.ai_core.prompts import dedent_ws
+from genai_tk.core.prompts import dedent_ws
 from genai_tk.utils.sql_utils import check_dsn_update_driver
 
 

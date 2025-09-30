@@ -44,7 +44,7 @@ from mcp.client.stdio import stdio_client
 from mcpadapt.core import MCPAdapt
 from mcpadapt.langchain_adapter import LangChainAdapter
 
-from genai_tk.ai_core.llm_factory import get_llm
+from genai_tk.core.llm_factory import get_llm
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.langgraph import print_astream
 

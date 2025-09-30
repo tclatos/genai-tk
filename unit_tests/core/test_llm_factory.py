@@ -11,7 +11,7 @@ This module contains tests that verify:
 import pytest
 from langchain_core.messages.human import HumanMessage
 
-from genai_tk.ai_core.llm_factory import (
+from genai_tk.core.llm_factory import (
     LlmFactory,
     configurable,
     get_configurable_llm,
@@ -205,7 +205,7 @@ def test_complex_provider_config_parsing() -> None:
         assert info.llm_args["llm_kwargs"].get("quantization") == "awq"
     else:
         # Test the parsing logic by checking the raw data structure
-        from genai_tk.ai_core.llm_factory import _read_llm_list_file
+        from genai_tk.core.llm_factory import _read_llm_list_file
 
         llms = _read_llm_list_file()
         liquid_lfm40_vllm = None

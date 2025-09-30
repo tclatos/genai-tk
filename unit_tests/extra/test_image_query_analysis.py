@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from genai_tk.ai_extra.image_analysis import image_query_message
+from genai_tk.extra.image_analysis import image_query_message
 
 
 def test_image_query_message_local_image(tmp_path):

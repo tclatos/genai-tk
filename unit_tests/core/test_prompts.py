@@ -2,7 +2,7 @@
 
 from langchain_core.prompts import BasePromptTemplate, ChatPromptTemplate
 
-from genai_tk.ai_core.prompts import (
+from genai_tk.core.prompts import (
     DEFAULT_SYSTEM_PROMPT,
     dedent_ws,
     def_prompt,
