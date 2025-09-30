@@ -1,0 +1,21 @@
+# Pytest-specific configuration
+pytest:
+  # Use  for pytest
+  llm:
+    models:
+      default: parrot_local_fake
+      fake: parrot_local_fake
+      test: gpt_41mini_openai
+  embeddings:
+    models:
+      default: embeddings_768_fake
+      fake: embeddings_768_fake
+      test: ada-002-openai
+  kv_store:
+    engine: "memory"
+  llm_cache:
+    method: "memory"
+  logging:
+    level: "INFO"
+  vector_store:
+    postgres_url: null  # No postgres for tests

@@ -368,19 +368,6 @@ def register_commands(cli_app: typer.Typer) -> None:
         console.print(bottom_row)
 
     @cli_app.command()
-    def llm_info_dump(file_name: Annotated[Path, typer.Argument(help="Output YAML file path")]) -> None:
-        """
-        Write a list of LLMs in YAML format to the specified file.
-        """
-        import yaml
-
-        from genai_tk.core.llm_factory import LlmFactory
-
-        data = [llm.model_dump() for llm in LlmFactory.known_list()]
-        with open(file_name, "w") as file:
-            yaml.dump(data, file, default_flow_style=False, allow_unicode=True)
-
-    @cli_app.command()
     def embedd(
         input: Annotated[str, typer.Argument(help="Text to embed")],
         model_id: Annotated[Optional[str], Option("--model-id", "-m", help="Embeddings model ID")] = None,
