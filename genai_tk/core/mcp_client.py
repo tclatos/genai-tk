@@ -117,7 +117,7 @@ async def get_mcp_tools_info(filter: list[str] | None = None) -> dict:
     servers = get_mcp_servers_dict(filter)
     tools_info = {}
     for server_name, param_desc in servers.items():
-        #        debug(server_name)
+        debug(server_name)
         if not param_desc.get("disabled", False):
             server_params = StdioServerParameters(**param_desc)
             async with stdio_client(server_params) as (read, write):
