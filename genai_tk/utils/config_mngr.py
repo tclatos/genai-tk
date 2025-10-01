@@ -144,7 +144,7 @@ class OmegaConfig(BaseModel):
                 correct_project_path = str(project_root)
                 paths_config["project"] = correct_project_path
                 # Update derived paths
-                paths_config["src"] = f"{correct_project_path}/src"
+                paths_config["src"] = f"{correct_project_path}/genai_blueprint"
                 paths_config["config"] = f"{correct_project_path}/config"
                 paths_config["demo_conf"] = f"{correct_project_path}/config/demos"
                 paths_config["datasets"] = f"{correct_project_path}/use_case_data"

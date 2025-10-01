@@ -81,7 +81,10 @@ from langchain.embeddings.base import Embeddings
 from langchain.indexes import IndexingResult, SQLRecordManager, index
 from langchain.schema import Document
 from langchain.vectorstores.base import VectorStore
-from langchain_postgres.v2.hybrid_search_config import HybridSearchConfig
+try:
+    from langchain_postgres.v2.hybrid_search_config import HybridSearchConfig
+except ImportError:
+    HybridSearchConfig = None  # Optional dependency
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
