@@ -1,5 +1,6 @@
 {
   "files.autoSave": "afterDelay",
+  "files.autoSaveDelay": 500,
   "[python]": {
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {

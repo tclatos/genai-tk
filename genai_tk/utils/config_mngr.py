@@ -55,7 +55,7 @@ class OmegaConfig(BaseModel):
 
         # Load main config file - search in current directory and parents
         app_conf_path = None
-        
+
         # First, try the APPLICATION_CONFIG_FILE as is (for absolute paths)
         if Path(APPLICATION_CONFIG_FILE).is_absolute() and Path(APPLICATION_CONFIG_FILE).exists():
             app_conf_path = Path(APPLICATION_CONFIG_FILE)
@@ -68,20 +68,20 @@ class OmegaConfig(BaseModel):
                 if candidate_path.exists():
                     app_conf_path = candidate_path
                     break
-                
+
                 # Try the default config/app_conf.yaml in current directory
                 fallback_path = current_dir / "config/app_conf.yaml"
                 if fallback_path.exists():
                     app_conf_path = fallback_path
                     break
-                    
+
                 # Move to parent directory
                 current_dir = current_dir.parent
-            
+
             # If still not found, try the original fallback
             if app_conf_path is None:
                 app_conf_path = Path("config/app_conf.yaml").absolute()
-        
+
         assert app_conf_path.exists(), f"cannot find config file: '{app_conf_path}'"
         return OmegaConfig.create(app_conf_path)
 
@@ -91,20 +91,20 @@ class OmegaConfig(BaseModel):
         # This ensures OmegaConf variable expansion works correctly regardless of CWD
         original_pwd = os.environ.get("PWD")
         config_parent = app_conf_path.parent  # This is the 'config' directory
-        project_root = config_parent.parent   # This should be the project root
+        project_root = config_parent.parent  # This should be the project root
         os.environ["PWD"] = str(project_root)
-        
+
         try:
             config = OmegaConf.load(app_conf_path)
             assert isinstance(config, DictConfig)
-            
+
             # Load and merge additional config files while PWD is set correctly
             merge_files = config.get("merge", [])
             config_dir = app_conf_path.parent  # Get the directory where the main config file is located
-            
+
             for file_path in merge_files:
                 merge_path = Path(file_path)
-                
+
                 # Try different strategies to find the merge file
                 if merge_path.is_absolute():
                     # If it's an absolute path, use it as-is
@@ -124,11 +124,10 @@ class OmegaConfig(BaseModel):
                             if not merge_path.exists():
                                 logger.warning(f"Cannot find merge config file: {file_path} (tried multiple locations)")
                                 continue
-                
-                logger.debug(f"Loading merge config file: {merge_path}")
+
                 merge_config = OmegaConf.load(merge_path)
                 config = OmegaConf.merge(config, merge_config)
-                
+
         finally:
             # Restore original PWD after all config loading is complete
             if original_pwd is not None:
