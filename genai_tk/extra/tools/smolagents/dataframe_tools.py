@@ -8,7 +8,8 @@ from pathlib import Path
 
 import pandas as pd
 from smolagents import Tool
-from src.utils.load_data import load_tabular_data_once
+
+from genai_tk.utils.load_data import load_tabular_data_once
 
 
 class DataFrameTool(Tool):

@@ -8,7 +8,8 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
-from src.utils.config_mngr import global_config
+
+from genai_tk.utils.config_mngr import global_config
 
 REACT_CONF_YAML_FILE = "config/demos/react_agent.yaml"
 
