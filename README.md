@@ -6,12 +6,23 @@ A comprehensive toolkit for building AI applications with LangChain, LangGraph, 
 
 GenAI Toolkit provides reusable components, agents, and utilities for building sophisticated AI applications. It focuses on:
 
-- **Multi-Agent Workflows** - Build complex agent interactions
-- **RAG (Retrieval Augmented Generation)** - Full RAG pipeline support  
-- **Tool Integration** - Extensive tool ecosystem for agents
-- **Type Safety** - Pydantic-based structured data handling
-- **Configuration Management** - Flexible, hierarchical configuration
-- **Provider Agnostic** - Support for OpenAI, Anthropic, local models, and more
+- **Multi-Agent Workflows** - Build complex agent interactions with LangGraph
+- **RAG (Retrieval Augmented Generation)** - Full RAG pipeline support with multiple vector stores
+- **Tool Integration** - Extensive tool ecosystem for agents (LangChain & SmolAgents compatible)
+- **Type Safety** - Pydantic-based structured data handling with dynamic models
+- **Enhanced Configuration** - Flexible, hierarchical config system with directory auto-discovery
+- **Provider Agnostic** - Support for OpenAI, Anthropic, local models, and 100+ providers via LiteLLM
+- **Robust Error Handling** - Graceful handling of optional dependencies and missing configurations
+- **Developer Experience** - Works from any project directory, comprehensive CLI tools
+
+## ✨ Recent Enhancements
+
+- **📍 Flexible Configuration Discovery**: Automatically finds config files by searching parent directories
+- **📁 Work from Anywhere**: Run commands from notebooks, subdirectories, or any project location
+- **⚙️ Dynamic Path Resolution**: Paths automatically adjust based on project structure
+- **🔄 Environment Switching**: Easy switching between development, testing, production configurations
+- **🔐 Optional Dependencies**: Graceful handling of missing packages (e.g., `langchain_postgres`)
+- **🛠️ Improved CLI**: Enhanced command-line tools with better error handling and help
 
 ## Installation
 
@@ -30,18 +41,50 @@ uv sync
 
 ## Quick Start
 
+**Basic Setup**:
 ```python
 from genai_tk.core import LLMFactory, EmbeddingsFactory
-from genai_tk.extra.graphs import CustomReactAgent
-from genai_tk.utils import ConfigManager
+from genai_tk.utils.config_mngr import global_config
 
-# Create LLM and embeddings
-llm = LLMFactory.create("openai/gpt-4")
-embeddings = EmbeddingsFactory.create("openai/text-embedding-3-small")
+# Configuration works from any directory - no setup needed!
+config = global_config()
+
+# Create LLM using configured models
+llm = LLMFactory.create()  # Uses default from config
+# Or specify a model
+llm = LLMFactory.create("gpt_4_openai")
+
+# Create embeddings
+embeddings = EmbeddingsFactory.create()  # Uses default
+```
+
+**Agent Example**:
+```python
+from genai_tk.extra.graphs import CustomReactAgent
+from genai_tk.core import LLMFactory
 
 # Create a ReAct agent
+llm = LLMFactory.create("gpt_4_openai")
 agent = CustomReactAgent(llm=llm)
+
+# Run from anywhere - config auto-discovered!
 result = agent.invoke("What's the weather like today?")
+print(result)
+```
+
+**Configuration Management**:
+```python
+from genai_tk.utils.config_mngr import global_config
+
+# Works from notebooks/, demos/, or any subdirectory
+config = global_config()
+
+# Get configuration values
+default_model = config.get('llm.models.default')
+project_path = config.get('paths.project')
+
+# Switch environments
+config.select_config('production')
 ```
 
 ## Package Structure
@@ -104,10 +147,27 @@ genai_tk/
 
 ## Configuration
 
-Configuration is managed through YAML files with environment variable support:
+**🚀 Enhanced Configuration System**
 
+GenAI Toolkit features a **flexible, hierarchical configuration system** with these key improvements:
+
+- **📁 Parent Directory Search**: Automatically finds configuration files by searching up the directory tree
+- **🎯 Works from Any Directory**: Run commands from notebooks, subdirectories, or anywhere in your project
+- **⚙️ Dynamic Path Resolution**: Paths automatically adjust based on project location
+- **🔄 Environment Overrides**: Switch between development, testing, and production configurations
+- **🔐 Optional Dependencies**: Graceful handling of missing optional dependencies
+
+**Configuration Structure**:
 ```yaml
-# config/llm.yaml
+# config/app_conf.yaml - Main configuration
+default_config: ${oc.env:BLUEPRINT_CONFIG,ekg_local}
+
+paths:
+  project: ${oc.env:PWD}  # Auto-detected project root
+  config: ${paths.project}/config
+  data_root: ${oc.env:HOME}
+
+# config/providers/llm.yaml - LLM configurations  
 llm:
   - id: gpt_4
     providers:
@@ -120,11 +180,24 @@ embeddings:
       - openai: text-embedding-3-small
 ```
 
-Environment variables are loaded from `.env`:
-
+**Environment Variables** (loaded from `.env` in project root or parents):
 ```bash
+# API Keys
 OPENAI_API_KEY=your-key-here
 GROQ_API_KEY=your-groq-key
+ANTHROPIC_API_KEY=your-anthropic-key
+
+# Configuration Selection
+BLUEPRINT_CONFIG=development  # Switch configuration environments
+```
+
+**Usage from Any Directory**:
+```python
+from genai_tk.utils.config_mngr import global_config
+
+# Works from notebooks/, demos/, or any subdirectory!
+config = global_config()
+model_id = config.get('llm.models.default')
 ```
 
 ## Development
