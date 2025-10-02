@@ -1,0 +1,40 @@
+
+# A simple baseline configuration 
+llm:
+  list: ${paths.config}/providers/llm.yaml
+  models:
+    default: gpt_41mini_openai  
+    fake: parrot_local_fake 
+  cache: sqlite
+  cache_path: data/llm_cache/langchain.db
+
+embeddings:
+  list: ${paths.config}/providers/embeddings.yaml
+  models:
+    default: ada_002_openai
+    local: artic_22_ollama
+    fake: embeddings_768_fake  # For testing
+  cache: data/hf_models
+
+# OLD configuration - still used by some code
+vector_store:
+  default: InMemory
+  
+vector_store_factory:
+  default:
+    id: InMemory
+  local_indexed:
+    id: Chroma
+    embeddings: default
+    table_name_prefix : embeddings
+    record_manager : sqlite:///${paths.data_root}/vector_store/record_manager_cache.sql
+
+
+# Key-Value Stores configuration
+kv_store: 
+  file: 
+    path: ${paths.data_root}/kv_store
+  
+# LLM Cache configuration  
+llm_cache:
+  method: "memory"  # Use memory cache for tests

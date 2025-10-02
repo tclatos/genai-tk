@@ -1,15 +1,23 @@
 # GenAI Toolkit Configuration
 # Basic configuration for running tests, Agents and CLI commands
 
+# Default configuration, as defined in baseline.yaml, overrides.yaml (here), or elsewhere.
+# It can be overidden by 'BLUEPRINT_CONFIG' environment variable, or in code
+
+default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
+
+
 paths:
   home: ${oc.env:HOME}
   project: ${oc.env:PWD}
-  config: ${paths.project}/config
+  config: ${paths.project}/config/basic
+  config1: ${paths.project}/config/basic
+  data_root: ${paths.project}/data
 
 merge:
-  - ${paths.config}/baseline.yaml
-  - ${paths.config}/overrides.yaml
-  - ${paths.config}/mcp_servers.yaml
+  - ${paths.config}/init/baseline.yaml
+  - ${paths.config}/init/overrides.yaml
+  - ${paths.config}/init/mcp_servers.yaml
  
 
 # Command Line Interface configuration
@@ -23,8 +31,3 @@ cli:
 # Logging configuration
 logging:
   level: "INFO"
-
-# Other test configurations
-test:
-  timeout: 30
-

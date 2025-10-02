@@ -89,7 +89,7 @@ def register_commands(cli_app: typer.Typer) -> None:
             uv run cli gpt-researcher "Latest developments in AI" --config detailed
             uv run cli gpt-researcher "Climate change impacts" --llm-id gpt-4o
         """
-        from genai_tk.extra.chains.gpt_researcher_chain import run_gpt_researcher
+        from genai_tk.extra.gpt_researcher_helper import run_gpt_researcher
 
         try:
             print(f"Running GPT Researcher with config: {config_name}")
@@ -124,7 +124,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         from browser_use import Agent, BrowserSession
 
         from genai_tk.core.llm_factory import LlmFactory, get_llm_unified
-        from genai_tk.extra.browser_use_langchain import ChatLangchain
+        from genai_tk.wip.browser_use_langchain import ChatLangchain
 
         # Validate the LLM identifier if provided
         if llm is not None:

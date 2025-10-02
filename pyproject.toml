@@ -155,7 +155,7 @@ pythonPlatform = "Linux"
 reportTypedDictNotRequiredAccess = false
 
 [tool.pytest.ini_options]
-testpaths = ["unit_tests", "integration_tests"]
+testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 
 

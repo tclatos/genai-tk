@@ -81,6 +81,7 @@ from langchain.embeddings.base import Embeddings
 from langchain.indexes import IndexingResult, SQLRecordManager, index
 from langchain.schema import Document
 from langchain.vectorstores.base import VectorStore
+
 try:
     from langchain_postgres.v2.hybrid_search_config import HybridSearchConfig
 except ImportError:
@@ -113,12 +114,17 @@ class VectorStoreFactory(BaseModel):
         hybrid_search_config: Configuration for hybrid search parameters
 
     Example:
+        >>> # Direct instantiation
         >>> factory = VectorStoreFactory(
         ...     id="Chroma",
         ...     embeddings_factory=EmbeddingsFactory(),
         ...     config={"chroma_path": "/custom/path"}
         ... )
         >>> factory.add_documents([Document(page_content="example")])
+        >>>
+        >>> # Configuration-based instantiation
+        >>> factory = VectorStoreFactory.create_from_config("default")
+        >>> factory = VectorStoreFactory.create_from_config("local_indexed")
         >>>
         >>> # Hybrid search example
         >>> hybrid_factory = VectorStoreFactory(
@@ -178,6 +184,120 @@ class VectorStoreFactory(BaseModel):
             List of supported vector store engine identifiers
         """
         return list(get_args(VECTOR_STORE_ENGINE))
+
+    @classmethod
+    def create_from_config(cls, config_tag: str) -> "VectorStoreFactory":
+        """Create a VectorStoreFactory from configuration.
+
+        Args:
+            config_tag: Configuration tag to look up (e.g., 'default', 'local_indexed')
+
+        Returns:
+            Configured VectorStoreFactory instance
+
+        Raises:
+            ValueError: If configuration tag is not found or invalid
+            KeyError: If required configuration keys are missing
+
+        Example:
+            ```python
+            # Configuration in baseline.yaml:
+            # vector_store_factory:
+            #   default:
+            #     id: InMemory
+            #   local_indexed:
+            #     id: Chroma
+            #     embeddings: default
+            #     table_name_prefix: embeddings
+            #     record_manager: sqlite:///data/record_manager.sql
+            #     config:
+            #       chroma_path: /custom/path
+
+            factory = VectorStoreFactory.create_from_config("default")
+            factory = VectorStoreFactory.create_from_config("local_indexed")
+            ```
+        """
+        config_key = f"vector_store_factory.{config_tag}"
+        try:
+            config_dict = global_config().get_dict(config_key)
+        except (ValueError, KeyError) as e:
+            raise ValueError(f"Configuration for vector store factory '{config_tag}' not found") from e
+
+        # Extract required id field
+        if "id" not in config_dict:
+            raise KeyError(f"Missing required 'id' field in configuration '{config_tag}'")
+
+        vector_store_id = config_dict["id"]
+
+        # Resolve embeddings factory
+        embeddings_factory = cls._resolve_embeddings_from_config(config_dict, config_tag)
+
+        # Extract other configuration parameters
+        table_name_prefix = config_dict.get("table_name_prefix", "embeddings")
+        index_document = config_dict.get("index_document", False)
+        collection_metadata = config_dict.get("collection_metadata")
+        record_manager = config_dict.get("record_manager")
+        config_overrides = config_dict.get("config", {})
+
+        # Handle record manager for indexing
+        if record_manager and not index_document:
+            index_document = True
+            logger.info(f"Enabling document indexing because record_manager is specified in config '{config_tag}'")
+
+        factory_args = {
+            "id": vector_store_id,
+            "embeddings_factory": embeddings_factory,
+            "table_name_prefix": table_name_prefix,
+            "config": config_overrides,
+            "index_document": index_document,
+        }
+
+        if collection_metadata is not None:
+            factory_args["collection_metadata"] = collection_metadata
+
+        return cls(**factory_args)
+
+    @staticmethod
+    def _resolve_embeddings_from_config(config_dict: dict[str, Any], config_tag: str) -> EmbeddingsFactory:
+        """Resolve embeddings factory from configuration.
+
+        Args:
+            config_dict: Configuration dictionary for the vector store
+            config_tag: Configuration tag for error messaging
+
+        Returns:
+            Configured EmbeddingsFactory instance
+
+        Raises:
+            ValueError: If both embeddings_id and embeddings are specified, or if neither is found
+        """
+        embeddings_id = config_dict.get("embeddings_id")
+        embeddings_tag = config_dict.get("embeddings")  # This can be either a tag or an id
+
+        if embeddings_id and embeddings_tag:
+            raise ValueError(
+                f"Configuration '{config_tag}' cannot specify both 'embeddings_id' and 'embeddings'. "
+                f"Use 'embeddings' for tags (e.g., 'default') or 'embeddings_id' for specific IDs."
+            )
+
+        if embeddings_id:
+            return EmbeddingsFactory(embeddings_id=embeddings_id)
+        elif embeddings_tag:
+            # First try as embeddings_tag, if that fails try as embeddings_id
+            try:
+                return EmbeddingsFactory(embeddings_tag=embeddings_tag)
+            except ValueError:
+                # If tag resolution fails, try treating it as a direct embeddings_id
+                try:
+                    return EmbeddingsFactory(embeddings_id=embeddings_tag)
+                except ValueError as e:
+                    raise ValueError(
+                        f"Invalid embeddings specification '{embeddings_tag}' in config '{config_tag}'. "
+                        f"Not found as tag or embeddings_id."
+                    ) from e
+        else:
+            # Use default embeddings if neither is specified
+            return EmbeddingsFactory()
 
     @field_validator("id", mode="before")
     def check_known(cls, id: str | None) -> str:

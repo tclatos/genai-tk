@@ -1,4 +1,4 @@
-"""Tests for BM25FastRetriever."""
+"""Tests for BM25FastRetriever with fake models."""
 
 import tempfile
 from pathlib import Path
@@ -8,20 +8,24 @@ from langchain_core.documents import Document
 
 from genai_tk.extra.retrievers.bm25s_retriever import BM25FastRetriever
 
+# Test data constants
+SAMPLE_DOCUMENTS = [
+    Document(page_content="The quick brown fox jumps over the lazy dog.", metadata={"id": 1}),
+    Document(page_content="A fast brown fox leaps over lazy dogs in summer.", metadata={"id": 2}),
+    Document(page_content="The lazy dog sleeps in the sun.", metadata={"id": 3}),
+    Document(page_content="Python is a programming language used for AI development.", metadata={"id": 4}),
+    Document(page_content="Machine learning models require training data.", metadata={"id": 5}),
+]
+
 
 class TestBM25FastRetriever:
     """Test class for BM25FastRetriever."""
 
-    @pytest.fixture
-    def sample_documents(self):
-        """Provide sample documents for testing."""
-        return [
-            Document(page_content="The quick brown fox jumps over the lazy dog.", metadata={"id": 1}),
-            Document(page_content="A fast brown fox leaps over lazy dogs in summer.", metadata={"id": 2}),
-            Document(page_content="The lazy dog sleeps in the sun.", metadata={"id": 3}),
-            Document(page_content="Python is a programming language used for AI development.", metadata={"id": 4}),
-            Document(page_content="Machine learning models require training data.", metadata={"id": 5}),
-        ]
+
+@pytest.fixture
+def sample_documents():
+    """Provide sample documents for testing."""
+    return SAMPLE_DOCUMENTS
 
     def test_from_texts(self):
         """Test creating retriever from texts."""
@@ -148,3 +152,63 @@ class TestBM25FastRetriever:
         # Test retrieval works
         results = retriever.invoke("fox")
         assert len(results) <= 2  # Should work with spacy preprocessing
+
+
+def test_retriever_performance_with_fake_data(sample_documents, performance_threshold) -> None:
+    """Test that BM25 retriever performs well with fake data."""
+    import time
+
+    retriever = BM25FastRetriever.from_documents(documents=sample_documents, k=3)
+
+    # Measure retrieval time
+    start_time = time.time()
+    results = retriever.invoke("python programming")
+    retrieval_time = time.time() - start_time
+
+    # Should be very fast with in-memory data
+    assert retrieval_time < performance_threshold
+    assert len(results) <= 3
+
+
+def test_retriever_consistency(sample_documents) -> None:
+    """Test that retriever returns consistent results."""
+    retriever = BM25FastRetriever.from_documents(documents=sample_documents, k=2)
+
+    # Multiple calls should return same results
+    results1 = retriever.invoke("fox")
+    results2 = retriever.invoke("fox")
+
+    assert len(results1) == len(results2)
+    assert [doc.page_content for doc in results1] == [doc.page_content for doc in results2]
+
+
+def test_retriever_with_empty_documents() -> None:
+    """Test retriever behavior with no documents."""
+    # Test that creating retriever with empty documents handles it gracefully
+    try:
+        retriever = BM25FastRetriever.from_documents(documents=[], k=2)
+        # If creation succeeds, test that it returns empty results
+        results = retriever.get_relevant_documents("test query")
+        assert len(results) == 0
+    except ValueError:
+        # If creation fails with empty documents, that's also acceptable behavior
+        # The important thing is that it doesn't crash silently
+        pass
+
+
+def test_retriever_edge_cases(sample_documents) -> None:
+    """Test edge cases for BM25 retriever."""
+    retriever = BM25FastRetriever.from_documents(documents=sample_documents, k=2)
+
+    # Test with special characters
+    results = retriever.invoke("python@#$%")
+    assert isinstance(results, list)
+
+    # Test with very long query
+    long_query = "python " * 100
+    results = retriever.invoke(long_query)
+    assert isinstance(results, list)
+
+    # Test with empty string
+    results = retriever.invoke("")
+    assert isinstance(results, list)
