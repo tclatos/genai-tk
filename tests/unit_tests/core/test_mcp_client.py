@@ -111,7 +111,7 @@ class TestGetMcpServersDict(unittest.TestCase):
     def test_get_all_servers(self, mock_update, mock_global_config):
         """Test retrieval of all configured servers."""
         mock_config = MagicMock()
-        mock_config.merge_with.return_value.get_dict.return_value = {
+        mock_config.get_dict.return_value = {
             "server1": {"command": "test1"},
             "server2": {"command": "test2", "disabled": False},
             "server3": {"command": "test3", "disabled": True},
@@ -130,7 +130,7 @@ class TestGetMcpServersDict(unittest.TestCase):
     def test_filter_servers(self, mock_global_config):
         """Test filtering servers by name."""
         mock_config = MagicMock()
-        mock_config.merge_with.return_value.get_dict.return_value = {
+        mock_config.get_dict.return_value = {
             "server1": {"command": "test1"},
             "server2": {"command": "test2"},
         }
@@ -144,7 +144,7 @@ class TestGetMcpServersDict(unittest.TestCase):
     def test_missing_server_in_filter(self, mock_global_config):
         """Test error handling when filter contains non-existent server."""
         mock_config = MagicMock()
-        mock_config.merge_with.return_value.get_dict.return_value = {"server1": {"command": "test1"}}
+        mock_config.get_dict.return_value = {"server1": {"command": "test1"}}
         mock_global_config.return_value = mock_config
 
         with self.assertRaises(ValueError) as cm:
@@ -157,7 +157,7 @@ class TestGetMcpServersDict(unittest.TestCase):
     def test_server_configuration_error(self, mock_update, mock_global_config):
         """Test handling of server configuration errors."""
         mock_config = MagicMock()
-        mock_config.merge_with.return_value.get_dict.return_value = {
+        mock_config.get_dict.return_value = {
             "server1": {"command": "test1"},
             "server2": {"command": "test2"},
         }

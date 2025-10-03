@@ -1,3 +1,5 @@
+# NOT MAINTAINED : Use BAML instead :)
+
 """Structured output utilities for LLM responses.
 
 This module provides functions to handle structured output generation from language models,
@@ -9,7 +11,7 @@ output according to a specified Pydantic model using different approaches
 """
 
 from enum import Enum
-from typing import TypeVar, Union
+from typing import TypeVar
 
 from langchain.output_parsers import PydanticOutputParser
 from langchain_core.runnables import Runnable
@@ -70,8 +72,8 @@ def structured_output_chain(
     # Check if we're using a fake model and handle it specially
     if llm_id and "fake" in llm_id.lower():
         # For fake models, create a mock response that matches the expected structure
+
         from langchain_core.runnables import RunnableLambda
-        import inspect
 
         def create_fake_response(input_dict: dict) -> T:
             """Create a fake response that matches the output_class structure."""

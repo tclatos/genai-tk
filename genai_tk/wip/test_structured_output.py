@@ -4,17 +4,16 @@ This module contains tests for structured data extraction from LLMs
 using fake models to ensure fast, reliable testing.
 """
 
-import json
 from typing import Dict, List, Optional
 
 import pytest
 from pydantic import BaseModel, Field
 
-from genai_tk.core.llm_factory import get_llm
-from genai_tk.core.structured_output import StructOutMethod, structured_output_chain
+from genai_tk.wip.structured_output import StructOutMethod, structured_output_chain
 
 # Constants
 FAKE_LLM_ID = "parrot_local_fake"
+FAST_LLM_TAG = ""
 
 
 # Test models for structured output
@@ -207,8 +206,6 @@ def test_structured_output_with_invalid_model() -> None:
 
     class MinimalModel(BaseModel):
         """Model with no fields."""
-
-        pass
 
     chain = structured_output_chain(
         system="You are a helpful assistant.",
