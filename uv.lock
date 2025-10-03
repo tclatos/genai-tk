@@ -1045,7 +1045,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "beartype" },
-    { name = "chromadb" },
     { name = "deepagents" },
     { name = "devtools" },
     { name = "langchain" },
@@ -1095,6 +1094,7 @@ extra = [
     { name = "baml-cli" },
     { name = "bm25s" },
     { name = "browser-use-sdk" },
+    { name = "chromadb" },
     { name = "duckduckgo-search" },
     { name = "en-core-web-lg" },
     { name = "en-core-web-sm" },
@@ -1102,6 +1102,7 @@ extra = [
     { name = "gpt-researcher" },
     { name = "helium" },
     { name = "kuzu" },
+    { name = "langchain-chroma" },
     { name = "langchain-huggingface" },
     { name = "langchain-kuzu" },
     { name = "langchain-postgres" },
@@ -1120,7 +1121,6 @@ extra = [
 [package.metadata]
 requires-dist = [
     { name = "beartype", specifier = ">=0.21.0" },
-    { name = "chromadb", specifier = ">=1.0" },
     { name = "deepagents", specifier = ">=0.0.5" },
     { name = "devtools", specifier = ">=0.12.2" },
     { name = "langchain", specifier = ">=0.3" },
@@ -1170,6 +1170,7 @@ extra = [
     { name = "baml-cli", specifier = ">=0.1.0" },
     { name = "bm25s", specifier = ">=0.2.13" },
     { name = "browser-use-sdk", specifier = ">=2.0.4" },
+    { name = "chromadb", specifier = ">=1.0" },
     { name = "duckduckgo-search", specifier = ">=6.1.6" },
     { name = "en-core-web-lg", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" },
     { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
@@ -1177,6 +1178,7 @@ extra = [
     { name = "gpt-researcher", specifier = ">=0.13" },
     { name = "helium", specifier = ">=5.1.0,<6" },
     { name = "kuzu", specifier = ">=0.7.1" },
+    { name = "langchain-chroma", specifier = ">=0.1.4" },
     { name = "langchain-huggingface", specifier = ">=0.1.2" },
     { name = "langchain-kuzu", specifier = ">=0.3.0" },
     { name = "langchain-postgres", specifier = ">=0.0.15" },
@@ -1856,6 +1858,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a0/26/5e02dee815a5b03b332ee2ba3a244a8266795d6bfa7a683845ae1689c991/langchain_anthropic-0.3.21.tar.gz", hash = "sha256:c6372fbc933171b2707d856215bb88e48bc480fbc8a23b3ff9652acd5646ad3e", size = 470812, upload-time = "2025-09-29T20:05:02.006Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/21/de/3b553f9a173dc6b57ec66f727ffed5131119b0ac23654e8c304decb8ded1/langchain_anthropic-0.3.21-py3-none-any.whl", hash = "sha256:459102b1bf223595d6ace70b771816c18f0adc29131151c789c1ea08f67d65e1", size = 32521, upload-time = "2025-09-29T20:05:00.545Z" },
+]
+
+[[package]]
+name = "langchain-chroma"
+version = "0.2.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "chromadb" },
+    { name = "langchain-core" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dd/94/93ab8f6e96429a60da50eea2d3f3ac988852f6b8da4e817d73ec026a0bd3/langchain_chroma-0.2.6.tar.gz", hash = "sha256:ec5ca0f6f7692ac053741e076ea086c4be0cfcb5846c8693b1bcc3089c88b65e", size = 17296, upload-time = "2025-09-11T19:54:47.991Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/08/bc/591e416a134f9fb766579d1ca9739f32b9d79c607a5053d34ad2b8fa7246/langchain_chroma-0.2.6-py3-none-any.whl", hash = "sha256:d7e10101b0942cd990eedb798c3d85ed3e8415a992c8a388843196f6ab97b41b", size = 12512, upload-time = "2025-09-11T19:54:46.72Z" },
 ]
 
 [[package]]
