@@ -273,7 +273,7 @@ class OmegaConfig(BaseModel):
         """Get a Database Source Name (DSN) compliant with SQLAlchemy URL format.
         The driver part of the connection can be changed (ex: postgress+"asyncpg")"""
 
-        from src.utils.sql_utils import check_dsn_update_driver
+        from genai_tk.utils.sql_utils import check_dsn_update_driver
 
         db_url = self.get_str(key)
         return check_dsn_update_driver(db_url, driver)

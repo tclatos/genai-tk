@@ -11,7 +11,6 @@ paths:
   home: ${oc.env:HOME}
   project: ${oc.env:PWD}
   config: ${paths.project}/config/basic
-  config1: ${paths.project}/config/basic
   data_root: ${paths.project}/data
 
 merge:

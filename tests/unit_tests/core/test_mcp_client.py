@@ -106,8 +106,8 @@ class TestDictToStdioServerList(unittest.TestCase):
 class TestGetMcpServersDict(unittest.TestCase):
     """Test cases for the get_mcp_servers_dict function."""
 
-    @patch("src.ai_core.mcp_client.global_config")
-    @patch("src.ai_core.mcp_client.update_server_parameters")
+    @patch("genai_tk.core.mcp_client.global_config")
+    @patch("genai_tk.core.mcp_client.update_server_parameters")
     def test_get_all_servers(self, mock_update, mock_global_config):
         """Test retrieval of all configured servers."""
         mock_config = MagicMock()
@@ -126,7 +126,7 @@ class TestGetMcpServersDict(unittest.TestCase):
         self.assertNotIn("server3", result)
         mock_update.assert_called()
 
-    @patch("src.ai_core.mcp_client.global_config")
+    @patch("genai_tk.core.mcp_client.global_config")
     def test_filter_servers(self, mock_global_config):
         """Test filtering servers by name."""
         mock_config = MagicMock()
@@ -140,7 +140,7 @@ class TestGetMcpServersDict(unittest.TestCase):
 
         self.assertEqual(list(result.keys()), ["server1"])
 
-    @patch("src.ai_core.mcp_client.global_config")
+    @patch("genai_tk.core.mcp_client.global_config")
     def test_missing_server_in_filter(self, mock_global_config):
         """Test error handling when filter contains non-existent server."""
         mock_config = MagicMock()
@@ -152,8 +152,8 @@ class TestGetMcpServersDict(unittest.TestCase):
 
         self.assertIn("nonexistent", str(cm.exception))
 
-    @patch("src.ai_core.mcp_client.global_config")
-    @patch("src.ai_core.mcp_client.update_server_parameters")
+    @patch("genai_tk.core.mcp_client.global_config")
+    @patch("genai_tk.core.mcp_client.update_server_parameters")
     def test_server_configuration_error(self, mock_update, mock_global_config):
         """Test handling of server configuration errors."""
         mock_config = MagicMock()
@@ -173,8 +173,8 @@ class TestGetMcpServersDict(unittest.TestCase):
 class TestMcpClientAsyncFunctions(unittest.IsolatedAsyncioTestCase):
     """Test cases for async functions in MCP client."""
 
-    @patch("src.ai_core.mcp_client.stdio_client")
-    @patch("src.ai_core.mcp_client.ClientSession")
+    @patch("genai_tk.core.mcp_client.stdio_client")
+    @patch("genai_tk.core.mcp_client.ClientSession")
     async def test_get_mcp_tools_info(self, mock_client_session, mock_stdio_client):
         """Test retrieval of tools information from MCP servers."""
         # Mock the client session and tools
@@ -196,7 +196,7 @@ class TestMcpClientAsyncFunctions(unittest.IsolatedAsyncioTestCase):
         mock_stdio_client.return_value.__aenter__.return_value = (AsyncMock(), AsyncMock())
 
         # Mock get_mcp_servers_dict
-        with patch("src.ai_core.mcp_client.get_mcp_servers_dict") as mock_get_servers:
+        with patch("genai_tk.core.mcp_client.get_mcp_servers_dict") as mock_get_servers:
             mock_get_servers.return_value = {"test_server": {"command": "test", "args": []}}
 
             result = await get_mcp_tools_info()

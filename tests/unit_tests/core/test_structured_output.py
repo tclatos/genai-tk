@@ -50,7 +50,7 @@ def test_structured_output_with_fake_llm(fake_llm) -> None:
         user="Generate a test response about success",
         llm_id=FAKE_LLM_ID,
         output_class=TestResponse,
-        method=StructOutMethod.OUTPUT_PARSER,
+        method=StructOutMethod.FUNCTION_CALLING,
     )
 
     result = chain.invoke({})
@@ -69,7 +69,7 @@ def test_structured_output_with_complex_model() -> None:
         user="Create a complex response with multiple items",
         llm_id=FAKE_LLM_ID,
         output_class=ComplexResponse,
-        method=StructOutMethod.OUTPUT_PARSER,
+        method=StructOutMethod.FUNCTION_CALLING,
     )
 
     result = chain.invoke({})
@@ -88,7 +88,7 @@ def test_structured_output_with_nested_model() -> None:
         user="Create a nested response structure",
         llm_id=FAKE_LLM_ID,
         output_class=NestedResponse,
-        method=StructOutMethod.OUTPUT_PARSER,
+        method=StructOutMethod.FUNCTION_CALLING,
     )
 
     result = chain.invoke({})
@@ -127,7 +127,7 @@ def test_structured_output_error_handling() -> None:
         user="Generate a response",
         llm_id=FAKE_LLM_ID,
         output_class=TestResponse,
-        method=StructOutMethod.OUTPUT_PARSER,
+        method=StructOutMethod.FUNCTION_CALLING,
     )
 
     # Test with empty input
@@ -142,7 +142,7 @@ def test_structured_output_consistency() -> None:
         user="Generate a consistent response",
         llm_id=FAKE_LLM_ID,
         output_class=TestResponse,
-        method=StructOutMethod.OUTPUT_PARSER,
+        method=StructOutMethod.FUNCTION_CALLING,
     )
 
     result1 = chain.invoke({})
@@ -173,7 +173,7 @@ def test_structured_output_with_different_llm_configs() -> None:
             user="Test with different config",
             llm_id=FAKE_LLM_ID,
             output_class=TestResponse,
-            method=StructOutMethod.OUTPUT_PARSER,
+            method=StructOutMethod.FUNCTION_CALLING,
         )
 
         result = chain.invoke({})
@@ -189,7 +189,7 @@ def test_structured_output_performance(performance_threshold) -> None:
         user="Performance test",
         llm_id=FAKE_LLM_ID,
         output_class=TestResponse,
-        method=StructOutMethod.OUTPUT_PARSER,
+        method=StructOutMethod.FUNCTION_CALLING,
     )
 
     start_time = time.time()
@@ -215,7 +215,7 @@ def test_structured_output_with_invalid_model() -> None:
         user="Test minimal model",
         llm_id=FAKE_LLM_ID,
         output_class=MinimalModel,
-        method=StructOutMethod.OUTPUT_PARSER,
+        method=StructOutMethod.FUNCTION_CALLING,
     )
     result = chain.invoke({})
     assert isinstance(result, MinimalModel)
@@ -236,7 +236,7 @@ def test_structured_output_field_validation() -> None:
         user="Create a validated user profile",
         llm_id=FAKE_LLM_ID,
         output_class=ValidatedModel,
-        method=StructOutMethod.OUTPUT_PARSER,
+        method=StructOutMethod.FUNCTION_CALLING,
     )
     result = chain.invoke({})
 
@@ -254,7 +254,7 @@ def test_structured_output_parameterized(model_class) -> None:
         user=f"Create a {model_class.__name__} instance",
         llm_id=FAKE_LLM_ID,
         output_class=model_class,
-        method=StructOutMethod.OUTPUT_PARSER,
+        method=StructOutMethod.FUNCTION_CALLING,
     )
     result = chain.invoke({})
 

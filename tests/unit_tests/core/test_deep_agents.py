@@ -82,7 +82,7 @@ class TestDeepAgentFactory:
         assert self.factory.agents == {}
         assert self.factory.default_model is None
 
-    @patch("src.ai_core.deep_agents.get_llm")
+    @patch("genai_tk.core.deep_agents.get_llm")
     def test_set_default_model_none(self, mock_get_llm):
         """Test setting default model with None"""
         mock_model = MagicMock(spec=BaseChatModel)
@@ -226,8 +226,8 @@ class TestSpecializedAgents:
         """Set up test fixtures"""
         self.factory = DeepAgentFactory()
 
-    @patch("src.ai_core.deep_agents.create_deep_agent")
-    @patch("src.ai_core.deep_agents.get_llm")
+    @patch("genai_tk.core.deep_agents.create_deep_agent")
+    @patch("genai_tk.core.deep_agents.get_llm")
     def test_create_research_agent(self, mock_get_llm, mock_create_deep_agent):
         """Test research agent creation"""
         # Setup mocks
@@ -250,8 +250,8 @@ class TestSpecializedAgents:
         call_args = mock_create_deep_agent.call_args
 
         # Check that instructions contain research-specific content
-        assert "researcher" in call_args.kwargs["instructions"].lower()
         assert "research" in call_args.kwargs["instructions"].lower()
+        assert "assistant" in call_args.kwargs["instructions"].lower()
 
         # Check tools
         assert len(call_args.kwargs["tools"]) >= 1
@@ -259,8 +259,8 @@ class TestSpecializedAgents:
         # Check agent is stored
         assert self.factory.agents["Test Research Agent"] == mock_agent
 
-    @patch("src.ai_core.deep_agents.create_deep_agent")
-    @patch("src.ai_core.deep_agents.get_llm")
+    @patch("genai_tk.core.deep_agents.create_deep_agent")
+    @patch("genai_tk.core.deep_agents.get_llm")
     def test_create_coding_agent(self, mock_get_llm, mock_create_deep_agent):
         """Test coding agent creation"""
         # Setup mocks
@@ -286,8 +286,8 @@ class TestSpecializedAgents:
         # Check agent is stored
         assert self.factory.agents["Test Coding Agent"] == mock_agent
 
-    @patch("src.ai_core.deep_agents.create_deep_agent")
-    @patch("src.ai_core.deep_agents.get_llm")
+    @patch("genai_tk.core.deep_agents.create_deep_agent")
+    @patch("genai_tk.core.deep_agents.get_llm")
     def test_create_data_analysis_agent(self, mock_get_llm, mock_create_deep_agent):
         """Test data analysis agent creation"""
         # Setup mocks
@@ -314,7 +314,7 @@ class TestSpecializedAgents:
 class TestConvenienceFunctions:
     """Test module-level convenience functions"""
 
-    @patch("src.ai_core.deep_agents.deep_agent_factory")
+    @patch("genai_tk.core.deep_agents.deep_agent_factory")
     def test_create_deep_agent_from_config(self, mock_factory):
         """Test convenience function for creating agent from config"""
         config = DeepAgentConfig(name="Test")
@@ -324,7 +324,7 @@ class TestConvenienceFunctions:
 
         mock_factory.create_agent.assert_called_once_with(config, tools, True)
 
-    @patch("src.ai_core.deep_agents.deep_agent_factory")
+    @patch("genai_tk.core.deep_agents.deep_agent_factory")
     def test_create_research_deep_agent(self, mock_factory):
         """Test convenience function for creating research agent"""
 
@@ -334,9 +334,11 @@ class TestConvenienceFunctions:
 
         create_research_deep_agent(search_tool=search_tool, name="Research", additional_tools=None, async_mode=False)
 
-        mock_factory.create_research_agent.assert_called_once_with(search_tool, "Research", None, False)
+        mock_factory.create_research_agent.assert_called_once_with(
+            search_tool=search_tool, name="Research", additional_tools=None, async_mode=False
+        )
 
-    @patch("src.ai_core.deep_agents.deep_agent_factory")
+    @patch("genai_tk.core.deep_agents.deep_agent_factory")
     def test_create_coding_deep_agent(self, mock_factory):
         """Test convenience function for creating coding agent"""
         create_coding_deep_agent(name="Coder", language="python", project_path=None, async_mode=True)
@@ -385,8 +387,8 @@ class TestRunDeepAgent:
 class TestIntegration:
     """Integration tests for deep agents"""
 
-    @patch("src.ai_core.deep_agents.create_deep_agent")
-    @patch("src.ai_core.deep_agents.get_llm")
+    @patch("genai_tk.core.deep_agents.create_deep_agent")
+    @patch("genai_tk.core.deep_agents.get_llm")
     def test_full_agent_lifecycle(self, mock_get_llm, mock_create_deep_agent):
         """Test complete agent lifecycle"""
         # Setup

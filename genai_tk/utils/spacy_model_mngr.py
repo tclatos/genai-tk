@@ -44,7 +44,7 @@ class SpaCyModelManager:
     @staticmethod
     def get_model_path(model_name: str) -> UPath:
         """Get the path where the SpaCy model should be stored."""
-        path = global_config().get_dir_path(".paths.models", create_if_not_exists=True)
+        path = global_config().get_dir_path("paths.models", create_if_not_exists=True)
         return path / "spacy_models" / model_name
 
     @staticmethod

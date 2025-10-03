@@ -31,13 +31,13 @@ lint: ## Lint code with ruff
 	uv run ruff check genai_tk.
 
 test: ## Run all tests
-	uv run pytest unit_tests/ integration_tests/
+	uv run pytest tests/unit_tests/ tests/integration_tests/
 
 test-unit: ## Run unit tests only
-	uv run pytest unit_tests/
+	uv run pytest tests/unit_tests/
 
 test-integration: ## Run integration tests only
-	uv run pytest integration_tests/
+	uv run pytest tests/integration_tests/
 
 test-install: ## Quick test of package installation - tests basic imports
 	@echo "Testing genai_tk package imports..."

@@ -49,12 +49,13 @@ class TestKVStore(unittest.TestCase):
 
             # Test saving and loading
             key = "test_key"
-            save_object_to_kvstore(key, self.test_model, "file")
+            save_object_to_kvstore(key, self.test_model, None, "file")
 
             retrieved = load_object_from_kvstore(SampleModel, key, "file")
             self.assertIsNotNone(retrieved)
-            self.assertEqual(retrieved.name, "test_object")
-            self.assertEqual(retrieved.value, 42)
+            if retrieved:
+                self.assertEqual(retrieved.name, "test_object")
+                self.assertEqual(retrieved.value, 42)
 
     def test_file_storage_nonexistent_key(self):
         """Test loading non-existent key returns None."""
@@ -74,7 +75,7 @@ class TestKVStore(unittest.TestCase):
             global_config().set("kv_store.file.path", temp_dir)
 
             dict_key = {"user_id": 123, "session": "abc"}
-            save_object_to_kvstore(dict_key, self.test_model, "file")
+            save_object_to_kvstore(dict_key, self.test_model, None, "file")
 
             retrieved = load_object_from_kvstore(SampleModel, dict_key, "file")
             self.assertIsNotNone(retrieved)
@@ -88,11 +89,11 @@ class TestKVStore(unittest.TestCase):
             global_config().set("kv_store.file.path", temp_dir)
 
             key = "test_key"
-            save_object_to_kvstore(key, self.test_model, "file")
+            save_object_to_kvstore(key, self.test_model, None, "file")
 
             # Create new model and overwrite
             new_model = SampleModel(name="updated", value=99)
-            save_object_to_kvstore(key, new_model, "file")
+            save_object_to_kvstore(key, new_model, None, "file")
 
             retrieved = load_object_from_kvstore(SampleModel, key, "file")
             self.assertIsNotNone(retrieved)
@@ -113,8 +114,8 @@ class TestKVStore(unittest.TestCase):
             model1 = SampleModel(name="model1", value=1)
             model2 = AnotherModel(title="model2", count=2.5)
 
-            save_object_to_kvstore("key1", model1, "file")
-            save_object_to_kvstore("key2", model2, "file")
+            save_object_to_kvstore("key1", model1, None, "file")
+            save_object_to_kvstore("key2", model2, None, "file")
 
             retrieved1 = load_object_from_kvstore(SampleModel, "key1", "file")
             retrieved2 = load_object_from_kvstore(AnotherModel, "key2", "file")
@@ -138,7 +139,7 @@ class TestKVStore(unittest.TestCase):
 
             try:
                 model = SampleModel(name="sql_test", value=123)
-                save_object_to_kvstore("sql_key", model, "sql")
+                save_object_to_kvstore("sql_key", model, None, "sql")
 
                 retrieved = load_object_from_kvstore(SampleModel, "sql_key", "sql")
                 self.assertIsNotNone(retrieved)
@@ -157,7 +158,7 @@ class TestKVStore(unittest.TestCase):
             global_config().set("kv_store.file.path", temp_dir)
 
             with self.assertRaises(ValueError):
-                save_object_to_kvstore(123, self.test_model, "file")  # type: ignore
+                save_object_to_kvstore(123, self.test_model, None, "file")  # type: ignore
 
     def test_invalid_store_id(self):
         """Test that invalid store_id raises appropriate errors."""
@@ -167,7 +168,7 @@ class TestKVStore(unittest.TestCase):
             global_config().set("kv_store.file.path", temp_dir)
 
             with self.assertRaises(ValueError):
-                save_object_to_kvstore("key", self.test_model, "invalid_store")
+                save_object_to_kvstore("key", self.test_model, None, "invalid_store")
 
 
 if __name__ == "__main__":

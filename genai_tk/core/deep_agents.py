@@ -36,7 +36,7 @@ class DeepAgentConfig(BaseModel):
 
     name: str = Field(default="Deep Agent", description="Name of the agent")
     instructions: str = Field(default="", description="System instructions for the agent")
-    #  model: Optional[str] = Field(default=None, description="Model to use (if None, uses default)")
+    model: Optional[str] = Field(default=None, description="Model to use (if None, uses default)")
     builtin_tools: Optional[List[str]] = Field(default=None, description="List of builtin tools to enable")
     on_duplicate_tools: str = Field(
         default="warn", description="How to handle duplicate tools: warn, error, replace, ignore"
@@ -92,8 +92,10 @@ class DeepAgentFactory:
         for tool in tools:
             if isinstance(tool, BaseTool):
                 prepared_tools.append(self._convert_langchain_tool(tool))
-            else:
+            elif callable(tool):
                 prepared_tools.append(tool)
+            else:
+                raise ValueError(f"Tool must be a BaseTool or callable, got {type(tool)}: {tool}")
 
         return prepared_tools
 
@@ -154,9 +156,111 @@ class DeepAgentFactory:
 
         # Store the agent
         self.agents[config.name] = agent
-        logger.info(f"Created deep agent: {config.name}")
-
         return agent
+
+    def get_agent(self, name: str) -> Optional[Any]:
+        """Get an agent by name"""
+        return self.agents.get(name)
+
+    def list_agents(self) -> List[str]:
+        """List all agent names"""
+        return list(self.agents.keys())
+
+    def create_research_agent(
+        self,
+        search_tool: Union[BaseTool, Callable],
+        name: str = "Research Agent",
+        additional_tools: Optional[List[Union[BaseTool, Callable]]] = None,
+        async_mode: bool = False,
+    ) -> Any:
+        """
+        Create a research agent with search capabilities.
+
+        Args:
+            search_tool: Tool for searching information
+            name: Name of the agent
+            additional_tools: Additional tools to include
+            async_mode: Whether to create an async agent
+
+        Returns:
+            A configured research agent
+        """
+        tools = [search_tool] + (additional_tools or [])
+
+        config = DeepAgentConfig(
+            name=name,
+            instructions=(
+                "You are a research assistant. Your task is to help users find and analyze information. "
+                "Use the search tool to find relevant information and provide comprehensive, well-structured answers. "
+                "Always cite your sources and verify the accuracy of the information you provide."
+            ),
+            enable_file_system=True,
+            enable_planning=True,
+        )
+
+        return self.create_agent(config, tools, async_mode)
+
+    def create_coding_agent(
+        self,
+        name: str = "Coding Agent",
+        language: str = "python",
+        project_path: Optional[str] = None,
+        async_mode: bool = False,
+    ) -> Any:
+        """
+        Create a coding agent for software development.
+
+        Args:
+            name: Name of the agent
+            language: Programming language specialization
+            project_path: Path to the project directory
+            async_mode: Whether to create an async agent
+
+        Returns:
+            A configured coding agent
+        """
+        config = DeepAgentConfig(
+            name=name,
+            instructions=(
+                f"You are an expert {language} developer. Your task is to help users with coding tasks, "
+                f"including writing, debugging, and refactoring {language} code. "
+                f"Follow best practices, write clean and maintainable code, and provide clear explanations. "
+                f"When analyzing code, focus on correctness, efficiency, and readability."
+            ),
+            enable_file_system=True,
+            enable_planning=True,
+        )
+
+        tools = []
+        if project_path:
+            # Add project-specific tools if needed
+            pass
+
+        return self.create_agent(config, tools, async_mode)
+
+    def create_data_analysis_agent(self, name: str = "Data Analysis Agent", async_mode: bool = False) -> Any:
+        """
+        Create a data analysis agent.
+
+        Args:
+            name: Name of the agent
+            async_mode: Whether to create an async agent
+
+        Returns:
+            A configured data analysis agent
+        """
+        config = DeepAgentConfig(
+            name=name,
+            instructions=(
+                "You are a data analysis expert. Your task is to help users analyze data, create visualizations, "
+                "and provide insights from datasets. Use appropriate statistical methods and create clear, "
+                "informative visualizations. Always explain your analysis process and the meaning of your results."
+            ),
+            enable_file_system=True,
+            enable_planning=True,
+        )
+
+        return self.create_agent(config, [], async_mode)
 
     def create_configurable_deep_agent(
         self,
@@ -220,6 +324,45 @@ def create_deep_agent_from_config(
         Configured deep agent
     """
     return deep_agent_factory.create_agent(config, tools, async_mode)
+
+
+def create_research_deep_agent(
+    search_tool: Union[BaseTool, Callable],
+    name: str = "Research Agent",
+    additional_tools: Optional[List[Union[BaseTool, Callable]]] = None,
+    async_mode: bool = False,
+) -> Any:
+    """
+    Convenience function to create a research agent.
+
+    Args:
+        search_tool: Tool for searching information
+        name: Name of the agent
+        additional_tools: Additional tools to include
+        async_mode: Whether to create an async agent
+
+    Returns:
+        A configured research agent
+    """
+    return deep_agent_factory.create_research_agent(search_tool, name, additional_tools, async_mode)
+
+
+def create_coding_deep_agent(
+    name: str = "Coding Agent", language: str = "python", project_path: Optional[str] = None, async_mode: bool = False
+) -> Any:
+    """
+    Convenience function to create a coding agent.
+
+    Args:
+        name: Name of the agent
+        language: Programming language specialization
+        project_path: Path to the project directory
+        async_mode: Whether to create an async agent
+
+    Returns:
+        A configured coding agent
+    """
+    return deep_agent_factory.create_coding_agent(name, language, project_path, async_mode)
 
 
 async def run_deep_agent(

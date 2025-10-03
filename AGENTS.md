@@ -39,8 +39,8 @@
 - Standard library imports first
 - Third-party imports second
 - Local imports third
-- Use `from __future__ import annotations` for forward references
 - Prefer explicit imports over star imports
+- profer absolute imports
 
 **Error Handling:**
 - Use structured logging with loguru

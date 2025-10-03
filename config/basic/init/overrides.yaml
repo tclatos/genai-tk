@@ -17,5 +17,7 @@ pytest:
     method: "memory"
   logging:
     level: "INFO"
+  paths:
+    models: data/models  # Models directory for testing
   vector_store:
     postgres_url: null  # No postgres for tests
