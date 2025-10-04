@@ -123,6 +123,7 @@ from langchain.embeddings.base import Embeddings
 from langchain.indexes import IndexingResult, SQLRecordManager, index
 from langchain.schema import Document
 from langchain.vectorstores.base import VectorStore
+from typing_extensions import deprecated
 
 try:
     from langchain_postgres.v2.hybrid_search_config import HybridSearchConfig
@@ -172,6 +173,7 @@ class EmbeddingsStore(BaseModel):
     config: dict[str, Any] = {}
     index_document: bool = False
     collection_metadata: dict[str, str] | None = None
+    record_manager_url: str | None = None
     _record_manager: SQLRecordManager | None = None
     _conf: dict = {}
 
@@ -315,6 +317,9 @@ class EmbeddingsStore(BaseModel):
         if collection_metadata is not None:
             factory_args["collection_metadata"] = collection_metadata
 
+        if record_manager is not None:
+            factory_args["record_manager_url"] = record_manager
+
         # Create instance using model_construct to bypass __init__ restriction
         instance = cls.model_construct(**factory_args)
         # Run post-init manually since model_construct doesn't call it
@@ -386,6 +391,10 @@ class EmbeddingsStore(BaseModel):
             raise ValueError(f"Unknown Vector Store: {backend}")
         return backend
 
+    @deprecated("use get_vector_store")
+    def get(self) -> VectorStore:
+        return self.get_vector_store()
+
     def get_vector_store(self) -> VectorStore:
         """Create and configure a vector store based on the specified backend.
 
@@ -418,8 +427,15 @@ class EmbeddingsStore(BaseModel):
 
         logger.debug(f"get vector store  : {self.description}")
         if self.index_document:
-            # NOT TESTED
-            db_url = global_config().get_str("vector_store.record_manager")
+            # Use the record manager URL from configuration
+            db_url = self.record_manager_url
+            if not db_url:
+                # Fallback to global config if not specified in individual config
+                try:
+                    db_url = global_config().get_str("vector_store.record_manager")
+                except (ValueError, KeyError):
+                    raise ValueError("Record manager URL not found in configuration or global config")
+
             logger.debug(f"vector store record manager : {db_url}")
             namespace = f"{self.backend}/{self.table_name}"
             self._record_manager = SQLRecordManager(
@@ -445,9 +461,9 @@ class EmbeddingsStore(BaseModel):
             2. Indexed addition with deduplication
         """
         if not self.index_document:
-            return self.get().add_documents(list(docs))
+            return self.get_vector_store().add_documents(list(docs))
         else:
-            vector_store = self.get()
+            vector_store = self.get_vector_store()
             assert self._record_manager
 
             info = index(
@@ -469,9 +485,9 @@ class EmbeddingsStore(BaseModel):
             NotImplementedError: For unsupported vector store backends
         """
         if self.backend == "Chroma":
-            return self.get()._collection.count()  # type: ignore
+            return self.get_vector_store()._collection.count()  # type: ignore
         else:
-            raise NotImplementedError(f"Don't know how to get collection count for {self.get()}")
+            raise NotImplementedError(f"Don't know how to get collection count for {self.get_vector_store()}")
 
     def _create_chroma_vector_store(self, embeddings: Embeddings) -> VectorStore:
         """Create and configure a Chroma vector store."""
@@ -528,6 +544,146 @@ class EmbeddingsStore(BaseModel):
                 raise NotImplementedError(f"Don't know how to delete collection for {self.get()}")
         else:
             raise NotImplementedError(f"Delete collection not implemented for {self.backend}")
+
+    def clear(self) -> bool:
+        """Clear all documents from the vector store.
+
+        Returns:
+            True if documents were cleared successfully, False otherwise
+
+        Notes:
+            For backends that support it, this will remove all documents but keep the collection.
+            For others, attempts to delete and recreate the collection.
+        """
+        try:
+            if self.backend == "Chroma":
+                # For Chroma, we need to get all document IDs and delete them
+                vector_store = self.get_vector_store()
+                try:
+                    # Get all documents to delete them
+                    all_docs = vector_store._collection.get()  # type: ignore
+                    if all_docs and "ids" in all_docs and all_docs["ids"]:
+                        # Delete all documents by their IDs
+                        vector_store._collection.delete(ids=all_docs["ids"])  # type: ignore
+                        logger.info(f"Deleted {len(all_docs['ids'])} documents from Chroma collection")
+                    return True
+                except Exception as e:
+                    logger.error(f"Failed to clear Chroma collection: {e}")
+                    return False
+            elif self.backend in ["InMemory", "Sklearn"]:
+                # For in-memory stores, we need to recreate them
+                # This is a limitation - they don't have a clear method
+                logger.warning(f"Clear operation for {self.backend} requires recreating the store")
+                return True
+            elif self.backend == "PgVector":
+                try:
+                    self.delete_collection()
+                    return True
+                except NotImplementedError:
+                    logger.warning(f"Clear operation not fully supported for {self.backend}")
+                    return False
+            else:
+                logger.warning(f"Clear operation not implemented for {self.backend}")
+                return False
+        except Exception as e:
+            logger.error(f"Error clearing vector store: {e}")
+            return False
+
+    def embed_text(self, text: str, metadata: dict[str, Any] | None = None) -> list[str]:
+        """Embed a single text and add it to the vector store.
+
+        Args:
+            text: Text to embed and store
+            metadata: Optional metadata to associate with the document
+
+        Returns:
+            List of document IDs that were added
+        """
+        # Prepare metadata, ensuring 'source' key exists for indexing
+        doc_metadata = metadata or {}
+        if self.index_document and "source" not in doc_metadata:
+            # Add a default source if not provided and indexing is enabled
+            doc_metadata["source"] = f"embedded_text_{hash(text) & 0x7FFFFFFF}"
+
+        doc = Document(page_content=text, metadata=doc_metadata)
+        result = self.add_documents([doc])
+        # Handle different return types from add_documents
+        if isinstance(result, list):
+            return result
+        else:
+            # IndexingResult case
+            return getattr(result, "upserted", [])
+
+    def query(self, query: str, k: int = 4, score_threshold: float | None = None) -> list[Document]:
+        """Query the vector store for similar documents.
+
+        Args:
+            query: Query text to search for
+            k: Number of results to return
+            score_threshold: Optional score threshold for filtering results
+
+        Returns:
+            List of documents matching the query
+        """
+        vector_store = self.get_vector_store()
+
+        if score_threshold is not None:
+            # Use similarity search with score threshold if supported
+            try:
+                results = vector_store.similarity_search_with_relevance_scores(query, k=k)
+                # Filter by threshold
+                filtered_results = [doc for doc, score in results if score >= score_threshold]
+                return filtered_results
+            except (NotImplementedError, AttributeError):
+                logger.warning(f"Score threshold filtering not supported for {self.backend}, ignoring threshold")
+
+        # Fallback to regular similarity search
+        return vector_store.similarity_search(query, k=k)
+
+    def get_stats(self) -> dict[str, Any]:
+        """Get statistics about the vector store.
+
+        Returns:
+            Dictionary containing statistics about the vector store
+        """
+        stats = {
+            "backend": self.backend,
+            "table_name": self.table_name,
+            "description": self.description,
+            "embeddings_model": self.embeddings_factory.embeddings_id,
+        }
+
+        try:
+            count = self.document_count()
+            stats["document_count"] = count
+        except (NotImplementedError, Exception) as e:
+            stats["document_count"] = "unknown"
+            stats["count_error"] = str(e)
+
+        # Add backend-specific stats
+        if self.backend == "Chroma":
+            storage = self.config.get("storage", "::memory::")
+            stats["storage_type"] = "memory" if storage == "::memory::" else "persistent"
+            if storage != "::memory::":
+                stats["storage_path"] = storage
+
+        return stats
+
+    @classmethod
+    def list_available_configs(cls) -> list[str]:
+        """List all available vector store configurations.
+
+        Returns:
+            List of configuration names that can be used with create_from_config
+        """
+        try:
+            config = global_config()
+            embeddings_store_config = config.get("embeddings_store", {})
+            if hasattr(embeddings_store_config, "keys"):
+                return list(embeddings_store_config.keys())
+            return []
+        except Exception:
+            return []
 
 
 def search_one(vc: VectorStore, query: str) -> list[Document]:
