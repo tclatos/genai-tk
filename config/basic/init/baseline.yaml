@@ -20,14 +20,31 @@ embeddings:
 vector_store:
   default: InMemory
   
-vector_store_factory:
+vector_store_registry:
+  # Updated configuration using new field names (backend instead of id, storage instead of chroma_path)
   default:
-    id: InMemory
-  local_indexed:
-    id: Chroma
+    backend: InMemory
+  
+  in_memory_chroma:
+    backend: Chroma
     embeddings: default
-    table_name_prefix : embeddings
-    record_manager : sqlite:///${paths.data_root}/vector_store/record_manager_cache.sql
+    table_name_prefix: embeddings
+    config:
+      storage: '::memory::'  # In-memory Chroma storage
+  
+  local_indexed:
+    backend: Chroma
+    embeddings: default
+    table_name_prefix: embeddings
+    record_manager: sqlite:///${paths.data_root}/vector_store/record_manager_cache.sql
+    config:
+      storage: ${paths.data_root}/vector_store  # Persistent storage on disk
+  
+  # Legacy configuration (deprecated - use backend/storage instead)
+  # legacy_example:
+  #   id: Chroma  # Use 'backend' instead
+  #   config:
+  #     chroma_path: /path/to/storage  # Use 'storage' instead
 
 
 # Key-Value Stores configuration

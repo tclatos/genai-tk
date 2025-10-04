@@ -47,7 +47,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         # Default models info
         default_llm = LlmFactory(llm_id=None)
         default_embeddings = EmbeddingsFactory(embeddings_id=None)
-        default_vector_store = VectorStoreRegistry(id=None, embeddings_factory=default_embeddings)
+        default_vector_store = VectorStoreRegistry.create_from_config("default")
 
         models_table = Table(title="Default Components", show_header=True, header_style="bold magenta")
         models_table.add_column("Type", style="cyan")
@@ -55,7 +55,7 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         models_table.add_row("LLM", str(default_llm.llm_id))
         models_table.add_row("Embeddings", str(default_embeddings.embeddings_id))
-        models_table.add_row("Vector-store", str(default_vector_store.id))
+        models_table.add_row("Vector-store", str(default_vector_store.backend))
 
         console.print(models_table)
 

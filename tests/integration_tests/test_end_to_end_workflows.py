@@ -20,12 +20,9 @@ FAKE_EMBEDDINGS_ID = "embeddings_768_fake"
 @pytest.mark.fake_models
 def test_rag_pipeline_with_fake_models(sample_documents) -> None:
     """Test complete RAG pipeline with fake models."""
-    # Create embeddings factory
-    embeddings_factory = EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID)
-
-    # Create vector store
-    vector_store_factory = VectorStoreRegistry(id="InMemory", embeddings_factory=embeddings_factory)
-    vector_store = vector_store_factory.get()
+    # Create vector store from configuration
+    vector_store_registry = VectorStoreRegistry.create_from_config("default")
+    vector_store = vector_store_registry.get()
 
     # Add documents to vector store
     vector_store.add_documents(sample_documents)
@@ -70,8 +67,8 @@ def test_document_processing_pipeline(sample_documents) -> None:
     assert all(len(vector) == 768 for _, vector in embedded_docs)  # Fake embedding dimension
 
     # Create vector store and add embedded documents
-    vector_store_factory = VectorStoreRegistry(id="InMemory", embeddings_factory=embeddings_factory)
-    vector_store = vector_store_factory.get()
+    vector_store_registry = VectorStoreRegistry.create_from_config("default")
+    vector_store = vector_store_registry.get()
     vector_store.add_documents(documents)
 
     # Test semantic search
@@ -129,10 +126,9 @@ def test_question_answering_pipeline() -> None:
         Document(page_content="The language emphasizes code readability and simple syntax."),
     ]
 
-    # Create embeddings and vector store
-    embeddings_factory = EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID)
-    vector_store_factory = VectorStoreRegistry(id="InMemory", embeddings_factory=embeddings_factory)
-    vector_store = vector_store_factory.get()
+    # Create vector store from configuration
+    vector_store_registry = VectorStoreRegistry.create_from_config("default")
+    vector_store = vector_store_registry.get()
     vector_store.add_documents(knowledge_docs)
 
     # Test questions

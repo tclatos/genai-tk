@@ -1,4 +1,4 @@
-"""Tests for vector store factory with fake models.
+"""Tests for vector store registry with fake models.
 
 This module contains tests for vector store creation and functionality
 using fake embeddings to ensure fast, reliable testing.
@@ -25,19 +25,18 @@ def sample_documents():
     ]
 
 
-@pytest.mark.parametrize("vector_store_type", ["InMemory"])  # Skip Chroma due to missing dependency
-def test_vector_store_creation_and_search(sample_documents, vector_store_type) -> None:
+
+
+@pytest.mark.parametrize("config_name", ["default"])  # Use existing config
+def test_vector_store_creation_and_search(sample_documents, config_name) -> None:
     """Test vector store creation, document addition, and similarity search.
 
     Args:
         sample_documents: Fixture providing test documents
-        vector_store_type: Parametrized vector store type to test
+        config_name: Configuration name to test
     """
-    # Create vector store factory
-    vs_factory = VectorStoreRegistry(
-        id=vector_store_type,
-        embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
-    )
+    # Create vector store factory from config
+    vs_factory = VectorStoreRegistry.create_from_config(config_name)
 
     # Add documents
     db = vs_factory.get()
@@ -60,10 +59,7 @@ def test_vector_store_creation_and_search(sample_documents, vector_store_type) -
 
 def test_vector_store_with_fake_embeddings(sample_documents) -> None:
     """Test vector store specifically with fake embeddings."""
-    vs_factory = VectorStoreRegistry(
-        id="InMemory",
-        embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
-    )
+    vs_factory = VectorStoreRegistry.create_from_config("default")
 
     db = vs_factory.get()
     db.add_documents(sample_documents)
@@ -79,10 +75,7 @@ def test_vector_store_with_fake_embeddings(sample_documents) -> None:
 
 def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
     """Test max marginal relevance search functionality."""
-    vs_factory = VectorStoreRegistry(
-        id="InMemory",
-        embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
-    )
+    vs_factory = VectorStoreRegistry.create_from_config("default")
 
     db = vs_factory.get()
     db.add_documents(sample_documents)
@@ -94,13 +87,19 @@ def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
     assert all(isinstance(doc, Document) for doc in results)
 
 
+def test_direct_instantiation_blocked() -> None:
+    """Test that direct instantiation is blocked."""
+    with pytest.raises(RuntimeError, match="VectorStoreRegistry cannot be instantiated directly"):
+        VectorStoreRegistry(
+            backend="InMemory",
+            embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
+        )
+
+
 def test_vector_store_similarity_search_by_vector(sample_documents) -> None:
     """Test similarity search using vector input."""
-    embeddings_factory = EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID)
-    vs_factory = VectorStoreRegistry(
-        id="InMemory",
-        embeddings_factory=embeddings_factory,
-    )
+    vs_factory = VectorStoreRegistry.create_from_config("default")
+    embeddings_factory = vs_factory.embeddings_factory
 
     db = vs_factory.get()
     db.add_documents(sample_documents)
@@ -115,42 +114,21 @@ def test_vector_store_similarity_search_by_vector(sample_documents) -> None:
 
 
 def test_vector_store_factory_known_items() -> None:
-    """Test that vector store factory has known items."""
+    """Test that vector store factory has correct known items."""
     known_items = VectorStoreRegistry.known_items()
     assert isinstance(known_items, list)
     assert len(known_items) > 0
     assert "InMemory" in known_items
-
-
-def test_vector_store_factory_invalid_type() -> None:
-    """Test that invalid vector store type handling works correctly."""
-    # Test that the factory validates known types
-    known_items = VectorStoreRegistry.known_items()
-    assert len(known_items) > 0
-    assert "InMemory" in known_items
-
-    # Test that we can create factories with valid types
-    from typing import get_args
-
-    from genai_tk.core.vector_store_registry import VECTOR_STORE_ENGINE
-
-    valid_types = get_args(VECTOR_STORE_ENGINE)
-    for valid_type in valid_types:
-        if valid_type == "Chroma_in_memory":
-            continue  # Skip due to missing dependency
-        factory = VectorStoreRegistry(
-            id=valid_type,
-            embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
-        )
-        assert factory.id == valid_type
+    assert "Chroma" in known_items
+    assert "Sklearn" in known_items
+    assert "PgVector" in known_items
+    # Ensure deprecated Chroma_in_memory is no longer in known items
+    assert "Chroma_in_memory" not in known_items
 
 
 def test_vector_store_empty_search() -> None:
     """Test vector store behavior with empty document set."""
-    vs_factory = VectorStoreRegistry(
-        id="InMemory",
-        embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
-    )
+    vs_factory = VectorStoreRegistry.create_from_config("default")
 
     db = vs_factory.get()
 
@@ -161,10 +139,7 @@ def test_vector_store_empty_search() -> None:
 
 def test_vector_store_large_k_parameter(sample_documents) -> None:
     """Test vector store behavior when k exceeds document count."""
-    vs_factory = VectorStoreRegistry(
-        id="InMemory",
-        embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
-    )
+    vs_factory = VectorStoreRegistry.create_from_config("default")
 
     db = vs_factory.get()
     db.add_documents(sample_documents)
@@ -178,11 +153,8 @@ def test_vector_store_large_k_parameter(sample_documents) -> None:
 def test_vector_store_performance(sample_documents, performance_threshold) -> None:
     """Test vector store performance with fake embeddings."""
     import time
-
-    vs_factory = VectorStoreRegistry(
-        id="InMemory",
-        embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
-    )
+    
+    vs_factory = VectorStoreRegistry.create_from_config("default")
 
     db = vs_factory.get()
 
@@ -200,3 +172,24 @@ def test_vector_store_performance(sample_documents, performance_threshold) -> No
     assert add_time < performance_threshold
     assert search_time < performance_threshold
     assert len(results) == 2
+
+
+def test_chroma_memory_storage(sample_documents) -> None:
+    """Test Chroma with in-memory storage using new storage field."""
+    vs_factory = VectorStoreRegistry.create_from_config("in_memory_chroma")
+    assert vs_factory.backend == "Chroma"
+    assert vs_factory.config.get("storage") == "::memory::"
+    
+    db = vs_factory.get()
+    db.add_documents(sample_documents)
+    
+    # Verify we can search
+    results = db.similarity_search("test", k=2)
+    assert len(results) == 2
+
+
+@pytest.mark.skip(reason="PostgreSQL tests temporarily disabled")
+def test_postgres_vector_store() -> None:
+    """Test PgVector store - skipped for now."""
+    # This test would require a running PostgreSQL instance
+    pass

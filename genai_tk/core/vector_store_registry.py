@@ -26,50 +26,42 @@ Design Patterns:
 - Singleton-like access to vector stores
 
 Example:
-    >>> # Create a vector store factory with generic configuration
-    >>> factory = VectorStoreRegistry(
-    ...     id="Chroma",
-            table_suffix = "documents",
-    ...     embeddings_factory=EmbeddingsFactory(),
-    ...     config={"chroma_path": "/custom/path"}
-    ... )
-    >>>
-    >>> # PgVector example with configuration overrides
-    >>> pg_factory = VectorStoreRegistry(
-    ...     id="PgVector",
-    ...     embeddings_factory=EmbeddingsFactory(),
-    ...     config={"postgres_url": "//user:pass@localhost:5432/db", "postgres_schema": "vector_store"}
-    ... )
-    >>>
-    >>> # PgVector with hybrid search (vector + full-text)
-    >>> hybrid_factory = VectorStoreRegistry(
-    ...     id="PgVector",
-    ...     embeddings_factory=EmbeddingsFactory(),
-    ...     hybrid_search=True,
-    ...     hybrid_search_config={
-    ...         "tsv_lang": "pg_catalog.english",
-    ...         "fusion_function_parameters": {"primary_results_weight": 0.5, "secondary_results_weight": 0.5},
-    ...     }
-    ... )
-    >>>
-    >>> # Add documents to the store
-    >>> factory.add_documents([
-    ...     Document(page_content="First document"),
-    ...     Document(page_content="Second document")
-    ... ])
-    >>>
-    >>> # Perform similarity search
-    >>> results = factory.vector_store.similarity_search("query")
-    >>>
-    >>> # Perform hybrid search (PostgreSQL only)
-    >>> from langchain_postgres.v2.hybrid_search_config import HybridSearchConfig
-    >>> results = hybrid_factory.vector_store.similarity_search(
-    ...     "search query",
-    ...     hybrid_search_config=HybridSearchConfig(
-    ...         tsv_column="content_tsv",
-    ...         fusion_function_parameters={"primary_results_weight": 0.5, "secondary_results_weight": 0.5}
-    ...     )
-    ... )
+    ```python
+    # Configuration-based factory creation (recommended)
+    factory = VectorStoreRegistry.create_from_config("default")
+
+    # PgVector example from configuration
+    pg_factory = VectorStoreRegistry.create_from_config("postgres")
+
+    # Add documents to the store
+    factory.add_documents([
+        Document(page_content="First document"),
+        Document(page_content="Second document")
+    ])
+
+    # Perform similarity search
+    results = factory.get().similarity_search("query")
+
+    # Configuration in baseline.yaml:
+    # vector_store_registry:
+    #   default:
+    #     backend: Chroma
+    #     embeddings: default
+    #     config:
+    #       storage: '::memory::'  # In-memory storage
+    #
+    #   persistent:
+    #     backend: Chroma
+    #     embeddings: default
+    #     config:
+    #       storage: /path/to/storage  # Persistent storage
+    #
+    #   postgres:
+    #     backend: PgVector
+    #     embeddings: default
+    #     config:
+    #       postgres_url: postgresql://user:pass@localhost:5432/db
+    ```
 """
 
 import os
@@ -93,7 +85,7 @@ from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.utils.config_mngr import global_config, global_config_reload
 
 # List of known Vector Stores (created as Literal so can be checked by MyPy)
-VECTOR_STORE_ENGINE = Literal["Chroma", "Chroma_in_memory", "InMemory", "Sklearn", "PgVector"]
+VECTOR_STORE_ENGINE = Literal["Chroma", "InMemory", "Sklearn", "PgVector"]
 
 
 class VectorStoreRegistry(BaseModel):
@@ -103,42 +95,28 @@ class VectorStoreRegistry(BaseModel):
     support for multiple backends, document indexing, and advanced retrieval
     strategies.
 
+    Important: This class should only be instantiated through the create_from_config
+    class method. Direct instantiation is not allowed.
+
     Attributes:
-        id: Identifier for the vector store backend
+        backend: Identifier for the vector store backend
         embeddings_factory: Factory for creating embedding models
         table_name_prefix: Prefix for generated table/collection names
         config: Dictionary of vector store specific configuration that overrides YAML values
         index_document: Flag to enable document deduplication and indexing
         collection_metadata: Optional metadata for the collection
-        hybrid_search: Flag to enable hybrid search (PostgreSQL only)
-        hybrid_search_config: Configuration for hybrid search parameters
 
     Example:
-        >>> # Direct instantiation
-        >>> factory = VectorStoreRegistry(
-        ...     id="Chroma",
-        ...     embeddings_factory=EmbeddingsFactory(),
-        ...     config={"chroma_path": "/custom/path"}
-        ... )
-        >>> factory.add_documents([Document(page_content="example")])
-        >>>
-        >>> # Configuration-based instantiation
+        >>> # Configuration-based instantiation (recommended)
         >>> factory = VectorStoreRegistry.create_from_config("default")
         >>> factory = VectorStoreRegistry.create_from_config("local_indexed")
+        >>> factory.add_documents([Document(page_content="example")])
         >>>
-        >>> # Hybrid search example
-        >>> hybrid_factory = VectorStoreRegistry(
-        ...     id="PgVector",
-        ...     embeddings_factory=EmbeddingsFactory(),
-        ...     hybrid_search=True,
-        ...     hybrid_search_config={
-        ...         "tsv_column": "content_tsv",
-        ...         "tsv_lang": "pg_catalog.english"
-        ...     }
-        ... )
+        >>> # Hybrid search example (PostgreSQL)
+        >>> hybrid_factory = VectorStoreRegistry.create_from_config("postgres_hybrid")
     """
 
-    id: Annotated[VECTOR_STORE_ENGINE | None, Field(validate_default=True)] = None
+    backend: Annotated[VECTOR_STORE_ENGINE | None, Field(validate_default=True, alias="id")] = None
     embeddings_factory: EmbeddingsFactory
     table_name_prefix: str = "embeddings"
     config: dict[str, Any] = {}
@@ -147,7 +125,29 @@ class VectorStoreRegistry(BaseModel):
     _record_manager: SQLRecordManager | None = None
     _conf: dict = {}
 
+    def __init__(self, **data):
+        """Direct instantiation is not allowed. Use create_from_config instead."""
+        raise RuntimeError(
+            "VectorStoreRegistry cannot be instantiated directly. "
+            "Use VectorStoreRegistry.create_from_config(config_tag) instead."
+        )
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def model_post_init(self, __context) -> None:
+        """Post-initialization logic for VectorStoreRegistry.
+
+        Handles backward compatibility and storage path normalization.
+        """
+        # Handle Chroma storage: if backend is Chroma and no storage is configured,
+        # default to in-memory storage
+        if self.backend == "Chroma":
+            storage = self.config.get("storage") or self.config.get("chroma_path")
+            if not storage:
+                self.config["storage"] = "::memory::"
+            elif "chroma_path" in self.config and "storage" not in self.config:
+                # Migrate from old chroma_path to new storage
+                self.config["storage"] = self.config.pop("chroma_path")
 
     @computed_field
     @property
@@ -168,12 +168,15 @@ class VectorStoreRegistry(BaseModel):
         Returns:
             Comprehensive configuration description string
         """
-        r = f"{str(self.id)}/{self.table_name}"
-        if self.id == "Chroma":
-            r += " => 'on disk'"
+        r = f"{str(self.backend)}/{self.table_name}"
+        if self.backend == "Chroma":
+            storage = self.config.get("storage", "::memory::")
+            if storage == "::memory::":
+                r += " => 'in-memory'"
+            else:
+                r += " => 'on disk'"
         if self.index_document and self._record_manager:
             r += f" indexer: {self._record_manager}"
-        #        r += f" cache_embeddings: {self.cache_embeddings}"
         return r
 
     @staticmethod
@@ -202,7 +205,7 @@ class VectorStoreRegistry(BaseModel):
         Example:
             ```python
             # Configuration in baseline.yaml:
-            # vector_store_factory:
+            # vector_store_registry:
             #   default:
             #     id: InMemory
             #   local_indexed:
@@ -217,17 +220,19 @@ class VectorStoreRegistry(BaseModel):
             factory = VectorStoreRegistry.create_from_config("local_indexed")
             ```
         """
-        config_key = f"vector_store_factory.{config_tag}"
+        config_key = f"vector_store_registry.{config_tag}"
         try:
             config_dict = global_config().get_dict(config_key)
         except (ValueError, KeyError) as e:
             raise ValueError(f"Configuration for vector store factory '{config_tag}' not found") from e
 
-        # Extract required id field
-        if "id" not in config_dict:
-            raise KeyError(f"Missing required 'id' field in configuration '{config_tag}'")
+        # Extract required backend field (support both 'backend' and legacy 'id')
+        backend = config_dict.get("backend") or config_dict.get("id")
+        if not backend:
+            raise KeyError(f"Missing required 'backend' (or legacy 'id') field in configuration '{config_tag}'")
 
-        vector_store_id = config_dict["id"]
+        if "id" in config_dict and "backend" not in config_dict:
+            logger.warning(f"Configuration '{config_tag}' uses deprecated 'id' field. Use 'backend' instead.")
 
         # Resolve embeddings factory
         embeddings_factory = cls._resolve_embeddings_from_config(config_dict, config_tag)
@@ -239,13 +244,18 @@ class VectorStoreRegistry(BaseModel):
         record_manager = config_dict.get("record_manager")
         config_overrides = config_dict.get("config", {})
 
+        # Handle legacy chroma_path in config_overrides
+        if "chroma_path" in config_overrides and "storage" not in config_overrides:
+            logger.warning(f"Configuration '{config_tag}' uses deprecated 'chroma_path'. Use 'storage' instead.")
+            config_overrides["storage"] = config_overrides.pop("chroma_path")
+
         # Handle record manager for indexing
         if record_manager and not index_document:
             index_document = True
             logger.info(f"Enabling document indexing because record_manager is specified in config '{config_tag}'")
 
         factory_args = {
-            "id": vector_store_id,
+            "backend": backend,
             "embeddings_factory": embeddings_factory,
             "table_name_prefix": table_name_prefix,
             "config": config_overrides,
@@ -255,7 +265,11 @@ class VectorStoreRegistry(BaseModel):
         if collection_metadata is not None:
             factory_args["collection_metadata"] = collection_metadata
 
-        return cls(**factory_args)
+        # Create instance using model_construct to bypass __init__ restriction
+        instance = cls.model_construct(**factory_args)
+        # Run post-init manually since model_construct doesn't call it
+        instance.model_post_init(None)
+        return instance
 
     @staticmethod
     def _resolve_embeddings_from_config(config_dict: dict[str, Any], config_tag: str) -> EmbeddingsFactory:
@@ -299,12 +313,12 @@ class VectorStoreRegistry(BaseModel):
             # Use default embeddings if neither is specified
             return EmbeddingsFactory()
 
-    @field_validator("id", mode="before")
-    def check_known(cls, id: str | None) -> str:
+    @field_validator("backend", mode="before")
+    def check_known(cls, backend: str | None) -> str:
         """Validate and normalize the vector store backend identifier.
 
         Args:
-            id: Vector store backend identifier
+            backend: Vector store backend identifier
 
         Returns:
             Validated vector store backend identifier
@@ -312,11 +326,15 @@ class VectorStoreRegistry(BaseModel):
         Raises:
             ValueError: If an unknown vector store backend is specified
         """
-        if id is None:
-            id = global_config().get_str("vector_store.default")
-        if id not in VectorStoreRegistry.known_items():
-            raise ValueError(f"Unknown Vector Store: {id}")
-        return id
+        if backend is None:
+            backend = global_config().get_str("vector_store.default")
+        # Handle legacy Chroma_in_memory by converting to Chroma
+        if backend == "Chroma_in_memory":
+            logger.warning("Chroma_in_memory is deprecated. Use backend='Chroma' with storage='::memory::' instead")
+            backend = "Chroma"
+        if backend not in VectorStoreRegistry.known_items():
+            raise ValueError(f"Unknown Vector Store: {backend}")
+        return backend
 
     def get(self) -> VectorStore:
         """Create and configure a vector store based on the specified backend.
@@ -329,31 +347,31 @@ class VectorStoreRegistry(BaseModel):
         """
         embeddings = self.embeddings_factory.get()
         vector_store = None
-        if self.id in ["Chroma", "Chroma_in_memory"]:
+        if self.backend == "Chroma":
             vector_store = self._create_chroma_vector_store(embeddings)
-        elif self.id == "InMemory":
+        elif self.backend == "InMemory":
             from langchain_core.vectorstores import InMemoryVectorStore
 
             vector_store = InMemoryVectorStore(
                 embedding=embeddings,
             )
-        elif self.id == "Sklearn":
+        elif self.backend == "Sklearn":
             from langchain_community.vectorstores import SKLearnVectorStore
 
             vector_store = SKLearnVectorStore(
                 embedding=embeddings,
             )
-        elif self.id == "PgVector":
+        elif self.backend == "PgVector":
             vector_store = self._create_pg_vector_store()
         else:
-            raise ValueError(f"Unknown vector store: {self.id}")
+            raise ValueError(f"Unknown vector store: {self.backend}")
 
         logger.debug(f"get vector store  : {self.description}")
         if self.index_document:
             # NOT TESTED
             db_url = global_config().get_str("vector_store.record_manager")
             logger.debug(f"vector store record manager : {db_url}")
-            namespace = f"{self.id}/{self.table_name}"
+            namespace = f"{self.backend}/{self.table_name}"
             self._record_manager = SQLRecordManager(
                 namespace,
                 db_url=db_url,
@@ -400,7 +418,7 @@ class VectorStoreRegistry(BaseModel):
         Raises:
             NotImplementedError: For unsupported vector store backends
         """
-        if self.id in ["Chroma", "Chroma_in_memory"]:
+        if self.backend == "Chroma":
             return self.get()._collection.count()  # type: ignore
         else:
             raise NotImplementedError(f"Don't know how to get collection count for {self.get()}")
@@ -409,13 +427,22 @@ class VectorStoreRegistry(BaseModel):
         """Create and configure a Chroma vector store."""
         from langchain_chroma import Chroma
 
-        if self.id == "Chroma":  # Persistent storage
-            store_path = self.config.get("chroma_path") or global_config().get_dir_path(
-                "vector_store.chroma_path", create_if_not_exists=True
-            )
-            persist_directory = str(store_path)
-        else:  # Chroma_in_memory
+        storage = self.config.get("storage", "::memory::")
+
+        if storage == "::memory::":
             persist_directory = None
+        else:
+            # Handle both absolute paths and paths that need to be resolved via global config
+            if os.path.isabs(storage):
+                persist_directory = storage
+            else:
+                # Try to resolve as config path first, fallback to literal path
+                try:
+                    store_path = global_config().get_dir_path("vector_store.storage", create_if_not_exists=True)
+                    persist_directory = str(store_path)
+                except (ValueError, KeyError):
+                    persist_directory = storage
+
         return Chroma(
             embedding_function=embeddings,
             persist_directory=persist_directory,
@@ -434,16 +461,23 @@ class VectorStoreRegistry(BaseModel):
             conf=self._conf,
         )
 
-    def delete_collection(self):
-        if self.id == "PgVector":
+    def delete_collection(self) -> None:
+        """Delete the vector store collection.
+
+        Raises:
+            NotImplementedError: For unsupported vector store backends
+        """
+        if self.backend == "PgVector":
             from langchain_postgres import PGEngine
 
             if pg_engine := self._conf.get("pg_engine"):
-                logger.info(f"drop file {self._conf['schema_name']}.{self._conf['table_name']}")
+                logger.info(f"drop table {self._conf['schema_name']}.{self._conf['table_name']}")
                 assert isinstance(pg_engine, PGEngine)
                 pg_engine.drop_table(table_name=self._conf["table_name"], schema_name=self._conf["schema_name"])
             else:
-                raise NotImplementedError(f"Don't'clean' method for {self.get()}")
+                raise NotImplementedError(f"Don't know how to delete collection for {self.get()}")
+        else:
+            raise NotImplementedError(f"Delete collection not implemented for {self.backend}")
 
 
 def search_one(vc: VectorStore, query: str) -> list[Document]:
@@ -479,35 +513,57 @@ if __name__ == "__main__":
     embeddings_factory = EmbeddingsFactory(embeddings_id="embeddings_768_fake")
     embeddings_factory_cached = EmbeddingsFactory(embeddings_id="embeddings_768_fake", cache_embeddings=True)
 
-    # Create vector store with hybrid search enabled
-    factory = VectorStoreRegistry(
-        id="PgVector",
-        table_name_prefix="test_embeddings_1",
-        embeddings_factory=embeddings_factory,
-        config={
-            "postgres_url": postgres_url,
-            "metadata_columns": [{"name": "test_matadata", "data_type": "TEXT"}],
-            "hybrid_search": True,
-            "hybrid_search_config": {
-                "tsv_lang": "pg_catalog.english",
-                "fusion_function_parameters": {
-                    "primary_results_weight": 0.5,
-                    "secondary_results_weight": 0.5,
+    # Note: This example shows legacy usage patterns for testing purposes
+    # In production code, use VectorStoreRegistry.create_from_config() instead
+
+    # Create test configuration temporarily
+    import tempfile
+
+    import yaml
+
+    test_config = {
+        "vector_store_registry": {
+            "test_hybrid": {
+                "backend": "PgVector",
+                "embeddings": "fake",
+                "table_name_prefix": "test_embeddings_1",
+                "config": {
+                    "postgres_url": str(postgres_url),
+                    "metadata_columns": [{"name": "test_metadata", "data_type": "TEXT"}],
+                    "hybrid_search": True,
+                    "hybrid_search_config": {
+                        "tsv_lang": "pg_catalog.english",
+                        "fusion_function_parameters": {
+                            "primary_results_weight": 0.5,
+                            "secondary_results_weight": 0.5,
+                        },
+                    },
                 },
             },
-        },
-    )
+            "test_cache": {
+                "backend": "PgVector",
+                "embeddings": "fake",
+                "table_name_prefix": "test_embeddings_2",
+                "config": {
+                    "postgres_url": str(postgres_url),
+                },
+            },
+        }
+    }
 
-    # Quick test with cache_embeddings=True
+    # Write temporary config and reload
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        yaml.dump(test_config, f)
+        temp_config_path = f.name
+
+    # Reload config with test configuration
+    global_config_reload(additional_configs=[temp_config_path])
+
+    # Create factories using config
+    factory = VectorStoreRegistry.create_from_config("test_hybrid")
+
     print("🧪 Testing with cache_embedding...")
-    cache_factory = VectorStoreRegistry(
-        id="PgVector",
-        embeddings_factory=embeddings_factory_cached,
-        table_name_prefix="test_embeddings_2",
-        config={
-            "postgres_url": postgres_url,
-        },
-    )
+    cache_factory = VectorStoreRegistry.create_from_config("test_cache")
 
     print("📄 Adding test documents with cached embeddings...")
     cache_test_docs = [
@@ -553,8 +609,7 @@ if __name__ == "__main__":
     finally:
         # Clean up
         try:
-            pass
-            # factory.clean()
-            # print("🧹 Cleaned up test table")
+            os.unlink(temp_config_path)
+            print("🧹 Cleaned up temporary config file")
         except Exception as e:
-            print(f"⚠️  Warning: Could not clean up - {e}")
+            print(f"⚠️  Warning: Could not clean up temp config - {e}")

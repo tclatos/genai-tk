@@ -7,7 +7,7 @@ This document outlines the core agents, components, and capabilities provided by
 ### LLM and Embeddings Infrastructure
 - **LLM Factory** (`llm_factory.py`) - Creates and configures Language Models from multiple providers
 - **Embeddings Factory** (`embeddings_factory.py`) - Provides embeddings models for semantic search
-- **Vector Store Factory** (`vector_store_factory.py`) - Creates vector databases for RAG applications
+- **Vector Store Factory** (`vector_store_registry.py`) - Creates vector databases for RAG applications
 - **Providers** (`providers.py`) - Unified interface for AI model providers (OpenAI, Anthropic, local models, etc.)
 
 ### Agent Infrastructure
