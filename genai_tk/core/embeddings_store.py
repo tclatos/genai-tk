@@ -6,62 +6,112 @@ advanced document indexing, retrieval, and vector database operations.
 
 Key Features:
 - Multi-backend vector store support (Chroma, In-Memory, Sklearn, PgVector)
-- Flexible document indexing and deduplication
-- Configurable retrieval strategies
-- Seamless integration with embedding models
-- Advanced search and filtering capabilities
-- Generic configuration system with YAML override support
-- Hybrid search support for PostgreSQL (vector + full-text search)
+- Flexible document indexing and deduplication with SQLRecordManager
+- Configurable retrieval strategies and search parameters
+- Seamless integration with embedding models via EmbeddingsFactory
+- Advanced search capabilities including hybrid search (vector + full-text)
+- YAML-based configuration with runtime override support
+- Collection metadata management and cleanup operations
+- Automatic table/collection naming with conflict prevention
 
 Supported Backends:
-- Chroma (persistent and in-memory)
-- InMemoryVectorStore
-- SKLearnVectorStore
-- PgVector (with hybrid search support)
+- Chroma (persistent and in-memory storage)
+- InMemoryVectorStore (in-memory only)
+- SKLearnVectorStore (scikit-learn based)
+- PgVector (PostgreSQL with hybrid search support)
 
 Design Patterns:
-- Factory Method for vector store creation
-- Configurable retrieval strategies
-- Generic configuration via dict parameter
-- Singleton-like access to vector stores
+- Factory Method pattern for vector store creation
+- Configuration-driven instantiation with fallback defaults
+- Document indexing with deduplication via SQLRecordManager
+- Generic configuration system supporting runtime overrides
 
-Example:
-    ```python
-    # Configuration-based factory creation (recommended)
-    factory = VectorStoreRegistry.create_from_config("default")
+Configuration Examples:
+    ```yaml
+    # baseline.yaml configuration
+    embeddings_store:
+      # In-memory Chroma store
+      default:
+        backend: Chroma
+        embeddings: default
+        config:
+          storage: '::memory::'
 
-    # PgVector example from configuration
-    pg_factory = VectorStoreRegistry.create_from_config("postgres")
+      # Persistent Chroma store
+      persistent:
+        backend: Chroma
+        embeddings: default
+        table_name_prefix: my_docs
+        config:
+          storage: /data/vector_store
+        collection_metadata:
+          environment: production
+          version: "1.0"
 
-    # Add documents to the store
-    factory.add_documents([
-        Document(page_content="First document"),
-        Document(page_content="Second document")
-    ])
+      # Indexed store with deduplication
+      indexed:
+        backend: Chroma
+        embeddings: default
+        index_document: true
+        record_manager: sqlite:///data/record_manager.sql
+        config:
+          storage: /data/indexed_store
 
-    # Perform similarity search
-    results = factory.get().similarity_search("query")
-
-    # Configuration in baseline.yaml:
-    # vector_store_registry:
-    #   default:
-    #     backend: Chroma
-    #     embeddings: default
-    #     config:
-    #       storage: '::memory::'  # In-memory storage
-    #
-    #   persistent:
-    #     backend: Chroma
-    #     embeddings: default
-    #     config:
-    #       storage: /path/to/storage  # Persistent storage
-    #
-    #   postgres:
-    #     backend: PgVector
-    #     embeddings: default
-    #     config:
-    #       postgres_url: postgresql://user:pass@localhost:5432/db
+      # PostgreSQL with hybrid search
+      postgres_hybrid:
+        backend: PgVector
+        embeddings: default
+        config:
+          postgres_url: postgresql://user:pass@localhost:5432/db
+          metadata_columns:
+            - name: category
+              data_type: TEXT
+            - name: score
+              data_type: FLOAT
+          hybrid_search: true
+          hybrid_search_config:
+            tsv_lang: pg_catalog.english
+            fusion_function_parameters:
+              primary_results_weight: 0.7
+              secondary_results_weight: 0.3
     ```
+
+Usage Examples:
+    ```python
+    # Basic usage with configuration
+    factory = EmbeddingsStore.create_from_config("default")
+
+    # Add documents
+    documents = [
+        Document(page_content="First document", metadata={"source": "doc1"}),
+        Document(page_content="Second document", metadata={"source": "doc2"})
+    ]
+    factory.add_documents(documents)
+
+    # Similarity search
+    vector_store = factory.get()
+    results = vector_store.similarity_search("query text", k=5)
+
+    # Hybrid search (PostgreSQL only)
+    if factory.backend == "PgVector":
+        hybrid_results = vector_store.similarity_search(
+            "query",
+            k=3,
+            hybrid_search_config=HybridSearchConfig(
+                tsv_column="content_tsv",
+                fusion_function_parameters={"primary_results_weight": 0.6}
+            )
+        )
+
+    # Document management
+    count = factory.document_count()
+    factory.delete_collection()  # For supported backends
+    ```
+
+Migration Notes:
+- Legacy 'id' field is deprecated; use 'backend' instead
+- Legacy 'chroma_path' is deprecated; use 'storage' instead
+- Chroma_in_memory backend is deprecated; use backend='Chroma' with storage='::memory::'
 """
 
 import os
@@ -88,7 +138,7 @@ from genai_tk.utils.config_mngr import global_config, global_config_reload
 VECTOR_STORE_ENGINE = Literal["Chroma", "InMemory", "Sklearn", "PgVector"]
 
 
-class VectorStoreRegistry(BaseModel):
+class EmbeddingsStore(BaseModel):
     """Factory for creating and managing vector stores with advanced configuration.
 
     Provides a flexible and powerful interface for creating vector stores with
@@ -108,12 +158,12 @@ class VectorStoreRegistry(BaseModel):
 
     Example:
         >>> # Configuration-based instantiation (recommended)
-        >>> factory = VectorStoreRegistry.create_from_config("default")
-        >>> factory = VectorStoreRegistry.create_from_config("local_indexed")
+        >>> factory = EmbeddingsStore.create_from_config("default")
+        >>> factory = EmbeddingsStore.create_from_config("local_indexed")
         >>> factory.add_documents([Document(page_content="example")])
         >>>
         >>> # Hybrid search example (PostgreSQL)
-        >>> hybrid_factory = VectorStoreRegistry.create_from_config("postgres_hybrid")
+        >>> hybrid_factory = EmbeddingsStore.create_from_config("postgres_hybrid")
     """
 
     backend: Annotated[VECTOR_STORE_ENGINE | None, Field(validate_default=True, alias="id")] = None
@@ -128,14 +178,14 @@ class VectorStoreRegistry(BaseModel):
     def __init__(self, **data):
         """Direct instantiation is not allowed. Use create_from_config instead."""
         raise RuntimeError(
-            "VectorStoreRegistry cannot be instantiated directly. "
-            "Use VectorStoreRegistry.create_from_config(config_tag) instead."
+            "EmbeddingsStore cannot be instantiated directly. "
+            "Use EmbeddingsStore.create_from_config(config_tag) instead."
         )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def model_post_init(self, __context) -> None:
-        """Post-initialization logic for VectorStoreRegistry.
+        """Post-initialization logic for EmbeddingsStore.
 
         Handles backward compatibility and storage path normalization.
         """
@@ -189,14 +239,14 @@ class VectorStoreRegistry(BaseModel):
         return list(get_args(VECTOR_STORE_ENGINE))
 
     @classmethod
-    def create_from_config(cls, config_tag: str) -> "VectorStoreRegistry":
-        """Create a VectorStoreRegistry from configuration.
+    def create_from_config(cls, config_tag: str) -> "EmbeddingsStore":
+        """Create a EmbeddingsStore from configuration.
 
         Args:
             config_tag: Configuration tag to look up (e.g., 'default', 'local_indexed')
 
         Returns:
-            Configured VectorStoreRegistry instance
+            Configured EmbeddingsStore instance
 
         Raises:
             ValueError: If configuration tag is not found or invalid
@@ -205,7 +255,7 @@ class VectorStoreRegistry(BaseModel):
         Example:
             ```python
             # Configuration in baseline.yaml:
-            # vector_store_registry:
+            # embeddings_store:
             #   default:
             #     id: InMemory
             #   local_indexed:
@@ -216,11 +266,11 @@ class VectorStoreRegistry(BaseModel):
             #     config:
             #       chroma_path: /custom/path
 
-            factory = VectorStoreRegistry.create_from_config("default")
-            factory = VectorStoreRegistry.create_from_config("local_indexed")
+            factory = EmbeddingsStore.create_from_config("default")
+            factory = EmbeddingsStore.create_from_config("local_indexed")
             ```
         """
-        config_key = f"vector_store_registry.{config_tag}"
+        config_key = f"embeddings_store.{config_tag}"
         try:
             config_dict = global_config().get_dict(config_key)
         except (ValueError, KeyError) as e:
@@ -332,11 +382,11 @@ class VectorStoreRegistry(BaseModel):
         if backend == "Chroma_in_memory":
             logger.warning("Chroma_in_memory is deprecated. Use backend='Chroma' with storage='::memory::' instead")
             backend = "Chroma"
-        if backend not in VectorStoreRegistry.known_items():
+        if backend not in EmbeddingsStore.known_items():
             raise ValueError(f"Unknown Vector Store: {backend}")
         return backend
 
-    def get(self) -> VectorStore:
+    def get_vector_store(self) -> VectorStore:
         """Create and configure a vector store based on the specified backend.
 
         Returns:
@@ -514,7 +564,7 @@ if __name__ == "__main__":
     embeddings_factory_cached = EmbeddingsFactory(embeddings_id="embeddings_768_fake", cache_embeddings=True)
 
     # Note: This example shows legacy usage patterns for testing purposes
-    # In production code, use VectorStoreRegistry.create_from_config() instead
+    # In production code, use EmbeddingsStore.create_from_config() instead
 
     # Create test configuration temporarily
     import tempfile
@@ -522,7 +572,7 @@ if __name__ == "__main__":
     import yaml
 
     test_config = {
-        "vector_store_registry": {
+        "embeddings_store": {
             "test_hybrid": {
                 "backend": "PgVector",
                 "embeddings": "fake",
@@ -557,13 +607,13 @@ if __name__ == "__main__":
         temp_config_path = f.name
 
     # Reload config with test configuration
-    global_config_reload(additional_configs=[temp_config_path])
+    global_config_reload()
 
     # Create factories using config
-    factory = VectorStoreRegistry.create_from_config("test_hybrid")
+    factory = EmbeddingsStore.create_from_config("test_hybrid")
 
     print("🧪 Testing with cache_embedding...")
-    cache_factory = VectorStoreRegistry.create_from_config("test_cache")
+    cache_factory = EmbeddingsStore.create_from_config("test_cache")
 
     print("📄 Adding test documents with cached embeddings...")
     cache_test_docs = [
@@ -587,14 +637,18 @@ if __name__ == "__main__":
 
         # Perform hybrid search
         print("🔍 Performing hybrid search...")
-        results = factory.get().similarity_search(
-            "database search",
-            k=2,
-            hybrid_search_config=HybridSearchConfig(
-                tsv_column="content_tsv",
-                fusion_function_parameters={"primary_results_weight": 0.5, "secondary_results_weight": 0.5},
-            ),
-        )
+        if HybridSearchConfig is not None:
+            results = factory.get().similarity_search(
+                "database search",
+                k=2,
+                hybrid_search_config=HybridSearchConfig(
+                    tsv_column="content_tsv",
+                    fusion_function_parameters={"primary_results_weight": 0.5, "secondary_results_weight": 0.5},
+                ),
+            )
+        else:
+            print("⚠️  HybridSearchConfig not available, falling back to regular search")
+            results = factory.get().similarity_search("database search", k=2)
 
         print(f"✅ Found {len(results)} results:")
         for i, doc in enumerate(results, 1):

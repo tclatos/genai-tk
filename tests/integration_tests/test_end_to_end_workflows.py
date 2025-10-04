@@ -8,8 +8,8 @@ import pytest
 from langchain_core.documents import Document
 
 from genai_tk.core.embeddings_factory import EmbeddingsFactory, get_embeddings
+from genai_tk.core.embeddings_store import EmbeddingsStore
 from genai_tk.core.llm_factory import get_llm
-from genai_tk.core.vector_store_registry import VectorStoreRegistry
 
 # Constants
 FAKE_LLM_ID = "parrot_local_fake"
@@ -21,8 +21,8 @@ FAKE_EMBEDDINGS_ID = "embeddings_768_fake"
 def test_rag_pipeline_with_fake_models(sample_documents) -> None:
     """Test complete RAG pipeline with fake models."""
     # Create vector store from configuration
-    vector_store_registry = VectorStoreRegistry.create_from_config("default")
-    vector_store = vector_store_registry.get()
+    embeddings_store = EmbeddingsStore.create_from_config("default")
+    vector_store = embeddings_store.get()
 
     # Add documents to vector store
     vector_store.add_documents(sample_documents)
@@ -67,8 +67,8 @@ def test_document_processing_pipeline(sample_documents) -> None:
     assert all(len(vector) == 768 for _, vector in embedded_docs)  # Fake embedding dimension
 
     # Create vector store and add embedded documents
-    vector_store_registry = VectorStoreRegistry.create_from_config("default")
-    vector_store = vector_store_registry.get()
+    embeddings_store = EmbeddingsStore.create_from_config("default")
+    vector_store = embeddings_store.get()
     vector_store.add_documents(documents)
 
     # Test semantic search
@@ -127,8 +127,8 @@ def test_question_answering_pipeline() -> None:
     ]
 
     # Create vector store from configuration
-    vector_store_registry = VectorStoreRegistry.create_from_config("default")
-    vector_store = vector_store_registry.get()
+    embeddings_store = EmbeddingsStore.create_from_config("default")
+    vector_store = embeddings_store.get()
     vector_store.add_documents(knowledge_docs)
 
     # Test questions

@@ -8,7 +8,7 @@ import pytest
 from langchain.schema import Document
 
 from genai_tk.core.embeddings_factory import EmbeddingsFactory
-from genai_tk.core.vector_store_registry import VectorStoreRegistry
+from genai_tk.core.embeddings_store import EmbeddingsStore
 
 # Fake model constants
 FAKE_EMBEDDINGS_ID = "embeddings_768_fake"
@@ -25,8 +25,6 @@ def sample_documents():
     ]
 
 
-
-
 @pytest.mark.parametrize("config_name", ["default"])  # Use existing config
 def test_vector_store_creation_and_search(sample_documents, config_name) -> None:
     """Test vector store creation, document addition, and similarity search.
@@ -36,10 +34,10 @@ def test_vector_store_creation_and_search(sample_documents, config_name) -> None
         config_name: Configuration name to test
     """
     # Create vector store factory from config
-    vs_factory = VectorStoreRegistry.create_from_config(config_name)
+    embeddings_store = EmbeddingsStore.create_from_config(config_name)
 
     # Add documents
-    db = vs_factory.get()
+    db = embeddings_store.get()
     db.add_documents(sample_documents)
 
     # Perform similarity search
@@ -59,9 +57,9 @@ def test_vector_store_creation_and_search(sample_documents, config_name) -> None
 
 def test_vector_store_with_fake_embeddings(sample_documents) -> None:
     """Test vector store specifically with fake embeddings."""
-    vs_factory = VectorStoreRegistry.create_from_config("default")
+    embeddings_store = EmbeddingsStore.create_from_config("default")
 
-    db = vs_factory.get()
+    db = embeddings_store.get()
     db.add_documents(sample_documents)
 
     # Test search with different queries
@@ -75,9 +73,9 @@ def test_vector_store_with_fake_embeddings(sample_documents) -> None:
 
 def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
     """Test max marginal relevance search functionality."""
-    vs_factory = VectorStoreRegistry.create_from_config("default")
+    embeddings_store = EmbeddingsStore.create_from_config("default")
 
-    db = vs_factory.get()
+    db = embeddings_store.get()
     db.add_documents(sample_documents)
 
     # Test MMR search
@@ -89,8 +87,8 @@ def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
 
 def test_direct_instantiation_blocked() -> None:
     """Test that direct instantiation is blocked."""
-    with pytest.raises(RuntimeError, match="VectorStoreRegistry cannot be instantiated directly"):
-        VectorStoreRegistry(
+    with pytest.raises(RuntimeError, match="EmbeddingsStore cannot be instantiated directly"):
+        EmbeddingsStore(
             backend="InMemory",
             embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
         )
@@ -98,10 +96,10 @@ def test_direct_instantiation_blocked() -> None:
 
 def test_vector_store_similarity_search_by_vector(sample_documents) -> None:
     """Test similarity search using vector input."""
-    vs_factory = VectorStoreRegistry.create_from_config("default")
-    embeddings_factory = vs_factory.embeddings_factory
+    embeddings_store = EmbeddingsStore.create_from_config("default")
+    embeddings_factory = embeddings_store.embeddings_factory
 
-    db = vs_factory.get()
+    db = embeddings_store.get()
     db.add_documents(sample_documents)
 
     # Create a query vector using the same embeddings
@@ -115,7 +113,7 @@ def test_vector_store_similarity_search_by_vector(sample_documents) -> None:
 
 def test_vector_store_factory_known_items() -> None:
     """Test that vector store factory has correct known items."""
-    known_items = VectorStoreRegistry.known_items()
+    known_items = EmbeddingsStore.known_items()
     assert isinstance(known_items, list)
     assert len(known_items) > 0
     assert "InMemory" in known_items
@@ -128,9 +126,9 @@ def test_vector_store_factory_known_items() -> None:
 
 def test_vector_store_empty_search() -> None:
     """Test vector store behavior with empty document set."""
-    vs_factory = VectorStoreRegistry.create_from_config("default")
+    embeddings_store = EmbeddingsStore.create_from_config("default")
 
-    db = vs_factory.get()
+    db = embeddings_store.get()
 
     # Search on empty database should not crash
     results = db.similarity_search("test query", k=2)
@@ -139,9 +137,9 @@ def test_vector_store_empty_search() -> None:
 
 def test_vector_store_large_k_parameter(sample_documents) -> None:
     """Test vector store behavior when k exceeds document count."""
-    vs_factory = VectorStoreRegistry.create_from_config("default")
+    embeddings_store = EmbeddingsStore.create_from_config("default")
 
-    db = vs_factory.get()
+    db = embeddings_store.get()
     db.add_documents(sample_documents)
 
     # Request more results than available documents
@@ -153,10 +151,10 @@ def test_vector_store_large_k_parameter(sample_documents) -> None:
 def test_vector_store_performance(sample_documents, performance_threshold) -> None:
     """Test vector store performance with fake embeddings."""
     import time
-    
-    vs_factory = VectorStoreRegistry.create_from_config("default")
 
-    db = vs_factory.get()
+    embeddings_store = EmbeddingsStore.create_from_config("default")
+
+    db = embeddings_store.get()
 
     # Measure document addition time
     start_time = time.time()
@@ -176,13 +174,13 @@ def test_vector_store_performance(sample_documents, performance_threshold) -> No
 
 def test_chroma_memory_storage(sample_documents) -> None:
     """Test Chroma with in-memory storage using new storage field."""
-    vs_factory = VectorStoreRegistry.create_from_config("in_memory_chroma")
-    assert vs_factory.backend == "Chroma"
-    assert vs_factory.config.get("storage") == "::memory::"
-    
-    db = vs_factory.get()
+    embeddings_store = EmbeddingsStore.create_from_config("in_memory_chroma")
+    assert embeddings_store.backend == "Chroma"
+    assert embeddings_store.config.get("storage") == "::memory::"
+
+    db = embeddings_store.get()
     db.add_documents(sample_documents)
-    
+
     # Verify we can search
     results = db.similarity_search("test", k=2)
     assert len(results) == 2
@@ -192,4 +190,3 @@ def test_chroma_memory_storage(sample_documents) -> None:
 def test_postgres_vector_store() -> None:
     """Test PgVector store - skipped for now."""
     # This test would require a running PostgreSQL instance
-    pass

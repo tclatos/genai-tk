@@ -94,7 +94,7 @@ genai_tk/
 ├── core/                    # Core AI components
 │   ├── llm_factory.py      # LLM creation and management
 │   ├── embeddings_factory.py # Embeddings models
-│   ├── vector_store_registry.py # Vector databases
+│   ├── embeddings_store.py # Vector databases
 │   ├── deep_agents.py      # LangChain-based agents
 │   └── ...
 ├── extra/                   # Extended AI capabilities

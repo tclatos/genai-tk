@@ -36,8 +36,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.table import Table
 
         from genai_tk.core.embeddings_factory import EmbeddingsFactory
+        from genai_tk.core.embeddings_store import EmbeddingsStore
         from genai_tk.core.llm_factory import PROVIDER_INFO, LlmFactory
-        from genai_tk.core.vector_store_registry import VectorStoreRegistry
 
         config = global_config()
         console = Console()
@@ -47,7 +47,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         # Default models info
         default_llm = LlmFactory(llm_id=None)
         default_embeddings = EmbeddingsFactory(embeddings_id=None)
-        default_vector_store = VectorStoreRegistry.create_from_config("default")
+        default_vector_store = EmbeddingsStore.create_from_config("default")
 
         models_table = Table(title="Default Components", show_header=True, header_style="bold magenta")
         models_table.add_column("Type", style="cyan")
@@ -336,15 +336,15 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.panel import Panel
 
         from genai_tk.core.embeddings_factory import EmbeddingsFactory
+        from genai_tk.core.embeddings_store import EmbeddingsStore
         from genai_tk.core.llm_factory import LlmFactory
-        from genai_tk.core.vector_store_registry import VectorStoreRegistry
 
         console = Console()
 
         # Get all items for each category
         llm_items = LlmFactory.known_items()
         embeddings_items = EmbeddingsFactory.known_items()
-        vector_items = VectorStoreRegistry.known_items()
+        vector_items = EmbeddingsStore.known_items()
 
         # Format LLM items in several columns
         llm_content = Columns([f"• {item}" for item in llm_items], equal=True, expand=True)

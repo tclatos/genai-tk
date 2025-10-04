@@ -1,11 +1,6 @@
 rag_configs:
    basic_in_memory:
-      vector_store:
-         id: InMemory
-         index: True
-      embeddings:
-         id: default
-         cache: True
+      vector_store : in_memory_chroma
       text_splitter: 
          class: RecursiveCharacterTextSplitter 
          chunk_size: 200

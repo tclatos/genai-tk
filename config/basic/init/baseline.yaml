@@ -20,7 +20,7 @@ embeddings:
 vector_store:
   default: InMemory
   
-vector_store_registry:
+embeddings_store:
   # Updated configuration using new field names (backend instead of id, storage instead of chroma_path)
   default:
     backend: InMemory
