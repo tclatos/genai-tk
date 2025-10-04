@@ -11,7 +11,7 @@ import yaml
 
 def display_react_agent_configs() -> None:
     """Display available React Agent configurations in a formatted way."""
-    config_file = Path("config/demos/react_agent.yaml")
+    config_file = Path("config/agents/react.yaml")
 
     print("📋 Available React Agent Configurations:")
     print("=" * 50)
@@ -68,7 +68,7 @@ def display_react_agent_configs() -> None:
 
 def display_smolagents_configs() -> None:
     """Display available SmolAgents configurations in a formatted way."""
-    config_file = Path("config/demos/codeact_agent.yaml")
+    config_file = Path("config/agents/codeact.yaml")
 
     print("📋 Available SmolAgents Configurations:")
     print("=" * 50)
@@ -143,8 +143,8 @@ def get_available_config_names(config_type: str) -> list[str]:
         List of available configuration names
     """
     config_files = {
-        "react_agent": ("config/demos/react_agent.yaml", "react_agent_demos"),
-        "smolagents": ("config/demos/codeact_agent.yaml", "codeact_agent_demos"),
+        "react_agent": ("config/agents/react.yaml", "react_agent_demos"),
+        "smolagents": ("config/agents/codeact.yaml", "codeact_agent_demos"),
     }
 
     if config_type not in config_files:

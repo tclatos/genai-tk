@@ -28,13 +28,13 @@ GenAI Toolkit provides reusable components, agents, and utilities for building s
 
 ```bash
 # Install with core dependencies
-uv pip install git+https://github.com/tcaminel-pro/genai-tk@main
+uv pip install git+https://github.com/tclatos/genai-tk@main
 
 # Install with all extras  
-uv pip install "genai-tk[extra] @ git+https://github.com/tcaminel-pro/genai-tk@main"
+uv pip install "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
 
 # Development installation
-git clone https://github.com/tcaminel-pro/genai-tk.git
+git clone https://github.com/tclatos/genai-tk.git
 cd genai-tk
 uv sync
 ```
@@ -254,5 +254,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Support
 
 - Documentation: [Agents.md](Agents.md)
-- Issues: [GitHub Issues](https://github.com/tcaminel-pro/genai-tk/issues)
-- Discussions: [GitHub Discussions](https://github.com/tcaminel-pro/genai-tk/discussions)
+- Issues: [GitHub Issues](https://github.com/tclatos/genai-tk/issues)
+- Discussions: [GitHub Discussions](https://github.com/tclatos/genai-tk/discussions)

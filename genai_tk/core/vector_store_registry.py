@@ -27,7 +27,7 @@ Design Patterns:
 
 Example:
     >>> # Create a vector store factory with generic configuration
-    >>> factory = VectorStoreFactory(
+    >>> factory = VectorStoreRegistry(
     ...     id="Chroma",
             table_suffix = "documents",
     ...     embeddings_factory=EmbeddingsFactory(),
@@ -35,14 +35,14 @@ Example:
     ... )
     >>>
     >>> # PgVector example with configuration overrides
-    >>> pg_factory = VectorStoreFactory(
+    >>> pg_factory = VectorStoreRegistry(
     ...     id="PgVector",
     ...     embeddings_factory=EmbeddingsFactory(),
     ...     config={"postgres_url": "//user:pass@localhost:5432/db", "postgres_schema": "vector_store"}
     ... )
     >>>
     >>> # PgVector with hybrid search (vector + full-text)
-    >>> hybrid_factory = VectorStoreFactory(
+    >>> hybrid_factory = VectorStoreRegistry(
     ...     id="PgVector",
     ...     embeddings_factory=EmbeddingsFactory(),
     ...     hybrid_search=True,
@@ -96,7 +96,7 @@ from genai_tk.utils.config_mngr import global_config, global_config_reload
 VECTOR_STORE_ENGINE = Literal["Chroma", "Chroma_in_memory", "InMemory", "Sklearn", "PgVector"]
 
 
-class VectorStoreFactory(BaseModel):
+class VectorStoreRegistry(BaseModel):
     """Factory for creating and managing vector stores with advanced configuration.
 
     Provides a flexible and powerful interface for creating vector stores with
@@ -115,7 +115,7 @@ class VectorStoreFactory(BaseModel):
 
     Example:
         >>> # Direct instantiation
-        >>> factory = VectorStoreFactory(
+        >>> factory = VectorStoreRegistry(
         ...     id="Chroma",
         ...     embeddings_factory=EmbeddingsFactory(),
         ...     config={"chroma_path": "/custom/path"}
@@ -123,11 +123,11 @@ class VectorStoreFactory(BaseModel):
         >>> factory.add_documents([Document(page_content="example")])
         >>>
         >>> # Configuration-based instantiation
-        >>> factory = VectorStoreFactory.create_from_config("default")
-        >>> factory = VectorStoreFactory.create_from_config("local_indexed")
+        >>> factory = VectorStoreRegistry.create_from_config("default")
+        >>> factory = VectorStoreRegistry.create_from_config("local_indexed")
         >>>
         >>> # Hybrid search example
-        >>> hybrid_factory = VectorStoreFactory(
+        >>> hybrid_factory = VectorStoreRegistry(
         ...     id="PgVector",
         ...     embeddings_factory=EmbeddingsFactory(),
         ...     hybrid_search=True,
@@ -186,14 +186,14 @@ class VectorStoreFactory(BaseModel):
         return list(get_args(VECTOR_STORE_ENGINE))
 
     @classmethod
-    def create_from_config(cls, config_tag: str) -> "VectorStoreFactory":
-        """Create a VectorStoreFactory from configuration.
+    def create_from_config(cls, config_tag: str) -> "VectorStoreRegistry":
+        """Create a VectorStoreRegistry from configuration.
 
         Args:
             config_tag: Configuration tag to look up (e.g., 'default', 'local_indexed')
 
         Returns:
-            Configured VectorStoreFactory instance
+            Configured VectorStoreRegistry instance
 
         Raises:
             ValueError: If configuration tag is not found or invalid
@@ -213,8 +213,8 @@ class VectorStoreFactory(BaseModel):
             #     config:
             #       chroma_path: /custom/path
 
-            factory = VectorStoreFactory.create_from_config("default")
-            factory = VectorStoreFactory.create_from_config("local_indexed")
+            factory = VectorStoreRegistry.create_from_config("default")
+            factory = VectorStoreRegistry.create_from_config("local_indexed")
             ```
         """
         config_key = f"vector_store_factory.{config_tag}"
@@ -314,7 +314,7 @@ class VectorStoreFactory(BaseModel):
         """
         if id is None:
             id = global_config().get_str("vector_store.default")
-        if id not in VectorStoreFactory.known_items():
+        if id not in VectorStoreRegistry.known_items():
             raise ValueError(f"Unknown Vector Store: {id}")
         return id
 
@@ -480,7 +480,7 @@ if __name__ == "__main__":
     embeddings_factory_cached = EmbeddingsFactory(embeddings_id="embeddings_768_fake", cache_embeddings=True)
 
     # Create vector store with hybrid search enabled
-    factory = VectorStoreFactory(
+    factory = VectorStoreRegistry(
         id="PgVector",
         table_name_prefix="test_embeddings_1",
         embeddings_factory=embeddings_factory,
@@ -500,7 +500,7 @@ if __name__ == "__main__":
 
     # Quick test with cache_embeddings=True
     print("🧪 Testing with cache_embedding...")
-    cache_factory = VectorStoreFactory(
+    cache_factory = VectorStoreRegistry(
         id="PgVector",
         embeddings_factory=embeddings_factory_cached,
         table_name_prefix="test_embeddings_2",

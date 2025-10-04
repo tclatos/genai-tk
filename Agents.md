@@ -112,10 +112,10 @@ This document outlines the core agents, components, and capabilities provided by
 
 ```bash
 # Install with core dependencies
-uv pip install git+https://github.com/tcaminel-pro/genai-tk@main
+uv pip install git+https://github.com/tclatos/genai-tk@main
 
 # Install with all extras
-uv pip install "genai-tk[extra] @ git+https://github.com/tcaminel-pro/genai-tk@main"
+uv pip install "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
 ```
 
 ```python

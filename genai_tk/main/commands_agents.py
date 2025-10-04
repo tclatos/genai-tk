@@ -75,20 +75,20 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         if config:
             from genai_tk.core.llm_factory import get_llm
-            from genai_tk.extra.tools.langchain.shared_config_loader import create_langchain_agent_config
+            from genai_tk.tools.langchain.shared_config_loader import create_langchain_agent_config
 
             # Get the LLM instance that will be used by the agent
             agent_llm = get_llm(llm_id=llm_id) if llm_id else None
 
             agent_config = create_langchain_agent_config(
-                config_file="config/demos/react_agent.yaml",
+                config_file="config/agents/react.yaml",
                 config_section="react_agent_demos",
                 config_name=config,
                 llm=agent_llm,
             )
 
             if agent_config is None:
-                print(f"❌ Error: Configuration '{config}' not found in config/demos/react_agent.yaml")
+                print(f"❌ Error: Configuration '{config}' not found in config/agents/react.yaml")
                 print()
                 from genai_tk.utils.cli.config_display import display_react_agent_configs
 
@@ -157,7 +157,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         from smolagents.default_tools import TOOL_MAPPING
 
         from genai_tk.core.llm_factory import LlmFactory
-        from genai_tk.extra.tools.smolagents.config_loader import (
+        from genai_tk.tools.smolagents.config_loader import (
             CONF_YAML_FILE,
             convert_langchain_tools,
             load_smolagent_demo_config,
@@ -284,7 +284,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.progress import Progress, SpinnerColumn, TextColumn
 
         from genai_tk.core.deep_agents import DeepAgentConfig, deep_agent_factory, run_deep_agent
-        from genai_tk.extra.tools.smolagents.deep_config_loader import (
+        from genai_tk.tools.smolagents.deep_config_loader import (
             DEEP_AGENT_CONF_YAML_FILE,
             load_deep_agent_demo_config,
         )
@@ -378,7 +378,7 @@ def register_commands(cli_app: typer.Typer) -> None:
                     from langchain_core.tools import tool
                     from smolagents import Tool as SmolAgentTool
 
-                    from genai_tk.extra.tools.smolagents.config_loader import process_tools_from_config
+                    from genai_tk.tools.smolagents.config_loader import process_tools_from_config
 
                     # Process tools using the smolagents processor
                     processed_tools = process_tools_from_config(config_tools)
@@ -498,7 +498,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         from rich.table import Table
 
         from genai_tk.core.deep_agents import deep_agent_factory
-        from genai_tk.extra.tools.smolagents.deep_config_loader import load_all_deep_agent_demos_from_config
+        from genai_tk.tools.smolagents.deep_config_loader import load_all_deep_agent_demos_from_config
 
         console = Console()
 

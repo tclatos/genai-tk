@@ -15,8 +15,8 @@ from genai_tk.utils.config_mngr import global_config
 kvstore_config = global_config().get_dict("kv_store")
 
 
-class KvStoreFactory(BaseModel):
-    """Factory for creating key-value stores with configurable backends.
+class KvStoreRegistry(BaseModel):
+    """Registry for creating key-value stores with configurable backends.
 
     Attributes:
         id: Identifier for the storage backend type

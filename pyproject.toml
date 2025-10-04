@@ -39,15 +39,15 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tcaminel-pro/genai-tk"
-Repository = "https://github.com/tcaminel-pro/genai-tk"
+Homepage = "https://github.com/tclatos/genai-tk"
+Repository = "https://github.com/tclatos/genai-tk"
 
 [dependency-groups]
 extra = [
     # Vector Stores
-    "chromadb>=1.0",                                           # Vector database
-    "langchain-chroma>=0.1.4",                                 # ChromaDB integration for LangChain
-    
+    "chromadb>=1.0",           # Vector database
+    "langchain-chroma>=0.1.4", # ChromaDB integration for LangChain
+
     # Additional AI capabilities - moved from genai_bp
     "gpt-researcher>=0.13",     # AI research assistant
     "unidecode>=1.3.8",         # Unicode text processing

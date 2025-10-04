@@ -73,10 +73,10 @@ This is the initial standalone release of the GenAI Toolkit, extracted from the 
 ### Installation
 ```bash
 # Install core toolkit
-uv pip install git+https://github.com/tcaminel-pro/genai-tk@main
+uv pip install git+https://github.com/tclatos/genai-tk@main
 
 # Install with all extras
-uv pip install "genai-tk[extra] @ git+https://github.com/tcaminel-pro/genai-tk@main"
+uv pip install "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
 ```
 
 ### Supported Providers

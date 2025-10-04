@@ -20,7 +20,7 @@ The `sql_tool_factory.py` module provides a factory for creating SQL querying to
 
 ```python
 from src.ai_core.llm_factory import get_llm
-from src.ai_extra.tools_langchain.sql_tool_factory import SQLToolFactory, SQLToolConfig
+from src.ai_tools_langchain.sql_tool_factory import SQLToolFactory, SQLToolConfig
 
 # Create configuration
 config = SQLToolConfig(
@@ -46,7 +46,7 @@ print(result)
 #### Configuration from Dictionary
 
 ```python
-from src.ai_extra.tools_langchain.sql_tool_factory import create_sql_tool_from_config
+from src.ai_tools_langchain.sql_tool_factory import create_sql_tool_from_config
 
 config = {
     "database_uri": "sqlite:///chinook.db",
@@ -82,13 +82,13 @@ uv run cli react-agent --config "Chinook Music Database" --chat
 
 ### Configuration File
 
-SQL tool configurations are defined in `config/demos/react_agent.yaml` as part of the ReAct agent demos:
+SQL tool configurations are defined in `config/agents/react.yaml` as part of the ReAct agent demos:
 
 ```yaml
 react_agent_demos:
   - name: "Chinook Music Database"
     tools:
-      - factory: src.ai_extra.tools_langchain.sql_tool_factory:create_sql_tool_from_config
+      - factory: src.ai_tools_langchain.sql_tool_factory:create_sql_tool_from_config
         config:
           database_uri: "sqlite:///use_case_data/other/Chinook.db"
           tool_name: "query_chinook"
@@ -111,7 +111,7 @@ The SQL tool factory has been integrated into the existing maintenance agent:
 
 ```python
 # In src/demos/maintenance_agent/tools.py
-from src.ai_extra.tools_langchain.sql_tool_factory import SQLToolFactory, SQLToolConfig
+from src.ai_tools_langchain.sql_tool_factory import SQLToolFactory, SQLToolConfig
 
 # Replace the old hardcoded get_planning_info with:
 config = SQLToolConfig(

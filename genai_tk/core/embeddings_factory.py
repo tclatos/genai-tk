@@ -39,7 +39,7 @@ from langchain.embeddings.base import Embeddings
 from loguru import logger
 from pydantic import BaseModel, Field, computed_field
 
-from genai_tk.extra.kv_store_factory import KvStoreFactory
+from genai_tk.extra.kv_store_registry import KvStoreRegistry
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.core.providers import get_provider_api_env_var, get_provider_api_key
 
@@ -285,7 +285,7 @@ class EmbeddingsFactory(BaseModel):
         Returns:
             Cached embeddings model with persistent storage
         """
-        kv_store = KvStoreFactory(id="file", root="cache_embeddings")  # TODO : support SQL  (need async KvStore)
+        kv_store = KvStoreRegistry(id="file", root="cache_embeddings")  # TODO : support SQL  (need async KvStore)
         base = f"{self.short_name()}-"
         cached_embedder = CacheBackedEmbeddings.from_bytes_store(
             underlying_embeddings=underlying_embeddings,

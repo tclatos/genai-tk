@@ -8,7 +8,7 @@ import pytest
 from langchain.schema import Document
 
 from genai_tk.core.embeddings_factory import EmbeddingsFactory
-from genai_tk.core.vector_store_factory import VectorStoreFactory
+from genai_tk.core.vector_store_registry import VectorStoreRegistry
 
 # Fake model constants
 FAKE_EMBEDDINGS_ID = "embeddings_768_fake"
@@ -34,7 +34,7 @@ def test_vector_store_creation_and_search(sample_documents, vector_store_type) -
         vector_store_type: Parametrized vector store type to test
     """
     # Create vector store factory
-    vs_factory = VectorStoreFactory(
+    vs_factory = VectorStoreRegistry(
         id=vector_store_type,
         embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
     )
@@ -60,7 +60,7 @@ def test_vector_store_creation_and_search(sample_documents, vector_store_type) -
 
 def test_vector_store_with_fake_embeddings(sample_documents) -> None:
     """Test vector store specifically with fake embeddings."""
-    vs_factory = VectorStoreFactory(
+    vs_factory = VectorStoreRegistry(
         id="InMemory",
         embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
     )
@@ -79,7 +79,7 @@ def test_vector_store_with_fake_embeddings(sample_documents) -> None:
 
 def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
     """Test max marginal relevance search functionality."""
-    vs_factory = VectorStoreFactory(
+    vs_factory = VectorStoreRegistry(
         id="InMemory",
         embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
     )
@@ -97,7 +97,7 @@ def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
 def test_vector_store_similarity_search_by_vector(sample_documents) -> None:
     """Test similarity search using vector input."""
     embeddings_factory = EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID)
-    vs_factory = VectorStoreFactory(
+    vs_factory = VectorStoreRegistry(
         id="InMemory",
         embeddings_factory=embeddings_factory,
     )
@@ -116,7 +116,7 @@ def test_vector_store_similarity_search_by_vector(sample_documents) -> None:
 
 def test_vector_store_factory_known_items() -> None:
     """Test that vector store factory has known items."""
-    known_items = VectorStoreFactory.known_items()
+    known_items = VectorStoreRegistry.known_items()
     assert isinstance(known_items, list)
     assert len(known_items) > 0
     assert "InMemory" in known_items
@@ -125,20 +125,20 @@ def test_vector_store_factory_known_items() -> None:
 def test_vector_store_factory_invalid_type() -> None:
     """Test that invalid vector store type handling works correctly."""
     # Test that the factory validates known types
-    known_items = VectorStoreFactory.known_items()
+    known_items = VectorStoreRegistry.known_items()
     assert len(known_items) > 0
     assert "InMemory" in known_items
 
     # Test that we can create factories with valid types
     from typing import get_args
 
-    from genai_tk.core.vector_store_factory import VECTOR_STORE_ENGINE
+    from genai_tk.core.vector_store_registry import VECTOR_STORE_ENGINE
 
     valid_types = get_args(VECTOR_STORE_ENGINE)
     for valid_type in valid_types:
         if valid_type == "Chroma_in_memory":
             continue  # Skip due to missing dependency
-        factory = VectorStoreFactory(
+        factory = VectorStoreRegistry(
             id=valid_type,
             embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
         )
@@ -147,7 +147,7 @@ def test_vector_store_factory_invalid_type() -> None:
 
 def test_vector_store_empty_search() -> None:
     """Test vector store behavior with empty document set."""
-    vs_factory = VectorStoreFactory(
+    vs_factory = VectorStoreRegistry(
         id="InMemory",
         embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
     )
@@ -161,7 +161,7 @@ def test_vector_store_empty_search() -> None:
 
 def test_vector_store_large_k_parameter(sample_documents) -> None:
     """Test vector store behavior when k exceeds document count."""
-    vs_factory = VectorStoreFactory(
+    vs_factory = VectorStoreRegistry(
         id="InMemory",
         embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
     )
@@ -179,7 +179,7 @@ def test_vector_store_performance(sample_documents, performance_threshold) -> No
     """Test vector store performance with fake embeddings."""
     import time
 
-    vs_factory = VectorStoreFactory(
+    vs_factory = VectorStoreRegistry(
         id="InMemory",
         embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
     )

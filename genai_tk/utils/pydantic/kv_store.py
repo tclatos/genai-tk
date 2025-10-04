@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 from typing_extensions import deprecated
 from unidecode import unidecode
 
-from genai_tk.extra.kv_store_factory import KvStoreFactory
+from genai_tk.extra.kv_store_registry import KvStoreRegistry
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -83,7 +83,7 @@ class PydanticStore(BaseModel):
     def get_kv_store(self) -> ByteStore:
         """Get the underlying ByteStore instance."""
         class_name = self.model.__name__
-        return KvStoreFactory(id=self.kvstore_id, root=class_name).get()
+        return KvStoreRegistry(id=self.kvstore_id, root=class_name).get()
 
     def save_obj(self, key: str | dict, obj: BaseModel, metadata: dict | None = None) -> None:
         """Save a Pydantic model to the key-value store.

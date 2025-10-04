@@ -2,7 +2,7 @@
 react_agent_demos:
   - name: "filesystem"
     tools:  
-      - factory: genai_tk.extra.tools.langchain.search_tools_factory:create_search_function
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
         verbose: true
     mcp_servers:
       - "filesystem"

@@ -25,7 +25,6 @@ from deepagents import (
 )
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import BaseTool
-from loguru import logger
 from pydantic import BaseModel, Field
 
 from genai_tk.core.llm_factory import get_llm
@@ -410,7 +409,7 @@ def create_research_deep_agent(
     """
     from langchain_core.tools import tool
 
-    from genai_tk.extra.tools.langchain.web_search_tool import basic_web_search
+    from genai_tk.tools.langchain.web_search_tool import basic_web_search
 
     if search_tool is None:
 
