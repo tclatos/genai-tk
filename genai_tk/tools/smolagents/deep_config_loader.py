@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 
 from genai_tk.utils.config_mngr import global_config
 
-DEEP_AGENT_CONF_YAML_FILE = "config/demos/deep_agent.yaml"
+DEEP_AGENT_CONF_YAML_FILE = "config/agents/deepagents.yaml"
 
 
 class DeepAgentDemo(BaseModel):

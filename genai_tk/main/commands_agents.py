@@ -81,14 +81,14 @@ def register_commands(cli_app: typer.Typer) -> None:
             agent_llm = get_llm(llm_id=llm_id) if llm_id else None
 
             agent_config = create_langchain_agent_config(
-                config_file="config/agents/react.yaml",
+                config_file="config/agents/langchain.yaml",
                 config_section="react_agent_demos",
                 config_name=config,
                 llm=agent_llm,
             )
 
             if agent_config is None:
-                print(f"❌ Error: Configuration '{config}' not found in config/agents/react.yaml")
+                print(f"❌ Error: Configuration '{config}' not found in config/agents/langchain.yaml")
                 print()
                 from genai_tk.utils.cli.config_display import display_react_agent_configs
 

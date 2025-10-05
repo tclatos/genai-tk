@@ -14,7 +14,7 @@ from smolagents import Tool as SmolAgentTool
 
 from genai_tk.utils.config_mngr import global_config, import_from_qualified
 
-CONF_YAML_FILE = "config/agents/codeact.yaml"
+CONF_YAML_FILE = "config/agents/smolagents.yaml"
 
 
 class SmolagentsAgentConfig(BaseModel):
