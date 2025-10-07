@@ -261,7 +261,11 @@ async def mcp_agent_runner(
 
 ## quick test ##
 async def call_react_agent(
-    query: str, llm_id: str | None = None, mcp_server_filter: list | None = None, additional_tools: list | None = None
+    query: str,
+    llm_id: str | None = None,
+    mcp_server_filter: list | None = None,
+    additional_tools: list | None = None,
+    pre_prompt: str | None = None,
 ) -> None:
     """Execute a query using MCP tools with a ReAct agent and stream the response.
 
@@ -273,6 +277,7 @@ async def call_react_agent(
         llm_id: Optional ID of the language model to use
         mcp_server_filter: Optional list of server names to include in the agent
         additional_tools: Optional list of additional tools to include in the agent
+        pre_prompt: Optional pre-prompt to include before the user query
 
     Example:
     ```python
@@ -296,12 +301,21 @@ async def call_react_agent(
         if additional_tools:
             all_tools.extend(additional_tools)
 
-        agent = create_react_agent(model, all_tools)
+        # Create agent with optional pre_prompt
+        agent_kwargs = {"model": model, "tools": all_tools}
+        if pre_prompt:
+            agent_kwargs["prompt"] = pre_prompt
+        agent = create_react_agent(**agent_kwargs)
 
         tool_names = [getattr(t, "name", str(type(t).__name__)) for t in all_tools]
         logger.info(f"ReAct agent created with {len(all_tools)} tools: {', '.join(tool_names)}")
 
-        resp = agent.astream({"messages": [HumanMessage(content=query)]})
+        # Construct messages with optional pre_prompt
+        messages = []
+        if pre_prompt:
+            messages.append(HumanMessage(content=pre_prompt))
+        messages.append(HumanMessage(content=query))
+        resp = agent.astream({"messages": messages})
         await print_astream(resp)
     finally:
         # Clean up the client if it has a close method

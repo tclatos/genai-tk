@@ -20,8 +20,8 @@ def display_react_agent_configs() -> None:
         with open(config_file, "r") as f:
             config = yaml.safe_load(f)
 
-        if "react_agent_demos" in config:
-            for i, demo in enumerate(config["react_agent_demos"], 1):
+        if "langchain_agents" in config:
+            for i, demo in enumerate(config["langchain_agents"], 1):
                 name = demo.get("name", f"Demo {i}")
                 print(f'\n🎯 {i}. "{name}"')
 
@@ -77,8 +77,8 @@ def display_smolagents_configs() -> None:
         with open(config_file, "r") as f:
             config = yaml.safe_load(f)
 
-        if "codeact_agent_demos" in config:
-            for i, demo in enumerate(config["codeact_agent_demos"], 1):
+        if "smolagents_codeact" in config:
+            for i, demo in enumerate(config["smolagents_codeact"], 1):
                 name = demo.get("name", f"Demo {i}")
                 print(f'\n🎯 {i}. "{name}"')
 
@@ -143,8 +143,8 @@ def get_available_config_names(config_type: str) -> list[str]:
         List of available configuration names
     """
     config_files = {
-        "react_agent": ("config/agents/langchain.yaml", "react_agent_demos"),
-        "smolagents": ("config/agents/smolagents.yaml", "codeact_agent_demos"),
+        "react_agent": ("config/agents/langchain.yaml", "langchain_agents"),
+        "smolagents": ("config/agents/smolagents.yaml", "smolagents_codeact"),
     }
 
     if config_type not in config_files:

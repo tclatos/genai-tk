@@ -14,7 +14,7 @@ from smolagents import Tool as SmolAgentTool
 
 from genai_tk.utils.config_mngr import global_config, import_from_qualified
 
-CONF_YAML_FILE = "config/agents/smolagents.yaml"
+CONF_YAML_FILE = "config/basic/agents/smolagents.yaml"
 
 
 class SmolagentsAgentConfig(BaseModel):
@@ -29,6 +29,7 @@ class SmolagentsAgentConfig(BaseModel):
     mcp_servers: List[str] = []
     examples: List[str] = []
     authorized_imports: List[str] = []
+    pre_prompt: Optional[str] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -151,7 +152,7 @@ def load_smolagent_demo_config(config_name: str) -> Optional[Dict[str, Any]]:
         Dictionary containing the demo configuration, or None if not found
     """
     try:
-        demos_config = global_config().merge_with(CONF_YAML_FILE).get_list("codeact_agent_demos")
+        demos_config = global_config().merge_with(CONF_YAML_FILE).get_list("smolagents_codeact")
         for demo_config in demos_config:
             if demo_config.get("name", "").lower() == config_name.lower():
                 return demo_config
@@ -168,7 +169,7 @@ def load_all_demos_from_config() -> List[SmolagentsAgentConfig]:
         List of configured CodeactDemo objects
     """
     try:
-        demos_config = global_config().merge_with(CONF_YAML_FILE).get_list("codeact_agent_demos")
+        demos_config = global_config().merge_with(CONF_YAML_FILE).get_list("smolagents_codeact")
         result = []
 
         for demo_config in demos_config:
@@ -176,6 +177,7 @@ def load_all_demos_from_config() -> List[SmolagentsAgentConfig]:
             examples = demo_config.get("examples", [])
             mcp_servers = demo_config.get("mcp_servers", [])
             authorized_imports = demo_config.get("authorized_imports", [])
+            pre_prompt = demo_config.get("pre_prompt")
 
             # Process tools
             raw_tools = process_tools_from_config(demo_config.get("tools", []))
@@ -187,6 +189,7 @@ def load_all_demos_from_config() -> List[SmolagentsAgentConfig]:
                 mcp_servers=mcp_servers,
                 examples=examples,
                 authorized_imports=authorized_imports,
+                pre_prompt=pre_prompt,
             )
             result.append(demo)
 
@@ -213,6 +216,7 @@ def create_demo_from_config(config_name: str) -> Optional[SmolagentsAgentConfig]
     examples = demo_config.get("examples", [])
     mcp_servers = demo_config.get("mcp_servers", [])
     authorized_imports = demo_config.get("authorized_imports", [])
+    pre_prompt = demo_config.get("pre_prompt")
 
     # Process tools
     raw_tools = process_tools_from_config(demo_config.get("tools", []))
@@ -224,4 +228,5 @@ def create_demo_from_config(config_name: str) -> Optional[SmolagentsAgentConfig]
         mcp_servers=mcp_servers,
         examples=examples,
         authorized_imports=authorized_imports,
+        pre_prompt=pre_prompt,
     )

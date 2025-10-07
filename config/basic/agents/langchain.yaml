@@ -1,6 +1,7 @@
 # ReAct Agent Demos Configuration
-react_agent_demos:
+langchain_agents:
   - name: "filesystem"
+    pre_prompt: You have the ability to manipulate file system.  Is the user ask somethin else, refuse politly.
     tools:  
       - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
         verbose: true
@@ -33,3 +34,14 @@ react_agent_demos:
       - "Which country's customers spent the most?"
       - "Show me albums by AC/DC"
       - "How many tracks are in the Rock genre?"
+
+  - name: "Weather"
+    tools:  
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+        verbose: true
+    mcp_servers:
+      - "filesystem"
+    pre_prompt: "You are a helpful weather assistant. Always provide current weather information and be specific about locations and conditions."
+    examples:
+      - "What is the current weather in Toulouse?"
+      - "Will it rain tomorrow in Paris?"

@@ -5,7 +5,7 @@ paths:
   ekg_data: 
 
   
-codeact_agent_demos:
+smolagents_codeact:
   - name: "from_HG"
     tools: 
       - class: smolagents:WebSearchTool
@@ -36,3 +36,15 @@ codeact_agent_demos:
       - "What were the ticket fares and cabin locations for the passengers?"
       - "What are the demographics (age, gender, etc.) of the passengers on the Titanic?"
       - "What feature would you engineered to predict survival rate ? Build a predictive model, and report the F1 score on a test set"
+
+  - name: "Data Analyst"
+    tools:
+      - class: ${paths.smolagent_custom_tools}.dataframe_tools:DataFrameTool
+        name: "data_reader"
+        description: "Read and analyze data files"
+      - class: smolagents:WebSearchTool
+    authorized_imports: ["pandas", "matplotlib.*", "numpy", "sklearn.*"]
+    pre_prompt: "You are a professional data analyst. Always analyze data thoroughly, provide insights, and suggest visualizations when appropriate. Explain your reasoning step by step."
+    examples:
+      - "Analyze the titanic dataset and show survival patterns"
+      - "Create a summary of the data and identify key trends"

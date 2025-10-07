@@ -38,7 +38,7 @@ def load_react_demo_config(config_name: str) -> Optional[Dict[str, Any]]:
         Dictionary containing the demo configuration, or None if not found
     """
     try:
-        demos_config = global_config().merge_with(REACT_CONF_YAML_FILE).get_list("react_agent_demos")
+        demos_config = global_config().merge_with(REACT_CONF_YAML_FILE).get_list("langchain_agents")
         for demo_config in demos_config:
             if demo_config.get("name", "").lower() == config_name.lower():
                 return demo_config
@@ -55,7 +55,7 @@ def load_all_react_demos_from_config() -> List[ReactDemo]:
         List of configured ReactDemo objects
     """
     try:
-        demos_config = global_config().merge_with(REACT_CONF_YAML_FILE).get_list("react_agent_demos")
+        demos_config = global_config().merge_with(REACT_CONF_YAML_FILE).get_list("langchain_agents")
         result = []
 
         for demo_config in demos_config:

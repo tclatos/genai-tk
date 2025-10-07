@@ -31,6 +31,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         Display current configuration, available LLM tags, and API keys.
         """
 
+        from langsmith import utils as ls_utils
         from rich.console import Console
         from rich.panel import Panel
         from rich.table import Table
@@ -129,6 +130,7 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         console.print(keys_table)
 
+        console.print(f"LangSmith Tracing: {ls_utils.tracing_is_enabled()}")
         # # Deep Agents info
 
         # agents_table = Table(title="Deep Agents", show_header=True, header_style="bold magenta")

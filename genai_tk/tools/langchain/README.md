@@ -85,7 +85,7 @@ uv run cli react-agent --config "Chinook Music Database" --chat
 SQL tool configurations are defined in `config/agents/langchain.yaml` as part of the ReAct agent demos:
 
 ```yaml
-react_agent_demos:
+langchain_agents:
   - name: "Chinook Music Database"
     tools:
       - factory: src.ai_tools_langchain.sql_tool_factory:create_sql_tool_from_config

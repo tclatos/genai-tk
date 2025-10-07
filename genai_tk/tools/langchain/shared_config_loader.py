@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 from langchain_core.tools import BaseTool
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
+from upath import UPath
 
 from genai_tk.utils.config_mngr import global_config, import_from_qualified
 
@@ -27,6 +28,7 @@ class LangChainAgentConfig(BaseModel):
     mcp_servers: List[str] = []
     examples: List[str] = []
     system_prompt: Optional[str] = None
+    pre_prompt: Optional[str] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -158,12 +160,12 @@ def _process_factory_tool(tool_config: Dict[str, Any], llm: Optional[str] = None
     return tools
 
 
-def load_langchain_agent_config(config_file: str, config_section: str, config_name: str) -> Optional[Dict[str, Any]]:
+def load_langchain_agent_config(config_file: UPath, config_section: str, config_name: str) -> Optional[Dict[str, Any]]:
     """Load configuration for a specific agent from a YAML file.
 
     Args:
         config_file: Path to the YAML configuration file
-        config_section: Section name in the YAML file (e.g., 'react_agent_demos')
+        config_section: Section name in the YAML file (e.g., 'langchain_agents')
         config_name: Name of the configuration to load (e.g., 'Weather')
 
     Returns:
@@ -181,7 +183,7 @@ def load_langchain_agent_config(config_file: str, config_section: str, config_na
 
 
 def create_langchain_agent_config(
-    config_file: str, config_section: str, config_name: str, llm: Optional[Any] = None
+    config_file: UPath, config_section: str, config_name: str, llm: Optional[Any] = None
 ) -> Optional[LangChainAgentConfig]:
     """Create a LangChainAgentConfig from YAML configuration.
 
@@ -203,6 +205,7 @@ def create_langchain_agent_config(
     mcp_servers = demo_config.get("mcp_servers", [])
     tool_configs = demo_config.get("tools", [])
     system_prompt = demo_config.get("system_prompt")
+    pre_prompt = demo_config.get("pre_prompt")
 
     # Process tools with the provided LLM
     processed_tools = process_langchain_tools_from_config(tool_configs, llm=llm)
@@ -214,6 +217,7 @@ def create_langchain_agent_config(
         mcp_servers=mcp_servers,
         examples=examples,
         system_prompt=system_prompt,
+        pre_prompt=pre_prompt,
     )
 
 
@@ -237,6 +241,7 @@ def load_all_langchain_agent_configs(config_file: str, config_section: str) -> L
             mcp_servers = demo_config.get("mcp_servers", [])
             tool_configs = demo_config.get("tools", [])
             system_prompt = demo_config.get("system_prompt")
+            pre_prompt = demo_config.get("pre_prompt")
 
             # Process tools
             processed_tools = process_langchain_tools_from_config(tool_configs)
@@ -248,6 +253,7 @@ def load_all_langchain_agent_configs(config_file: str, config_section: str) -> L
                 mcp_servers=mcp_servers,
                 examples=examples,
                 system_prompt=system_prompt,
+                pre_prompt=pre_prompt,
             )
             result.append(config)
 

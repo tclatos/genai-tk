@@ -95,7 +95,7 @@ class PydanticStore(BaseModel):
         """
         kv_store = self.get_kv_store()
         stored_obj = StoredObject.from_model(obj, metadata)
-        obj_bytes = stored_obj.model_dump_json().encode("utf-8")
+        obj_bytes = stored_obj.model_dump_json(indent=2).encode("utf-8")
         encoded_key = _encode_key(key)
         kv_store.mset([(encoded_key, obj_bytes)])
         logger.debug(f"add key '{self.model.__name__}/{encoded_key}' to kv_store {kv_store}'")

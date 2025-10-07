@@ -22,6 +22,8 @@ import typer
 from loguru import logger
 from typer import Option
 
+from genai_tk.utils.config_mngr import global_config
+
 
 def register_commands(cli_app: typer.Typer) -> None:
     @cli_app.command()
@@ -33,6 +35,10 @@ def register_commands(cli_app: typer.Typer) -> None:
         config: Annotated[
             Optional[str],
             Option("--config", "-c", help="Configuration name from react_agent.yaml (e.g. 'Weather', 'Web Research')"),
+        ] = None,
+        pre_prompt: Annotated[
+            Optional[str],
+            Option("--pre-prompt", "-p", help="Additional context or instructions to send before the user query"),
         ] = None,
         cache: Annotated[str, typer.Option(help="Cache strategy: 'sqlite', 'memory' or 'no_cache'")] = "memory",
         lc_verbose: Annotated[bool, Option("--verbose", "-v", help="Enable LangChain verbose mode")] = False,
@@ -72,6 +78,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         # Handle configuration loading using shared loader
         config_tools = []
         config_mcp_servers = []
+        config_pre_prompt = None
 
         if config:
             from genai_tk.core.llm_factory import get_llm
@@ -80,15 +87,17 @@ def register_commands(cli_app: typer.Typer) -> None:
             # Get the LLM instance that will be used by the agent
             agent_llm = get_llm(llm_id=llm_id) if llm_id else None
 
+            config_path = global_config().get_dir_path("paths.config")
+
             agent_config = create_langchain_agent_config(
-                config_file="config/agents/langchain.yaml",
-                config_section="react_agent_demos",
+                config_file=config_path / "agents/langchain.yaml",
+                config_section="langchain_agents",
                 config_name=config,
                 llm=agent_llm,
             )
 
             if agent_config is None:
-                print(f"❌ Error: Configuration '{config}' not found in config/agents/langchain.yaml")
+                print(f"❌ Error: Configuration '{config}' not found in config/basic/agents/langchain.yaml")
                 print()
                 from genai_tk.utils.cli.config_display import display_react_agent_configs
 
@@ -98,6 +107,7 @@ def register_commands(cli_app: typer.Typer) -> None:
             # Extract configuration parameters
             config_tools = agent_config.tools  # Already processed BaseTool instances
             config_mcp_servers = agent_config.mcp_servers
+            config_pre_prompt = agent_config.pre_prompt
 
             print(f"Using ReAct configuration '{config}':")
             if config_tools:
@@ -108,6 +118,8 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         # Merge MCP servers from config and command line
         final_mcp_servers = list(set(mcp + config_mcp_servers))
+        # Determine final pre_prompt (command line takes precedence over config)
+        final_pre_prompt = pre_prompt or config_pre_prompt
 
         setup_langchain(llm_id, lc_debug, lc_verbose, cache)
 
@@ -122,7 +134,11 @@ def register_commands(cli_app: typer.Typer) -> None:
 
             asyncio.run(
                 call_react_agent(
-                    input, llm_id=llm_id, mcp_server_filter=final_mcp_servers, additional_tools=config_tools
+                    input,
+                    llm_id=llm_id,
+                    mcp_server_filter=final_mcp_servers,
+                    additional_tools=config_tools,
+                    pre_prompt=final_pre_prompt,
                 )
             )
 
@@ -133,6 +149,10 @@ def register_commands(cli_app: typer.Typer) -> None:
         config: Annotated[
             Optional[str],
             Option("--config", "-c", help="Configuration name from codeact_agent.yaml (e.g. 'Titanic', 'MCP')"),
+        ] = None,
+        pre_prompt: Annotated[
+            Optional[str],
+            Option("--pre-prompt", "-p", help="Additional context or instructions to send before the user query"),
         ] = None,
         llm: Annotated[Optional[str], Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = None,
         imports: list[str] | None = None,
@@ -180,6 +200,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         # Handle configuration loading
         config_tools = []
         config_authorized_imports = []
+        config_pre_prompt = None
         final_tools = []
         final_imports = imports or []
 
@@ -197,6 +218,7 @@ def register_commands(cli_app: typer.Typer) -> None:
             raw_config_tools = process_tools_from_config(demo_config.get("tools", []))
             config_tools = convert_langchain_tools(raw_config_tools)  # Convert LangChain tools to SmolAgent tools
             config_authorized_imports = demo_config.get("authorized_imports", [])
+            config_pre_prompt = demo_config.get("pre_prompt")
 
             print(f"Using CodeAct configuration '{config}':")
             if config_tools:
@@ -208,6 +230,8 @@ def register_commands(cli_app: typer.Typer) -> None:
             # Use config tools and imports
             final_tools.extend(config_tools)
             final_imports.extend(config_authorized_imports)
+        # Determine final pre_prompt (command line takes precedence over config)
+        final_pre_prompt = pre_prompt or config_pre_prompt
 
         model = LlmFactory(llm_id=llm_id).get_smolagent_model()
         available_tools = final_tools.copy()
@@ -237,7 +261,11 @@ def register_commands(cli_app: typer.Typer) -> None:
                 print("Error: Input parameter or something in stdin is required")
                 return
 
-            agent = CodeAgent(tools=available_tools, model=model, additional_authorized_imports=final_imports)
+            # Create agent with optional pre_prompt as instructions
+            agent_kwargs = {"tools": available_tools, "model": model, "additional_authorized_imports": final_imports}
+            if final_pre_prompt:
+                agent_kwargs["instructions"] = final_pre_prompt
+            agent = CodeAgent(**agent_kwargs)
             agent.run(input)
 
     @cli_app.command()
