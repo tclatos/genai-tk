@@ -75,7 +75,7 @@ def register_commands(cli_app: typer.Typer) -> None:
                 return
             llm_id = resolved_id
 
-        # Handle configuration loading using shared loader
+        # Handle configuration loading using shared loader.
         config_tools = []
         config_mcp_servers = []
         config_pre_prompt = None
