@@ -11,7 +11,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from genai_tk.main.commands_rag import register_commands
+from genai_tk.extra.rag.commands_rag import register_commands
 
 
 @pytest.fixture

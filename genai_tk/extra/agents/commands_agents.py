@@ -63,8 +63,8 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         from genai_tk.core.llm_factory import LlmFactory
         from genai_tk.core.mcp_client import call_react_agent
-        from genai_tk.utils.cli.langchain_setup import setup_langchain
-        from genai_tk.utils.cli.langgraph_agent_shell import run_langgraph_agent_shell
+        from genai_tk.extra.agents.langchain_setup import setup_langchain
+        from genai_tk.extra.agents.langgraph_agent_shell import run_langgraph_agent_shell
 
         # Resolve LLM identifier if provided
         llm_id = None
@@ -183,7 +183,7 @@ def register_commands(cli_app: typer.Typer) -> None:
             load_smolagent_demo_config,
             process_tools_from_config,
         )
-        from genai_tk.utils.cli.langchain_setup import setup_langchain
+        from genai_tk.extra.agents.langchain_setup import setup_langchain
 
         # Resolve LLM identifier if provided
         llm_id = None

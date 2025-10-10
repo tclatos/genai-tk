@@ -49,8 +49,13 @@ embeddings_store:
 
 # Key-Value Stores configuration
 kv_store: 
-  file: 
+  default:
+    type: LocalFileStore
     path: ${paths.data_root}/kv_store
+    
+  postgres: 
+    type: SQLStore
+    path: postgresql://${oc.env:POSTGRES_USER,unknown_user}:${oc.env:POSTGRES_PASSWORD,password}@localhost:5432/ekg
   
 # LLM Cache configuration  
 llm_cache:
