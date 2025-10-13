@@ -285,10 +285,11 @@ class EmbeddingsFactory(BaseModel):
         Returns:
             Cached embeddings model with persistent storage
         """
-        from genai_tk.extra.kv_store_registry import KvStoreRegistry
-        
+
         registry = KvStoreRegistry()
-        kv_store = registry.get(store_id="default", namespace="cache_embeddings")  # TODO : support SQL  (need async KvStore)
+        kv_store = registry.get(
+            store_id="default", namespace="cache_embeddings"
+        )  # TODO : support SQL  (need async KvStore)
         base = f"{self.short_name()}-"
         cached_embedder = CacheBackedEmbeddings.from_bytes_store(
             underlying_embeddings=underlying_embeddings,

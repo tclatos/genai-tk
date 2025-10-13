@@ -94,7 +94,6 @@ class LlmInfo(BaseModel):
 
 def _read_llm_list_file() -> list[LlmInfo]:
     """Read the YAML file with list of LLM providers and info."""
-    import yaml
 
     # The name of the file is in the configuration file
     yml_file = global_config().get_file_path("llm.list")
@@ -139,50 +138,6 @@ def _read_llm_list_file() -> list[LlmInfo]:
     return llms
 
 
-def _read_embeddings_list_file() -> list[LlmInfo]:
-    """Read the embeddings models from the YAML file."""
-    # The name of the file is in the configuration file
-    yml_file = global_config().get_file_path("llm.list")
-    with open(yml_file) as f:
-        data = yaml.safe_load(f)
-
-    embeddings = []
-    if "embeddings" in data:
-        for model_entry in data["embeddings"]:
-            model_id = model_entry["id"]
-            for provider_info in model_entry["providers"]:
-                if isinstance(provider_info, dict):
-                    # Handle new format
-                    for provider, config in provider_info.items():
-                        if isinstance(config, dict):
-                            model_name = config.pop("model", "")
-                            embedding_info = {
-                                "id": f"{model_id}_{provider}",
-                                "provider": provider,
-                                "model": model_name,
-                                "config": config,
-                            }
-                        else:
-                            embedding_info = {
-                                "id": f"{model_id}_{provider}",
-                                "provider": provider,
-                                "model": str(config),
-                                "config": {},
-                            }
-                        embeddings.append(LlmInfo(**embedding_info))
-                else:
-                    # Handle legacy format
-                    for provider, model_name in provider_info.items():
-                        embedding_info = {
-                            "id": f"{model_id}_{provider}",
-                            "provider": provider,
-                            "model": str(model_name),
-                            "config": {},
-                        }
-                        embeddings.append(LlmInfo(**embedding_info))
-    return embeddings
-
-
 class LlmFactory(BaseModel):
     """Factory for creating and configuring LLM instances.
 
@@ -206,6 +161,7 @@ class LlmFactory(BaseModel):
     reasoning: bool | None = None
     cache: str | None = None
     llm_params: dict = {}
+    _unified_param: str | None = None  # Internal field for unified parameter resolution
 
     @property
     def provider(self) -> str:
@@ -221,8 +177,19 @@ class LlmFactory(BaseModel):
 
     def model_post_init(self, __context: dict) -> None:
         """Post-initialization validation and tag resolution."""
+        # Check for conflicting parameters first
+        if self._unified_param is not None and (self.llm_id or self.llm_tag):
+            raise ValueError("Cannot specify unified parameter along with llm_id or llm_tag")
+        
         if self.llm_id and self.llm_tag:
             raise ValueError("Cannot specify both llm_id and llm_tag")
+
+        # Handle unified parameter resolution
+        if self._unified_param is not None:
+            resolved_id = LlmFactory.resolve_llm_identifier(self._unified_param)
+            object.__setattr__(self, "llm_id", resolved_id)
+            # Clear the unified param after resolution
+            object.__setattr__(self, "_unified_param", None)
 
         if self.llm_tag and not self.llm_id:
             # Resolve tag to llm_id
@@ -343,42 +310,6 @@ class LlmFactory(BaseModel):
             )
             return None, error_msg
 
-    @classmethod
-    def from_unified_parameter(
-        cls,
-        llm: str | None = None,
-        json_mode: bool = False,
-        streaming: bool = False,
-        reasoning: bool | None = None,
-        cache: str | None = None,
-        llm_params: dict | None = None,
-    ) -> "LlmFactory":
-        """Create LlmFactory instance from unified LLM parameter.
-
-        Args:
-            llm: Unified LLM identifier (can be either LLM ID or LLM tag)
-            json_mode: Whether to force JSON output format (where supported)
-            streaming: Whether to enable streaming responses (where supported)
-            reasoning: Whether to show reasoning/thinking process (None=default, True=enable, False=disable)
-            cache: cache method or None
-            llm_params: Additional LLM parameters
-
-        Returns:
-            LlmFactory instance with resolved LLM ID
-        """
-        llm_id = None
-        if llm is not None:
-            llm_id = cls.resolve_llm_identifier(llm)
-
-        return cls(
-            llm_id=llm_id,
-            llm_tag=None,  # Don't use llm_tag since we've already resolved
-            json_mode=json_mode,
-            streaming=streaming,
-            reasoning=reasoning,
-            cache=cache,
-            llm_params=llm_params or {},
-        )
 
     def get_id(self) -> str:
         """Return the id of the LLM."""
@@ -761,8 +692,8 @@ def get_llm_unified(
         llm = get_llm_unified(llm="fast_model", temperature=0.7)
         ```
     """
-    factory = LlmFactory.from_unified_parameter(
-        llm=llm,
+    factory = LlmFactory(
+        _unified_param=llm,
         json_mode=json_mode,
         streaming=streaming,
         reasoning=reasoning,

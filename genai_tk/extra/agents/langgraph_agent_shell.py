@@ -16,8 +16,8 @@ from rich.text import Text
 
 from genai_tk.core.llm_factory import get_llm
 from genai_tk.core.mcp_client import get_mcp_servers_dict
-from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.langgraph import print_astream
+from genai_tk.utils.tracing import tracing_context
 
 
 async def run_langgraph_agent_shell(
@@ -102,16 +102,11 @@ async def run_langgraph_agent_shell(
 
             # Process the response
             with console.status("[bold green]Agent is thinking...\n[/bold green]"):
-                if global_config().get_bool("monitoring.langsmith", False):
-                    from langchain.callbacks import tracing_v2_enabled
-
-                    with tracing_v2_enabled() as cb:
-                        resp = agent.astream({"messages": user_input}, config)
-                        await print_astream(resp)
-                        last_trace_url = cb.get_run_url()
-                else:
+                with tracing_context() as cb:
                     resp = agent.astream({"messages": user_input}, config)
                     await print_astream(resp)
+                    if cb:
+                        last_trace_url = cb.get_run_url()
 
             console.print()  # Add spacing between interactions
 
