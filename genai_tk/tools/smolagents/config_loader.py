@@ -14,7 +14,7 @@ from smolagents import Tool as SmolAgentTool
 
 from genai_tk.utils.config_mngr import global_config, import_from_qualified
 
-CONF_YAML_FILE = "config/basic/agents/smolagents.yaml"
+CONF_YAML_FILE = "agents/smolagents.yaml"
 
 
 class SmolagentsAgentConfig(BaseModel):
@@ -152,7 +152,11 @@ def load_smolagent_demo_config(config_name: str) -> Optional[Dict[str, Any]]:
         Dictionary containing the demo configuration, or None if not found
     """
     try:
-        demos_config = global_config().merge_with(CONF_YAML_FILE).get_list("smolagents_codeact")
+        conf_file = global_config().get_dir_path("paths.config") / CONF_YAML_FILE
+        from devtools import debug
+
+        debug(conf_file)
+        demos_config = global_config().merge_with(conf_file).get_list("smolagents_codeact")
         for demo_config in demos_config:
             if demo_config.get("name", "").lower() == config_name.lower():
                 return demo_config
@@ -169,7 +173,8 @@ def load_all_demos_from_config() -> List[SmolagentsAgentConfig]:
         List of configured CodeactDemo objects
     """
     try:
-        demos_config = global_config().merge_with(CONF_YAML_FILE).get_list("smolagents_codeact")
+        conf_file = global_config().get_dir_path("paths.config") / CONF_YAML_FILE
+        demos_config = global_config().merge_with(conf_file).get_list("smolagents_codeact")
         result = []
 
         for demo_config in demos_config:
