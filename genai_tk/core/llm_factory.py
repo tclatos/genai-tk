@@ -43,8 +43,7 @@ from functools import cached_property, lru_cache
 from typing import Annotated, Any, cast
 
 import yaml
-
-# from devtools import debug  # noqa: F401 - removed unused import
+from devtools import debug  # noqa: F401 - removed unused import
 from langchain.chat_models.base import init_chat_model
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -180,7 +179,7 @@ class LlmFactory(BaseModel):
         # Check for conflicting parameters first
         if self._unified_param is not None and (self.llm_id or self.llm_tag):
             raise ValueError("Cannot specify unified parameter along with llm_id or llm_tag")
-        
+
         if self.llm_id and self.llm_tag:
             raise ValueError("Cannot specify both llm_id and llm_tag")
 
@@ -309,7 +308,6 @@ class LlmFactory(BaseModel):
                 f"🆔 Available LLM IDs: {', '.join(LlmFactory.known_items()[:3])}{'...' if len(LlmFactory.known_items()) > 3 else ''}"
             )
             return None, error_msg
-
 
     def get_id(self) -> str:
         """Return the id of the LLM."""
