@@ -159,3 +159,4 @@ config/local.yml
 llm_cache/
 vector_store_data/
 knowledge_graphs/
+.aider*

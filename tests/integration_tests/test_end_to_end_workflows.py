@@ -22,7 +22,7 @@ def test_rag_pipeline_with_fake_models(sample_documents) -> None:
     """Test complete RAG pipeline with fake models."""
     # Create vector store from configuration
     embeddings_store = EmbeddingsStore.create_from_config("default")
-    vector_store = embeddings_store.get()
+    vector_store = embeddings_store.get_vector_store()
 
     # Add documents to vector store
     vector_store.add_documents(sample_documents)
@@ -68,7 +68,7 @@ def test_document_processing_pipeline(sample_documents) -> None:
 
     # Create vector store and add embedded documents
     embeddings_store = EmbeddingsStore.create_from_config("default")
-    vector_store = embeddings_store.get()
+    vector_store = embeddings_store.get_vector_store()
     vector_store.add_documents(documents)
 
     # Test semantic search
@@ -128,7 +128,7 @@ def test_question_answering_pipeline() -> None:
 
     # Create vector store from configuration
     embeddings_store = EmbeddingsStore.create_from_config("default")
-    vector_store = embeddings_store.get()
+    vector_store = embeddings_store.get_vector_store()
     vector_store.add_documents(knowledge_docs)
 
     # Test questions

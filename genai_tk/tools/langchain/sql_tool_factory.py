@@ -81,7 +81,7 @@ class SQLToolFactory:
             # Test connection by getting table info
             db.get_table_info()
         except Exception as e:
-            raise ConnectionError(f"Failed to connect to database: {e}") from e
+            raise ConnectionError(f"Failed to connect to database '{config.database_uri}': {e}") from e
 
         # Create the SQL querying graph
         graph = create_sql_querying_graph(llm=self.llm, db=db, examples=config.examples, top_k=config.top_k)

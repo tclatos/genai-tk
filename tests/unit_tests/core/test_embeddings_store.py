@@ -37,7 +37,7 @@ def test_vector_store_creation_and_search(sample_documents, config_name) -> None
     embeddings_store = EmbeddingsStore.create_from_config(config_name)
 
     # Add documents
-    db = embeddings_store.get()
+    db = embeddings_store.get_vector_store()
     db.add_documents(sample_documents)
 
     # Perform similarity search
@@ -59,7 +59,7 @@ def test_vector_store_with_fake_embeddings(sample_documents) -> None:
     """Test vector store specifically with fake embeddings."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
 
-    db = embeddings_store.get()
+    db = embeddings_store.get_vector_store()
     db.add_documents(sample_documents)
 
     # Test search with different queries
@@ -75,7 +75,7 @@ def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
     """Test max marginal relevance search functionality."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
 
-    db = embeddings_store.get()
+    db = embeddings_store.get_vector_store()
     db.add_documents(sample_documents)
 
     # Test MMR search
@@ -99,7 +99,7 @@ def test_vector_store_similarity_search_by_vector(sample_documents) -> None:
     embeddings_store = EmbeddingsStore.create_from_config("default")
     embeddings_factory = embeddings_store.embeddings_factory
 
-    db = embeddings_store.get()
+    db = embeddings_store.get_vector_store()
     db.add_documents(sample_documents)
 
     # Create a query vector using the same embeddings
@@ -128,7 +128,7 @@ def test_vector_store_empty_search() -> None:
     """Test vector store behavior with empty document set."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
 
-    db = embeddings_store.get()
+    db = embeddings_store.get_vector_store()
 
     # Search on empty database should not crash
     results = db.similarity_search("test query", k=2)
@@ -139,7 +139,7 @@ def test_vector_store_large_k_parameter(sample_documents) -> None:
     """Test vector store behavior when k exceeds document count."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
 
-    db = embeddings_store.get()
+    db = embeddings_store.get_vector_store()
     db.add_documents(sample_documents)
 
     # Request more results than available documents
@@ -154,7 +154,7 @@ def test_vector_store_performance(sample_documents, performance_threshold) -> No
 
     embeddings_store = EmbeddingsStore.create_from_config("default")
 
-    db = embeddings_store.get()
+    db = embeddings_store.get_vector_store()
 
     # Measure document addition time
     start_time = time.time()
@@ -178,7 +178,7 @@ def test_chroma_memory_storage(sample_documents) -> None:
     assert embeddings_store.backend == "Chroma"
     assert embeddings_store.config.get("storage") == "::memory::"
 
-    db = embeddings_store.get()
+    db = embeddings_store.get_vector_store()
     db.add_documents(sample_documents)
 
     # Verify we can search

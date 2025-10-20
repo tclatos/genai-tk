@@ -82,7 +82,7 @@ def structured_output_chain(
 
             # Create default values based on field types
             kwargs = {}
-            for field_name, field_info in fields.items():
+            for field_name, _field_info in fields.items():
                 # Use string representation for all fields for simplicity
                 # The tests will check that the right type is returned
                 if field_name == "success":

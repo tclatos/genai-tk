@@ -29,6 +29,7 @@ class LangChainAgentConfig(BaseModel):
     examples: List[str] = []
     system_prompt: Optional[str] = None
     pre_prompt: Optional[str] = None
+    llm_id: str | None = None  # Resolved LLM identifier (ID or tag)
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -207,7 +208,32 @@ def create_langchain_agent_config(
     system_prompt = demo_config.get("system_prompt")
     pre_prompt = demo_config.get("pre_prompt")
 
-    # Process tools with the provided LLM
+    # Handle LLM configuration from YAML
+    config_llm_identifier = demo_config.get("llm")
+    resolved_llm_id = None
+
+    if config_llm_identifier:
+        from genai_tk.core.llm_factory import LlmFactory
+
+        try:
+            resolved_llm_id = LlmFactory.resolve_llm_identifier(config_llm_identifier)
+            logger.info(f"Resolved LLM identifier '{config_llm_identifier}' to '{resolved_llm_id}'")
+        except Exception as ex:
+            logger.error(f"Failed to resolve LLM identifier '{config_llm_identifier}': {ex}")
+            # Continue without resolved LLM ID - will use default or passed LLM
+
+    # Get the actual LLM instance for tool processing
+    # Priority: resolved from config > passed LLM > default
+    if resolved_llm_id and not llm:
+        from genai_tk.core.llm_factory import get_llm
+
+        try:
+            llm = get_llm(llm_id=resolved_llm_id)
+        except Exception as ex:
+            logger.warning(f"Failed to get LLM instance for '{resolved_llm_id}': {ex}")
+            # Continue with whatever LLM was passed or None
+
+    # Process tools with the LLM (either resolved from config, passed, or None)
     processed_tools = process_langchain_tools_from_config(tool_configs, llm=llm)
 
     return LangChainAgentConfig(
@@ -218,6 +244,7 @@ def create_langchain_agent_config(
         examples=examples,
         system_prompt=system_prompt,
         pre_prompt=pre_prompt,
+        llm_id=resolved_llm_id,
     )
 
 
@@ -243,7 +270,25 @@ def load_all_langchain_agent_configs(config_file: str, config_section: str) -> L
             system_prompt = demo_config.get("system_prompt")
             pre_prompt = demo_config.get("pre_prompt")
 
-            # Process tools
+            # Handle LLM configuration from YAML
+            config_llm_identifier = demo_config.get("llm")
+            resolved_llm_id = None
+
+            if config_llm_identifier:
+                from genai_tk.core.llm_factory import LlmFactory
+
+                try:
+                    resolved_llm_id = LlmFactory.resolve_llm_identifier(config_llm_identifier)
+                    logger.debug(
+                        f"Resolved LLM identifier '{config_llm_identifier}' to '{resolved_llm_id}' for agent '{name}'"
+                    )
+                except Exception as ex:
+                    logger.warning(
+                        f"Failed to resolve LLM identifier '{config_llm_identifier}' for agent '{name}': {ex}"
+                    )
+                    # Continue without resolved LLM ID - will use default
+
+            # Process tools (without LLM instance for bulk loading)
             processed_tools = process_langchain_tools_from_config(tool_configs)
 
             config = LangChainAgentConfig(
@@ -254,6 +299,7 @@ def load_all_langchain_agent_configs(config_file: str, config_section: str) -> L
                 examples=examples,
                 system_prompt=system_prompt,
                 pre_prompt=pre_prompt,
+                llm_id=resolved_llm_id,
             )
             result.append(config)
 

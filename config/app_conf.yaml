@@ -25,7 +25,6 @@ cli:
     - genai_tk.core.commands_core:register_commands
     - genai_tk.extra.commands_extra:register_commands
     - genai_tk.extra.agents.commands_agents:register_commands
-    - genai_tk.extra.rag.commands_rag:register_commands
     - genai_tk.main.cli:register_commands
 
 # Logging configuration

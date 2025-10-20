@@ -25,8 +25,12 @@ from genai_tk.utils.config_mngr import global_config
 
 
 def register_commands(cli_app: typer.Typer) -> None:
-    @cli_app.command()
-    def config_info() -> None:
+    # Grouped sub-apps
+    core_app = typer.Typer(no_args_is_help=True, help="Core commands interacting with AI models.")
+    info_app = typer.Typer(no_args_is_help=True, help="Information and listing commands.")
+
+    @info_app.command("config")
+    def config() -> None:
         """
         Display current configuration, available LLM tags, and API keys.
         """
@@ -195,7 +199,7 @@ def register_commands(cli_app: typer.Typer) -> None:
 
                     # Test if store can be created (indicates proper configuration)
                     try:
-                        test_store = kv_registry.get(store_id)
+                        kv_registry.get(store_id)
                         status = "[green]✓ available[/green]"
                     except Exception as e:
                         error_msg = str(e)
@@ -237,7 +241,7 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         # console.print(agents_table)
 
-    @cli_app.command()
+    @core_app.command()
     def llm(
         input: Annotated[str | None, typer.Option(help="Input text or '-' to read from stdin")] = None,
         cache: Annotated[str, typer.Option(help="Cache strategy: 'sqlite', 'memory' or 'no_cache'")] = "memory",
@@ -319,7 +323,7 @@ def register_commands(cli_app: typer.Typer) -> None:
                 result = chain.invoke(input)
                 pprint(result)
 
-    @cli_app.command()
+    @core_app.command()
     def run(
         runnable_name: Annotated[str, typer.Argument(help="Name of registered Runnable to execute")],
         input: Annotated[str | None, typer.Option(help="Input text or '-' to read from stdin")] = None,
@@ -420,8 +424,8 @@ def register_commands(cli_app: typer.Typer) -> None:
             result = chain.invoke(input)
             pprint(result)
 
-    @cli_app.command()
-    def list_models() -> None:
+    @info_app.command("models")
+    def models() -> None:
         """
         List the known LLMs, embeddings models, and vector stores.
         """
@@ -461,7 +465,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         bottom_row = Columns([embeddings_panel, vector_panel], equal=True, expand=True)
         console.print(bottom_row)
 
-    @cli_app.command()
+    @core_app.command()
     def embedd(
         input: Annotated[str, typer.Argument(help="Text to embed")],
         model_id: Annotated[Optional[str], Option("--model-id", "-m", help="Embeddings model ID")] = None,
@@ -500,8 +504,8 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         console.print(table)
 
-    @cli_app.command()
-    def list_mcp_tools(
+    @info_app.command("mcp-tools")
+    def mcp_tools(
         filter: Annotated[list[str] | None, Option("--filter", "-f", help="Filter tools by server names")] = None,
     ) -> None:
         """Display information about available MCP tools.
@@ -541,7 +545,7 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         asyncio.run(display_tools())
 
-    @cli_app.command()
+    @core_app.command()
     def similarity(
         sentences: Annotated[list[str], typer.Argument(help="List of sentences to compare (first is reference)")],
         model_id: Annotated[Optional[str], Option("--model-id", "-m", help="Embeddings model ID")] = None,
@@ -593,8 +597,8 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         console.print(table)
 
-    @cli_app.command()
-    def list_mcp_prompts(
+    @info_app.command("mcp-prompts")
+    def mcp_prompts(
         filter: Annotated[list[str] | None, Option("--filter", "-f", help="Filter prompts by server names")] = None,
     ) -> None:
         """Display information about available MCP prompts.
@@ -625,3 +629,7 @@ def register_commands(cli_app: typer.Typer) -> None:
                 print()
 
         asyncio.run(display_prompts())
+
+    # Mount groups on root app
+    cli_app.add_typer(core_app, name="core")
+    cli_app.add_typer(info_app, name="info")

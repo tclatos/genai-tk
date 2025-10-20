@@ -8,8 +8,7 @@ from pydantic import BaseModel
 
 from genai_tk.utils.pydantic.kv_store import (
     _encode_to_alphanumeric,
-    load_object_from_kvstore,
-    save_object_to_kvstore,
+    PydanticStore,
 )
 
 
@@ -49,9 +48,10 @@ class TestKVStore(unittest.TestCase):
 
             # Test saving and loading
             key = "test_key"
-            save_object_to_kvstore(key, self.test_model, None, "file")
+            store = PydanticStore(kvstore_id="file", model=SampleModel)
+            store.save_obj(key, self.test_model, None)
 
-            retrieved = load_object_from_kvstore(SampleModel, key, "file")
+            retrieved = store.load_object(key)
             self.assertIsNotNone(retrieved)
             if retrieved:
                 self.assertEqual(retrieved.name, "test_object")
@@ -64,7 +64,8 @@ class TestKVStore(unittest.TestCase):
 
             global_config().set("kv_store.file.path", temp_dir)
 
-            retrieved = load_object_from_kvstore(SampleModel, "nonexistent", "file")
+            store = PydanticStore(kvstore_id="file", model=SampleModel)
+            retrieved = store.load_object("nonexistent")
             self.assertIsNone(retrieved)
 
     def test_file_storage_dict_key(self):
@@ -75,9 +76,10 @@ class TestKVStore(unittest.TestCase):
             global_config().set("kv_store.file.path", temp_dir)
 
             dict_key = {"user_id": 123, "session": "abc"}
-            save_object_to_kvstore(dict_key, self.test_model, None, "file")
+            store = PydanticStore(kvstore_id="file", model=SampleModel)
+            store.save_obj(dict_key, self.test_model, None)
 
-            retrieved = load_object_from_kvstore(SampleModel, dict_key, "file")
+            retrieved = store.load_object(dict_key)
             self.assertIsNotNone(retrieved)
             self.assertEqual(retrieved.name, "test_object")
 
@@ -89,13 +91,14 @@ class TestKVStore(unittest.TestCase):
             global_config().set("kv_store.file.path", temp_dir)
 
             key = "test_key"
-            save_object_to_kvstore(key, self.test_model, None, "file")
+            store = PydanticStore(kvstore_id="file", model=SampleModel)
+            store.save_obj(key, self.test_model, None)
 
             # Create new model and overwrite
             new_model = SampleModel(name="updated", value=99)
-            save_object_to_kvstore(key, new_model, None, "file")
+            store.save_obj(key, new_model, None)
 
-            retrieved = load_object_from_kvstore(SampleModel, key, "file")
+            retrieved = store.load_object(key)
             self.assertIsNotNone(retrieved)
             self.assertEqual(retrieved.name, "updated")
             self.assertEqual(retrieved.value, 99)
@@ -114,11 +117,13 @@ class TestKVStore(unittest.TestCase):
             model1 = SampleModel(name="model1", value=1)
             model2 = AnotherModel(title="model2", count=2.5)
 
-            save_object_to_kvstore("key1", model1, None, "file")
-            save_object_to_kvstore("key2", model2, None, "file")
+            store1 = PydanticStore(kvstore_id="file", model=SampleModel)
+            store2 = PydanticStore(kvstore_id="file", model=AnotherModel)
+            store1.save_obj("key1", model1, None)
+            store2.save_obj("key2", model2, None)
 
-            retrieved1 = load_object_from_kvstore(SampleModel, "key1", "file")
-            retrieved2 = load_object_from_kvstore(AnotherModel, "key2", "file")
+            retrieved1 = store1.load_object("key1")
+            retrieved2 = store2.load_object("key2")
 
             self.assertIsNotNone(retrieved1)
             self.assertIsNotNone(retrieved2)
@@ -139,9 +144,10 @@ class TestKVStore(unittest.TestCase):
 
             try:
                 model = SampleModel(name="sql_test", value=123)
-                save_object_to_kvstore("sql_key", model, None, "sql")
+                store = PydanticStore(kvstore_id="sql", model=SampleModel)
+                store.save_obj("sql_key", model, None)
 
-                retrieved = load_object_from_kvstore(SampleModel, "sql_key", "sql")
+                retrieved = store.load_object("sql_key")
                 self.assertIsNotNone(retrieved)
                 self.assertEqual(retrieved.name, "sql_test")
                 self.assertEqual(retrieved.value, 123)
@@ -158,7 +164,8 @@ class TestKVStore(unittest.TestCase):
             global_config().set("kv_store.file.path", temp_dir)
 
             with self.assertRaises(ValueError):
-                save_object_to_kvstore(123, self.test_model, None, "file")  # type: ignore
+                store = PydanticStore(kvstore_id="file", model=SampleModel)
+                store.save_obj(123, self.test_model, None)  # type: ignore
 
     def test_invalid_store_id(self):
         """Test that invalid store_id raises appropriate errors."""
@@ -168,7 +175,8 @@ class TestKVStore(unittest.TestCase):
             global_config().set("kv_store.file.path", temp_dir)
 
             with self.assertRaises(ValueError):
-                save_object_to_kvstore("key", self.test_model, None, "invalid_store")
+                store = PydanticStore(kvstore_id="invalid_store", model=SampleModel)
+                store.save_obj("key", self.test_model, None)
 
 
 if __name__ == "__main__":

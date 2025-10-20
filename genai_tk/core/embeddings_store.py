@@ -433,8 +433,8 @@ class EmbeddingsStore(BaseModel):
                 # Fallback to global config if not specified in individual config
                 try:
                     db_url = global_config().get_str("vector_store.record_manager")
-                except (ValueError, KeyError):
-                    raise ValueError("Record manager URL not found in configuration or global config")
+                except (ValueError, KeyError) as e:
+                    raise ValueError("Record manager URL not found in configuration or global config") from e
 
             logger.debug(f"vector store record manager : {db_url}")
             namespace = f"{self.backend}/{self.table_name}"

@@ -26,7 +26,10 @@ from genai_tk.utils.config_mngr import global_config
 
 
 def register_commands(cli_app: typer.Typer) -> None:
-    @cli_app.command()
+    # Tools sub-app
+    tools_app = typer.Typer(no_args_is_help=True, help="Utilities and extra tools.")
+
+    @tools_app.command()
     def gpt_researcher(
         query: Annotated[str, typer.Argument(help="Research query to investigate")],
         config_name: Annotated[
@@ -62,7 +65,7 @@ def register_commands(cli_app: typer.Typer) -> None:
 
                 traceback.print_exc()
 
-    @cli_app.command()
+    @tools_app.command()
     def markdownize(
         input_path: str = typer.Argument(..., help="Input file or directory path"),
         output_dir: Optional[str] = typer.Option(None, help="Output directory for markdown files"),
@@ -331,6 +334,9 @@ def register_commands(cli_app: typer.Typer) -> None:
                     f"{error_count} files encountered errors during processing. Check the output above for details.",
                 )
             )
+
+    # Mount tools app
+    cli_app.add_typer(tools_app, name="tools")
 
 
 def unmaintained_commands(cli_app: typer.Typer) -> None:

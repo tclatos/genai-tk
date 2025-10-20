@@ -111,7 +111,7 @@ def register_commands(cli_app: typer.Typer) -> None:
     """
 
     # Create a sub-app for RAG commands
-    rag_app = typer.Typer(help="Vector store operations for RAG (Retrieval Augmented Generation)")
+    rag_app = typer.Typer(help="Vector store operations for RAG (Retrieval Augmented Generation)", no_args_is_help=True)
 
     @rag_app.command()
     def delete(store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")]) -> None:
@@ -199,7 +199,7 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         try:
             # Embed the text
-            doc_ids = vector_store.embed_text(text, parsed_metadata)
+            vector_store.embed_text(text, parsed_metadata)
 
             # Show success message with stats
             stats = vector_store.get_stats()

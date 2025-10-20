@@ -26,8 +26,16 @@ from genai_tk.utils.config_mngr import global_config
 
 
 def register_commands(cli_app: typer.Typer) -> None:
-    @cli_app.command()
-    def react_agent(
+    # Agent sub-app
+    agents_app = typer.Typer(no_args_is_help=True, help="Agent-based commands.")
+
+    # RAG sub-app
+    rag_app = typer.Typer(
+        no_args_is_help=True, help="Vector store operations for RAG (Retrieval Augmented Generation)."
+    )
+
+    @agents_app.command("react")
+    def react(
         input: Annotated[str | None, typer.Option(help="Input query or '-' to read from stdin")] = None,
         mcp: Annotated[
             list[str], typer.Option(help="MCP server names to connect to (e.g. playwright, filesystem, ..)")
@@ -66,26 +74,14 @@ def register_commands(cli_app: typer.Typer) -> None:
         from genai_tk.extra.agents.langchain_setup import setup_langchain
         from genai_tk.extra.agents.langgraph_agent_shell import run_langgraph_agent_shell
 
-        # Resolve LLM identifier if provided
-        llm_id = None
-        if llm:
-            resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-            if error_msg:
-                print(error_msg)
-                return
-            llm_id = resolved_id
-
-        # Handle configuration loading using shared loader.
+        # Handle configuration loading using shared loader
         config_tools = []
         config_mcp_servers = []
         config_pre_prompt = None
+        final_llm_id = None
 
         if config:
-            from genai_tk.core.llm_factory import get_llm
             from genai_tk.tools.langchain.shared_config_loader import create_langchain_agent_config
-
-            # Get the LLM instance that will be used by the agent
-            agent_llm = get_llm(llm_id=llm_id) if llm_id else None
 
             config_path = global_config().get_dir_path("paths.config")
 
@@ -93,7 +89,7 @@ def register_commands(cli_app: typer.Typer) -> None:
                 config_file=config_path / "agents/langchain.yaml",
                 config_section="langchain_agents",
                 config_name=config,
-                llm=agent_llm,
+                llm=None,  # Let the config loader handle LLM resolution from YAML
             )
 
             if agent_config is None:
@@ -109,6 +105,32 @@ def register_commands(cli_app: typer.Typer) -> None:
             config_mcp_servers = agent_config.mcp_servers
             config_pre_prompt = agent_config.pre_prompt
 
+            # Determine final LLM ID with priority order:
+            # 1. CLI --llm option (if provided)
+            # 2. Configuration llm_id (from YAML)
+            # 3. Default from global config (handled by LlmFactory)
+            if llm:
+                # CLI option takes precedence
+                resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
+                if error_msg:
+                    print(error_msg)
+                    return
+                final_llm_id = resolved_id
+                print(f"Using LLM from CLI: {final_llm_id}")
+            elif agent_config.llm_id:
+                # Use LLM from configuration
+                final_llm_id = agent_config.llm_id
+                print(f"Using LLM from config: {final_llm_id}")
+            # else: final_llm_id remains None, will use default
+        else:
+            # No config specified, just resolve CLI LLM if provided
+            if llm:
+                resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
+                if error_msg:
+                    print(error_msg)
+                    return
+                final_llm_id = resolved_id
+
             print(f"Using ReAct configuration '{config}':")
             if config_tools:
                 tool_names = [getattr(t, "name", str(type(t).__name__)) for t in config_tools]
@@ -121,10 +143,10 @@ def register_commands(cli_app: typer.Typer) -> None:
         # Determine final pre_prompt (command line takes precedence over config)
         final_pre_prompt = pre_prompt or config_pre_prompt
 
-        setup_langchain(llm_id, lc_debug, lc_verbose, cache)
+        setup_langchain(final_llm_id, lc_debug, lc_verbose, cache)
 
         if chat:
-            asyncio.run(run_langgraph_agent_shell(llm_id, mcp_server_names=final_mcp_servers))
+            asyncio.run(run_langgraph_agent_shell(final_llm_id, mcp_server_names=final_mcp_servers))
         else:
             if not input and not sys.stdin.isatty():
                 input = sys.stdin.read()
@@ -135,15 +157,15 @@ def register_commands(cli_app: typer.Typer) -> None:
             asyncio.run(
                 call_react_agent(
                     input,
-                    llm_id=llm_id,
+                    llm_id=final_llm_id,
                     mcp_server_filter=final_mcp_servers,
                     additional_tools=config_tools,
                     pre_prompt=final_pre_prompt,
                 )
             )
 
-    @cli_app.command()
-    def smolagents(
+    @agents_app.command("smol")
+    def smol(
         input: Annotated[str | None, typer.Option(help="Input query or '-' to read from stdin")] = None,
         tools: Annotated[list[str], Option("--tools", "-t", help="Tools to use (web_search, calculator, etc.)")] = [],
         config: Annotated[
@@ -177,13 +199,13 @@ def register_commands(cli_app: typer.Typer) -> None:
         from smolagents.default_tools import TOOL_MAPPING
 
         from genai_tk.core.llm_factory import LlmFactory
+        from genai_tk.extra.agents.langchain_setup import setup_langchain
         from genai_tk.tools.smolagents.config_loader import (
             CONF_YAML_FILE,
             convert_langchain_tools,
             load_smolagent_demo_config,
             process_tools_from_config,
         )
-        from genai_tk.extra.agents.langchain_setup import setup_langchain
 
         # Resolve LLM identifier if provided
         llm_id = None
@@ -268,8 +290,8 @@ def register_commands(cli_app: typer.Typer) -> None:
             agent = CodeAgent(**agent_kwargs)
             agent.run(input)
 
-    @cli_app.command()
-    def deep_agent(
+    @agents_app.command("deep")
+    def deep(
         input: Annotated[str | None, typer.Argument(help="Input query or '-' to read from stdin")] = None,
         config: Annotated[
             Optional[str],
@@ -516,8 +538,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         # Run the async function
         asyncio.run(run_agent())
 
-    @cli_app.command()
-    def list_deep_agents() -> None:
+    @agents_app.command("list-deep")
+    def list_deep() -> None:
         """
         List available Deep Agent configurations and created agents.
         """
@@ -573,8 +595,206 @@ def register_commands(cli_app: typer.Typer) -> None:
             console.print(
                 Panel(
                     "[yellow]No Deep Agents have been created yet.[/yellow]\n\n"
-                    "Use [cyan]uv run cli deep-agent --config <config_name> <query>[/cyan] to create and run an agent.",
+                    "Use [cyan]uv run cli agents deep --config <config_name> <query>[/cyan] to create and run an agent.",
                     title="Created Deep Agents",
                     border_style="yellow",
                 )
             )
+
+    # RAG commands (continued)
+    @rag_app.command("delete")
+    def delete(store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")]) -> None:
+        """Delete all documents from a vector store."""
+        from rich.console import Console
+
+        from genai_tk.extra.rag.commands_rag import _get_vector_store_safe
+        from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel, create_warning_panel
+
+        console = Console()
+        vector_store = _get_vector_store_safe(store_name)
+        if not vector_store:
+            return
+
+        try:
+            stats = vector_store.get_stats()
+            doc_count = stats.get("document_count", "unknown")
+
+            if doc_count == 0:
+                console.print(
+                    create_warning_panel("Nothing to Delete", f"Vector store '{store_name}' is already empty.")
+                )
+                return
+
+            success = vector_store.clear()
+            if success:
+                if isinstance(doc_count, int):
+                    message = f"Successfully deleted {doc_count} documents from vector store '{store_name}'"
+                else:
+                    message = f"Successfully cleared vector store '{store_name}'"
+                console.print(create_success_panel("Deletion Complete", message))
+            else:
+                console.print(
+                    create_error_panel(
+                        "Deletion Failed", f"Failed to clear vector store '{store_name}'. Check logs for details."
+                    )
+                )
+        except Exception as e:
+            console.print(create_error_panel("Error", f"Failed to delete documents: {e}"))
+
+    @rag_app.command("embed")
+    def embed(
+        store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")],
+        text: Annotated[Optional[str], typer.Option("--text", "-t", help="Text to embed (or read from stdin)")] = None,
+        metadata: Annotated[
+            Optional[str], typer.Option("--metadata", "-m", help="JSON metadata to attach to document")
+        ] = None,
+    ) -> None:
+        """Embed text and store it in a vector store."""
+        import json
+
+        from rich.console import Console
+
+        from genai_tk.extra.rag.commands_rag import _get_vector_store_safe
+        from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel
+
+        console = Console()
+        vector_store = _get_vector_store_safe(store_name)
+        if not vector_store:
+            return
+
+        if text is None:
+            if not sys.stdin.isatty():
+                text = sys.stdin.read().strip()
+            else:
+                console.print(
+                    create_error_panel("No Input", "Please provide text via --text option or pipe it through stdin")
+                )
+                return
+
+        if not text:
+            console.print(create_error_panel("Empty Input", "No text provided to embed"))
+            return
+
+        parsed_metadata = None
+        if metadata:
+            try:
+                parsed_metadata = json.loads(metadata)
+                if not isinstance(parsed_metadata, dict):
+                    raise ValueError("Metadata must be a JSON object")
+            except (json.JSONDecodeError, ValueError) as e:
+                console.print(create_error_panel("Invalid Metadata", f"Failed to parse metadata JSON: {e}"))
+                return
+
+        try:
+            vector_store.embed_text(text, parsed_metadata)
+            stats = vector_store.get_stats()
+            doc_count = stats.get("document_count", "unknown")
+
+            message = f"Successfully embedded text into vector store '{store_name}'"
+            if isinstance(doc_count, int):
+                message += f"\nTotal documents in store: {doc_count}"
+
+            console.print(create_success_panel("Embedding Complete", message))
+        except Exception as e:
+            console.print(create_error_panel("Embedding Failed", f"Failed to embed text: {e}"))
+
+    @rag_app.command("query")
+    def query(
+        store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")],
+        query_text: Annotated[str, typer.Argument(help="Query text to search for")],
+        k: Annotated[int, typer.Option("--k", help="Number of results to return")] = 4,
+        threshold: Annotated[
+            Optional[float], typer.Option("--threshold", help="Minimum similarity score (0.0-1.0)")
+        ] = None,
+    ) -> None:
+        """Query a vector store for similar documents."""
+        from rich.console import Console
+
+        from genai_tk.extra.rag.commands_rag import _create_documents_table, _get_vector_store_safe
+        from genai_tk.utils.rich_widgets import create_error_panel, create_warning_panel
+
+        console = Console()
+        vector_store = _get_vector_store_safe(store_name)
+        if not vector_store:
+            return
+
+        if k < 1:
+            console.print(create_error_panel("Invalid Parameter", "k must be at least 1"))
+            return
+
+        if threshold is not None and (threshold < 0.0 or threshold > 1.0):
+            console.print(create_error_panel("Invalid Parameter", "threshold must be between 0.0 and 1.0"))
+            return
+
+        try:
+            results = vector_store.query(query_text, k=k, score_threshold=threshold)
+
+            if not results:
+                message = f"No results found for query: '{query_text}'"
+                if threshold is not None:
+                    message += f" (threshold: {threshold})"
+                console.print(create_warning_panel("No Results", message))
+                return
+
+            console.print(_create_documents_table(results))
+        except Exception as e:
+            console.print(create_error_panel("Query Failed", f"Failed to query vector store: {e}"))
+
+    @rag_app.command("info")
+    def info(store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")]) -> None:
+        """Get information about a vector store."""
+        from rich.console import Console
+
+        from genai_tk.extra.rag.commands_rag import _create_info_table, _get_vector_store_safe
+        from genai_tk.utils.rich_widgets import create_error_panel
+
+        console = Console()
+        vector_store = _get_vector_store_safe(store_name)
+        if not vector_store:
+            return
+
+        try:
+            stats = vector_store.get_stats()
+            console.print(_create_info_table(stats))
+        except Exception as e:
+            console.print(create_error_panel("Info Failed", f"Failed to get vector store info: {e}"))
+
+    @rag_app.command("list-configs")
+    def list_configs() -> None:
+        """List all available vector store configurations."""
+        from rich.console import Console
+        from rich.table import Table
+
+        from genai_tk.core.embeddings_store import EmbeddingsStore
+        from genai_tk.utils.rich_widgets import create_error_panel, create_warning_panel
+
+        console = Console()
+        try:
+            configs = EmbeddingsStore.list_available_configs()
+
+            if not configs:
+                console.print(create_warning_panel("No Configurations", "No vector store configurations found."))
+                return
+
+            table = Table(title="Available Vector Store Configurations", show_header=True, header_style="bold cyan")
+            table.add_column("Configuration Name", style="green")
+            table.add_column("Backend", style="blue")
+            table.add_column("Usage Example", style="dim white")
+
+            for config in sorted(configs):
+                backend = "Unknown"
+                try:
+                    store = EmbeddingsStore.create_from_config(config)
+                    backend = store.backend or "Unknown"
+                except Exception:
+                    backend = "Error"
+
+                table.add_row(config, backend, f"uv run cli rag info {config}")
+
+            console.print(table)
+        except Exception as e:
+            console.print(create_error_panel("List Failed", f"Failed to list configurations: {e}"))
+
+    # Mount both apps
+    cli_app.add_typer(agents_app, name="agents")
+    cli_app.add_typer(rag_app, name="rag")

@@ -2,6 +2,7 @@
 langchain_agents:
   - name: "filesystem"
     pre_prompt: You have the ability to manipulate file system.  Is the user ask somethin else, refuse politly.
+    # llm: gpt_41mini_openai  # Optional: specify LLM ID (e.g., gpt_41mini_openai) or tag (e.g., fast_model). If omitted, uses default LLM.
     tools:  
       - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
         verbose: true
@@ -11,10 +12,11 @@ langchain_agents:
       - "What are the configuration files in current directory"
  
   - name: "Chinook DB"
+    llm: deepseek_v31_openrouter  # Example: using a specific model ID
     tools:
-      - factory: genai_tk.extra.tools.langchain.sql_tool_factory:create_sql_tool_from_config
+      - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_tool_from_config
         config:
-          database_uri: "sqlite:///use_case_data/other/Chinook.db"
+          database_uri: "sqlite:///${paths.project}/tests/data/Chinook.db"
           tool_name: "query_chinook"
           tool_description: "Query the Chinook music database for information about artists, albums, tracks, customers, and invoices"
           examples:
@@ -36,6 +38,7 @@ langchain_agents:
       - "How many tracks are in the Rock genre?"
 
   - name: "Weather"
+    # llm: fake  # Example: using a tag instead of full model ID (resolves to parrot_local_fake)
     tools:  
       - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
         verbose: true

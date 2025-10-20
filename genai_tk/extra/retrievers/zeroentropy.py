@@ -306,7 +306,6 @@ class ZeroEntropyRetriever(BaseRetriever):
 
         except ConflictError as e:
             # Handle collection or resource conflicts
-            error_msg = f"ZeroEntropy collection conflict: {e}"
             if run_manager and hasattr(run_manager, "on_retriever_error"):
                 run_manager.on_retriever_error(e)
 
@@ -421,6 +420,8 @@ class ZeroEntropyCollectionManager:
 
         Loads environment variables and creates client instance.
         """
+        from dotenv import load_dotenv
+
         load_dotenv()
         self.client = AsyncZeroEntropy()
 

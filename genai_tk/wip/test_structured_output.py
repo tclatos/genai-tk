@@ -166,7 +166,7 @@ def test_structured_output_with_different_llm_configs() -> None:
         {"temperature": 0.0, "max_tokens": 50},
     ]
 
-    for config in configs:
+    for _config in configs:
         chain = structured_output_chain(
             system="You are a helpful assistant.",
             user="Test with different config",

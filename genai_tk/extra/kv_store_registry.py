@@ -160,7 +160,7 @@ class KvStoreRegistry(BaseModel):
                         file_config = global_config().get_dict("kv_store.file")
                         if "path" in file_config:
                             return LocalFileStoreConfig(type="LocalFileStore", **file_config)
-                    except:
+                    except Exception:
                         pass
 
                 # Could be a legacy direct field config or other pattern
@@ -168,8 +168,7 @@ class KvStoreRegistry(BaseModel):
                     # Infer type based on store_id and path content
                     path_value = config_dict["path"]
                     if store_id == "sql" or (
-                        isinstance(path_value, str)
-                        and (path_value.startswith("postgresql://") or path_value.startswith("sqlite://"))
+                        isinstance(path_value, str) and path_value.startswith(("postgresql://", "sqlite://"))
                     ):
                         # SQL store based on store_id or DSN pattern
                         config_dict["path"] = global_config().get_dsn(f"kv_store.{store_id}.path", driver=None)
@@ -193,11 +192,11 @@ class KvStoreRegistry(BaseModel):
                         return LocalFileStoreConfig(type="LocalFileStore", path=temp_dir)
                     elif engine:
                         raise ValueError(f"Unsupported legacy kv_store engine: '{engine}'")
-                except:
+                except Exception:
                     pass
 
             # Re-raise the original error if no legacy pattern works
-            raise ValueError(f"Store configuration '{store_id}' not found: {e}")
+            raise ValueError(f"Store configuration '{store_id}' not found: {e}") from e
 
     def get(self, store_id: str = "default", namespace: str = "") -> ByteStore:
         """Create and return a ByteStore instance based on configuration.
