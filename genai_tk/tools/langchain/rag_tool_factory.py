@@ -8,7 +8,7 @@ vector store similarity search capabilities with configurable text splitting.
 import importlib
 from typing import Any
 
-from langchain.tools import BaseTool, tool
+from langchain_core.tools import BaseTool, tool
 from langchain_core.language_models.chat_models import BaseChatModel
 from pydantic import BaseModel, Field
 

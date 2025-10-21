@@ -5,7 +5,7 @@ using fake embeddings to ensure fast, reliable testing.
 """
 
 import pytest
-from langchain.schema import Document
+from langchain_core.documents import Document
 
 from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.core.embeddings_store import EmbeddingsStore

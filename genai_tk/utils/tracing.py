@@ -34,7 +34,7 @@ def tracing_context() -> Generator[Any, None, None]:
 
     if langsmith_enabled and api_key_available:
         try:
-            from langchain.callbacks import tracing_v2_enabled
+            from langchain_core.callbacks import tracing_v2_enabled
 
             with tracing_v2_enabled() as cb:
                 yield cb

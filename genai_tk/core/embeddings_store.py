@@ -119,10 +119,10 @@ from collections.abc import Iterable
 from typing import Annotated, Any, Literal, get_args
 
 from devtools import debug
-from langchain.embeddings.base import Embeddings
-from langchain.indexes import IndexingResult, SQLRecordManager, index
-from langchain.schema import Document
-from langchain.vectorstores.base import VectorStore
+from langchain_core.embeddings import Embeddings
+from langchain_classic.indexes import IndexingResult, SQLRecordManager, index
+from langchain_core.documents import Document
+from langchain_core.vectorstores import VectorStore
 from typing_extensions import deprecated
 
 try:

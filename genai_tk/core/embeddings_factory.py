@@ -34,8 +34,8 @@ from typing import Annotated
 import yaml
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
-from langchain.embeddings import CacheBackedEmbeddings
-from langchain.embeddings.base import Embeddings
+from langchain_classic.embeddings import CacheBackedEmbeddings
+from langchain_core.embeddings import Embeddings
 from loguru import logger
 from pydantic import BaseModel, Field, computed_field
 

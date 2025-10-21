@@ -95,7 +95,7 @@ async def run_smolagent_shell(llm_id: str | None, tools: list[BaseTool] = [], mc
             # Process the response
             with console.status("[bold green]Agent is working...\n[/bold green]"):
                 if global_config().get_bool("monitoring.langsmith", False):
-                    from langchain.callbacks import tracing_v2_enabled
+                    from langchain_core.callbacks import tracing_v2_enabled
 
                     with tracing_v2_enabled() as cb:
                         response = agent.run(user_input)

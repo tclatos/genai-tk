@@ -11,7 +11,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-from langchain.storage import LocalFileStore
+from langchain_classic.storage import LocalFileStore
 from langchain_core.stores import ByteStore
 from pydantic import BaseModel, Field
 

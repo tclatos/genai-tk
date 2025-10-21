@@ -6,22 +6,31 @@ authors = [{ name = "Thierry Caminel", email = "thierry.caminel@atos.net" }]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # Core dependencies - minimal set for the toolkit
-    "pydantic>=2.7.0,<3",       # Data validation framework
-    "loguru>=0.7.3",            # Logging library
-    "typer>=0.13.0",            # CLI framework
-    "omegaconf>=2.3.0",         # Configuration management
-    "rich[jupyter]>=13.9.4",    # Terminal formatting
+    "pydantic>=2.7.0,<3", # Data validation framework
+    "loguru>=0.7.3", # Logging library
+    "typer>=0.13.0", # CLI framework
+    "omegaconf>=2.3.0", # Configuration management
+    "rich[jupyter]>=13.9.4", # Terminal formatting
     "universal-pathlib>=0.2.6", # Cross-platform paths
-    "python-dotenv>=1.1.1",     # Environment variables
-    "beartype>=0.21.0",         # Runtime type checking
-    "devtools>=0.12.2",         # Development utilities
+    "python-dotenv>=1.1.1", # Environment variables
+    "beartype>=0.21.0", # Runtime type checking
+    "devtools>=0.12.2", # Development utilities
+    "langchain-classic>=1.0.0",
+    "langchain-experimental>=0.0.42",
+]
 
+[project.urls]
+Homepage = "https://github.com/tclatos/genai-tk"
+Repository = "https://github.com/tclatos/genai-tk"
 
+[dependency-groups]
+
+ai-core = [
     # AI/ML Core Dependencies
-    "langchain>=0.3",                                          # LLM framework
+    "langchain>=1.0",                                          # LLM framework
     "langchain-core>=0.3",                                     # Core LangChain components
     "langchain-community>=0.3",                                # Community integrations
-    "langchain-experimental>=0.3",                             # Experimental features
+    #"langchain-experimental>=0.3",                             # Experimental features
     "langgraph>=0.5",                                          # Graph-based LLM workflows
     "langserve>=0.3",                                          # LangChain serving
     "deepagents>=0.0.5",                                       # Langchain based Deep Agents implementation
@@ -37,14 +46,7 @@ dependencies = [
     "mistralai>=1.7.0",                                        # Mistral AI client
     "smolagents[toolkit, mcp, openai, litellm, docker]>=1.17", # Lightweight agents
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol
-
 ]
-
-[project.urls]
-Homepage = "https://github.com/tclatos/genai-tk"
-Repository = "https://github.com/tclatos/genai-tk"
-
-[dependency-groups]
 
 extra = [
     "chromadb>=1.0",                      # Vector database
@@ -111,7 +113,15 @@ dev = [
 ]
 
 [tool.uv]
-default-groups = ["extra", "nlp", "dev", "postgres", "browser-control", "kg"]
+default-groups = [
+    "ai-core",
+    "extra",
+    "nlp",
+    "dev",
+    "postgres",
+    "browser-control",
+    "kg",
+]
 
 package = true
 [tool.hatch.build.targets.wheel]
@@ -166,9 +176,7 @@ reportTypedDictNotRequiredAccess = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
-markers = [
-    "performance_tests: marks tests as performance tests",
-]
+markers = ["performance_tests: marks tests as performance tests"]
 
 
 [project.scripts]

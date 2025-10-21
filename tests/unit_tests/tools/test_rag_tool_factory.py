@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from langchain.schema import Document
+from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from genai_tk.tools.langchain.rag_tool_factory import (

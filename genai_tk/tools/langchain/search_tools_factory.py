@@ -7,7 +7,7 @@ supporting multiple search providers based on available API keys.
 
 import os
 
-from langchain.tools import tool
+from langchain_core.tools import tool
 from loguru import logger
 
 
