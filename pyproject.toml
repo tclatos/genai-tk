@@ -16,7 +16,7 @@ dependencies = [
     "beartype>=0.21.0",         # Runtime type checking
     "devtools>=0.12.2",         # Development utilities
     
-    # AI/ML Core Dependencies (moved from ai-core group - required for core functionality)
+    # AI/ML Core Dependencies (required for core functionality)
     "langchain>=1.0",
     "langchain-core>=0.3",
     "langchain-community>=0.3",
