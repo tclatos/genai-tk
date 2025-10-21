@@ -111,6 +111,10 @@ default-groups = [
 ]
 
 package = true
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["genai_tk"]
 
