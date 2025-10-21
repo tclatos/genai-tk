@@ -5,7 +5,6 @@ including embedding text, querying documents, and managing vector stores.
 """
 
 import json
-from unittest.mock import patch
 
 import pytest
 import typer

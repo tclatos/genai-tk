@@ -8,8 +8,8 @@ vector store similarity search capabilities with configurable text splitting.
 import importlib
 from typing import Any
 
-from langchain_core.tools import BaseTool, tool
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
 from genai_tk.core.embeddings_store import EmbeddingsStore

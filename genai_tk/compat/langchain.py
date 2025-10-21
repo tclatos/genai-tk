@@ -1,6 +1,6 @@
 """LangChain v1 compatibility layer.
 
-This module provides re-exports and helper functions to ease migration from 
+This module provides re-exports and helper functions to ease migration from
 LangChain v0.x to v1.x. It bridges import changes and provides utilities for
 handling messages and models consistently.
 
@@ -18,7 +18,7 @@ from langchain_core.tools import BaseTool, tool
 # Re-export common message classes
 __all__ = [
     "AIMessage",
-    "BaseMessage", 
+    "BaseMessage",
     "HumanMessage",
     "SystemMessage",
     "ToolMessage",
@@ -28,41 +28,43 @@ __all__ = [
     "message_content_to_text",
 ]
 
+
 def _warn_deprecated(name: str) -> None:
     """Issue deprecation warning for compatibility layer usage."""
     warnings.warn(
-        f"genai_tk.compat.langchain.{name} is deprecated. "
-        f"Use the direct LangChain v1 import instead.",
+        f"genai_tk.compat.langchain.{name} is deprecated. Use the direct LangChain v1 import instead.",
         DeprecationWarning,
-        stacklevel=3
+        stacklevel=3,
     )
+
 
 def create_chat_model(model: str, **kwargs: Any):
     """Create a chat model using LangChain v1 init_chat_model.
-    
+
     This is a thin wrapper around langchain.chat_models.init_chat_model
     to provide a consistent interface during migration.
-    
+
     Args:
         model: Model identifier (e.g., "gpt-3.5-turbo", "claude-3-sonnet")
         **kwargs: Additional arguments passed to init_chat_model
-        
+
     Returns:
         BaseChatModel: Initialized chat model
     """
     _warn_deprecated("create_chat_model")
     return init_chat_model(model, **kwargs)
 
+
 def message_content_to_text(message: BaseMessage) -> str:
     """Extract text content from a message, handling both string and content blocks.
-    
+
     In LangChain v1, message content can be either a string or a list of content
     blocks. This helper ensures we can reliably extract text for logging and
     assertions during migration.
-    
+
     Args:
         message: LangChain message object
-        
+
     Returns:
         str: Text content of the message
     """

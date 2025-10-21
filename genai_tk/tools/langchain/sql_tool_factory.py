@@ -7,9 +7,9 @@ capabilities with language model-based natural language processing.
 
 from typing import Any
 
-from langchain_core.tools import BaseTool, tool
 from langchain_community.utilities.sql_database import SQLDatabase
 from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
 from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph

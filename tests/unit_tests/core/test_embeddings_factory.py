@@ -3,7 +3,7 @@
 This module contains basic regression tests for the embeddings factory and utilities.
 """
 
-from genai_tk.core.embeddings_factory import EmbeddingsFactory, get_embeddings
+from genai_tk.core.embeddings_factory import EmbeddingsFactory
 
 # Fake model constants
 FAKE_EMBEDDINGS_ID = "embeddings_768_fake"

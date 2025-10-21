@@ -8,7 +8,6 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict
 
-import pytest
 import yaml
 from upath import UPath
 

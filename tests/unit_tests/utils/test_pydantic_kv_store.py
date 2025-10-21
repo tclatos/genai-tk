@@ -7,8 +7,8 @@ from tempfile import TemporaryDirectory
 from pydantic import BaseModel
 
 from genai_tk.utils.pydantic.kv_store import (
-    _encode_to_alphanumeric,
     PydanticStore,
+    _encode_to_alphanumeric,
 )
 
 

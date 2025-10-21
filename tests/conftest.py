@@ -40,7 +40,6 @@ def setup_test_config():
     yield
 
     # Cleanup if needed
-    pass
 
 
 @pytest.fixture
