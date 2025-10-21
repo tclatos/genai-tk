@@ -390,7 +390,7 @@ def unmaintained_commands(cli_app: typer.Typer) -> None:
 
         ex: echo "artificial intelligence" | uv run cli fabric -p "create_aphorisms" --llm-id llama-70-groq
         """
-        from langchain.globals import set_debug, set_verbose
+        from langchain_core.globals import set_debug, set_verbose
 
         from genai_tk.core.llm_factory import LlmFactory
         from genai_tk.extra.chains.fabric_chain import get_fabric_chain

@@ -83,7 +83,7 @@ class LlmCache:
             logger.warning: If the default cache configuration is incorrect.
         """
         try:
-            from langchain.globals import get_llm_cache, set_llm_cache
+            from langchain_core.globals import get_llm_cache, set_llm_cache
         except ImportError:
             # Fallback for older versions of langchain
             from langchain.cache import get_llm_cache, set_llm_cache

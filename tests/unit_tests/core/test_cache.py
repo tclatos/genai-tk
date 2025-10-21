@@ -80,8 +80,8 @@ class TestLlmCache:
         with pytest.raises(ValueError, match="Unknown cache method 'invalid'"):
             LlmCache.from_value("default")
 
-    @patch("langchain.globals.set_llm_cache")
-    @patch("langchain.globals.get_llm_cache")
+    @patch("langchain_core.globals.set_llm_cache")
+    @patch("langchain_core.globals.get_llm_cache")
     def test_set_method_memory(self, mock_get_cache: MagicMock, mock_set_cache: MagicMock) -> None:
         """Test set_method with memory cache."""
         mock_get_cache.return_value.__class__ = type("DifferentCache", (), {})
@@ -91,16 +91,16 @@ class TestLlmCache:
         call_args = mock_set_cache.call_args[0]
         assert "InMemoryCache" in str(type(call_args[0]))
 
-    @patch("langchain.globals.set_llm_cache")
-    @patch("langchain.globals.get_llm_cache")
+    @patch("langchain_core.globals.set_llm_cache")
+    @patch("langchain_core.globals.get_llm_cache")
     def test_set_method_sqlite(self, mock_get_cache: MagicMock, mock_set_cache: MagicMock) -> None:
         """Test set_method with sqlite cache."""
         mock_get_cache.return_value.__class__ = type("DifferentCache", (), {})
         LlmCache.set_method("sqlite")
         mock_set_cache.assert_called_once()
 
-    @patch("langchain.globals.set_llm_cache")
-    @patch("langchain.globals.get_llm_cache")
+    @patch("langchain_core.globals.set_llm_cache")
+    @patch("langchain_core.globals.get_llm_cache")
     def test_set_method_no_change(self, mock_get_cache: MagicMock, mock_set_cache: MagicMock) -> None:
         """Test set_method when cache type doesn't change."""
         # Mock that the cache class remains the same
