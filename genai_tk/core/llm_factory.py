@@ -386,7 +386,7 @@ class LlmFactory(BaseModel):
     def model_factory(self) -> BaseChatModel:
         """Model factory, according to the model class."""
         from langchain.chat_models.base import _SUPPORTED_PROVIDERS
-        from langchain.globals import get_llm_cache
+        from langchain_core.globals import get_llm_cache
 
         from genai_tk.core.cache import LlmCache
 
