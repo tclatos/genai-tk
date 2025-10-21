@@ -4,7 +4,6 @@ This module contains tests for the chain registry which manages
 reusable AI processing chains using fake models.
 """
 
-
 from genai_tk.core.chain_registry import ChainRegistry, Example, RunnableItem
 from genai_tk.core.llm_factory import get_llm
 

@@ -33,12 +33,12 @@ from itertools import chain
 
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
+from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import create_react_agent
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcpadapt.core import MCPAdapt
@@ -250,7 +250,7 @@ async def mcp_agent_runner(
             memory = MemorySaver()
         else:
             memory = None
-        agent_executor = create_react_agent(model, tools, checkpointer=memory)
+        agent_executor = create_agent(model, tools, checkpointer=memory)
 
         result = await agent_executor.ainvoke(
             {"messages": [HumanMessage(content=prompt)]},
@@ -287,7 +287,7 @@ async def call_react_agent(
     )
     ```
     """
-    from langgraph.prebuilt import create_react_agent
+    from langchain.agents import create_agent
     from loguru import logger
 
     model = get_llm(llm_id=llm_id)
@@ -304,8 +304,8 @@ async def call_react_agent(
         # Create agent with optional pre_prompt
         agent_kwargs = {"model": model, "tools": all_tools}
         if pre_prompt:
-            agent_kwargs["prompt"] = pre_prompt
-        agent = create_react_agent(**agent_kwargs)
+            agent_kwargs["system_prompt"] = pre_prompt
+        agent = create_agent(**agent_kwargs)
 
         tool_names = [getattr(t, "name", str(type(t).__name__)) for t in all_tools]
         logger.info(f"ReAct agent created with {len(all_tools)} tools: {', '.join(tool_names)}")

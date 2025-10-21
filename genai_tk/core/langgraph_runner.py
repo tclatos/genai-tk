@@ -34,12 +34,12 @@ session.set_graph(custom_agent)
 
 from typing import AsyncIterator, Iterator, cast
 
+from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.prebuilt import create_react_agent
 from langgraph.pregel import Pregel
 from pydantic import BaseModel, ConfigDict
 
@@ -78,8 +78,8 @@ class LangGraphSession(BaseModel):
 
     def create_prebuilt_react_agent(self, tools: list[BaseTool]) -> None:
         """Create a prebuilt ReAct agent with the given tools."""
-        self._graph = create_react_agent(
-            self.llm, tools, checkpointer=self.checkpointer, prompt=self.system_prompt or None
+        self._graph = create_agent(
+            self.llm, tools, checkpointer=self.checkpointer, system_prompt=self.system_prompt or None
         )
         self.prebuilt_react_agent = True
 

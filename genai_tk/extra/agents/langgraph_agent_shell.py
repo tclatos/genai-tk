@@ -1,10 +1,10 @@
 import webbrowser
 from pathlib import Path
 
+from langchain.agents import create_agent
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import create_react_agent
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
@@ -51,7 +51,7 @@ async def run_langgraph_agent_shell(
             console.print("[green]✓ MCP servers connected[/green]\n")
 
     config = {"configurable": {"thread_id": "1"}}
-    agent = create_react_agent(model, tools, checkpointer=MemorySaver())
+    agent = create_agent(model, tools, checkpointer=MemorySaver())
 
     # Set up prompt history
     history_file = Path(".blueprint.input.history")
