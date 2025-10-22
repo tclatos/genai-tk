@@ -112,7 +112,7 @@ class TestRAGToolFactory:
         mock_registry.get.assert_called_once()
 
         # Verify text splitter was created correctly
-        mock_importlib.import_module.assert_called_once_with("langchain.text_splitter")
+        mock_importlib.import_module.assert_called_once_with("langchain_classic.text_splitter")
         mock_splitter_class.assert_called_once_with(chunk_size=500)
 
     @patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")

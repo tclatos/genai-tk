@@ -110,7 +110,7 @@ class RAGToolFactory:
             splitter_params = {k: v for k, v in config.text_splitter_config.items() if k != "class"}
 
             # Import text splitter class dynamically to validate it exists
-            module = importlib.import_module("langchain.text_splitter")
+            module = importlib.import_module("langchain_classic.text_splitter")
             splitter_class = getattr(module, splitter_class_name)
             # Text splitter can be instantiated for future use if needed
             splitter_class(**splitter_params)
