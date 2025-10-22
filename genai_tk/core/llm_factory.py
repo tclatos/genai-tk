@@ -508,11 +508,32 @@ class LlmFactory(BaseModel):
                 **llm_params,
             )
         elif self.info.provider == "vllm":
-            from langchain_community.llms import VLLM
+            from langchain_openai import ChatOpenAI
 
-            debug(name=self.info)
-            raise NotImplementedError("Chrys, it's here ! ")
-            llm = VLLM(...)
+            # Get custom headers from llm_args
+            api_key_header = self.info.llm_args.get("api_key_header", "Authorization")
+            base_url = self.info.llm_args.get("base_url", "")
+            
+            if not base_url:
+                raise ValueError("base_url is required for VLLM provider")
+            
+            # Set up default headers with custom API key header
+            default_headers = {}
+            api_key_str = None
+            if api_key and api_key_header != "Authorization":
+                default_headers[api_key_header] = api_key.get_secret_value()
+                # Use a dummy API key to satisfy ChatOpenAI validation
+                api_key_str = "dummy-key"
+            elif api_key:
+                api_key_str = api_key.get_secret_value()
+            
+            llm = ChatOpenAI(
+                base_url=base_url,
+                model=self.info.model,
+                api_key=api_key_str,
+                default_headers=default_headers if default_headers else None,
+                **llm_params,
+            )
 
         elif self.info.provider == "ollama":
             import os

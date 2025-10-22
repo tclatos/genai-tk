@@ -13,7 +13,7 @@ output according to a specified Pydantic model using different approaches
 from enum import Enum
 from typing import TypeVar
 
-from langchain.output_parsers import PydanticOutputParser
+langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.runnables import Runnable
 from pydantic import BaseModel, Field
 

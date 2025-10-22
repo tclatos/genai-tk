@@ -61,3 +61,13 @@ llm:
   providers:
     - ollama: qwen3:1.7b
   capabilities: ['structured_outputs']
+
+
+- model:
+  id: mistral_atos
+  providers:
+    - vllm:
+        model: mistralai/Mistral-7B-Instruct-v0.3
+        base_url: https://gateway.cp4sc.platform.codex-platform.com/mistral/v1
+        api_key_header: X-Gravitee-Api-Key
+  capabilities: ['structured_outputs']
