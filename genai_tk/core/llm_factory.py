@@ -511,22 +511,29 @@ class LlmFactory(BaseModel):
             from langchain_openai import ChatOpenAI
 
             # Get custom headers from llm_args
-            api_key_header = self.info.llm_args.get("api_key_header", "Authorization")
+            gateway_key_header = self.info.llm_args.get("gateway_key_header", "Authorization")
+            gateway_key = self.info.llm_args.get("gateway_key", "")
             base_url = self.info.llm_args.get("base_url", "")
-            
+
             if not base_url:
                 raise ValueError("base_url is required for VLLM provider")
-            
-            # Set up default headers with custom API key header
+
+            # Set up default headers with custom gateway key header
             default_headers = {}
             api_key_str = None
-            if api_key and api_key_header != "Authorization":
-                default_headers[api_key_header] = api_key.get_secret_value()
+
+            # Use gateway_key if provided, otherwise fall back to api_key from environment
+            if gateway_key and gateway_key_header != "Authorization":
+                default_headers[gateway_key_header] = gateway_key
+                # Use a dummy API key to satisfy ChatOpenAI validation
+                api_key_str = "dummy-key"
+            elif api_key and gateway_key_header != "Authorization":
+                default_headers[gateway_key_header] = api_key.get_secret_value()
                 # Use a dummy API key to satisfy ChatOpenAI validation
                 api_key_str = "dummy-key"
             elif api_key:
                 api_key_str = api_key.get_secret_value()
-            
+
             llm = ChatOpenAI(
                 base_url=base_url,
                 model=self.info.model,
