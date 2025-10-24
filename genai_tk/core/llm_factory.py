@@ -302,8 +302,8 @@ class LlmFactory(BaseModel):
             error_msg = (
                 f"❌ Unknown LLM identifier '{llm}'.\n\n"
                 f"💡 To see available options, try:\n"
-                f"   • uv run cli config-info    (shows LLM tags like 'fast_model', 'powerful_model')\n"
-                f"   • uv run cli list-models    (shows all available LLM IDs)\n\n"
+                f"   • uv run cli info config    (shows LLM tags like 'fast_model', 'powerful_model')\n"
+                f"   • uv run cli info models    (shows all available LLM IDs)\n\n"
                 f"🏷️  Available LLM tags: Use tags defined in your config for easier access\n"
                 f"🆔 Available LLM IDs: {', '.join(LlmFactory.known_items()[:3])}{'...' if len(LlmFactory.known_items()) > 3 else ''}"
             )

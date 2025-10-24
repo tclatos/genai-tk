@@ -41,8 +41,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         Run GPT Researcher with configuration from gpt_researcher.yaml.
 
         Example:
-            uv run cli gpt-researcher "Latest developments in AI" --config detailed
-            uv run cli gpt-researcher "Climate change impacts" --llm-id gpt-4o
+            uv run cli tools gpt-researcher "Latest developments in AI" --config detailed
+            uv run cli tools gpt-researcher "Climate change impacts" --llm-id gpt-4o
         """
         from genai_tk.extra.gpt_researcher_helper import run_gpt_researcher
 

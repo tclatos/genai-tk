@@ -268,8 +268,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         'cache' is the prompt caching strategy, and it can be either 'sqlite' (default) or 'memory'.
 
         Examples:
-            uv run cli llm "Tell me a joke" --llm fake
-            uv run cli llm "Explain AI" --llm parrot_local_fake
+            uv run cli core llm "Tell me a joke" --llm fake
+            uv run cli core llm "Explain AI" --llm parrot_local_fake
         """
 
         from langchain_core.output_parsers import StrOutputParser
@@ -352,9 +352,9 @@ def register_commands(cli_app: typer.Typer) -> None:
         'cache' is the prompt caching strategy, and it can be either 'sqlite' (default) or 'memory'.
 
         Examples:
-            uv run cli run joke --input "bears"
-            uv run cli run joke --input "bears" --llm fake
-            uv run cli run joke --input "bears" --llm parrot_local_fake
+            uv run cli core run joke --input "bears"
+            uv run cli core run joke --input "bears" --llm fake
+            uv run cli core run joke --input "bears" --llm parrot_local_fake
         """
 
         from devtools import pprint
@@ -556,7 +556,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         The first sentence is used as reference and compared to the others.
 
         Example:
-            uv run cli similarity "This is a test" "This is another test" "Completely different"
+            uv run cli core similarity "This is a test" "This is another test" "Completely different"
         """
         from langchain_community.utils.math import cosine_similarity
 
@@ -607,8 +607,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         Can be filtered by server names.
 
         Example:
-            uv run cli list-mcp-prompts
-            uv run cli list-mcp-prompts --filter server1 server2
+            uv run cli info mcp-prompts
+            uv run cli info mcp-prompts --filter server1 server2
         """
         import asyncio
 

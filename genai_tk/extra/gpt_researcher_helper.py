@@ -16,9 +16,7 @@ from genai_tk.utils.config_mngr import global_config
 try:
     from gpt_researcher import GPTResearcher
 except ImportError as ex:
-    raise ImportError(
-        "gpt-researcher package is required. Install with: uv add gpt-researcher --group ai_extra"
-    ) from ex
+    raise ImportError(f"gpt-researcher package is required: {ex}") from ex
 
 from loguru import logger
 from pydantic import BaseModel, Field

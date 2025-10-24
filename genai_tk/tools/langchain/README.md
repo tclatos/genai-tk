@@ -71,13 +71,13 @@ The recommended way to use SQL tools is through the generic `react-agent` comman
 
 ```bash
 # Query with ReAct agent (provides conversational interface)
-uv run cli react-agent --config "Chinook Music Database" --input "List all artists"
+uv run cli agents react --config "Chinook Music Database" --input "List all artists"
 
 # Use with specific LLM
-echo "Which country's customers spent the most?" | uv run cli react-agent --config "Chinook Music Database" --llm gpt_4o_openai
+echo "Which country's customers spent the most?" | uv run cli agents react --config "Chinook Music Database" --llm gpt_4o_openai
 
 # Interactive chat mode
-uv run cli react-agent --config "Chinook Music Database" --chat
+uv run cli agents react --config "Chinook Music Database" --chat
 ```
 
 ### Configuration File

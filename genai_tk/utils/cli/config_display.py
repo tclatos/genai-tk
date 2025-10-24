@@ -55,8 +55,7 @@ def display_react_agent_configs() -> None:
                         print(f"      • ... and {len(demo['examples']) - 2} more")
 
         print("\n" + "=" * 50)
-        print('💡 Usage: uv run cli react-agent --config "<configuration_name>"')
-        print('   Example: uv run cli react-agent --config "Weather"')
+        print('💡 Usage: uv run cli agents react --config "<configuration_name>"')
 
     except FileNotFoundError:
         print(f"❌ Configuration file not found: {config_file}")
@@ -122,8 +121,8 @@ def display_smolagents_configs() -> None:
                         print(f"      • ... and {len(demo['examples']) - 2} more")
 
         print("\n" + "=" * 50)
-        print('💡 Usage: uv run cli smolagents --config "<configuration_name>"')
-        print('   Example: uv run cli smolagents --config "Titanic"')
+        print('💡 Usage: uv run cli agents smol --config "<configuration_name>"')
+        print('   Example: uv run cli agents smol --config "Titanic"')
 
     except FileNotFoundError:
         print(f"❌ Configuration file not found: {config_file}")

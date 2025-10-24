@@ -55,7 +55,7 @@ def register_commands(cli_app: typer.Typer) -> None:
         chat: Annotated[bool, Option("--chat", "-s", help="Start an interactive chat with agent")] = False,
     ) -> None:
         """
-        Run a ReaAct agent connected to MCP Servers.
+        Run a LangChain ReAct agent with tools and MCP Servers.
 
         Examples:
 
@@ -63,8 +63,8 @@ def register_commands(cli_app: typer.Typer) -> None:
         echo "get news from atos.net web site" | uv run cli mcp-agent --mcp playwright --mcp filesystem
 
         # Using a predefined configuration:
-        uv run cli mcp-agent --config "Weather" "What is the wind force in Toulouse?"
-        uv run cli mcp-agent --config "Web Research" "Research the latest AI developments"
+        uv run cli agents react --config "Weather" "What is the wind force in Toulouse?"
+        uv run cli agents react --config "Web Research" "Research the latest AI developments"
 
         Use --chat to start an interactive shell where you can send multiple prompts to the agent.
         """
@@ -186,12 +186,12 @@ def register_commands(cli_app: typer.Typer) -> None:
         Examples:
 
         # Using tools directly:
-        uv run cli smolagents --input "How many seconds would it take for a leopard at full speed to run through Pont des Arts?" -t web_search
-        echo "Tell me about machine learning" | uv run cli smolagents -t web_search
+        uv run cli agents smol --input "How many seconds would it take for a leopard at full speed to run through Pont des Arts?" -t web_search
+        echo "Tell me about machine learning" | uv run cli agents smol -t web_search
 
         # Using a predefined configuration:
-        uv run cli smolagents --config "Titanic" --input "What is the proportion of female passengers that survived?"
-        uv run cli smolagents --config "MCP" --input "What is the current weather in Toulouse?"
+        uv run cli agents smol --config "Titanic" --input "What is the proportion of female passengers that survived?"
+        uv run cli agents smol --config "MCP" --input "What is the current weather in Toulouse?"
 
         Use --chat to start an interactive shell where you can send multiple prompts to the agent.
         """
