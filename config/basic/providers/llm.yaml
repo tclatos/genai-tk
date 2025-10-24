@@ -45,7 +45,7 @@ llm:
 - model:
   id: gpt_oss120
   providers:
-    - openrouter: openai/gpt-oss-120b
+    - openrouter: openai/gpt-oss-120b:exacto
   capabilities: ['structured_outputs']
 
 - model:
@@ -64,11 +64,12 @@ llm:
 
 
 - model:
-  id: mistral_atos
+  id: mistral_7b
   providers:
-    - vllm:
+    - custom:  # ChatOpenAI class parameters - see https://python.langchain.com/api_reference/openai/chat_models/langchain_openai.chat_models.base.ChatOpenAI.html
         model: mistralai/Mistral-7B-Instruct-v0.3
         base_url: https://gateway.cp4sc.platform.codex-platform.com/mistral/v1
-        gateway_key_header: X-Gravitee-Api-Key
-        gateway_key: ${oc.env:GRAVITEE_KEY}
+        default_headers:
+          X-Gravitee-Api-Key: ${oc.env:GRAVITEE_KEY, null } 
+
   capabilities: ['structured_outputs']

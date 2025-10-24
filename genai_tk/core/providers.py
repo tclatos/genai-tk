@@ -22,12 +22,12 @@ PROVIDER_INFO = {
     "deepseek": ("langchain_deepseek", "DEEPSEEK_API_KEY"),
     "openrouter": ("langchain_openai", "OPENROUTER_API_KEY"),
     "huggingface": ("langchain_huggingface", "HUGGINGFACEHUB_API_TOKEN"),
-    "mistral": ("langchain_mistralai", "MISTRAL_API_KEY"),
+    "mistralai": ("langchain_mistralai", "MISTRAL_API_KEY"),
     # NOT TESTED:
     "bedrock": ("langchain_aws", "AWS_ACCESS_KEY_ID"),
     "anthropic": ("langchain_anthropic", "ANTHROPIC_API_KEY"),
     "google": ("langchain_google_vertexai", "GOOGLE_API_KEY"),
-    "vllm": ("langchain_openai", "GRAVITEE_KEY"),
+    "custom": ("langchain_openai", ""),
 }
 
 

@@ -72,7 +72,7 @@ class LlmInfo(BaseModel):
         provider: name of the provider
         model: Model identifier used by the provider
         api_key_env_var: API key environment variable name (computed from cls)
-        config: Additional configuration for the provider (for complex providers like vllm)
+        config: Additional configuration for the provider
     """
 
     # an ID for the LLM; should follow Python variables constraints
@@ -387,6 +387,7 @@ class LlmFactory(BaseModel):
         """Model factory, according to the model class."""
         from langchain.chat_models.base import _SUPPORTED_PROVIDERS
         from langchain_core.globals import get_llm_cache
+        from langchain_openai import ChatOpenAI
 
         from genai_tk.core.cache import LlmCache
 
@@ -409,11 +410,15 @@ class LlmFactory(BaseModel):
         langchain_factory_supported_profider = set(_SUPPORTED_PROVIDERS)
         langchain_factory_supported_profider -= {"huggingface", "google", "azure", "ollama"}
 
+        debug(self.info)
+
+        # case for most "standard" providers -> we use LangChain factory
         if self.info.provider in langchain_factory_supported_profider:
             # Some parameters are handled differently between provider. Here some workaround:
-            if self.info.provider in ["groq"]:
+            if self.info.provider in ["groq", "mistralai"]:
                 seed = llm_params.pop("seed")
-                llm_params |= {"model_kwargs": {"seed": seed}}
+                if self.info.provider in ["groq"]:
+                    llm_params |= {"model_kwargs": {"seed": seed}}
             llm = init_chat_model(
                 model=self.info.model, model_provider=self.info.provider, api_key=api_key, **llm_params
             )
@@ -467,7 +472,6 @@ class LlmFactory(BaseModel):
             if self.json_mode:
                 llm = cast(BaseLanguageModel, llm.bind(response_format={"type": "json_object"}))
         elif self.info.provider == "openrouter":
-            from langchain_openai import ChatOpenAI
             # See https://openrouter.ai/docs/parameters
 
             # _ = llm_params.pop("response_format", None) or {}
@@ -498,47 +502,11 @@ class LlmFactory(BaseModel):
                 do_sample=False,
             )  # type: ignore
             return ChatHuggingFace(llm=llm)
-        elif self.info.provider == "mistral":
-            from langchain_mistralai.chat_models import ChatMistralAI
 
-            _ = llm_params.pop("seed")
-            llm = ChatMistralAI(
-                name=self.info.model,
-                api_key=api_key,
-                **llm_params,
-            )
-        elif self.info.provider == "vllm":
-            from langchain_openai import ChatOpenAI
-
-            # Get custom headers from llm_args
-            gateway_key_header = self.info.llm_args.get("gateway_key_header", "Authorization")
-            gateway_key = self.info.llm_args.get("gateway_key", "")
-            base_url = self.info.llm_args.get("base_url", "")
-
-            if not base_url:
-                raise ValueError("base_url is required for VLLM provider")
-
-            # Set up default headers with custom gateway key header
-            default_headers = {}
-            api_key_str = None
-
-            # Use gateway_key if provided, otherwise fall back to api_key from environment
-            if gateway_key and gateway_key_header != "Authorization":
-                default_headers[gateway_key_header] = gateway_key
-                # Use a dummy API key to satisfy ChatOpenAI validation
-                api_key_str = "dummy-key"
-            elif api_key and gateway_key_header != "Authorization":
-                default_headers[gateway_key_header] = api_key.get_secret_value()
-                # Use a dummy API key to satisfy ChatOpenAI validation
-                api_key_str = "dummy-key"
-            elif api_key:
-                api_key_str = api_key.get_secret_value()
-
+        elif self.info.provider == "custom":
+            # to be used for vLLM and other providers that comply with OpenAI API
             llm = ChatOpenAI(
-                base_url=base_url,
-                model=self.info.model,
-                api_key=api_key_str,
-                default_headers=default_headers if default_headers else None,
+                **self.info.llm_args,
                 **llm_params,
             )
 

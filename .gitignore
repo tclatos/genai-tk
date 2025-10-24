@@ -160,3 +160,4 @@ llm_cache/
 vector_store_data/
 knowledge_graphs/
 .aider*
+genai_tk/core/genai-blueprint.code-workspace
