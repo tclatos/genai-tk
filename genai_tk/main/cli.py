@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from loguru import logger
 
 # Import modules where runnables are registered
+from genai_tk.utils.cli.command_tree import display_command_tree
 from genai_tk.utils.config_mngr import global_config, import_from_qualified
 from genai_tk.utils.logger_factory import setup_logging
 
@@ -61,7 +62,9 @@ def register_commands(cli_app: typer.Typer) -> None:
 #     print("in callback")
 
 
-def main():
+
+
+def main() -> None:
     # We could fo better with Typer @cli_app.callback(), but I haven't succeded
     if "--logging" in sys.argv:
         level = "TRACE"
@@ -79,6 +82,11 @@ def main():
         except Exception as ex:
             logger.warning(f"Cannot load module {module}: {ex}")
             # Continue loading other modules instead of crashing
+
+    # Check if --help is requested or no arguments provided (show custom tree instead of default help)
+    if len(sys.argv) == 1 or ("--help" in sys.argv and len(sys.argv) == 2):
+        display_command_tree(cli_app)
+        return
 
     cli_app()
 

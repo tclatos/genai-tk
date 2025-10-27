@@ -597,6 +597,23 @@ def register_commands(cli_app: typer.Typer) -> None:
 
         console.print(table)
 
+    @info_app.command("commands")
+    def commands() -> None:
+        """Display all registered CLI commands and subcommands.
+
+        Shows a hierarchical view of all available commands in the CLI,
+        including their help text. Similar to --help but provides a complete overview.
+
+        Example:
+            uv run cli info commands
+        """
+        from genai_tk.utils.cli.command_tree import display_command_tree
+
+        display_command_tree(
+            cli_app,
+            title="[bold cyan]📋 CLI Command Structure[/bold cyan]",
+        )
+
     @info_app.command("mcp-prompts")
     def mcp_prompts(
         filter: Annotated[list[str] | None, Option("--filter", "-f", help="Filter prompts by server names")] = None,
