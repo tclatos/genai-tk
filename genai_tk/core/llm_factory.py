@@ -50,7 +50,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig, RunnableLambda
 from litellm.litellm_core_utils.get_llm_provider_logic import get_llm_provider
 from loguru import logger
-from pydantic import BaseModel, Field, computed_field, field_validator
+from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 
 from genai_tk.core.cache import LlmCache
 from genai_tk.core.providers import PROVIDER_INFO, get_provider_api_env_var, get_provider_api_key
@@ -505,7 +505,10 @@ class LlmFactory(BaseModel):
 
         elif self.info.provider == "custom":
             # to be used for vLLM and other providers that comply with OpenAI API
+
+            api_key_str = self.info.llm_args.get("api_key") or "dummy-key"
             llm = ChatOpenAI(
+                api_key=SecretStr(api_key_str),
                 **self.info.llm_args,
                 **llm_params,
             )
