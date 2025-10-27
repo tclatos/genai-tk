@@ -6,16 +6,15 @@ authors = [{ name = "Thierry Caminel", email = "thierry.caminel@atos.net" }]
 requires-python = ">=3.12,<3.13"
 dependencies = [
     # Core dependencies - minimal set for the toolkit
-    "pydantic>=2.7.0,<3",       # Data validation framework
-    "loguru>=0.7.3",            # Logging library
-    "typer>=0.13.0",            # CLI framework
-    "omegaconf>=2.3.0",         # Configuration management
-    "rich[jupyter]>=13.9.4",    # Terminal formatting
+    "pydantic>=2.7.0,<3", # Data validation framework
+    "loguru>=0.7.3", # Logging library
+    "typer>=0.13.0", # CLI framework
+    "omegaconf>=2.3.0", # Configuration management
+    "rich[jupyter]>=13.9.4", # Terminal formatting
     "universal-pathlib>=0.2.6", # Cross-platform paths
-    "python-dotenv>=1.1.1",     # Environment variables
-    "beartype>=0.21.0",         # Runtime type checking
-    "devtools>=0.12.2",         # Development utilities
-
+    "python-dotenv>=1.1.1", # Environment variables
+    "beartype>=0.21.0", # Runtime type checking
+    "devtools>=0.12.2", # Development utilities
     # AI/ML Core Dependencies (required for core functionality)
     "langchain>=1.0",
     "langchain-core>=1.0",
@@ -36,7 +35,6 @@ dependencies = [
     "mistralai>=1.7.0",
     "smolagents[toolkit, mcp, openai, litellm, docker]>=1.17",
     "mcp[cli]>=1.4.1",
-
     # Extra features (moved from extra group - commonly used)
     "chromadb>=1.0",
     "langchain-chroma>=1.0",
@@ -48,12 +46,10 @@ dependencies = [
     "fuzzysearch>=0.8.0",
     "markpickle>=1.6.1",
     "markitdown[pdf, docx, pptx]>=0.1.3",
-
     # Knowledge Graphs (moved from kg group - core for graph operations)
     "baml-cli>=0.1.0",
     "langchain-kuzu>=0.3.0",
     "kuzu>=0.7.1",
-
     # NLP & Search (moved from nlp group - core for text processing)
     "spacy>=3.7.4",
     "rank-bm25>=0.2.2",
@@ -61,9 +57,9 @@ dependencies = [
     "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
     "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
     "abbreviations>=0.2.5",
-
-    "presidio-analyzer>=2.2.360",   # PII detection
+    "presidio-analyzer>=2.2.360", # PII detection
     "presidio-anonymizer>=2.2.360", # PII anonymization
+    "langchain-experimental>=0.0.42",
 ]
 
 [project.urls]

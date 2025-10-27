@@ -34,7 +34,7 @@ def build_command_tree(app: typer.Typer, parent_node: Tree | None = None, title:
     # Get registered commands
     if hasattr(app, "registered_commands"):
         for cmd_info in app.registered_commands:
-            cmd_name = cmd_info.name or cmd_info.callback.__name__
+            cmd_name = cmd_info.name or cmd_info.callback.__name__  # type: ignore
             cmd_help = (cmd_info.help or "").split("\n")[0]  # First line of help
             if not cmd_help and cmd_info.callback:
                 # Try to get from docstring
@@ -103,7 +103,13 @@ def display_command_tree(
     # Add usage examples
     if show_usage_examples:
         console.print("\n[bold cyan]💡 Quick Start:[/bold cyan]")
-        console.print("  [dim]$[/dim] uv run cli [bold yellow]<group>[/bold yellow] [bold green]<command>[/bold green] [dim]# Run a command[/dim]")
-        console.print("  [dim]$[/dim] uv run cli [bold yellow]<group>[/bold yellow] --help         [dim]# Show help for a group[/dim]")
+        console.print(
+            "  [dim]$[/dim] uv run cli [bold yellow]<group>[/bold yellow] [bold green]<command>[/bold green] [dim]# Run a command[/dim]"
+        )
+        console.print(
+            "  [dim]$[/dim] uv run cli [bold yellow]<group>[/bold yellow] --help         [dim]# Show help for a group[/dim]"
+        )
         console.print("  [dim]$[/dim] uv run cli info config              [dim]# Example: show configuration[/dim]")
-        console.print("\n[dim]For detailed help on any command, use: [/dim][bold]uv run cli <group> <command> --help[/bold]\n")
+        console.print(
+            "\n[dim]For detailed help on any command, use: [/dim][bold]uv run cli <group> <command> --help[/bold]\n"
+        )
