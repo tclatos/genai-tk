@@ -304,7 +304,7 @@ class EmbeddingsStore(BaseModel):
         # Handle record manager for indexing
         if record_manager and not index_document:
             index_document = True
-            logger.info(f"Enabling document indexing because record_manager is specified in config '{config_tag}'")
+            # logger.info(f"Enabling document indexing because record_manager is specified in config '{config_tag}'")
 
         factory_args = {
             "backend": backend,

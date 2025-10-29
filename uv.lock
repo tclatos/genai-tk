@@ -394,6 +394,15 @@ wheels = [
 ]
 
 [[package]]
+name = "bracex"
+version = "2.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/63/9a/fec38644694abfaaeca2798b58e276a8e61de49e2e37494ace423395febc/bracex-2.6.tar.gz", hash = "sha256:98f1347cd77e22ee8d967a30ad4e310b233f7754dbf31ff3fceb76145ba47dc7", size = 26642, upload-time = "2025-06-22T19:12:31.254Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9d/2a/9186535ce58db529927f6cf5990a849aa9e052eea3e2cfefe20b9e1802da/bracex-2.6-py3-none-any.whl", hash = "sha256:0b0049264e7340b3ec782b5cb99beb325f36c3782a32e36e876452fd49a09952", size = 11508, upload-time = "2025-06-22T19:12:29.781Z" },
+]
+
+[[package]]
 name = "brotli"
 version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -538,6 +547,22 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/3d/2d/1e5ed9dd3b3803994c155cd9aacb60c82c331bad84daf75bcb9c91b3295e/charset_normalizer-3.4.4-cp312-cp312-win_amd64.whl", hash = "sha256:a79cfe37875f822425b89a82333404539ae63dbdddf97f84dcbc3d339aae9525", size = 107131, upload-time = "2025-10-14T04:41:10.467Z" },
     { url = "https://files.pythonhosted.org/packages/d0/d9/0ed4c7098a861482a7b6a95603edce4c0d9db2311af23da1fb2b75ec26fc/charset_normalizer-3.4.4-cp312-cp312-win_arm64.whl", hash = "sha256:376bec83a63b8021bb5c8ea75e21c4ccb86e7e45ca4eb81146091b56599b80c3", size = 100390, upload-time = "2025-10-14T04:41:11.915Z" },
     { url = "https://files.pythonhosted.org/packages/0a/4c/925909008ed5a988ccbb72dcc897407e5d6d3bd72410d69e051fc0c14647/charset_normalizer-3.4.4-py3-none-any.whl", hash = "sha256:7a32c560861a02ff789ad905a2fe94e3f840803362c84fecf1851cb4cf3dc37f", size = 53402, upload-time = "2025-10-14T04:42:31.76Z" },
+]
+
+[[package]]
+name = "chonkie"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "loguru" },
+    { name = "numpy" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/9c/4c453bc785d7d47af7c658509b6c26188776db6e4cfb13f8908b8656643d/chonkie-1.4.0.tar.gz", hash = "sha256:6a7c68ca7d556df6accf21706f961536ea13b24d8173a4b7bbf6c0266d0f4da6", size = 387032, upload-time = "2025-10-11T09:36:39.358Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b8/92/a3a97ffc9953c2e6890cf8d5c58705dfd119e491b2ac75c1a3322745f597/chonkie-1.4.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:fb98926db484e9597514f9a7d632e79b9a8a37ccefadc9e1acf6c9c1d2a53062", size = 517040, upload-time = "2025-10-11T09:36:27.63Z" },
+    { url = "https://files.pythonhosted.org/packages/3d/65/6490aa81fed65a2e4631959ab76ceaffeaa3e8382b25e43e4a5d33070037/chonkie-1.4.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:4b13b4c35b3e7355c88709a19d1529164e5229150ffd8476de668753af7742f1", size = 1027212, upload-time = "2025-10-11T09:36:29.117Z" },
+    { url = "https://files.pythonhosted.org/packages/99/68/f505a4a5644730c34edaa1ebb14ea5ca3c02112e10326fae74702cc09150/chonkie-1.4.0-cp312-cp312-win_amd64.whl", hash = "sha256:d421f292cddad6449e7c6b0a107a6ce11461f246225ca8a3d99cd389addf0855", size = 516872, upload-time = "2025-10-11T09:36:30.247Z" },
 ]
 
 [[package]]
@@ -770,16 +795,17 @@ wheels = [
 
 [[package]]
 name = "deepagents"
-version = "0.1.4"
+version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain" },
     { name = "langchain-anthropic" },
     { name = "langchain-core" },
+    { name = "wcmatch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/e3/3828ebe68519fc09dd03a48ae323e3be51496f72a271208c4e7ec980a64d/deepagents-0.1.4.tar.gz", hash = "sha256:3ad7ba86975c302a4f7e8c59abfaa4f22f6c7f69f9e1bdf7eb8233be97dbe63d", size = 34181, upload-time = "2025-10-23T16:00:24.31Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a8/a4/5aab6106616acd439f7c9a2f4b3ec0a6518c1f15894a0018a1e97a6ae19b/deepagents-0.2.0.tar.gz", hash = "sha256:5a3ca28d1c4dcd8a0a0cae94d639eab1b8e9b4c877943bfabed1d1151cd7eb57", size = 44942, upload-time = "2025-10-28T04:11:06.834Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cf/7a/466b7f29de27f05f3f74e00b83604924a74a666bb73f8d917e5c23c37fa5/deepagents-0.1.4-py3-none-any.whl", hash = "sha256:fd3b6d4b1a14db8da8858c73e623fbc7cfe56164bd7641cc5ec9bcd989d3da47", size = 28022, upload-time = "2025-10-23T16:00:23.379Z" },
+    { url = "https://files.pythonhosted.org/packages/c2/f9/a6c8cb8f50f618295b410f25fe13a5ebb5d072ae1911bb7db33e3d81dd11/deepagents-0.2.0-py3-none-any.whl", hash = "sha256:6493954071c80c0de80f618a539d395ccfc694fbd41d5421ace76751745564bb", size = 42475, upload-time = "2025-10-28T04:11:05.623Z" },
 ]
 
 [[package]]
@@ -1074,6 +1100,7 @@ dependencies = [
     { name = "baml-cli" },
     { name = "beartype" },
     { name = "bm25s" },
+    { name = "chonkie" },
     { name = "chromadb" },
     { name = "deepagents" },
     { name = "devtools" },
@@ -1156,6 +1183,7 @@ requires-dist = [
     { name = "baml-cli", specifier = ">=0.1.0" },
     { name = "beartype", specifier = ">=0.21.0" },
     { name = "bm25s", specifier = ">=0.2.13" },
+    { name = "chonkie", specifier = ">=1.4.0" },
     { name = "chromadb", specifier = ">=1.0" },
     { name = "deepagents", specifier = ">=0.0.5" },
     { name = "devtools", specifier = ">=0.12.2" },
@@ -4332,15 +4360,15 @@ wheels = [
 
 [[package]]
 name = "starlette"
-version = "0.48.0"
+version = "0.49.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/a5/d6f429d43394057b67a6b5bbe6eae2f77a6bf7459d961fdb224bf206eee6/starlette-0.48.0.tar.gz", hash = "sha256:7e8cee469a8ab2352911528110ce9088fdc6a37d9876926e73da7ce4aa4c7a46", size = 2652949, upload-time = "2025-09-13T08:41:05.699Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e1/36/70878596a60339cd9f78ee58b9ca8548f235a02d21be649ca73c35ccdd5a/starlette-0.49.0.tar.gz", hash = "sha256:cb75dfe3267b99caf9036db355601f8c6092c4d50d132b3724cb373766cb2ab1", size = 2654292, upload-time = "2025-10-28T08:11:42.379Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/72/2db2f49247d0a18b4f1bb9a5a39a0162869acf235f3a96418363947b3d46/starlette-0.48.0-py3-none-any.whl", hash = "sha256:0764ca97b097582558ecb498132ed0c7d942f233f365b86ba37770e026510659", size = 73736, upload-time = "2025-09-13T08:41:03.869Z" },
+    { url = "https://files.pythonhosted.org/packages/98/c4/da4392a59f3f1c9da2fa7bafd697ed14cf5f2ee2102c5cd4a4a1c5985e42/starlette-0.49.0-py3-none-any.whl", hash = "sha256:6f3988f55dda3fd36e5640aeaceee5b691063e0ebc4d7851e1c3a6695fbdc8ba", size = 74057, upload-time = "2025-10-28T08:11:40.895Z" },
 ]
 
 [[package]]
@@ -4836,6 +4864,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/0a/bf/95895e78dd75efe9a7f31733607f384b42eb5feb54bd2eb6ed57cc2e94f4/watchfiles-1.1.1-cp312-cp312-win32.whl", hash = "sha256:859e43a1951717cc8de7f4c77674a6d389b106361585951d9e69572823f311d9", size = 272042, upload-time = "2025-10-14T15:04:59.046Z" },
     { url = "https://files.pythonhosted.org/packages/87/0a/90eb755f568de2688cb220171c4191df932232c20946966c27a59c400850/watchfiles-1.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:91d4c9a823a8c987cce8fa2690923b069966dabb196dd8d137ea2cede885fde9", size = 288410, upload-time = "2025-10-14T15:05:00.081Z" },
     { url = "https://files.pythonhosted.org/packages/36/76/f322701530586922fbd6723c4f91ace21364924822a8772c549483abed13/watchfiles-1.1.1-cp312-cp312-win_arm64.whl", hash = "sha256:a625815d4a2bdca61953dbba5a39d60164451ef34c88d751f6c368c3ea73d404", size = 278209, upload-time = "2025-10-14T15:05:01.168Z" },
+]
+
+[[package]]
+name = "wcmatch"
+version = "10.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "bracex" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/3e/c0bdc27cf06f4e47680bd5803a07cb3dfd17de84cde92dd217dcb9e05253/wcmatch-10.1.tar.gz", hash = "sha256:f11f94208c8c8484a16f4f48638a85d771d9513f4ab3f37595978801cb9465af", size = 117421, upload-time = "2025-06-22T19:14:02.49Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/eb/d8/0d1d2e9d3fabcf5d6840362adcf05f8cf3cd06a73358140c3a97189238ae/wcmatch-10.1-py3-none-any.whl", hash = "sha256:5848ace7dbb0476e5e55ab63c6bbd529745089343427caa5537f230cc01beb8a", size = 39854, upload-time = "2025-06-22T19:14:00.978Z" },
 ]
 
 [[package]]

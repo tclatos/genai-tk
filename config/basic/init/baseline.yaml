@@ -22,7 +22,14 @@ vector_store:
   
 embeddings_store:
   # Updated configuration using new field names (backend instead of id, storage instead of chroma_path)
+ 
   default:
+    backend: Chroma
+    embeddings: default
+    config:
+      storage: ${paths.data_root}/vector_store  # Persistent storage on disk
+
+  in_memory:
     backend: InMemory
   
   in_memory_chroma:
@@ -32,7 +39,7 @@ embeddings_store:
     config:
       storage: '::memory::'  # In-memory Chroma storage
   
-  local_indexed:
+  chroma_indexed:
     backend: Chroma
     embeddings: default
     table_name_prefix: embeddings
@@ -40,11 +47,6 @@ embeddings_store:
     config:
       storage: ${paths.data_root}/vector_store  # Persistent storage on disk
   
-  # Legacy configuration (deprecated - use backend/storage instead)
-  # legacy_example:
-  #   id: Chroma  # Use 'backend' instead
-  #   config:
-  #     chroma_path: /path/to/storage  # Use 'storage' instead
 
 
 # Key-Value Stores configuration

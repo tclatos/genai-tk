@@ -507,7 +507,9 @@ class LlmFactory(BaseModel):
             # to be used for vLLM and other providers that comply with OpenAI API
 
             api_key_str = self.info.llm_args.get("api_key") or "dummy-key"
+            debug(self.info.llm_args)
             llm = ChatOpenAI(
+                model=self.info.model,
                 api_key=SecretStr(api_key_str),
                 **self.info.llm_args,
                 **llm_params,
