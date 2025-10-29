@@ -263,12 +263,6 @@ def register_commands(cli_app: typer.Typer) -> None:
         print(message)
 
 
-# NOT WORKING HERE
-# @cli_app.callback()
-# def callback(logging: bool = False):
-#     print("in callback")
-
-
 def main() -> None:
     # We could fo better with Typer @cli_app.callback(), but I haven't succeded
     if "--logging" in sys.argv:
