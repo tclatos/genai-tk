@@ -410,8 +410,6 @@ class LlmFactory(BaseModel):
         langchain_factory_supported_profider = set(_SUPPORTED_PROVIDERS)
         langchain_factory_supported_profider -= {"huggingface", "google", "azure", "ollama"}
 
-        debug(self.info)
-
         # case for most "standard" providers -> we use LangChain factory
         if self.info.provider in langchain_factory_supported_profider:
             # Some parameters are handled differently between provider. Here some workaround:
@@ -506,8 +504,10 @@ class LlmFactory(BaseModel):
         elif self.info.provider == "custom":
             # to be used for vLLM and other providers that comply with OpenAI API
 
+            if not self.info.llm_args.get("model"):
+                raise ValueError("'custom' provider should have a 'model' key")
+
             api_key_str = self.info.llm_args.get("api_key") or "dummy-key"
-            debug(self.info.llm_args)
             llm = ChatOpenAI(
                 model=self.info.model,
                 api_key=SecretStr(api_key_str),
@@ -534,8 +534,6 @@ class LlmFactory(BaseModel):
                 # Set reasoning parameter based on factory setting
                 # Default to False for cleaner output unless explicitly enabled
                 reasoning_enabled = self.reasoning if self.reasoning is not None else False
-
-                debug(reasoning_enabled)
 
                 llm = ChatOllama(
                     model=self.info.model,
