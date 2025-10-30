@@ -331,36 +331,3 @@ class InfoCommands(CliTopCommand):
                 cli_app,
                 title="[bold cyan]📋 CLI Command Structure[/bold cyan]",
             )
-
-        @cli_app.command("mcp-prompts")
-        def mcp_prompts(
-            filter: Annotated[list[str] | None, Option("--filter", "-f", help="Filter prompts by server names")] = None,
-        ) -> None:
-            """Display information about available MCP prompts.
-
-            Shows the list of prompts from MCP servers along with their descriptions.
-            Can be filtered by server names.
-
-            Example:
-                uv run cli info mcp-prompts
-                uv run cli info mcp-prompts --filter server1 server2
-            """
-            import asyncio
-
-            from genai_tk.core.mcp_client import get_mcp_prompts
-
-            async def display_prompts():
-                prompt_info = await get_mcp_prompts(filter)
-                if not prompt_info:
-                    print("No MCP tools found.")
-                    return
-
-                for server_name, prompts in prompt_info.items():
-                    print(f"\nServer: {server_name}")
-                    print("-" * (len(server_name) + 8))
-                    for name, description in prompts.items():
-                        print(f"  {name}:")
-                        print(f"    {description}")
-                    print()
-
-            asyncio.run(display_prompts())
