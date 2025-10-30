@@ -246,6 +246,38 @@ cli_app = typer.Typer(
 )
 
 
+def load_and_register_commands(cli_app: typer.Typer) -> None:
+    """Load and register all CLI commands from config.
+
+    Supports both class-based (CliTopCommand) and function-based registration.
+
+    Args:
+        cli_app: The Typer app instance to register commands to
+    """
+    modules = global_config().get_list("cli.commands", value_type=str)
+    # Import and register commands from each module
+
+    for module in modules:
+        try:
+            imported = import_from_qualified(module)
+
+            # Check if it's a class or function
+            if isinstance(imported, type):
+                # It's a class - check if it's a CliTopCommand
+                if issubclass(imported, CliTopCommand):
+                    # Create instance and call register method
+                    instance = imported()
+                    instance.register(cli_app)
+                else:
+                    logger.warning(f"Class {imported.__name__} from {module} is not a CliTopCommand")
+            else:
+                # It's a function - call it directly (old API)
+                imported(cli_app)
+        except Exception as ex:
+            logger.warning(f"Cannot load module {module}: {ex}")
+            # Continue loading other modules instead of crashing
+
+
 def register_commands(cli_app: typer.Typer) -> None:
     """Define additional utility commands for the CLI.
 
@@ -272,29 +304,7 @@ def main() -> None:
         level = None
 
     setup_logging(level)
-    modules = global_config().get_list("cli.commands", value_type=str)
-    # Import and register commands from each module
-
-    for module in modules:
-        try:
-            # debug(module)
-            imported = import_from_qualified(module)
-
-            # Check if it's a class or function
-            if isinstance(imported, type):
-                # It's a class - check if it's a CliTopCommand
-                if issubclass(imported, CliTopCommand):
-                    # Create instance and call register method
-                    instance = imported()
-                    instance.register(cli_app)
-                else:
-                    logger.warning(f"Class {imported.__name__} from {module} is not a CliTopCommand")
-            else:
-                # It's a function - call it directly (old API)
-                imported(cli_app)
-        except Exception as ex:
-            logger.warning(f"Cannot load module {module}: {ex}")
-            # Continue loading other modules instead of crashing
+    load_and_register_commands(cli_app)
 
     # Check if --help is requested or no arguments provided (show custom tree instead of default help)
     if len(sys.argv) == 1 or ("--help" in sys.argv and len(sys.argv) == 2):
