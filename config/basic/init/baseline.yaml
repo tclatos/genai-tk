@@ -62,3 +62,8 @@ kv_store:
 # LLM Cache configuration  
 llm_cache:
   method: "memory"  # Use memory cache for tests
+
+
+structured:
+  default:
+    baml_client: tests.baml_client

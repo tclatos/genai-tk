@@ -27,7 +27,7 @@ Data Flow:
 """
 
 import asyncio
-import importlib
+import sys
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Annotated, Any, Generic, Type, TypeVar
@@ -37,8 +37,9 @@ from loguru import logger
 from pydantic import BaseModel
 from upath import UPath
 
+from genai_tk.extra.structured.baml_util import get_baml_function, load_baml_client
 from genai_tk.main.cli import CliTopCommand
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.pydantic.common import validate_pydantic_model
 
 LLM_ID = None
 KV_STORE_ID = "file"
@@ -170,43 +171,6 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
         _ = await self.abatch_analyze_documents(document_ids, markdown_contents)
 
 
-def _load_baml_client(config_name: str = "default") -> tuple[Any, Any]:
-    """Load BAML client modules dynamically from config.
-
-    Args:
-        config_name: Name of the structured config to use (e.g., 'default', 'rainbow')
-
-    Returns:
-        Tuple of (types_module, async_client_instance)
-    """
-    # Get BAML client package path from config
-    config_key = f"structured.{config_name}.baml_client"
-    baml_client_package = global_config().get_str(config_key)
-
-    if not baml_client_package:
-        raise ValueError(
-            f"BAML client package not found in config at '{config_key}'. "
-            f"Please configure it in YAML config file (overrides.yaml or else)"
-        )
-
-    logger.debug(f"Loading BAML client from package: {baml_client_package}")
-
-    # Dynamically import the types module
-    try:
-        types_module = importlib.import_module(f"{baml_client_package}.types")
-    except ImportError as e:
-        raise ImportError(f"Failed to import types module from '{baml_client_package}.types': {e}") from e
-
-    # Dynamically import the async client
-    try:
-        async_client_module = importlib.import_module(f"{baml_client_package}.async_client")
-        baml_async_client = async_client_module.b
-    except ImportError as e:
-        raise ImportError(f"Failed to import async client from '{baml_client_package}.async_client': {e}") from e
-    except AttributeError as e:
-        raise AttributeError(f"Async client module does not have expected 'b' attribute: {e}") from e
-
-    return types_module, baml_async_client
 
 
 class BamlCommands(CliTopCommand):
@@ -214,6 +178,64 @@ class BamlCommands(CliTopCommand):
         return "baml", "BAML (structured output) related commands."
 
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
+        @cli_app.command("run")
+        def run(
+            function_name: Annotated[
+                str,
+                typer.Argument(help="BAML function name to execute (e.g., ExtractResume)"),
+            ],
+            input_text: Annotated[
+                str | None,
+                typer.Option("--input", "-i", help="Input text to process (if not provided, reads from stdin)"),
+            ] = None,
+            config_name: Annotated[
+                str,
+                typer.Option(
+                    "--config",
+                    help="Name of the structured config to use from overrides.yaml",
+                ),
+            ] = "default",
+        ) -> None:
+            """Execute a BAML function with input text and print the result.
+
+            Example:
+            echo "John Doe, john@example.com" | uv run cli baml run ExtractResume
+            uv run cli baml run ExtractResume --input "John Doe, john@example.com"
+            """
+            try:
+                baml_types, baml_async_client = load_baml_client(config_name)
+                logger.debug(f"Successfully loaded BAML client for config: {config_name}")
+            except Exception as e:
+                logger.error(f"Failed to load BAML client: {e}")
+                return
+
+            # Get input from stdin if not provided
+            if input_text is None:
+                if sys.stdin.isatty():
+                    logger.error("No input provided. Use --input or pipe data via stdin.")
+                    return
+                input_text = sys.stdin.read()
+
+            # Get BAML function and return type
+            try:
+                baml_function, return_type = get_baml_function(baml_async_client, function_name)
+            except AttributeError as e:
+                logger.error(str(e))
+                return
+
+            # Execute the function
+            try:
+                result = asyncio.run(baml_function(input_text))
+            except Exception as e:
+                logger.error(f"Failed to execute BAML function '{function_name}': {e}")
+                return
+
+            # Print result
+            if isinstance(result, BaseModel):
+                print(result.model_dump_json(indent=2))
+            else:
+                print(result)
+
         @cli_app.command("extract")
         def extract(
             file_or_dir: Annotated[
@@ -228,13 +250,13 @@ class BamlCommands(CliTopCommand):
             recursive: bool = typer.Option(False, help="Search for files recursively"),
             batch_size: int = typer.Option(5, help="Number of files to process in each batch"),
             force: bool = typer.Option(False, "--force", help="Overwrite existing KV entries"),
-            baml_spec: Annotated[
+            function_name: Annotated[
                 str,
                 typer.Option(
-                    "--baml",
-                    help="BAML specification in format 'ClassName:FunctionName' (e.g., ReviewedOpportunity:ExtractRainbow)",
+                    "--function",
+                    help="BAML function name (e.g., ExtractRainbow, ExtractResume)",
                 ),
-            ] = "ReviewedOpportunity:ExtractRainbow",
+            ] = "ExtractRainbow",
             config_name: Annotated[
                 str,
                 typer.Option(
@@ -245,59 +267,41 @@ class BamlCommands(CliTopCommand):
         ) -> None:
             """Extract structured project data from Markdown files using BAML and save as JSON in a key-value store.
 
-            This command uses BAML-generated functions to extract data from markdown files
-            and instantiate the specified Pydantic model class.
+            This command uses BAML-generated functions to extract data from markdown files.
+            The return type is automatically deduced from the BAML function signature.
 
             Example:
-            uv run cli baml extract file.md --baml ReviewedOpportunity:ExtractRainbow --force
-            uv run cli baml extract ./reviews/ --recursive --baml ReviewedOpportunity:ExtractRainbow
+            uv run cli baml extract file.md --function ExtractRainbow --force
+            uv run cli baml extract ./reviews/ --recursive --function ExtractResume
             """
 
             logger.info(f"Starting BAML-based project extraction with: {file_or_dir}")
 
             # Load BAML client modules dynamically from config
             try:
-                baml_types, baml_async_client = _load_baml_client(config_name)
+                baml_types, baml_async_client = load_baml_client(config_name)
                 logger.debug(f"Successfully loaded BAML client for config: {config_name}")
             except Exception as e:
                 logger.error(f"Failed to load BAML client: {e}")
                 return
 
-            # Parse BAML specification (format: ClassName:FunctionName)
+            # Get BAML function and deduce return type
             try:
-                class_name, function_name = baml_spec.split(":", 1)
-            except ValueError:
-                logger.error(
-                    f"Invalid BAML specification '{baml_spec}'. Expected format: 'ClassName:FunctionName' "
-                    f"(e.g., 'ReviewedOpportunity:ExtractRainbow')"
-                )
-                return
-
-            # Resolve model class from the BAML types module
-            try:
-                model_cls = getattr(baml_types, class_name)
+                baml_function, model_cls = get_baml_function(baml_async_client, function_name)
             except AttributeError as e:
-                logger.error(f"Unknown class '{class_name}' in baml_client.types: {e}")
+                logger.error(str(e))
                 return
 
-            if not isinstance(model_cls, type) or not issubclass(model_cls, BaseModel):
-                logger.error(f"Provided class '{class_name}' is not a Pydantic BaseModel")
+            # Validate that the return type is a Pydantic model
+            if model_cls is None:
+                logger.error(f"Could not deduce return type from BAML function '{function_name}'")
                 return
 
-            # Resolve BAML function from the async client
             try:
-                baml_function_method = getattr(baml_async_client, function_name)
-            except AttributeError as e:
-                logger.error(f"Unknown BAML function '{function_name}' in async client: {e}")
+                model_cls = validate_pydantic_model(model_cls, function_name)
+            except ValueError as e:
+                logger.error(f"BAML function '{function_name}' must return a Pydantic BaseModel: {e}")
                 return
-
-            # Create a wrapper function that matches the expected signature
-            async def baml_function_wrapper(content: str) -> Any:
-                # BAML functions typically take the content as the first positional argument
-                # The parameter name varies (e.g., 'rainbow_file' for ExtractRainbow)
-                return await baml_function_method(content)
-
-            baml_function = baml_function_wrapper
 
             # Collect all Markdown files
             all_files = []
