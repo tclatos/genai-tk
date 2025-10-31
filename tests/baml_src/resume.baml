@@ -1,6 +1,8 @@
 // Defining a data model.
+
+
 class Resume {
-  name string
+  name string @description("name of the candidate")
   email string
   experience string[]
   skills string[]

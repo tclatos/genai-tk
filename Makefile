@@ -28,7 +28,7 @@ fmt: ## Format code with ruff
 	uv run ruff check --select I --fix .
 
 lint: ## Lint code with ruff
-	uv run ruff check genai_tk.
+	uv run ruff check --fix genai_tk
 
 test: ## Run all tests
 	uv run pytest tests/unit_tests/ tests/integration_tests/

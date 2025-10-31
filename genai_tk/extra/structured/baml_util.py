@@ -9,8 +9,8 @@ import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any, Type, get_args, get_origin
 
+from baml_py import ClientRegistry
 from loguru import logger
-from pydantic import BaseModel
 
 from genai_tk.utils.config_mngr import global_config
 
@@ -90,7 +90,7 @@ def get_return_type_from_baml_function(baml_function_method: Callable[..., Await
 
 def get_baml_function(
     baml_async_client: Any, function_name: str
-) -> tuple[Callable[[str], Awaitable[Any]], Type[Any] | None]:
+) -> tuple[Callable[..., Awaitable[Any]], Type[Any] | None]:
     """Get a BAML function and extract its return type.
 
     Args:
@@ -111,8 +111,54 @@ def get_baml_function(
     # Extract return type
     return_type = get_return_type_from_baml_function(baml_function_method)
 
-    # Create wrapper function
-    async def baml_function_wrapper(content: str) -> Any:
-        return await baml_function_method(content)
+    # Create wrapper function that supports baml_options and dynamic parameters
+    async def baml_function_wrapper(*args: Any, baml_options: dict[str, Any] | None = None, **kwargs: Any) -> Any:
+        if baml_options:
+            return await baml_function_method(*args, baml_options=baml_options, **kwargs)
+        return await baml_function_method(*args, **kwargs)
 
     return baml_function_wrapper, return_type
+
+
+def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -> ClientRegistry:
+    """Create a BAML client registry for a specific LLM configuration.
+
+    This function takes an LLM id or tag, resolves it to get the actual LLM information
+    (model name, provider, temperature, etc.), and creates a BAML client registry
+    configured for that specific LLM.
+    """
+
+    from genai_tk.core.llm_factory import LlmFactory
+
+    try:
+        resolved_llm_id = LlmFactory.resolve_llm_identifier(llm_identifier)
+    except ValueError as e:
+        raise ValueError(f"Unknown LLM identifier '{llm_identifier}': {e}") from e
+
+    try:
+        llm_factory = LlmFactory(llm_id=resolved_llm_id, llm_params={"temperature": temperature})
+        llm_info = llm_factory.info
+        llm = llm_factory.get()
+        llm_dict = llm.model_dump()
+
+        if llm.__class__.__name__ == "ChatOpenAI":
+            provider = "openai-generic"
+            model = llm_dict["model_name"]
+        else:
+            raise ValueError(f"Provider not (yet?) supported for BAML: {llm_info.provider}")
+
+        # Map langchain field names to BAML field names
+        options = {"model": model}
+        if "openai_api_key" in llm_dict:
+            options["api_key"] = llm_dict["openai_api_key"].get_secret_value()
+        if "temperature" in llm_dict:
+            options["temperature"] = llm_dict["temperature"]
+        if "openai_api_base" in llm_dict:
+            options["base_url"] = llm_dict["openai_api_base"]
+
+        cr = ClientRegistry()
+        cr.add_llm_client(name=llm_identifier, provider=provider, options=options)
+        cr.set_primary(llm_identifier)
+        return cr
+    except Exception as e:
+        raise ValueError(f"Failed to get LLM info for '{resolved_llm_id}': {e}") from e

@@ -37,7 +37,7 @@ from loguru import logger
 from pydantic import BaseModel
 from upath import UPath
 
-from genai_tk.extra.structured.baml_util import get_baml_function, load_baml_client
+from genai_tk.extra.structured.baml_util import create_baml_client_registry, get_baml_function, load_baml_client
 from genai_tk.main.cli import CliTopCommand
 from genai_tk.utils.pydantic.common import validate_pydantic_model
 
@@ -171,8 +171,6 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
         _ = await self.abatch_analyze_documents(document_ids, markdown_contents)
 
 
-
-
 class BamlCommands(CliTopCommand):
     def get_description(self) -> tuple[str, str]:
         return "baml", "BAML (structured output) related commands."
@@ -192,9 +190,13 @@ class BamlCommands(CliTopCommand):
                 str,
                 typer.Option(
                     "--config",
-                    help="Name of the structured config to use from overrides.yaml",
+                    help="Name of the structured config to use from yaml confif",
                 ),
             ] = "default",
+            llm: Annotated[
+                str | None,
+                typer.Option(help="Name or tag of the LLM to use by BAML"),
+            ] = None,
         ) -> None:
             """Execute a BAML function with input text and print the result.
 
@@ -209,13 +211,6 @@ class BamlCommands(CliTopCommand):
                 logger.error(f"Failed to load BAML client: {e}")
                 return
 
-            # Get input from stdin if not provided
-            if input_text is None:
-                if sys.stdin.isatty():
-                    logger.error("No input provided. Use --input or pipe data via stdin.")
-                    return
-                input_text = sys.stdin.read()
-
             # Get BAML function and return type
             try:
                 baml_function, return_type = get_baml_function(baml_async_client, function_name)
@@ -223,9 +218,30 @@ class BamlCommands(CliTopCommand):
                 logger.error(str(e))
                 return
 
-            # Execute the function
+            # Check if function requires input by inspecting its signature
+            import inspect
+            sig = inspect.signature(getattr(baml_async_client, function_name))
+            params = [p for p in sig.parameters.keys() if p != "baml_options"]
+
+            # Get input from stdin if not provided and function requires input
+            if input_text is None and params:
+                if sys.stdin.isatty():
+                    logger.error("No input provided. Use --input or pipe data via stdin.")
+                    return
+                input_text = sys.stdin.read()
+
+            baml_options = None
+            if llm:
+                baml_options = {"client_registry": create_baml_client_registry(llm)}
+
+            # Execute the function based on its signature
             try:
-                result = asyncio.run(baml_function(input_text))
+                if not params:
+                    # Function takes no arguments
+                    result = asyncio.run(baml_function(baml_options=baml_options))
+                else:
+                    # Function takes at least one argument, pass input_text as the first one
+                    result = asyncio.run(baml_function(input_text, baml_options=baml_options))
             except Exception as e:
                 logger.error(f"Failed to execute BAML function '{function_name}': {e}")
                 return
@@ -261,7 +277,7 @@ class BamlCommands(CliTopCommand):
                 str,
                 typer.Option(
                     "--config",
-                    help="Name of the structured config to use from overrides.yaml (e.g., 'default', 'rainbow')",
+                    help="Name of the structured config to use from yaml config (e.g., 'default', 'rainbow')",
                 ),
             ] = "default",
         ) -> None:
