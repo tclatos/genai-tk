@@ -7,9 +7,8 @@ using fake models to ensure fast, reliable testing.
 from typing import Dict, List, Optional
 
 import pytest
-from pydantic import BaseModel, Field
-
 from genai_tk.wip.structured_output import StructOutMethod, structured_output_chain
+from pydantic import BaseModel, Field
 
 # Constants
 FAKE_LLM_ID = "parrot_local_fake"

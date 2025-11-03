@@ -612,5 +612,3 @@ class AgentCommands(CliTopCommand):
                         border_style="yellow",
                     )
                 )
-
-

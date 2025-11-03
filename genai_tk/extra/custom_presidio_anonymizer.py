@@ -195,7 +195,7 @@ class CustomizedPresidioAnonymizer(BaseModel):
                         clean_word = word.strip(string.punctuation)
                         if fuzz.ratio(clean_word, fake_value) >= self.fuzzy_matching_threshold:
                             words[i] = word.replace(clean_word, original_value)
-                    result_text = ' '.join(words)
+                    result_text = " ".join(words)
         else:
             # Exact matching only
             for fake_value, original_value in reverse_mapping.items():
