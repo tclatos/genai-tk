@@ -63,6 +63,10 @@ kv_store:
 llm_cache:
   method: "memory"  # Use memory cache for tests
 
+chains:   # Old stuff. Will likely be removed
+  root: tests.chains
+  modules:
+    - ${..root}.joke 
 
 structured:
   default:

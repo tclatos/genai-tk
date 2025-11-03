@@ -45,8 +45,19 @@ def basic_web_search(query: str) -> str:
             ) from ex
 
         tavily_tool = TavilySearch(max_results=5)
-        docs = tavily_tool.invoke({"query": query})
-        web_results = "\n".join([d["content"] for d in docs])
+        result = tavily_tool.invoke({"query": query})
+        
+        # TavilySearch returns a list of Document objects or a string
+        # Handle both cases
+        if isinstance(result, str):
+            import json
+            result_dict = json.loads(result)
+            docs = result_dict.get("results", [])
+            web_results = "\n".join([d["content"] for d in docs])
+        elif isinstance(result, list):
+            web_results = "\n".join([d["content"] if isinstance(d, dict) else d.page_content for d in result])
+        else:
+            web_results = str(result)
     else:
         from langchain_community.tools import DuckDuckGoSearchRun
 

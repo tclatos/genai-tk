@@ -72,26 +72,23 @@ class LlmCache:
         return [method.name.lower() for method in CacheMethod]
 
     @staticmethod
-    def set_method(cache: str | None) -> None:
+    def set_method(cache: str | CacheMethod | None) -> None:
         """Define caching method. If 'None', take the one defined in configuration. \
         Currently implemented : "memory', 'sqlite'.
 
         Args:
-            cache (str | None): The cache method to set. If None, the default from configuration is used.
+            cache (str | CacheMethod |  None): The cache method to set. If None, the default from configuration is used.
 
         Raises:
             logger.warning: If the default cache configuration is incorrect.
         """
-        try:
-            from langchain_core.globals import get_llm_cache, set_llm_cache
-        except ImportError:
-            # Fallback for older versions of langchain
-            from langchain.cache import get_llm_cache, set_llm_cache
+        from langchain_core.globals import get_llm_cache, set_llm_cache
         from loguru import logger
 
         old_cache = get_llm_cache()
 
-        new_cache = LlmCache.from_value(cache)
+        cache_str = cache.value if isinstance(cache, CacheMethod) else cache
+        new_cache = LlmCache.from_value(cache_str)
         set_llm_cache(new_cache)
 
         if new_cache is None and old_cache is None:

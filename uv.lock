@@ -874,20 +874,6 @@ wheels = [
 ]
 
 [[package]]
-name = "duckduckgo-search"
-version = "8.1.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "click" },
-    { name = "lxml" },
-    { name = "primp" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/10/ef/07791a05751e6cc9de1dd49fb12730259ee109b18e6d097e25e6c32d5617/duckduckgo_search-8.1.1.tar.gz", hash = "sha256:9da91c9eb26a17e016ea1da26235d40404b46b0565ea86d75a9f78cc9441f935", size = 22868, upload-time = "2025-07-06T15:30:59.73Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/db/72/c027b3b488b1010cf71670032fcf7e681d44b81829d484bb04e31a949a8d/duckduckgo_search-8.1.1-py3-none-any.whl", hash = "sha256:f48adbb06626ee05918f7e0cef3a45639e9939805c4fc179e68c48a12f1b5062", size = 18932, upload-time = "2025-07-06T15:30:58.339Z" },
-]
-
-[[package]]
 name = "durationpy"
 version = "0.10"
 source = { registry = "https://pypi.org/simple" }
@@ -1106,9 +1092,9 @@ dependencies = [
     { name = "bm25s" },
     { name = "chonkie" },
     { name = "chromadb" },
+    { name = "ddgs" },
     { name = "deepagents" },
     { name = "devtools" },
-    { name = "duckduckgo-search" },
     { name = "en-core-web-lg" },
     { name = "en-core-web-sm" },
     { name = "fuzzysearch" },
@@ -1189,9 +1175,9 @@ requires-dist = [
     { name = "bm25s", specifier = ">=0.2.13" },
     { name = "chonkie", specifier = ">=1.4.0" },
     { name = "chromadb", specifier = ">=1.0" },
+    { name = "ddgs", specifier = ">=9.7.0" },
     { name = "deepagents", specifier = ">=0.0.5" },
     { name = "devtools", specifier = ">=0.12.2" },
-    { name = "duckduckgo-search", specifier = ">=6.1.6" },
     { name = "en-core-web-lg", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" },
     { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "fuzzysearch", specifier = ">=0.8.0" },
@@ -1968,7 +1954,7 @@ wheels = [
 
 [[package]]
 name = "langchain-core"
-version = "1.0.2"
+version = "1.0.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonpatch" },
@@ -1979,9 +1965,9 @@ dependencies = [
     { name = "tenacity" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b4/96/b298cb46643bb235240de7ec8d87d3b4ccefead6bf41ca3c48c7d5397e01/langchain_core-1.0.2.tar.gz", hash = "sha256:9aae1908cc00d50b88e812305e980e7fd06d07375590ce8da01c04037bdccd72", size = 769167, upload-time = "2025-10-29T23:13:02.732Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/41/15/dfe0c2af463d63296fe18608a06570ce3a4b245253d4f26c301481380f7d/langchain_core-1.0.3.tar.gz", hash = "sha256:10744945d21168fb40d1162a5f1cf69bf0137ff6ad2b12c87c199a5297410887", size = 770278, upload-time = "2025-11-03T14:32:09.712Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/54/3aed89938a42cf7115575c333647551e35adc380feed651105d2d86c22f5/langchain_core-1.0.2-py3-none-any.whl", hash = "sha256:1f4ab4a41fc2e135e5dd4b97a89af123bbdc535af8f1f0644e8e8801bc288a12", size = 469251, upload-time = "2025-10-29T23:13:00.864Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/1b/b0a37674bdcbd2931944e12ea742fd167098de5212ee2391e91dce631162/langchain_core-1.0.3-py3-none-any.whl", hash = "sha256:64f1bd45f04b174bbfd54c135a8adc52f4902b347c15a117d6383b412bf558a5", size = 469927, upload-time = "2025-11-03T14:32:08.322Z" },
 ]
 
 [[package]]
@@ -2095,16 +2081,16 @@ wheels = [
 
 [[package]]
 name = "langchain-openai"
-version = "1.0.1"
+version = "1.0.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "langchain-core" },
     { name = "openai" },
     { name = "tiktoken" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f1/50/eaa53ac18f63b3e92e6c3a30269714cff477af5a568f486254779a9973f1/langchain_openai-1.0.1.tar.gz", hash = "sha256:78aff09a631fccca08a64f5fc669b325d0f5821490acce024e5da4cf0a08e0d0", size = 1025305, upload-time = "2025-10-21T15:45:06.095Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b3/3c/edb7ffca76fdcfd938ce8380bf8ec79a0a8be41ba7fdbf6f9fe1cb5fd1a8/langchain_openai-1.0.2.tar.gz", hash = "sha256:621e8295c52db9a1fc74806a0bd227ea215c132c6c5e421d2982c9ee78468769", size = 1025578, upload-time = "2025-11-03T14:08:32.121Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/62/c0/06d74093e3e798eb464ef76f53d031235b87feccdadbbf6f7b8409043e4d/langchain_openai-1.0.1-py3-none-any.whl", hash = "sha256:9b61309a7268e7c1c614c554cfd66401519e7434aaefc52de7e251887aceb5f7", size = 81898, upload-time = "2025-10-21T15:45:04.957Z" },
+    { url = "https://files.pythonhosted.org/packages/78/9b/7af1d539a051d195c5ecc5990ebd483f208c40f75a8a9532846d16762704/langchain_openai-1.0.2-py3-none-any.whl", hash = "sha256:b3eb9b82752063b46452aa868d8c8bc1604e57631648c3bc325bba58d3aeb143", size = 81934, upload-time = "2025-11-03T14:08:30.655Z" },
 ]
 
 [[package]]
@@ -4177,14 +4163,14 @@ wheels = [
 
 [[package]]
 name = "smart-open"
-version = "7.4.2"
+version = "7.4.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d1/49/a3aefb18f3d54208298917c95998e02cccf7aab6ba0ab631baa7a3bf6900/smart_open-7.4.2.tar.gz", hash = "sha256:648b5619297cb32720cdfed4ffbcb15209defb531e0904497721a9b24fdcdcac", size = 53339, upload-time = "2025-10-30T20:59:19.814Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/7a/0607d2739a29f1a753c5efaf71f29761de89f5e8554c7924411b5c721515/smart_open-7.4.3.tar.gz", hash = "sha256:f32839234a287e2cb2ecdccc5b315de34a8e79db4db729e1a864ab3b359f9fee", size = 53192, upload-time = "2025-11-03T11:52:16.822Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/da/50ff212da23830e095e0a8e0541b3a8f715edaa77b16ad2897f946763c46/smart_open-7.4.2-py3-none-any.whl", hash = "sha256:5e53a2604d62979a3940f80472c3d42c508250cec709ad4d25854f597d15036f", size = 63313, upload-time = "2025-10-30T20:59:18.514Z" },
+    { url = "https://files.pythonhosted.org/packages/1f/11/033d766263ac1576e77e1bf280a9242668e2d41c0c91de75b8bec3ed7f16/smart_open-7.4.3-py3-none-any.whl", hash = "sha256:58380011d58d98975abf73f8d2cd576d9d98115346f57d8380a5f78326c0ac84", size = 63121, upload-time = "2025-11-03T11:52:15.528Z" },
 ]
 
 [[package]]

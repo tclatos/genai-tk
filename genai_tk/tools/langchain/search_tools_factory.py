@@ -1,8 +1,7 @@
 """
-Search Tools for Deep Agents
+Versatile Search Tools
 
-This module provides real web search capabilities for deep agents,
-supporting multiple search providers based on available API keys.
+This module provides real web search capabilities supporting multiple search providers based on available API keys.
 """
 
 import os
@@ -115,7 +114,7 @@ def create_search_function(verbose: bool = False):
 
     # Try DuckDuckGo (no API key required)
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
 
         def internet_search(
             query: str,

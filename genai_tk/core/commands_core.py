@@ -20,6 +20,7 @@ from typing import Annotated, Optional
 import typer
 from typer import Option
 
+from genai_tk.core.cache import CacheMethod
 from genai_tk.main.cli import CliTopCommand
 from genai_tk.utils.config_mngr import global_config
 
@@ -35,8 +36,10 @@ class CoreCommands(CliTopCommand):
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
         @cli_app.command()
         def llm(
-            input: Annotated[str | None, typer.Option(help="Input text or '-' to read from stdin")] = None,
-            cache: Annotated[str, typer.Option(help="Cache strategy: 'sqlite', 'memory' or 'no_cache'")] = "memory",
+            input: Annotated[
+                str | None, typer.Option("--input", "-i", help="Input text or '-' to read from stdin")
+            ] = None,
+            cache: Annotated[CacheMethod, typer.Option(help="Cache strategy")] = "memory",
             temperature: Annotated[
                 float, Option("--temperature", "--temp", min=0.0, max=1.0, help="Model temperature (0-1)")
             ] = 0.0,
@@ -44,7 +47,7 @@ class CoreCommands(CliTopCommand):
             reasoning: Annotated[
                 bool, Option("--reasoning", help="Enable reasoning/thinking mode (for compatible models)")
             ] = False,
-            raw: Annotated[bool, Option("--raw", "-r", help="Output raw LLM response object")] = False,
+            raw: Annotated[bool, Option(help="Output raw LLM response object")] = False,
             lc_verbose: Annotated[bool, Option("--verbose", "-v", help="Enable LangChain verbose mode")] = False,
             lc_debug: Annotated[bool, Option("--debug", "-d", help="Enable LangChain debug mode")] = False,
             llm: Annotated[Optional[str], Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = None,
@@ -118,7 +121,9 @@ class CoreCommands(CliTopCommand):
         @cli_app.command()
         def run(
             runnable_name: Annotated[str, typer.Argument(help="Name of registered Runnable to execute")],
-            input: Annotated[str | None, typer.Option(help="Input text or '-' to read from stdin")] = None,
+            input: Annotated[
+                str | None, typer.Option("-input", "-i", help="Input text or '-' to read from stdin")
+            ] = None,
             path: Annotated[Path | None, typer.Option(help="File path input for the chain")] = None,
             cache: Annotated[str, typer.Option(help="Cache strategy: 'sqlite', 'memory' or 'no_cache'")] = "memory",
             temperature: Annotated[

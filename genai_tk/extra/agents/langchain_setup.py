@@ -8,13 +8,16 @@ from langchain_core.globals import set_debug, set_verbose
 from rich.console import Console
 from rich.panel import Panel
 
-from genai_tk.core.cache import LlmCache
+from genai_tk.core.cache import CacheMethod, LlmCache
 from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.utils.config_mngr import global_config
 
 
 def setup_langchain(
-    llm_id: str | None, lc_debug: bool | None = None, lc_verbose: bool | None = None, cache: str | None = None
+    llm_id: str | None,
+    lc_debug: bool | None = None,
+    lc_verbose: bool | None = None,
+    cache: str | CacheMethod | None = None,
 ) -> bool:
     """Configure LangChain with the specified settings.
 
