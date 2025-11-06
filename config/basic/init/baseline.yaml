@@ -71,3 +71,7 @@ chains:   # Old stuff. Will likely be removed
 structured:
   default:
     baml_client: tests.baml_client
+
+monitoring: 
+  langsmith : true
+  project: GenAI_demo

@@ -1,46 +1,28 @@
 """Tracing utilities for LangSmith integration."""
 
-import os
 from contextlib import contextmanager
 from typing import Any, Generator
+
+from langsmith.utils import tracing_is_enabled
 
 from genai_tk.utils.config_mngr import global_config
 
 
-class NoOpTraceCallback:
-    """No-op callback for when tracing is disabled."""
+def should_enable_tracing() -> bool:
+    """Check if LangSmith tracing should be enabled.
 
-    def get_run_url(self) -> None:
-        """Return None when tracing is disabled."""
-        return None
+    Returns:
+        True if both config and API key are available, False otherwise
+    """
+    langsmith_enabled = global_config().get_bool("monitoring.langsmith", False)
+    return langsmith_enabled and tracing_is_enabled()
 
 
 @contextmanager
-def tracing_context() -> Generator[Any, None, None]:
-    """Context manager that conditionally enables LangSmith tracing.
+def tracing_context() -> Generator[None, None, None]:
+    """Context manager for backwards compatibility.
 
-    Enables tracing if:
-    1. monitoring.langsmith config is True
-    2. LANGCHAIN_API_KEY environment variable is set
-
-    Otherwise returns a no-op callback that returns None for get_run_url().
-
-    Yields:
-        Either a LangSmith tracing callback or a no-op callback
+    This doesn't capture trace URLs anymore. Just use it as a context manager
+    that yields None. Tracing is controlled by environment variables.
     """
-    # Check if LangSmith is configured and API key is available
-    langsmith_enabled = global_config().get_bool("monitoring.langsmith", False)
-    api_key_available = bool(os.getenv("LANGCHAIN_API_KEY"))
-
-    if langsmith_enabled and api_key_available:
-        try:
-            from langchain_core.callbacks import tracing_v2_enabled
-
-            with tracing_v2_enabled() as cb:
-                yield cb
-        except ImportError:
-            # If langchain tracing is not available, fall back to no-op
-            yield NoOpTraceCallback()
-    else:
-        # Return no-op callback when tracing is disabled
-        yield NoOpTraceCallback()
+    yield None

@@ -162,3 +162,4 @@ knowledge_graphs/
 .aider*
 genai_tk/core/genai-blueprint.code-workspace
 */baml_client/*
+.blueprint.input.history

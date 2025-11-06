@@ -18,6 +18,7 @@ Data Flow:
 """
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import Annotated
@@ -157,6 +158,8 @@ class BamlCommands(CliTopCommand):
             """
 
             logger.info(f"Starting BAML-based project extraction with: {file_or_dir}")
+
+            os.environ["BAML_LOG"] = "warn"
 
             # Load BAML client modules dynamically from config
             try:

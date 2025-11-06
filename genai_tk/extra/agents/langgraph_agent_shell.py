@@ -17,7 +17,6 @@ from rich.text import Text
 from genai_tk.core.llm_factory import get_llm
 from genai_tk.core.mcp_client import get_mcp_servers_dict
 from genai_tk.utils.langgraph import print_astream
-from genai_tk.utils.tracing import tracing_context
 
 
 async def run_langgraph_agent_shell(
@@ -33,7 +32,6 @@ async def run_langgraph_agent_shell(
         server_filter: Optional list of server names to include in the agent
     """
     console = Console()
-    last_trace_url: str | None = None
 
     # Display welcome banner
     welcome_text = Text("🤖 LangGraph Agent", style="bold cyan")
@@ -85,11 +83,7 @@ async def run_langgraph_agent_shell(
                 )
                 continue
             if user_input == "/trace":
-                if last_trace_url:
-                    console.print(f"[dim]Opening trace URL: {last_trace_url}[/dim]")
-                    webbrowser.open(last_trace_url)
-                else:
-                    console.print("[dim]No trace URL available yet.[/dim]")
+                webbrowser.open("https://smith.langchain.com/")
                 continue
             if user_input.startswith("/") and user_input not in {"/quit", "/exit", "/q", "/help", "/trace"}:
                 console.print(f"[red]Unknown command: {user_input}[/red]")
@@ -102,11 +96,8 @@ async def run_langgraph_agent_shell(
 
             # Process the response
             with console.status("[bold green]Agent is thinking...\n[/bold green]"):
-                with tracing_context() as cb:
-                    resp = agent.astream({"messages": user_input}, config)
-                    await print_astream(resp)
-                    if cb:
-                        last_trace_url = cb.get_run_url()
+                resp = agent.astream({"messages": user_input}, config)
+                await print_astream(resp)
 
             console.print()  # Add spacing between interactions
 
