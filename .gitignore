@@ -156,10 +156,12 @@ config/local.yaml
 config/local.yml
 
 # genai-tk specific
+.*.input.history
 llm_cache/
 vector_store_data/
 knowledge_graphs/
 .aider*
-genai_tk/core/genai-blueprint.code-workspace
+*.code-workspace
 */baml_client/*
-.blueprint.input.history
+
+

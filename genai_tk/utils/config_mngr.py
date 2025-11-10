@@ -63,16 +63,11 @@ class OmegaConfig(BaseModel):
 
         os.environ["PWD"] = os.popen("pwd").read().strip()  # Hack because PWD is sometime set to a Windows path in WSL
 
-        # Load and merge additional config files
-        merge_files = config.get("merge", [])
-        for file_path in merge_files:
-            merge_path = Path(file_path)
-            if not merge_path.exists():
-                merge_path = Path("config") / file_path
-            assert merge_path.exists(), f"cannot find config file: '{merge_path}'"
+        # Process :env pseudo-key to load environment variables
+        OmegaConfig._process_env_variables(config)
 
-            merge_config = OmegaConf.load(merge_path)
-            config = OmegaConf.merge(config, merge_config)
+        # Load and merge additional config files
+        config = OmegaConfig._process_merge_files(config)
 
         # Determine which config to use
         # @TODO : remove config_name_from_env as its set on the YAML
@@ -87,6 +82,15 @@ class OmegaConfig(BaseModel):
             logger.warning(f"Configuration selected by key 'default_config' not found: {config_name_from_yaml}")
             config_name_from_yaml = None
         selected_config = config_name_from_env or config_name_from_yaml or "baseline"
+
+        # Clean up pseudo-keys from final config
+        if ":merge" in config:
+            del config[":merge"]
+        if "merge" in config:
+            del config["merge"]
+        if ":env" in config:
+            del config[":env"]
+
         return OmegaConfig(root=config, selected_config=selected_config)  # type: ignore
 
     def select_config(self, config_name: str) -> None:
@@ -111,6 +115,21 @@ class OmegaConfig(BaseModel):
 
         new_conf = OmegaConf.load(path)
         assert isinstance(new_conf, DictConfig), f"Added conf not a Dict : type{new_conf}"
+
+        # Process :env pseudo-key to load environment variables (pass self.root for interpolation)
+        OmegaConfig._process_env_variables(new_conf, parent_config=self.root)
+
+        # Process :merge pseudo-key recursively
+        new_conf = OmegaConfig._process_merge_files(new_conf)
+
+        # Clean up pseudo-keys before merging
+        if ":merge" in new_conf:
+            del new_conf[":merge"]
+        if "merge" in new_conf:
+            del new_conf["merge"]
+        if ":env" in new_conf:
+            del new_conf[":env"]
+
         self.root = OmegaConf.merge(self.root, new_conf)  # type: ignore
         return self
 
@@ -277,6 +296,105 @@ class OmegaConfig(BaseModel):
 
         db_url = self.get_str(key)
         return check_dsn_update_driver(db_url, driver)
+
+    @staticmethod
+    def _process_env_variables(config: DictConfig, parent_config: DictConfig | None = None) -> None:
+        """Process :env pseudo-key to load environment variables.
+
+        Args:
+            config: Configuration dictionary to process
+            parent_config: Parent config for resolving interpolations in merged files
+        """
+        env_vars = config.get(":env", {})
+        if not env_vars:
+            return
+
+        if not isinstance(env_vars, (DictConfig, dict)):
+            logger.warning(f":env must be a dictionary, got {type(env_vars)}")
+            return
+
+        # Convert to container without resolving to avoid premature interpolation errors
+        env_dict = OmegaConf.to_container(env_vars, resolve=False)
+        if not isinstance(env_dict, dict):
+            logger.warning(f":env must be a dictionary, got {type(env_dict)} after conversion")
+            return
+
+        # If we have a parent config, merge it temporarily for interpolation resolution
+        resolution_config = OmegaConf.merge(parent_config, config) if parent_config else config
+
+        for var_name, var_value in env_dict.items():
+            if not isinstance(var_name, str):
+                logger.warning(f"Environment variable name must be a string, got {type(var_name)}: {var_name}")
+                continue
+
+            try:
+                # Resolve any OmegaConf references in the value using the resolution config
+                if isinstance(var_value, str) and "${" in var_value:
+                    # Create a temporary config with the interpolated value
+                    temp_conf = OmegaConf.create({"_temp": var_value})
+                    merged_for_resolution = OmegaConf.merge(resolution_config, temp_conf)
+                    str_value = str(merged_for_resolution["_temp"])
+                else:
+                    str_value = str(var_value)
+
+                # Set environment variable
+                os.environ[var_name] = str_value
+                logger.debug(f"Set environment variable {var_name} = {str_value}")
+            except Exception as e:
+                logger.warning(f"Failed to resolve environment variable {var_name}: {e}")
+                continue
+
+    @staticmethod
+    def _process_merge_files(config: DictConfig) -> DictConfig:
+        """Process :merge pseudo-key to merge additional configuration files.
+
+        Supports both old 'merge' key (with deprecation warning) and new ':merge' key.
+        Allows recursive merging when merged files also contain :merge keys.
+
+        Args:
+            config: Configuration dictionary to process
+        Returns:
+            Merged configuration dictionary
+        """
+        # Check for deprecated 'merge' key
+        if "merge" in config:
+            logger.warning(
+                "Deprecated: 'merge' key has been renamed to ':merge'. "
+                "Please update your configuration file. Support for 'merge' will be removed in a future version."
+            )
+            merge_files = config.get("merge", [])
+        else:
+            merge_files = config.get(":merge", [])
+
+        if not merge_files:
+            return config
+
+        for file_path in merge_files:
+            merge_path = Path(file_path)
+            if not merge_path.exists():
+                merge_path = Path("config") / file_path
+            assert merge_path.exists(), f"cannot find config file: '{merge_path}'"
+
+            merge_config = OmegaConf.load(merge_path)
+            assert isinstance(merge_config, DictConfig), f"Merged config is not a DictConfig: {type(merge_config)}"
+
+            # Process :env variables in the merged file (pass parent config for interpolation)
+            OmegaConfig._process_env_variables(merge_config, parent_config=config)
+
+            # Recursively process :merge in the merged file
+            merge_config = OmegaConfig._process_merge_files(merge_config)
+
+            # Clean up pseudo-keys before merging
+            if ":merge" in merge_config:
+                del merge_config[":merge"]
+            if "merge" in merge_config:
+                del merge_config["merge"]
+            if ":env" in merge_config:
+                del merge_config[":env"]
+
+            config = OmegaConf.merge(config, merge_config)
+
+        return config
 
 
 def global_config(reload: bool = False) -> OmegaConfig:

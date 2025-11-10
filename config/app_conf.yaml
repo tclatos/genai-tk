@@ -6,6 +6,13 @@
 
 default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
 
+:merge:
+  - ${paths.config}/init/baseline.yaml
+  - ${paths.config}/init/overrides.yaml
+  - ${paths.config}/init/mcp_servers.yaml
+ 
+:env:
+  LOGURU_LEVEL: info 
 
 paths:
   home: ${oc.env:HOME}
@@ -13,11 +20,7 @@ paths:
   config: ${paths.project}/config/basic
   data_root: ${paths.project}/data
 
-merge:
-  - ${paths.config}/init/baseline.yaml
-  - ${paths.config}/init/overrides.yaml
-  - ${paths.config}/init/mcp_servers.yaml
- 
+
 
 # Command Line Interface configuration
 cli:
@@ -29,7 +32,3 @@ cli:
     - genai_tk.extra.structured.commands_baml:BamlCommands
   #  - genai_tk.extra.rag.commands_rag:RagCommands
     - genai_tk.main.cli:register_commands
-
-# Logging configuration
-logging:
-  level: "INFO"
