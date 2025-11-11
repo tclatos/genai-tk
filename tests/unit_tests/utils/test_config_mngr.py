@@ -323,6 +323,381 @@ additional_env:
         nested_dict = self.config.get_dict("deep.nested.structure.dict")
         self.assertEqual(nested_dict, {"inner": "test"})
 
+    def test_env_pseudo_key(self) -> None:
+        """Test :env pseudo-key for setting environment variables."""
+        # Clean up any existing test variables
+        for var in ["TEST_ENV_VAR1", "TEST_ENV_VAR2", "TEST_ENV_VAR3"]:
+            if var in os.environ:
+                del os.environ[var]
+
+        env_config = """
+default_config: test_env
+paths:
+  project: /tmp/test_project
+  data: /tmp/test_data
+
+:env:
+  TEST_ENV_VAR1: "simple_value"
+  TEST_ENV_VAR2: "value_with_spaces"
+  TEST_ENV_VAR3: "${paths.project}/subdir"
+
+test_env:
+  setting: "test"
+"""
+        env_config_path = Path(self.temp_dir.name) / "env_config.yaml"
+        env_config_path.write_text(env_config)
+
+        # Create config and verify environment variables were set
+        config = OmegaConfig.create(env_config_path)
+
+        self.assertEqual(os.environ.get("TEST_ENV_VAR1"), "simple_value")
+        self.assertEqual(os.environ.get("TEST_ENV_VAR2"), "value_with_spaces")
+        self.assertEqual(os.environ.get("TEST_ENV_VAR3"), "/tmp/test_project/subdir")
+
+        # Verify :env key was removed from config
+        self.assertNotIn(":env", config.root)
+
+        # Clean up
+        for var in ["TEST_ENV_VAR1", "TEST_ENV_VAR2", "TEST_ENV_VAR3"]:
+            if var in os.environ:
+                del os.environ[var]
+
+    def test_env_pseudo_key_in_merged_file(self) -> None:
+        """Test :env pseudo-key in a merged configuration file."""
+        # Clean up any existing test variables
+        for var in ["MERGED_ENV_VAR1", "MERGED_ENV_VAR2"]:
+            if var in os.environ:
+                del os.environ[var]
+
+        # Create base config
+        base_config = """
+default_config: test_env
+paths:
+  project: /tmp/test_project
+  config: /tmp/test_config
+
+:merge:
+  - ${paths.config}/merged_env.yaml
+
+test_env:
+  base_setting: "from_base"
+"""
+        base_config_path = Path(self.temp_dir.name) / "base_config.yaml"
+        base_config_path.write_text(base_config)
+
+        # Create config directory
+        config_dir = Path(self.temp_dir.name) / "config"
+        config_dir.mkdir(exist_ok=True)
+
+        # Create merged config with :env
+        merged_config = """
+:env:
+  MERGED_ENV_VAR1: "from_merged"
+  MERGED_ENV_VAR2: "${paths.project}/merged_subdir"
+
+test_env:
+  merged_setting: "from_merged_file"
+"""
+        # Write to the location expected by interpolation
+        merged_config_path = Path("/tmp/test_config/merged_env.yaml")
+        merged_config_path.parent.mkdir(parents=True, exist_ok=True)
+        merged_config_path.write_text(merged_config)
+
+        try:
+            # Create config and verify environment variables from merged file were set
+            config = OmegaConfig.create(base_config_path)
+
+            self.assertEqual(os.environ.get("MERGED_ENV_VAR1"), "from_merged")
+            self.assertEqual(os.environ.get("MERGED_ENV_VAR2"), "/tmp/test_project/merged_subdir")
+
+            # Verify merged content is present
+            self.assertEqual(config.get("test_env.merged_setting"), "from_merged_file")
+            self.assertEqual(config.get("test_env.base_setting"), "from_base")
+
+            # Verify :env key was removed from config
+            self.assertNotIn(":env", config.root)
+        finally:
+            # Clean up
+            if merged_config_path.exists():
+                merged_config_path.unlink()
+            if merged_config_path.parent.exists():
+                merged_config_path.parent.rmdir()
+            for var in ["MERGED_ENV_VAR1", "MERGED_ENV_VAR2"]:
+                if var in os.environ:
+                    del os.environ[var]
+
+    def test_merge_pseudo_key_with_colon(self) -> None:
+        """Test :merge pseudo-key (new format with colon)."""
+        # Create base config with :merge
+        base_config = """
+default_config: test_env
+paths:
+  config: /tmp/test_config
+
+:merge:
+  - ${paths.config}/additional.yaml
+
+test_env:
+  base_value: "from_base"
+"""
+        base_config_path = Path(self.temp_dir.name) / "merge_test.yaml"
+        base_config_path.write_text(base_config)
+
+        # Create additional config file
+        additional_config = """
+test_env:
+  additional_value: "from_additional"
+  nested:
+    key: "nested_value"
+"""
+        additional_path = Path("/tmp/test_config/additional.yaml")
+        additional_path.parent.mkdir(parents=True, exist_ok=True)
+        additional_path.write_text(additional_config)
+
+        try:
+            config = OmegaConfig.create(base_config_path)
+
+            # Verify both configs were merged
+            self.assertEqual(config.get("test_env.base_value"), "from_base")
+            self.assertEqual(config.get("test_env.additional_value"), "from_additional")
+            self.assertEqual(config.get("test_env.nested.key"), "nested_value")
+
+            # Verify :merge key was removed
+            self.assertNotIn(":merge", config.root)
+        finally:
+            if additional_path.exists():
+                additional_path.unlink()
+            if additional_path.parent.exists():
+                additional_path.parent.rmdir()
+
+    def test_deprecated_merge_key_warning(self) -> None:
+        """Test that old 'merge' key shows deprecation warning."""
+        # Create config with old 'merge' key (without colon)
+        old_config = """
+default_config: test_env
+paths:
+  config: /tmp/test_config
+
+merge:
+  - ${paths.config}/old_merge.yaml
+
+test_env:
+  value: "test"
+"""
+        old_config_path = Path(self.temp_dir.name) / "old_merge.yaml"
+        old_config_path.write_text(old_config)
+
+        # Create file to merge
+        merge_file = """
+test_env:
+  merged_value: "merged"
+"""
+        merge_path = Path("/tmp/test_config/old_merge.yaml")
+        merge_path.parent.mkdir(parents=True, exist_ok=True)
+        merge_path.write_text(merge_file)
+
+        try:
+            # This should work but log a warning
+            config = OmegaConfig.create(old_config_path)
+
+            # Verify merge still works
+            self.assertEqual(config.get("test_env.merged_value"), "merged")
+
+            # Verify both old 'merge' and new ':merge' keys were removed
+            self.assertNotIn("merge", config.root)
+            self.assertNotIn(":merge", config.root)
+        finally:
+            if merge_path.exists():
+                merge_path.unlink()
+            if merge_path.parent.exists():
+                merge_path.parent.rmdir()
+
+    def test_recursive_merge_in_merged_file(self) -> None:
+        """Test that :merge pseudo-key works recursively in merged files."""
+        # Create base config
+        base_config = """
+default_config: test_env
+paths:
+  config: /tmp/test_config
+
+:merge:
+  - ${paths.config}/level1.yaml
+
+test_env:
+  level0: "base"
+"""
+        base_config_path = Path(self.temp_dir.name) / "recursive_base.yaml"
+        base_config_path.write_text(base_config)
+
+        # Create level1 config that also has :merge
+        level1_config = """
+:merge:
+  - ${paths.config}/level2.yaml
+
+test_env:
+  level1: "first_merge"
+"""
+        level1_path = Path("/tmp/test_config/level1.yaml")
+        level1_path.parent.mkdir(parents=True, exist_ok=True)
+        level1_path.write_text(level1_config)
+
+        # Create level2 config
+        level2_config = """
+test_env:
+  level2: "second_merge"
+"""
+        level2_path = Path("/tmp/test_config/level2.yaml")
+        level2_path.write_text(level2_config)
+
+        try:
+            config = OmegaConfig.create(base_config_path)
+
+            # Verify all levels were merged
+            self.assertEqual(config.get("test_env.level0"), "base")
+            self.assertEqual(config.get("test_env.level1"), "first_merge")
+            self.assertEqual(config.get("test_env.level2"), "second_merge")
+
+            # Verify :merge key was removed
+            self.assertNotIn(":merge", config.root)
+        finally:
+            for path in [level1_path, level2_path]:
+                if path.exists():
+                    path.unlink()
+            if level1_path.parent.exists():
+                level1_path.parent.rmdir()
+
+    def test_merge_with_method_supports_env_and_merge(self) -> None:
+        """Test that merge_with method processes :env and :merge pseudo-keys."""
+        # Clean up test variables
+        for var in ["MERGE_WITH_VAR"]:
+            if var in os.environ:
+                del os.environ[var]
+
+        # Start with base config
+        base_config = """
+default_config: test_env
+paths:
+  project: /tmp/project
+
+test_env:
+  original: "value"
+"""
+        base_config_path = Path(self.temp_dir.name) / "merge_with_base.yaml"
+        base_config_path.write_text(base_config)
+        config = OmegaConfig.create(base_config_path)
+
+        # Create a file to merge that has :env
+        merge_with_config = """
+:env:
+  MERGE_WITH_VAR: "${paths.project}/data"
+
+test_env:
+  added: "from_merge_with"
+"""
+        merge_with_path = Path(self.temp_dir.name) / "merge_with_file.yaml"
+        merge_with_path.write_text(merge_with_config)
+
+        # Use merge_with method
+        config.merge_with(str(merge_with_path))
+
+        # Verify env var was set
+        self.assertEqual(os.environ.get("MERGE_WITH_VAR"), "/tmp/project/data")
+
+        # Verify config was merged
+        self.assertEqual(config.get("test_env.original"), "value")
+        self.assertEqual(config.get("test_env.added"), "from_merge_with")
+
+        # Verify :env key was removed
+        self.assertNotIn(":env", config.root)
+
+        # Clean up
+        if "MERGE_WITH_VAR" in os.environ:
+            del os.environ["MERGE_WITH_VAR"]
+
+    def test_env_in_both_main_and_merged_files(self) -> None:
+        """Test :env pseudo-key in both main file and merged file, including within config sections.
+
+        This mimics the real-world scenario from genai-blueprint where:
+        - app_conf.yaml has :env at root level
+        - overrides.yaml has :env within a config section (e.g., ekg_local)
+        """
+        # Clean up test variables
+        for var in ["MAIN_ENV_VAR", "MERGED_ENV_VAR", "SECTION_ENV_VAR"]:
+            if var in os.environ:
+                del os.environ[var]
+
+        # Create main config with :env at root and merge directive
+        main_config = """
+default_config: test_section
+
+paths:
+  project: /tmp/test_project
+  config: /tmp/test_config
+  data: ${paths.project}/data
+
+:env:
+  MAIN_ENV_VAR: "from_main_root"
+
+:merge:
+  - ${paths.config}/merged_overrides.yaml
+
+test_section:
+  base_value: "from_main"
+"""
+        main_config_path = Path(self.temp_dir.name) / "main_with_env.yaml"
+        main_config_path.write_text(main_config)
+
+        # Create merged config with :env at root AND within a section
+        merged_config = """
+:env:
+  MERGED_ENV_VAR: "${paths.data}/merged"
+
+test_section:
+  :env:
+    SECTION_ENV_VAR: "from_section_in_merged"
+  override_value: "from_merged"
+  nested:
+    key: "nested_value"
+
+other_section:
+  value: "other"
+"""
+        merged_config_path = Path("/tmp/test_config/merged_overrides.yaml")
+        merged_config_path.parent.mkdir(parents=True, exist_ok=True)
+        merged_config_path.write_text(merged_config)
+
+        try:
+            # Create config - this should process :env from both files
+            config = OmegaConfig.create(main_config_path)
+
+            # Verify all environment variables were set
+            self.assertEqual(os.environ.get("MAIN_ENV_VAR"), "from_main_root")
+            self.assertEqual(os.environ.get("MERGED_ENV_VAR"), "/tmp/test_project/data/merged")
+            self.assertEqual(os.environ.get("SECTION_ENV_VAR"), "from_section_in_merged")
+
+            # Verify merged content is present
+            self.assertEqual(config.get("test_section.base_value"), "from_main")
+            self.assertEqual(config.get("test_section.override_value"), "from_merged")
+            self.assertEqual(config.get("test_section.nested.key"), "nested_value")
+            self.assertEqual(config.get("other_section.value"), "other")
+
+            # Verify :env keys were removed from root
+            self.assertNotIn(":env", config.root)
+
+            # Verify :env key was removed from within section
+            test_section = config.root.get("test_section")
+            if test_section:
+                self.assertNotIn(":env", test_section)
+        finally:
+            # Clean up
+            if merged_config_path.exists():
+                merged_config_path.unlink()
+            if merged_config_path.parent.exists():
+                merged_config_path.parent.rmdir()
+            for var in ["MAIN_ENV_VAR", "MERGED_ENV_VAR", "SECTION_ENV_VAR"]:
+                if var in os.environ:
+                    del os.environ[var]
+
 
 if __name__ == "__main__":
     import unittest

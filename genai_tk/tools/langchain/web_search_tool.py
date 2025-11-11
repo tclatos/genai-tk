@@ -46,11 +46,12 @@ def basic_web_search(query: str) -> str:
 
         tavily_tool = TavilySearch(max_results=5)
         result = tavily_tool.invoke({"query": query})
-        
+
         # TavilySearch returns a list of Document objects or a string
         # Handle both cases
         if isinstance(result, str):
             import json
+
             result_dict = json.loads(result)
             docs = result_dict.get("results", [])
             web_results = "\n".join([d["content"] for d in docs])

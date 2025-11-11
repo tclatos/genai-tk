@@ -21,6 +21,17 @@ function ExtractResume(resume: string) -> Resume {
   "#
 }
 
+function FakeResume(blabla: string) -> Resume {
+  client "Gpt41mini" 
+  prompt #"
+    Write a fake resume with these information: 
+    {{ blabla }}
+
+    Follow that format: 
+
+    {{ ctx.output_format }}
+  "#
+}
 
 
 // Test the function with a sample resume. Open the VSCode playground to run this.

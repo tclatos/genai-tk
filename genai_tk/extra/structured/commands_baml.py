@@ -21,19 +21,37 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from loguru import logger
 from pydantic import BaseModel
 
 from genai_tk.extra.structured.baml_processor import BamlStructuredProcessor
-from genai_tk.extra.structured.baml_util import create_baml_client_registry, get_baml_function, load_baml_client
+from genai_tk.extra.structured.baml_util import (
+    create_baml_options,
+    get_function_parameters,
+    load_and_validate_baml_function,
+)
 from genai_tk.main.cli import CliTopCommand
-from genai_tk.utils.pydantic.common import validate_pydantic_model
+from genai_tk.utils.pydantic.kv_store import PydanticStore
 
 LLM_ID = None
-KV_STORE_ID = "file"
+KV_STORE_ID = "default"
+
+
+def check_kvstore_key_exists(key: str, model_cls: type[BaseModel], kvstore_id: str = KV_STORE_ID) -> bool:
+    """Check if a key already exists in the KV store."""
+    store = PydanticStore(kvstore_id=kvstore_id, model=model_cls)
+    cached_obj = store.load_object(key)
+    return cached_obj is not None
+
+
+def save_to_kvstore(key: str, obj: BaseModel, kvstore_id: str = KV_STORE_ID) -> None:
+    """Save a Pydantic object to the KV store."""
+    store = PydanticStore(kvstore_id=kvstore_id, model=obj.__class__)
+    store.save_obj(key, obj)
+    logger.success(f"Saved to KV store with key: {key}")
 
 
 class BamlCommands(CliTopCommand):
@@ -55,39 +73,39 @@ class BamlCommands(CliTopCommand):
                 str,
                 typer.Option(
                     "--config",
-                    help="Name of the structured config to use from yaml confif",
+                    help="Name of the structured config to use from yaml config",
                 ),
             ] = "default",
             llm: Annotated[
                 str | None,
                 typer.Option(help="Name or tag of the LLM to use by BAML"),
             ] = None,
+            kvstore_key: Annotated[
+                str | None,
+                typer.Option(help="Key to store the result in the KV store (only for Pydantic outputs)"),
+            ] = None,
+            force: bool = typer.Option(False, "--force", help="Overwrite existing KV entry if key exists"),
         ) -> None:
             """Execute a BAML function with input text and print the result.
 
             Example:
             echo "John Doe, john@example.com" | uv run cli baml run ExtractResume
             uv run cli baml run ExtractResume --input "John Doe, john@example.com"
+            uv run cli baml run FakeResume -i "John Smith; SW engineer" --kvstore-key fake_cv_john_smith
             """
-            try:
-                baml_types, baml_async_client = load_baml_client(config_name)
-                logger.debug(f"Successfully loaded BAML client for config: {config_name}")
-            except Exception as e:
-                logger.error(f"Failed to load BAML client: {e}")
+            # Load and validate BAML function
+            result = load_and_validate_baml_function(config_name, function_name, require_pydantic=bool(kvstore_key))
+            if result is None:
                 return
+            baml_function, return_type, baml_types, baml_async_client = result
 
-            # Get BAML function and return type
-            try:
-                baml_function, return_type = get_baml_function(baml_async_client, function_name)
-            except AttributeError as e:
-                logger.error(str(e))
+            # If kvstore_key is provided, check if key already exists unless force is set
+            if kvstore_key and not force and check_kvstore_key_exists(kvstore_key, return_type, KV_STORE_ID):
+                logger.error(f"Key '{kvstore_key}' already exists in KV store. Use --force to overwrite.")
                 return
 
             # Check if function requires input by inspecting its signature
-            import inspect
-
-            sig = inspect.signature(getattr(baml_async_client, function_name))
-            params = [p for p in sig.parameters.keys() if p != "baml_options"]
+            params = get_function_parameters(baml_async_client, function_name)
 
             # Get input from stdin if not provided and function requires input
             if input_text is None and params:
@@ -96,9 +114,7 @@ class BamlCommands(CliTopCommand):
                     return
                 input_text = sys.stdin.read()
 
-            baml_options = None
-            if llm:
-                baml_options = {"client_registry": create_baml_client_registry(llm)}
+            baml_options = create_baml_options(llm)
 
             # Execute the function based on its signature
             try:
@@ -111,6 +127,15 @@ class BamlCommands(CliTopCommand):
             except Exception as e:
                 logger.error(f"Failed to execute BAML function '{function_name}': {e}")
                 return
+
+            # Store in KV store if requested
+            if kvstore_key:
+                if not isinstance(result, BaseModel):
+                    logger.error(
+                        f"Cannot store to KV store: Result is not a Pydantic object (got {type(result).__name__})"
+                    )
+                else:
+                    save_to_kvstore(kvstore_key, result, KV_STORE_ID)
 
             # Print result
             if isinstance(result, BaseModel):
@@ -146,46 +171,30 @@ class BamlCommands(CliTopCommand):
                     help="Name of the structured config to use from yaml config (e.g., 'default', 'rainbow')",
                 ),
             ] = "default",
+            llm: Annotated[
+                str | None,
+                typer.Option(help="Name or tag of the LLM to use by BAML"),
+            ] = None,
         ) -> None:
-            """Extract structured project data from Markdown files using BAML and save as JSON in a key-value store.
+            """Extract structured project data from Markdown files using BAML and save as JSON in a KV store.
 
             This command uses BAML-generated functions to extract data from markdown files.
             The return type is automatically deduced from the BAML function signature.
 
             Example:
             uv run cli baml extract file.md --function ExtractRainbow --force
-            uv run cli baml extract ./reviews/ --recursive --function ExtractResume
+            uv run cli baml extract ./reviews/ --recursive --function ExtractResume --llm gpt-4o
             """
 
             logger.info(f"Starting BAML-based project extraction with: {file_or_dir}")
 
             os.environ["BAML_LOG"] = "warn"
 
-            # Load BAML client modules dynamically from config
-            try:
-                baml_types, baml_async_client = load_baml_client(config_name)
-                logger.debug(f"Successfully loaded BAML client for config: {config_name}")
-            except Exception as e:
-                logger.error(f"Failed to load BAML client: {e}")
+            # Load and validate BAML function (must return Pydantic model for extract)
+            result = load_and_validate_baml_function(config_name, function_name, require_pydantic=True)
+            if result is None:
                 return
-
-            # Get BAML function and deduce return type
-            try:
-                baml_function, model_cls = get_baml_function(baml_async_client, function_name)
-            except AttributeError as e:
-                logger.error(str(e))
-                return
-
-            # Validate that the return type is a Pydantic model
-            if model_cls is None:
-                logger.error(f"Could not deduce return type from BAML function '{function_name}'")
-                return
-
-            try:
-                model_cls = validate_pydantic_model(model_cls, function_name)
-            except ValueError as e:
-                logger.error(f"BAML function '{function_name}' must return a Pydantic BaseModel: {e}")
-                return
+            baml_function, model_cls, baml_types, baml_async_client = result
 
             # Collect all Markdown files
             all_files = []
@@ -215,20 +224,28 @@ class BamlCommands(CliTopCommand):
             if force:
                 logger.info("Force option enabled - will reprocess all files and overwrite existing KV entries")
 
+            # Prepare baml_options if LLM is specified
+            baml_options = create_baml_options(llm)
+            if baml_options:
+                logger.info(f"Using LLM: {llm}")
+
+            # Create wrapper function that includes baml_options
+            async def baml_function_with_options(content: str) -> Any:
+                if baml_options:
+                    return await baml_function(content, baml_options=baml_options)
+                return await baml_function(content)
+
             # Create BAML processor
             processor = BamlStructuredProcessor(
-                model_cls=model_cls, baml_function=baml_function, kvstore_id=KV_STORE_ID, force=force
+                model_cls=model_cls, baml_function=baml_function_with_options, kvstore_id=KV_STORE_ID, force=force
             )
 
             # Filter out files that already have JSON in KV unless forced
             if not force:
-                from genai_tk.utils.pydantic.kv_store import PydanticStore
-
                 unprocessed_files = []
                 for md_file in md_files:
                     key = md_file.stem
-                    cached_doc = PydanticStore(kvstore_id=KV_STORE_ID, model=model_cls).load_object(key)
-                    if not cached_doc:
+                    if not check_kvstore_key_exists(key, model_cls, KV_STORE_ID):
                         unprocessed_files.append(md_file)
                     else:
                         logger.info(f"Skipping {md_file.name} - JSON already exists (use --force to overwrite)")

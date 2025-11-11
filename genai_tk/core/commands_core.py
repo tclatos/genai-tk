@@ -122,7 +122,7 @@ class CoreCommands(CliTopCommand):
         def run(
             runnable_name: Annotated[str, typer.Argument(help="Name of registered Runnable to execute")],
             input: Annotated[
-                str | None, typer.Option("-input", "-i", help="Input text or '-' to read from stdin")
+                str | None, typer.Option("--input", "-i", help="Input text or '-' to read from stdin")
             ] = None,
             path: Annotated[Path | None, typer.Option(help="File path input for the chain")] = None,
             cache: Annotated[str, typer.Option(help="Cache strategy: 'sqlite', 'memory' or 'no_cache'")] = "memory",

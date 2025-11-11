@@ -1,7 +1,7 @@
 """Tracing utilities for LangSmith integration."""
 
 from contextlib import contextmanager
-from typing import Any, Generator
+from typing import Generator
 
 from langsmith.utils import tracing_is_enabled
 

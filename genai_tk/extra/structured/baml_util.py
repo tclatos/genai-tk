@@ -11,8 +11,10 @@ from typing import Any, Type, get_args, get_origin
 
 from baml_py import ClientRegistry
 from loguru import logger
+from pydantic import BaseModel
 
 from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.pydantic.common import validate_pydantic_model
 
 
 def load_baml_client(config_name: str = "default") -> tuple[Any, Any]:
@@ -162,3 +164,73 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
         return cr
     except Exception as e:
         raise ValueError(f"Failed to get LLM info for '{resolved_llm_id}': {e}") from e
+
+
+def load_and_validate_baml_function(
+    config_name: str, function_name: str, require_pydantic: bool = False
+) -> tuple[Callable[..., Awaitable[Any]], Type[Any] | None, Any, Any] | None:
+    """Load BAML client and get a validated function with its return type.
+
+    Args:
+        config_name: Name of the structured config to use
+        function_name: Name of the BAML function to load
+        require_pydantic: If True, validates that return type is a Pydantic model
+
+    Returns:
+        Tuple of (baml_function, return_type, baml_types, baml_async_client) or None on error
+    """
+    # Load BAML client
+    try:
+        baml_types, baml_async_client = load_baml_client(config_name)
+        logger.debug(f"Successfully loaded BAML client for config: {config_name}")
+    except Exception as e:
+        logger.error(f"Failed to load BAML client: {e}")
+        return None
+
+    # Get BAML function and return type
+    try:
+        baml_function, return_type = get_baml_function(baml_async_client, function_name)
+    except AttributeError as e:
+        logger.error(str(e))
+        return None
+
+    # Validate return type if required
+    if require_pydantic:
+        if return_type is None:
+            logger.error(f"Could not deduce return type from BAML function '{function_name}'")
+            return None
+        try:
+            return_type = validate_pydantic_model(return_type, function_name)
+        except ValueError as e:
+            logger.error(f"BAML function '{function_name}' must return a Pydantic BaseModel: {e}")
+            return None
+
+    return baml_function, return_type, baml_types, baml_async_client
+
+
+def create_baml_options(llm: str | None) -> dict[str, Any] | None:
+    """Create BAML options dict with client registry for the specified LLM.
+
+    Args:
+        llm: LLM identifier or None
+
+    Returns:
+        Dict with client_registry or None if no LLM specified
+    """
+    if llm:
+        return {"client_registry": create_baml_client_registry(llm)}
+    return None
+
+
+def get_function_parameters(baml_async_client: Any, function_name: str) -> list[str]:
+    """Get the parameter names of a BAML function (excluding baml_options).
+
+    Args:
+        baml_async_client: BAML async client instance
+        function_name: Name of the BAML function
+
+    Returns:
+        List of parameter names
+    """
+    sig = inspect.signature(getattr(baml_async_client, function_name))
+    return [p for p in sig.parameters.keys() if p != "baml_options"]
