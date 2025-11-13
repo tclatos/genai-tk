@@ -21,18 +21,14 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import typer
 from loguru import logger
 from pydantic import BaseModel
 
 from genai_tk.extra.structured.baml_processor import BamlStructuredProcessor
-from genai_tk.extra.structured.baml_util import (
-    create_baml_options,
-    get_function_parameters,
-    load_and_validate_baml_function,
-)
+from genai_tk.extra.structured.baml_util import baml_invoke
 from genai_tk.main.cli import CliTopCommand
 from genai_tk.utils.pydantic.kv_store import PydanticStore
 
@@ -93,37 +89,19 @@ class BamlCommands(CliTopCommand):
             uv run cli baml run ExtractResume --input "John Doe, john@example.com"
             uv run cli baml run FakeResume -i "John Smith; SW engineer" --kvstore-key fake_cv_john_smith
             """
-            # Load and validate BAML function
-            result = load_and_validate_baml_function(config_name, function_name, require_pydantic=bool(kvstore_key))
-            if result is None:
-                return
-            baml_function, return_type, baml_types, baml_async_client = result
+            # Get input from stdin if not provided
+            if input_text is None:
+                if not sys.stdin.isatty():
+                    input_text = sys.stdin.read()
+                # else: input_text remains None, baml_invoke will handle no-param functions
 
-            # If kvstore_key is provided, check if key already exists unless force is set
-            if kvstore_key and not force and check_kvstore_key_exists(kvstore_key, return_type, KV_STORE_ID):
-                logger.error(f"Key '{kvstore_key}' already exists in KV store. Use --force to overwrite.")
-                return
+            # Build parameters dict - baml_invoke will figure out parameter names
+            # We use a generic key that baml_invoke will map to the actual first parameter
+            param_dict = {"__input__": input_text} if input_text else {}
 
-            # Check if function requires input by inspecting its signature
-            params = get_function_parameters(baml_async_client, function_name)
-
-            # Get input from stdin if not provided and function requires input
-            if input_text is None and params:
-                if sys.stdin.isatty():
-                    logger.error("No input provided. Use --input or pipe data via stdin.")
-                    return
-                input_text = sys.stdin.read()
-
-            baml_options = create_baml_options(llm)
-
-            # Execute the function based on its signature
+            # Execute the function using baml_invoke
             try:
-                if not params:
-                    # Function takes no arguments
-                    result = asyncio.run(baml_function(baml_options=baml_options))
-                else:
-                    # Function takes at least one argument, pass input_text as the first one
-                    result = asyncio.run(baml_function(input_text, baml_options=baml_options))
+                result = asyncio.run(baml_invoke(function_name, param_dict, config_name, llm))
             except Exception as e:
                 logger.error(f"Failed to execute BAML function '{function_name}': {e}")
                 return
@@ -134,8 +112,14 @@ class BamlCommands(CliTopCommand):
                     logger.error(
                         f"Cannot store to KV store: Result is not a Pydantic object (got {type(result).__name__})"
                     )
-                else:
-                    save_to_kvstore(kvstore_key, result, KV_STORE_ID)
+                    return
+
+                # Check if key already exists unless force is set
+                if not force and check_kvstore_key_exists(kvstore_key, type(result), KV_STORE_ID):
+                    logger.error(f"Key '{kvstore_key}' already exists in KV store. Use --force to overwrite.")
+                    return
+
+                save_to_kvstore(kvstore_key, result, KV_STORE_ID)
 
             # Print result
             if isinstance(result, BaseModel):
@@ -190,12 +174,6 @@ class BamlCommands(CliTopCommand):
 
             os.environ["BAML_LOG"] = "warn"
 
-            # Load and validate BAML function (must return Pydantic model for extract)
-            result = load_and_validate_baml_function(config_name, function_name, require_pydantic=True)
-            if result is None:
-                return
-            baml_function, model_cls, baml_types, baml_async_client = result
-
             # Collect all Markdown files
             all_files = []
 
@@ -224,37 +202,20 @@ class BamlCommands(CliTopCommand):
             if force:
                 logger.info("Force option enabled - will reprocess all files and overwrite existing KV entries")
 
-            # Prepare baml_options if LLM is specified
-            baml_options = create_baml_options(llm)
-            if baml_options:
+            if llm:
                 logger.info(f"Using LLM: {llm}")
 
-            # Create wrapper function that includes baml_options
-            async def baml_function_with_options(content: str) -> Any:
-                if baml_options:
-                    return await baml_function(content, baml_options=baml_options)
-                return await baml_function(content)
-
-            # Create BAML processor
+            # Create BAML processor - model_cls will be deduced from first result
             processor = BamlStructuredProcessor(
-                model_cls=model_cls, baml_function=baml_function_with_options, kvstore_id=KV_STORE_ID, force=force
+                function_name=function_name,
+                config_name=config_name,
+                llm=llm,
+                kvstore_id=KV_STORE_ID,
+                force=force,
             )
-
-            # Filter out files that already have JSON in KV unless forced
-            if not force:
-                unprocessed_files = []
-                for md_file in md_files:
-                    key = md_file.stem
-                    if not check_kvstore_key_exists(key, model_cls, KV_STORE_ID):
-                        unprocessed_files.append(md_file)
-                    else:
-                        logger.info(f"Skipping {md_file.name} - JSON already exists (use --force to overwrite)")
-                md_files = unprocessed_files
-
             if not md_files:
                 logger.info("All files have already been processed. Use --force to reprocess.")
                 return
-
             asyncio.run(processor.process_files(md_files, batch_size))
 
             logger.success(

@@ -234,3 +234,58 @@ def get_function_parameters(baml_async_client: Any, function_name: str) -> list[
     """
     sig = inspect.signature(getattr(baml_async_client, function_name))
     return [p for p in sig.parameters.keys() if p != "baml_options"]
+
+
+async def baml_invoke(
+    function_name: str,
+    params: dict[str, Any],
+    config_name: str = "default",
+    llm: str | None = None,
+    check_result_is_pydantic: bool = False,
+) -> Any:
+    """Invoke a BAML function with specified parameters and LLM.
+
+    Args:
+        function_name: Name of the BAML function to execute
+        params: Dictionary of parameters to pass to the function.
+                Can use '__input__' as a generic key for the first parameter.
+        config_name: Name of the structured config to use
+        llm: LLM identifier or None to use default
+        check_result_is_pydantic: If True, validates return type is Pydantic before calling LLM
+
+    Returns:
+        Result from the BAML function execution
+
+    Raises:
+        ValueError: If BAML function execution fails or return type validation fails
+    """
+    # Load and validate BAML function
+    result = load_and_validate_baml_function(config_name, function_name, require_pydantic=check_result_is_pydantic)
+    if result is None:
+        raise ValueError(f"Failed to load BAML function: {function_name}")
+
+    baml_function, return_type, baml_types, baml_async_client = result
+
+    # Create BAML options if LLM is specified
+    baml_options = create_baml_options(llm)
+
+    # Get function parameters to determine how to call it
+    func_params = get_function_parameters(baml_async_client, function_name)
+
+    # Execute the function based on its signature
+    if not func_params:
+        # Function takes no arguments
+        if baml_options:
+            return await baml_function(baml_options=baml_options)
+        return await baml_function()
+    else:
+        # Function takes arguments - map params dict to actual parameter names
+        # Support generic '__input__' key that maps to first parameter
+        if "__input__" in params and func_params:
+            params = {func_params[0]: params["__input__"]}
+
+        # Pass arguments in order
+        args = [params.get(p) for p in func_params]
+        if baml_options:
+            return await baml_function(*args, baml_options=baml_options)
+        return await baml_function(*args)

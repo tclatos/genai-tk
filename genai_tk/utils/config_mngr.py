@@ -373,7 +373,6 @@ class OmegaConfig(BaseModel):
 
                 # Set environment variable
                 os.environ[var_name] = str_value
-                logger.debug(f"Set environment variable {var_name} = {str_value}")
             except Exception as e:
                 logger.warning(f"Failed to resolve environment variable {var_name}: {e}")
                 continue

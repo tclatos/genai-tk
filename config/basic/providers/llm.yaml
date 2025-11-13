@@ -73,3 +73,8 @@ llm:
           X-Gravitee-Api-Key: ${oc.env:GRAVITEE_KEY, null } 
 
   capabilities: ['structured_outputs']
+
+- model:
+  id: mistral_8b
+  providers:
+    - openrouter:  mistralai/ministral-8b

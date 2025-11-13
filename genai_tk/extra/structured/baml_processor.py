@@ -24,16 +24,25 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
     """Processor that uses BAML for extracting structured data from documents.
 
     Args:
-        model_cls: Pydantic model class to instantiate from BAML output
-        baml_function: Async callable BAML function that takes content string and returns model instance
+        model_cls: Pydantic model class to instantiate from BAML output.
+                   Can be None if using function_name - will be deduced from first result.
+        baml_function: Async callable BAML function that takes content string and returns model instance.
+                       Can also be None if using function_name with baml_invoke parameters.
+        function_name: BAML function name (alternative to baml_function)
+        config_name: Config name for BAML client
+        llm: LLM identifier for BAML
         kvstore_id: KV store identifier for caching
         force: Whether to bypass cache and reprocess all documents
     """
 
-    model_cls: Type[T]
-    baml_function: Callable[[str], Awaitable[Any]]
+    model_cls: Type[T] | None = None
+    baml_function: Callable[[str], Awaitable[Any]] | None = None
+    function_name: str | None = None
+    config_name: str = "default"
+    llm: str | None = None
     kvstore_id: str = KV_STORE_ID
     force: bool = False
+    _model_cls_deduced: bool = False
 
     class Config:
         arbitrary_types_allowed = True
@@ -47,7 +56,8 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
         remaining_contents: list[str] = []
 
         # Check cache first (unless force is enabled)
-        if self.kvstore_id and not self.force:
+        # Only if model_cls is already known
+        if self.kvstore_id and not self.force and self.model_cls is not None:
             for doc_id, content in zip(document_ids, markdown_contents, strict=True):
                 cached_doc = PydanticStore(kvstore_id=self.kvstore_id, model=self.model_cls).load_object(doc_id)
 
@@ -67,8 +77,20 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
         # Process uncached documents using BAML concurrent calls pattern
         logger.info(f"Processing {len(remaining_ids)} documents with BAML async client...")
 
-        # Create concurrent tasks for all remaining documents using the provided BAML function
-        tasks = [self.baml_function(content) for content in remaining_contents]
+        # Create concurrent tasks for all remaining documents
+        if self.baml_function:
+            # Use provided baml_function
+            tasks = [self.baml_function(content) for content in remaining_contents]
+        elif self.function_name:
+            # Use baml_invoke
+            from genai_tk.extra.structured.baml_util import baml_invoke
+
+            tasks = [
+                baml_invoke(self.function_name, {"__input__": content}, self.config_name, self.llm)
+                for content in remaining_contents
+            ]
+        else:
+            raise ValueError("Either baml_function or function_name must be provided")
 
         # Execute all tasks concurrently
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -80,6 +102,14 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
                 continue
 
             try:
+                # Deduce model_cls from first successful result if not provided
+                if self.model_cls is None and not self._model_cls_deduced:
+                    if not isinstance(result, BaseModel):
+                        raise ValueError(f"BAML function must return a Pydantic model, got {type(result).__name__}")
+                    self.model_cls = type(result)
+                    self._model_cls_deduced = True
+                    logger.info(f"Deduced model class: {self.model_cls.__name__}")
+
                 # Add document_id as a custom attribute
                 result_dict = result.model_dump()
                 result_dict["document_id"] = doc_id

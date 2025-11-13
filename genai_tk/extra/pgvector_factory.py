@@ -13,6 +13,7 @@ PgVector stores with support for hybrid search and advanced features.
 from typing import Any
 
 from devtools import debug
+from langchain_core.vectorstores import VectorStore
 from langchain_postgres import Column, PGEngine, PGVectorStore
 from langchain_postgres.v2.hybrid_search_config import HybridSearchConfig, reciprocal_rank_fusion
 from loguru import logger
@@ -26,7 +27,7 @@ def create_pg_vector_store(
     table_name: str,
     config: dict[str, Any],
     conf: dict[str, Any],
-) -> Any:
+) -> VectorStore:
     """Create and configure a PgVector store.
 
     Args:
