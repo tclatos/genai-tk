@@ -44,7 +44,7 @@ class ExtraCommands(CliTopCommand):
 
             Example:
                 uv run cli tools gpt-researcher "Latest developments in AI" --config detailed
-                uv run cli tools gpt-researcher "Climate change impacts" --llm-id gpt-4o
+                uv run cli tools gpt-researcher "Climate change impacts" --llm gpt-4o
             """
             from genai_tk.extra.gpt_researcher_helper import run_gpt_researcher
 
@@ -355,15 +355,8 @@ class ExtraCommands(CliTopCommand):
             """
             from browser_use import Agent, BrowserSession
 
-            from genai_tk.core.llm_factory import LlmFactory, get_llm_unified
+            from genai_tk.core.llm_factory import get_llm_unified
             from genai_tk.wip.browser_use_langchain import ChatLangchain
-
-            # Validate the LLM identifier if provided
-            if llm is not None:
-                resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-                if error_msg:
-                    print(error_msg)
-                    return
 
             print(f"Running browser agent with task: {task}")
             browser_session = BrowserSession(
@@ -390,26 +383,16 @@ class ExtraCommands(CliTopCommand):
             Pattern list is here: https://github.com/danielmiessler/fabric/tree/main/patterns
             Also described here : https://github.com/danielmiessler/fabric/blob/main/patterns/suggest_pattern/user.md
 
-            ex: echo "artificial intelligence" | uv run cli fabric -p "create_aphorisms" --llm-id llama-70-groq
+            ex: echo "artificial intelligence" | uv run cli fabric -p "create_aphorisms" --llm llama-70-groq
             """
-            from langchain_core.globals import set_debug, set_verbose
 
-            from genai_tk.core.llm_factory import LlmFactory
-            from genai_tk.extra.chains.fabric_chain import get_fabric_chain
+            from genai_blueprint.ai_chains.fabric_chain import get_fabric_chain
+            from langchain_core.globals import set_debug, set_verbose
 
             set_debug(debug_mode)
             set_verbose(verbose)
 
-            # Validate the LLM identifier if provided and resolve to ID
-            llm_id = None
-            if llm is not None:
-                resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-                if error_msg:
-                    print(error_msg)
-                    return
-                llm_id = resolved_id
-
-            config = {"llm": llm_id if llm_id else global_config().get_str("llm.models.default")}
+            config = {"llm": llm if llm else global_config().get_str("llm.models.default")}
             chain = get_fabric_chain(config)
             input = repr("\n".join(sys.stdin))
             input = input.replace("{", "{{").replace("}", "}}")

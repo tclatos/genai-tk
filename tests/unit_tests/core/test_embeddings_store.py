@@ -90,7 +90,7 @@ def test_direct_instantiation_blocked() -> None:
     with pytest.raises(RuntimeError, match="EmbeddingsStore cannot be instantiated directly"):
         EmbeddingsStore(
             backend="InMemory",
-            embeddings_factory=EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID),
+            embeddings_factory=EmbeddingsFactory(embeddings=FAKE_EMBEDDINGS_ID),
         )
 
 

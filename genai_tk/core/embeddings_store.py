@@ -350,15 +350,15 @@ class EmbeddingsStore(BaseModel):
             )
 
         if embeddings_id:
-            return EmbeddingsFactory(embeddings_id=embeddings_id)
+            return EmbeddingsFactory(embeddings=embeddings_id)
         elif embeddings_tag:
             # First try as embeddings_tag, if that fails try as embeddings_id
             try:
-                return EmbeddingsFactory(embeddings_tag=embeddings_tag)
+                return EmbeddingsFactory(embeddings=embeddings_tag)
             except ValueError:
                 # If tag resolution fails, try treating it as a direct embeddings_id
                 try:
-                    return EmbeddingsFactory(embeddings_id=embeddings_tag)
+                    return EmbeddingsFactory(embeddings=embeddings_tag)
                 except ValueError as e:
                     raise ValueError(
                         f"Invalid embeddings specification '{embeddings_tag}' in config '{config_tag}'. "
@@ -716,8 +716,8 @@ if __name__ == "__main__":
     print("🧪 Testing hybrid search with PostgreSQL...")
 
     # Create embeddings factory
-    embeddings_factory = EmbeddingsFactory(embeddings_id="embeddings_768_fake")
-    embeddings_factory_cached = EmbeddingsFactory(embeddings_id="embeddings_768_fake", cache_embeddings=True)
+    embeddings_factory = EmbeddingsFactory(embeddings="embeddings_768_fake")
+    embeddings_factory_cached = EmbeddingsFactory(embeddings="embeddings_768_fake", cache_embeddings=True)
 
     # Note: This example shows legacy usage patterns for testing purposes
     # In production code, use EmbeddingsStore.create_from_config() instead

@@ -228,7 +228,7 @@ def create_langchain_agent_config(
         from genai_tk.core.llm_factory import get_llm
 
         try:
-            llm = get_llm(llm_id=resolved_llm_id)
+            llm = get_llm(llm=resolved_llm_id)
         except Exception as ex:
             logger.warning(f"Failed to get LLM instance for '{resolved_llm_id}': {ex}")
             # Continue with whatever LLM was passed or None

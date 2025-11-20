@@ -24,7 +24,7 @@ Example:
     embeddings = get_embeddings()
 
     # Get specific model
-    embeddings = get_embeddings(embeddings_id="huggingface_all-mpnet-base-v2")
+    embeddings = get_embeddings(embeddings="huggingface_all-mpnet-base-v2")
     vectors = embeddings.embed_documents(["Sample text"])
 """
 
@@ -107,13 +107,15 @@ class EmbeddingsFactory(BaseModel):
     from various providers with support for caching and dynamic configuration.
 
     Attributes:
-        embeddings_id: Unique identifier for the embeddings model
-        embeddings_tag: Embeddings tag from config (e.g., 'local', 'default')
+        embeddings: Unified embeddings identifier (can be either ID or tag) - recommended
+        embeddings_id: (Deprecated) Unique identifier for the embeddings model
+        embeddings_tag: (Deprecated) Embeddings tag from config (e.g., 'local', 'default')
         encoding_str: Optional encoding configuration string
         retrieving_str: Optional retrieving configuration string
         cache_embeddings: cache embeddings in a KV store
     """
 
+    embeddings: Annotated[str | None, Field(validate_default=True)] = None
     embeddings_id: Annotated[str | None, Field(validate_default=True)] = None
     embeddings_tag: str | None = None
     encoding_str: str | None = None
@@ -133,16 +135,40 @@ class EmbeddingsFactory(BaseModel):
 
     def model_post_init(self, __context: dict) -> None:
         """Post-initialization validation and tag resolution."""
-        if self.embeddings_id and self.embeddings_tag:
-            raise ValueError("Cannot specify both embeddings_id and embeddings_tag")
+        # Handle deprecation warnings
+        if self.embeddings_id is not None:
+            logger.warning(
+                "⚠️  'embeddings_id' parameter is deprecated. Use 'embeddings' instead. "
+                "Example: EmbeddingsFactory(embeddings='ada_002_openai') or EmbeddingsFactory(embeddings='local')"
+            )
 
-        if self.embeddings_tag and not self.embeddings_id:
-            # Resolve tag to embeddings_id
+        if self.embeddings_tag is not None:
+            logger.warning(
+                "⚠️  'embeddings_tag' parameter is deprecated. Use 'embeddings' instead. "
+                "Example: EmbeddingsFactory(embeddings='local')"
+            )
+
+        # Check for conflicting parameters
+        unified_params_count = sum(
+            [self.embeddings is not None, self.embeddings_id is not None, self.embeddings_tag is not None]
+        )
+        if unified_params_count > 1:
+            raise ValueError(
+                "Cannot specify multiple embeddings selection parameters. Use 'embeddings' parameter only (recommended)"
+            )
+
+        # Resolve unified 'embeddings' parameter
+        if self.embeddings is not None:
+            resolved_id = EmbeddingsFactory.resolve_embeddings_identifier(self.embeddings)
+            object.__setattr__(self, "embeddings_id", resolved_id)
+
+        # Handle legacy embeddings_tag parameter
+        elif self.embeddings_tag is not None:
             resolved_id = EmbeddingsFactory.find_embeddings_id_from_tag(self.embeddings_tag)
             object.__setattr__(self, "embeddings_id", resolved_id)
 
-        # Set default if neither embeddings_id nor embeddings_tag provided
-        if not self.embeddings_id and not self.embeddings_tag:
+        # Set default if neither embeddings nor embeddings_id nor embeddings_tag provided
+        if self.embeddings_id is None:
             default_id = global_config().get_str("embeddings.models.default")
             object.__setattr__(self, "embeddings_id", default_id)
 
@@ -204,6 +230,64 @@ class EmbeddingsFactory(BaseModel):
         if embeddings_id not in EmbeddingsFactory.known_items():
             raise ValueError(f"Cannot find embeddings '{embeddings_id}' of type: '{embeddings_tag}'")
         return embeddings_id
+
+    @staticmethod
+    def resolve_embeddings_identifier(embeddings: str) -> str:
+        """Resolve a unified embeddings identifier to an actual embeddings ID.
+
+        This function accepts a string that could be either an embeddings ID or an embeddings tag
+        and returns the corresponding embeddings ID.
+
+        Args:
+            embeddings: A string that could be either an embeddings ID or an embeddings tag
+
+        Returns:
+            The resolved embeddings ID
+
+        Raises:
+            ValueError: If the provided string is neither a valid embeddings ID nor a valid embeddings tag
+        """
+        # Check if it's a known embeddings ID
+        if embeddings in EmbeddingsFactory.known_items():
+            return embeddings
+
+        # Otherwise, try to resolve it as a tag
+        try:
+            return EmbeddingsFactory.find_embeddings_id_from_tag(embeddings)
+        except ValueError as ex:
+            # If not a tag either, give a helpful error message
+            raise ValueError(
+                f"Unknown embeddings identifier '{embeddings}'. It is neither a valid embeddings ID nor a valid embeddings tag. "
+                f"Valid embeddings IDs: {EmbeddingsFactory.known_items()}"
+            ) from ex
+
+    @staticmethod
+    def resolve_embeddings_identifier_safe(embeddings: str) -> tuple[str | None, str | None]:
+        """Safely resolve a unified embeddings identifier to an actual embeddings ID.
+
+        This function accepts a string that could be either an embeddings ID or an embeddings tag
+        and returns the corresponding embeddings ID or an error message.
+
+        Args:
+            embeddings: A string that could be either an embeddings ID or an embeddings tag
+
+        Returns:
+            A tuple of (resolved_id, error_message). If successful, error_message is None.
+            If unsuccessful, resolved_id is None and error_message contains user guidance.
+        """
+        try:
+            resolved_id = EmbeddingsFactory.resolve_embeddings_identifier(embeddings)
+            return resolved_id, None
+        except ValueError:
+            error_msg = (
+                f"❌ Unknown embeddings identifier '{embeddings}'.\n\n"
+                f"💡 To see available options, try:\n"
+                f"   • uv run cli info config    (shows embeddings tags like 'local', 'default')\n"
+                f"   • uv run cli info models    (shows all available embeddings IDs)\n\n"
+                f"🏷️  Available embeddings tags: Use tags defined in your config for easier access\n"
+                f"🆔 Available embeddings IDs: {', '.join(EmbeddingsFactory.known_items()[:3])}{'...' if len(EmbeddingsFactory.known_items()) > 3 else ''}"
+            )
+            return None, error_msg
 
     def get(self) -> Embeddings:
         """Create an embeddings model instance."""
@@ -311,6 +395,7 @@ class EmbeddingsFactory(BaseModel):
 
 
 def get_embeddings(
+    embeddings: str | None = None,
     embeddings_id: str | None = None,
     embeddings_tag: str | None = None,
     encoding_str: str | None = None,
@@ -323,8 +408,9 @@ def get_embeddings(
     configuration options.
 
     Args:
-        embeddings_id: Unique identifier for the embeddings model
-        embeddings_tag: Tag (type) of embeddings to use (local, default, etc.)
+        embeddings: Unified embeddings identifier (can be either ID or tag) - recommended
+        embeddings_id: (Deprecated) Unique identifier for the embeddings model
+        embeddings_tag: (Deprecated) Tag (type) of embeddings to use (local, default, etc.)
         encoding_str: Optional encoding configuration string
         retrieving_str: Optional retrieving configuration string
         cache_embeddings: Whether to cache embeddings
@@ -337,17 +423,34 @@ def get_embeddings(
         # Get default embeddings
         embeddings = get_embeddings()
 
-        # Get specific model by ID
-        embeddings = get_embeddings(embeddings_id="ada_002_openai")
+        # Get specific model by ID (recommended)
+        embeddings = get_embeddings(embeddings="ada_002_openai")
 
-        # Get model by tag
+        # Get model by tag (recommended)
+        embeddings = get_embeddings(embeddings="local")
+
+        # Deprecated ways (still work but will show warnings)
+        embeddings = get_embeddings(embeddings_id="ada_002_openai")
         embeddings = get_embeddings(embeddings_tag="local")
 
         # Use the embeddings
         vectors = embeddings.embed_documents(["Sample text"])
         ```
     """
+    # Show deprecation warnings for old parameters
+    if embeddings_id is not None:
+        logger.warning(
+            "⚠️  'embeddings_id' parameter in get_embeddings() is deprecated. Use 'embeddings' instead. "
+            "Example: get_embeddings(embeddings='ada_002_openai')"
+        )
+    if embeddings_tag is not None:
+        logger.warning(
+            "⚠️  'embeddings_tag' parameter in get_embeddings() is deprecated. Use 'embeddings' instead. "
+            "Example: get_embeddings(embeddings='local')"
+        )
+
     factory = EmbeddingsFactory(
+        embeddings=embeddings,
         embeddings_id=embeddings_id,
         embeddings_tag=embeddings_tag,
         encoding_str=encoding_str,
@@ -364,4 +467,4 @@ def get_embeddings(
 
 # QUICK TEST
 if __name__ == "__main__":
-    embedder = get_embeddings(embeddings_id="ada_002_openai")
+    embedder = get_embeddings(embeddings="ada_002_openai")

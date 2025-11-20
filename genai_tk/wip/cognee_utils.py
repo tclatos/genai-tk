@@ -26,7 +26,7 @@ def set_cognee_config(llm_id: str | None = None, embeddings_id: str | None = "ad
 
     from genai_tk.core.llm_factory import LlmFactory
 
-    llm_factory = LlmFactory(llm_id=llm_id)
+    llm_factory = LlmFactory(llm=llm_id)
     llm_info = llm_factory.info
     # lc_llm = llm_factory.get()
 
@@ -48,7 +48,7 @@ def set_cognee_config(llm_id: str | None = None, embeddings_id: str | None = "ad
         }
 
     # set embeddings/  Prpramatic approach does not work (yet?)
-    embeddings_factory = EmbeddingsFactory(embeddings_id=embeddings_id)
+    embeddings_factory = EmbeddingsFactory(embeddings=embeddings_id)
     embeddings_info = embeddings_factory.info
     if embeddings_info.provider != "openai":
         logger.warning("Emebeddings other than OPenAi my not work")

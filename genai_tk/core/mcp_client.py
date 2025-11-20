@@ -290,7 +290,7 @@ async def call_react_agent(
     from langchain.agents import create_agent
     from loguru import logger
 
-    model = get_llm(llm_id=llm_id)
+    model = get_llm(llm=llm_id)
     client = MultiServerMCPClient(get_mcp_servers_dict(mcp_server_filter))
     try:
         # Get MCP tools

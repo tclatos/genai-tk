@@ -73,14 +73,14 @@ class CoreCommands(CliTopCommand):
             from genai_tk.core.llm_factory import LlmFactory
             from genai_tk.extra.agents.langchain_setup import setup_langchain
 
-            # For compatibility with setup_langchain, resolve the llm to an llm_id if provided
+            # Resolve the llm to get llm_id for setup_langchain
             llm_id = None
             if llm:
-                resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-                if error_msg:
-                    print(error_msg)
+                try:
+                    llm_id = LlmFactory.resolve_llm_identifier(llm)
+                except ValueError as e:
+                    print(f"Error: {e}")
                     return
-                llm_id = resolved_id
 
             if not setup_langchain(llm_id, lc_debug, lc_verbose, cache):
                 return
@@ -93,7 +93,7 @@ class CoreCommands(CliTopCommand):
                 return
 
             llm_factory = LlmFactory(
-                _unified_param=llm,
+                llm=llm,
                 json_mode=False,
                 streaming=stream,
                 reasoning=reasoning,
@@ -159,7 +159,6 @@ class CoreCommands(CliTopCommand):
             from genai_tk.core.chain_registry import ChainRegistry
             from genai_tk.core.llm_factory import LlmFactory
             from genai_tk.extra.agents.langchain_setup import setup_langchain
-            from genai_tk.utils.config_mngr import global_config
 
             # For compatibility with setup_langchain, resolve the llm to an llm_id if provided
             llm_id = None
@@ -224,7 +223,7 @@ class CoreCommands(CliTopCommand):
         @cli_app.command()
         def embedd(
             input: Annotated[str, typer.Argument(help="Text to embed")],
-            model_id: Annotated[Optional[str], Option("--model-id", "-m", help="Embeddings model ID")] = None,
+            model: Annotated[Optional[str], Option("--model", "-m", help="Embeddings model ID or tag")] = None,
         ) -> None:
             """
             Invoke an embedder.
@@ -237,14 +236,8 @@ class CoreCommands(CliTopCommand):
 
             from genai_tk.core.embeddings_factory import EmbeddingsFactory
 
-            if model_id is not None:
-                if model_id not in EmbeddingsFactory.known_items():
-                    print(f"Error: {model_id} is unknown model id.\nShould be in {EmbeddingsFactory.known_items()}")
-                    return
-                global_config().set("llm.models.default", model_id)
-
             factory = EmbeddingsFactory(
-                embeddings_id=model_id,
+                embeddings=model,
             )
             embedder = factory.get()
             vector = embedder.embed_documents([input])
@@ -263,7 +256,7 @@ class CoreCommands(CliTopCommand):
         @cli_app.command()
         def similarity(
             sentences: Annotated[list[str], typer.Argument(help="List of sentences to compare (first is reference)")],
-            model_id: Annotated[Optional[str], Option("--model-id", "-m", help="Embeddings model ID")] = None,
+            model: Annotated[Optional[str], Option("--model", "-m", help="Embeddings model ID")] = None,
         ) -> None:
             """
             Calculate semantic similarity between sentences using cosine similarity.
@@ -281,12 +274,12 @@ class CoreCommands(CliTopCommand):
                 print("Error: At least 2 sentences are required")
                 return
 
-            if model_id is not None:
-                if model_id not in EmbeddingsFactory.known_items():
-                    print(f"Error: {model_id} is unknown model id.\nShould be in {EmbeddingsFactory.known_items()}")
+            if model is not None:
+                if model not in EmbeddingsFactory.known_items():
+                    print(f"Error: {model} is unknown model id.\nShould be in {EmbeddingsFactory.known_items()}")
                     return
 
-            embedder = get_embeddings(embeddings_id=model_id)
+            embedder = get_embeddings(embeddings=model)
 
             # Generate embeddings for all sentences
             vectors = embedder.embed_documents(sentences)

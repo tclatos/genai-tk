@@ -11,7 +11,6 @@ from typing import Any, Type, get_args, get_origin
 
 from baml_py import ClientRegistry
 from loguru import logger
-from pydantic import BaseModel
 
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.pydantic.common import validate_pydantic_model
@@ -133,12 +132,7 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
     from genai_tk.core.llm_factory import LlmFactory
 
     try:
-        resolved_llm_id = LlmFactory.resolve_llm_identifier(llm_identifier)
-    except ValueError as e:
-        raise ValueError(f"Unknown LLM identifier '{llm_identifier}': {e}") from e
-
-    try:
-        llm_factory = LlmFactory(llm_id=resolved_llm_id, llm_params={"temperature": temperature})
+        llm_factory = LlmFactory(llm=llm_identifier, llm_params={"temperature": temperature})
         llm_info = llm_factory.info
         llm = llm_factory.get()
         llm_dict = llm.model_dump()
@@ -147,7 +141,7 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
             provider = "openai-generic"
             model = llm_dict["model_name"]
         else:
-            raise ValueError(f"Provider not (yet?) supported for BAML: {llm_info.provider}")
+            raise ValueError(f"Provider not (yet?) supported for BAML: {llm_info.provider}")  # type: ignore
 
         # Map langchain field names to BAML field names
         options = {"model": model}
@@ -163,7 +157,7 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
         cr.set_primary(llm_identifier)
         return cr
     except Exception as e:
-        raise ValueError(f"Failed to get LLM info for '{resolved_llm_id}': {e}") from e
+        raise ValueError(f"Failed to get LLM info for '{llm_identifier}': {e}") from e
 
 
 def load_and_validate_baml_function(

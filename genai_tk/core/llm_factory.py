@@ -26,7 +26,7 @@ Example:
     >>> llm = get_llm()
 
     >>> # Get specific model with JSON output
-    >>> llm = get_llm(llm_id="gpt_35_openai", json_mode=True)
+    >>> llm = get_llm(llm="gpt_35_openai", json_mode=True)
 
     >>> # Get configurable LLM with fallback
     >>> llm = get_configurable_llm(with_fallback=True)
@@ -144,8 +144,9 @@ class LlmFactory(BaseModel):
     configuration based on the model type and provider.
 
     Attributes:
-        llm_id: Unique model identifier (if None, uses default from config)
-        llm_tag: LLM tag from config (e.g., 'fake', 'powerful_model')
+        llm: Unified LLM identifier (can be either LLM ID or tag) - recommended
+        llm_id: (Deprecated) Unique model identifier (if None, uses default from config)
+        llm_tag: (Deprecated) LLM tag from config (e.g., 'fake', 'powerful_model')
         json_mode: Whether to force JSON output format (where supported)
         streaming: Whether to enable streaming responses (where supported)
         reasoning: Whether to show reasoning/thinking process (None=default, True=enable, False=disable)
@@ -153,6 +154,7 @@ class LlmFactory(BaseModel):
         llm_params : other llm parameters (temperature, max_token, ....)
     """
 
+    llm: Annotated[str | None, Field(validate_default=True)] = None
     llm_id: Annotated[str | None, Field(validate_default=True)] = None
     llm_tag: str | None = None
     json_mode: bool = False
@@ -176,27 +178,43 @@ class LlmFactory(BaseModel):
 
     def model_post_init(self, __context: dict) -> None:
         """Post-initialization validation and tag resolution."""
-        # Check for conflicting parameters first
-        if self._unified_param is not None and (self.llm_id or self.llm_tag):
-            raise ValueError("Cannot specify unified parameter along with llm_id or llm_tag")
+        # Handle deprecation warnings and parameter resolution
+        if self.llm_id is not None:
+            logger.warning(
+                "⚠️  'llm_id' parameter is deprecated. Use 'llm' instead. "
+                "Example: LlmFactory(llm='gpt_35_openai') or LlmFactory(llm='fast_model')"
+            )
 
-        if self.llm_id and self.llm_tag:
-            raise ValueError("Cannot specify both llm_id and llm_tag")
+        if self.llm_tag is not None:
+            logger.warning(
+                "⚠️  'llm_tag' parameter is deprecated. Use 'llm' instead. Example: LlmFactory(llm='fast_model')"
+            )
 
-        # Handle unified parameter resolution
-        if self._unified_param is not None:
+        # Check for conflicting parameters
+        unified_params_count = sum(
+            [self.llm is not None, self.llm_id is not None, self.llm_tag is not None, self._unified_param is not None]
+        )
+        if unified_params_count > 1:
+            raise ValueError("Cannot specify multiple LLM selection parameters. Use 'llm' parameter only (recommended)")
+
+        # Resolve unified 'llm' parameter
+        if self.llm is not None:
+            resolved_id = LlmFactory.resolve_llm_identifier(self.llm)
+            object.__setattr__(self, "llm_id", resolved_id)
+
+        # Handle legacy _unified_param (for internal use)
+        elif self._unified_param is not None:
             resolved_id = LlmFactory.resolve_llm_identifier(self._unified_param)
             object.__setattr__(self, "llm_id", resolved_id)
-            # Clear the unified param after resolution
             object.__setattr__(self, "_unified_param", None)
 
-        if self.llm_tag and not self.llm_id:
-            # Resolve tag to llm_id
+        # Handle legacy llm_tag parameter
+        elif self.llm_tag is not None:
             resolved_id = LlmFactory.find_llm_id_from_tag(self.llm_tag)
             object.__setattr__(self, "llm_id", resolved_id)
 
-        # Set default if neither llm_id nor llm_tag provided
-        if not self.llm_id and not self.llm_tag:
+        # Set default if neither llm nor llm_id nor llm_tag provided
+        if self.llm_id is None:
             default_id = global_config().get_str("llm.models.default")
             object.__setattr__(self, "llm_id", default_id)
 
@@ -369,7 +387,7 @@ class LlmFactory(BaseModel):
             llm = LlmFactory().get()
 
             # Get specific model with JSON output
-            llm = LlmFactory(llm_id="gpt_35_openai", json_mode=True).get()
+            llm = LlmFactory(llm="gpt_35_openai", json_mode=True).get()
 
             # Generate a joke
             joke = llm.invoke("Tell me a joke about AI")
@@ -574,13 +592,13 @@ class LlmFactory(BaseModel):
         for llm_id in LlmFactory.known_items():
             if llm_id != default_llm_id:
                 try:
-                    llm_obj = LlmFactory(llm_id=llm_id).get()
+                    llm_obj = LlmFactory(llm=llm_id).get()
                     alternatives |= {llm_id: llm_obj}
                 except Exception as ex:
                     logger.info(f"Cannot load {llm_id}: {ex}")
 
         selected_llm = (
-            LlmFactory(llm_id=self.llm_id)
+            LlmFactory(llm=self.llm_id)
             .get()
             .configurable_alternatives(  # select default LLM
                 ConfigurableField(id="llm_id"),
@@ -592,11 +610,12 @@ class LlmFactory(BaseModel):
         if with_fallback:
             # Not well tested !!!
             logger.warning("LLM falback - Not well tested")
-            selected_llm = selected_llm.with_fallbacks([LlmFactory(llm_id="gpt_41mini_openrouter").get()])
+            selected_llm = selected_llm.with_fallbacks([LlmFactory(llm="gpt_41mini_openrouter").get()])
         return selected_llm  # type: ignore
 
 
 def get_llm(
+    llm: str | None = None,
     llm_id: str | None = None,
     llm_tag: str | None = None,
     json_mode: bool = False,
@@ -608,8 +627,9 @@ def get_llm(
     """Create a configured LangChain BaseLanguageModel instance.
 
     Args:
-        llm_id: Unique model identifier (if None, uses default from config)
-        llm_tag: Tag (type) of model to use (fast_model, smart_model, etc.)
+        llm: Unified LLM identifier (can be either LLM ID or tag) - recommended
+        llm_id: (Deprecated) Unique model identifier (if None, uses default from config)
+        llm_tag: (Deprecated) Tag (type) of model to use (fast_model, smart_model, etc.)
         json_mode: Whether to force JSON output format (where supported)
         streaming: Whether to enable streaming responses (where supported)
         reasoning: Whether to show reasoning/thinking process (None=default, True=enable, False=disable)
@@ -624,20 +644,35 @@ def get_llm(
         # Get default LLM
         llm = get_llm()
 
-        # Get specific model with streaming
-        llm = get_llm(llm_id="gpt_35_openai", streaming=True)
+        # Get specific model with streaming (recommended)
+        llm = get_llm(llm="gpt_35_openai", streaming=True)
 
-        # Get model with custom temperature
-        llm = get_llm(llm_id="llama3_70_groq", temperature=0.7)
+        # Get model by tag (recommended)
+        llm = get_llm(llm="fast_model", temperature=0.7)
+
+        # Deprecated ways (still work but will show warnings)
+        llm = get_llm(llm_id="gpt_35_openai", streaming=True)
+        llm = get_llm(llm_tag="fast_model", temperature=0.7)
 
         # Use in a chain
         from langchain_core.prompts import ChatPromptTemplate
         prompt = ChatPromptTemplate.from_template("Tell me a joke about {topic}")
-        chain = prompt | get_llm(llm_id="gpt_4o_openai")
+        chain = prompt | get_llm(llm="gpt_4o_openai")
         result = chain.invoke({"topic": "AI"})
         ```
     """
+    # Show deprecation warnings for old parameters
+    if llm_id is not None:
+        logger.warning(
+            "⚠️  'llm_id' parameter in get_llm() is deprecated. Use 'llm' instead. Example: get_llm(llm='gpt_35_openai')"
+        )
+    if llm_tag is not None:
+        logger.warning(
+            "⚠️  'llm_tag' parameter in get_llm() is deprecated. Use 'llm' instead. Example: get_llm(llm='fast_model')"
+        )
+
     factory = LlmFactory(
+        llm=llm,
         llm_id=llm_id,
         llm_tag=llm_tag,
         json_mode=json_mode,
@@ -732,7 +767,7 @@ def get_configurable_llm(
         r = chain.invoke({}, config=llm_config("gpt_35_openai"))
 
     """
-    factory = LlmFactory(llm_id=None, json_mode=json_mode, streaming=streaming, cache=cache, llm_params=kwargs)
+    factory = LlmFactory(llm=None, json_mode=json_mode, streaming=streaming, cache=cache, llm_params=kwargs)
 
     info = f"get configurable LLM. Default is:'{factory.llm_id}'"
     info += " -streaming" if streaming else ""
@@ -753,7 +788,7 @@ get_configurable_llm = functools.wraps(get_configurable_llm)(functools.cache(get
 
 def get_llm_info(llm_id: str) -> LlmInfo:
     """Return information on given LLM."""
-    factory = LlmFactory(llm_id=llm_id)
+    factory = LlmFactory(llm=llm_id)
     r = factory.known_items_dict().get(llm_id)
     if r is None:
         raise ValueError(f"Unknown llm_id: '{llm_id}' ")

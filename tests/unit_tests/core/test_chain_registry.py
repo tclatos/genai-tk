@@ -23,7 +23,7 @@ def test_register_runnable_item() -> None:
     registry = ChainRegistry(registry=[])
 
     # Create a simple chain
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Create a RunnableItem
     item = RunnableItem(name="test_chain", runnable=llm, examples=[Example(query=["test input"])])
@@ -40,7 +40,7 @@ def test_find_runnable() -> None:
     registry = ChainRegistry(registry=[])
 
     # Create and register a runnable
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
     item = RunnableItem(name="test_chain", runnable=llm, examples=[Example(query=["test input"])])
     registry.register(item)
 
@@ -63,7 +63,7 @@ def test_find_case_insensitive() -> None:
     registry = ChainRegistry(registry=[])
 
     # Create and register a runnable
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
     item = RunnableItem(name="Test_Chain", runnable=llm, examples=[Example(query=["test input"])])
     registry.register(item)
 
@@ -81,7 +81,7 @@ def test_get_runnable_list() -> None:
     assert registry.get_runnable_list() == []
 
     # Register some runnables
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
     item1 = RunnableItem(name="chain1", runnable=llm)
     item2 = RunnableItem(name="chain2", runnable=llm)
 
@@ -96,7 +96,7 @@ def test_get_runnable_list() -> None:
 
 def test_runnable_item_creation() -> None:
     """Test RunnableItem creation and validation."""
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Test with runnable instance
     item = RunnableItem(name="test_item", runnable=llm, examples=[Example(query=["test"])])
@@ -112,7 +112,7 @@ def test_runnable_item_execution() -> None:
     registry = ChainRegistry(registry=[])
 
     # Create and register a runnable
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
     item = RunnableItem(name="exec_chain", runnable=llm, examples=[Example(query=["test input"])])
     registry.register(item)
 
@@ -140,7 +140,7 @@ def test_registry_with_multiple_similar_names() -> None:
     """Test registry behavior with similar names."""
     registry = ChainRegistry(registry=[])
 
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Register chains with similar names
     item1 = RunnableItem(name="chain", runnable=llm)
@@ -168,7 +168,7 @@ def test_registry_performance(performance_threshold) -> None:
     import time
 
     registry = ChainRegistry(registry=[])
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Measure registration time
     start_time = time.time()

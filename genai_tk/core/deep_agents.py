@@ -66,7 +66,7 @@ class DeepAgentFactory:
         if model is None:
             self.default_model = get_llm()
         elif isinstance(model, str):
-            self.default_model = get_llm(llm_id=model)
+            self.default_model = get_llm(llm=model)
         else:
             self.default_model = model
 

@@ -106,18 +106,14 @@ class AgentCommands(CliTopCommand):
                 config_mcp_servers = agent_config.mcp_servers
                 config_pre_prompt = agent_config.pre_prompt
 
-                # Determine final LLM ID with priority order:
-                # 1. CLI --llm option (if provided)
-                # 2. Configuration llm_id (from YAML)
-                # 3. Default from global config (handled by LlmFactory)
                 if llm:
                     # CLI option takes precedence
-                    resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-                    if error_msg:
-                        print(error_msg)
+                    try:
+                        final_llm_id = LlmFactory.resolve_llm_identifier(llm)
+                        print(f"Using LLM from CLI: {final_llm_id}")
+                    except ValueError as e:
+                        print(f"Error: {e}")
                         return
-                    final_llm_id = resolved_id
-                    print(f"Using LLM from CLI: {final_llm_id}")
                 elif agent_config.llm_id:
                     # Use LLM from configuration
                     final_llm_id = agent_config.llm_id
@@ -126,11 +122,12 @@ class AgentCommands(CliTopCommand):
             else:
                 # No config specified, just resolve CLI LLM if provided
                 if llm:
-                    resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-                    if error_msg:
-                        print(error_msg)
+                    try:
+                        final_llm_id = LlmFactory.resolve_llm_identifier(llm)
+                        print(f"Using LLM from CLI: {final_llm_id}")
+                    except ValueError as e:
+                        print(f"Error: {e}")
                         return
-                    final_llm_id = resolved_id
 
                 print(f"Using ReAct configuration '{config}':")
                 if config_tools:
@@ -213,11 +210,11 @@ class AgentCommands(CliTopCommand):
             # Resolve LLM identifier if provided
             llm_id = None
             if llm:
-                resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-                if error_msg:
-                    print(error_msg)
+                try:
+                    llm_id = LlmFactory.resolve_llm_identifier(llm)
+                except ValueError as e:
+                    print(f"Error: {e}")
                     return
-                llm_id = resolved_id
 
             if not setup_langchain(llm_id):
                 return
@@ -258,7 +255,7 @@ class AgentCommands(CliTopCommand):
             # Determine final pre_prompt (command line takes precedence over config)
             final_pre_prompt = pre_prompt or config_pre_prompt
 
-            model = LlmFactory(llm_id=llm_id).get_smolagent_model()
+            model = LlmFactory(llm=llm_id).get_smolagent_model()
             available_tools = final_tools.copy()
 
             # Add command-line specified tools
@@ -341,6 +338,7 @@ class AgentCommands(CliTopCommand):
             from rich.progress import Progress, SpinnerColumn, TextColumn
 
             from genai_tk.core.deep_agents import DeepAgentConfig, deep_agent_factory, run_deep_agent
+            from genai_tk.core.llm_factory import LlmFactory
             from genai_tk.tools.smolagents.deep_config_loader import (
                 DEEP_AGENT_CONF_YAML_FILE,
                 load_deep_agent_demo_config,
@@ -405,13 +403,11 @@ class AgentCommands(CliTopCommand):
             # Resolve LLM identifier if provided
             llm_id = None
             if llm:
-                from genai_tk.core.llm_factory import LlmFactory
-
-                resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-                if error_msg:
-                    print(error_msg)
+                try:
+                    llm_id = LlmFactory.resolve_llm_identifier(llm)
+                except ValueError as e:
+                    print(f"Error: {e}")
                     return
-                llm_id = resolved_id
 
             async def run_agent():
                 # Set the model FIRST if specified, before creating any agents

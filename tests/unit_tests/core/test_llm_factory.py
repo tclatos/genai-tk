@@ -65,12 +65,12 @@ def test_get_llm_with_llm_type(fake_llm) -> None:
 def test_invalid_llm_id_raises_error() -> None:
     """Test that invalid llm_id raises ValueError."""
     with pytest.raises(ValueError, match="Unknown LLM"):
-        get_llm(llm_id="nonexistent_model")
+        get_llm(llm="nonexistent_model")
 
 
 def test_llm_factory_creation() -> None:
     """Test LlmFactory class creation."""
-    factory = LlmFactory(llm_id=FAKE_LLM_ID)
+    factory = LlmFactory(llm=FAKE_LLM_ID)
     assert factory.llm_id == FAKE_LLM_ID
     assert factory.info is not None
     assert factory.provider == FAKE_LLM_PROVIDER
@@ -78,14 +78,14 @@ def test_llm_factory_creation() -> None:
 
 def test_llm_factory_short_name() -> None:
     """Test short_name method returns correct format."""
-    factory = LlmFactory(llm_id=FAKE_LLM_ID)
+    factory = LlmFactory(llm=FAKE_LLM_ID)
     short = factory.short_name()
     assert short == "parrot_local"
 
 
 def test_llm_factory_get_litellm_model_name() -> None:
     """Test get_litellm_model_name method."""
-    factory = LlmFactory(llm_id=LLM_ID_FOR_TEST)
+    factory = LlmFactory(llm=LLM_ID_FOR_TEST)
     # Skip this test for fake provider since litellm doesn't support it
     if factory.provider == FAKE_LLM_PROVIDER:
         pytest.skip("LiteLLM doesn't support fake provider")
@@ -95,7 +95,7 @@ def test_llm_factory_get_litellm_model_name() -> None:
 
 def test_llm_factory_get_smolagent_model() -> None:
     """Test get_smolagent_model method."""
-    factory = LlmFactory(llm_id=FAKE_LLM_ID)
+    factory = LlmFactory(llm=FAKE_LLM_ID)
     # Skip this test for fake provider since smolagent doesn't support it
     if factory.provider == FAKE_LLM_PROVIDER:
         pytest.skip("smolagent doesn't support fake provider")
@@ -139,13 +139,13 @@ def test_configurable() -> None:
 
 def test_get_configurable_llm(fake_llm) -> None:
     """Test get_configurable_llm function."""
-    llm = get_configurable_llm(llm_id=FAKE_LLM_ID)
+    llm = get_configurable_llm(llm=FAKE_LLM_ID)
     assert llm is not None
 
 
 def test_get_configurable_llm_with_fallback(fake_llm) -> None:
     """Test get_configurable_llm with fallback option."""
-    llm = get_configurable_llm(llm_id=FAKE_LLM_ID, with_fallback=True)
+    llm = get_configurable_llm(llm=FAKE_LLM_ID, with_fallback=True)
     assert llm is not None
 
 
@@ -166,7 +166,7 @@ def test_cache_parameter(fake_llm_with_cache) -> None:
 
 def test_llm_params_parameter(fake_llm) -> None:
     """Test additional LLM parameters."""
-    llm = get_llm(llm_id=FAKE_LLM_ID, temperature=0.5, max_tokens=100)
+    llm = get_llm(llm=FAKE_LLM_ID, temperature=0.5, max_tokens=100)
     assert llm is not None
 
 
@@ -231,12 +231,12 @@ def test_factory_find_llm_id_from_type() -> None:
 def test_llm_factory_model_validation() -> None:
     """Test LlmFactory model validation."""
     # Test valid ID
-    factory = LlmFactory(llm_id=FAKE_LLM_ID)
+    factory = LlmFactory(llm=FAKE_LLM_ID)
     assert factory.llm_id == FAKE_LLM_ID
 
     # Test invalid ID
     with pytest.raises(ValueError, match="Unknown LLM"):
-        LlmFactory(llm_id="invalid_model_id")
+        LlmFactory(llm="invalid_model_id")
 
 
 def test_field_validator_cache() -> None:
@@ -244,7 +244,7 @@ def test_field_validator_cache() -> None:
     # Valid cache value
     from langchain_community.cache import SQLiteCache
 
-    llm = LlmFactory(llm_id=LLM_ID_FOR_TEST, cache="sqlite").get()
+    llm = LlmFactory(llm=LLM_ID_FOR_TEST, cache="sqlite").get()
     assert isinstance(llm.cache, SQLiteCache)
 
     # Invalid cache value should raise ValueError

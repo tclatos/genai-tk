@@ -47,7 +47,7 @@ def create_gptr_config(config_name: str) -> str:
     )
     for llm in ["smart_llm", "fast_llm", "strategic_llm"]:
         if llm_id := config_dict.get(llm):
-            litellm_name = LlmFactory(llm_id=llm_id).get_litellm_model_name(separator=":")
+            litellm_name = LlmFactory(llm=llm_id).get_litellm_model_name(separator=":")
             config_dict[llm] = litellm_name
             logger.info(f"Using LiteLLM model name for {llm}: {litellm_name}")
 

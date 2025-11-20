@@ -28,7 +28,7 @@ def test_rag_pipeline_with_fake_models(sample_documents) -> None:
     vector_store.add_documents(sample_documents)
 
     # Create LLM
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Test retrieval
     query = "programming language"
@@ -52,7 +52,7 @@ def test_rag_pipeline_with_fake_models(sample_documents) -> None:
 def test_document_processing_pipeline(sample_documents) -> None:
     """Test document processing pipeline with fake models."""
     # Create embeddings factory
-    embeddings_factory = EmbeddingsFactory(embeddings_id=FAKE_EMBEDDINGS_ID)
+    embeddings_factory = EmbeddingsFactory(embeddings=FAKE_EMBEDDINGS_ID)
     embeddings = embeddings_factory.get()
 
     # Test embedding generation
@@ -76,7 +76,7 @@ def test_document_processing_pipeline(sample_documents) -> None:
     assert len(results) == 2
 
     # Test LLM processing of retrieved documents
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
     context = "\n".join([doc.page_content for doc in results])
 
     summary_prompt = f"Summarize this information:\n{context}"
@@ -90,7 +90,7 @@ def test_document_processing_pipeline(sample_documents) -> None:
 @pytest.mark.fake_models
 def test_multi_step_reasoning_workflow() -> None:
     """Test multi-step reasoning workflow with fake models."""
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Step 1: Generate analysis
     analysis_prompt = "Analyze the benefits of using fake models for testing"
@@ -138,7 +138,7 @@ def test_question_answering_pipeline() -> None:
         "What are Python's key features?",
     ]
 
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     for question in questions:
         # Retrieve relevant documents
@@ -160,7 +160,7 @@ def test_question_answering_pipeline() -> None:
 @pytest.mark.fake_models
 def test_content_generation_pipeline() -> None:
     """Test content generation pipeline with fake models."""
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Generate different types of content
     content_types = [
@@ -194,8 +194,8 @@ def test_performance_benchmark() -> None:
     import time
 
     # Setup components
-    embeddings = get_embeddings(embeddings_id=FAKE_EMBEDDINGS_ID)
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    embeddings = get_embeddings(embeddings=FAKE_EMBEDDINGS_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Test embedding performance
     start_time = time.time()
@@ -226,7 +226,7 @@ def test_performance_benchmark() -> None:
 @pytest.mark.fake_models
 def test_error_handling_pipeline() -> None:
     """Test error handling in pipelines with fake models."""
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Test with empty input
     response = llm.invoke("")
@@ -252,7 +252,7 @@ def test_error_handling_pipeline() -> None:
 @pytest.mark.fake_models
 def test_consistency_validation() -> None:
     """Test that fake models provide consistent responses."""
-    llm = get_llm(llm_id=FAKE_LLM_ID)
+    llm = get_llm(llm=FAKE_LLM_ID)
 
     # Test multiple calls with same input
     test_prompt = "Generate a consistent response"
@@ -266,7 +266,7 @@ def test_consistency_validation() -> None:
     assert len(set(responses)) == 1  # All responses should be identical
 
     # Test with different parameters
-    llm_temp = get_llm(llm_id=FAKE_LLM_ID, temperature=0.5)
+    llm_temp = get_llm(llm=FAKE_LLM_ID, temperature=0.5)
     response_diff_temp = llm_temp.invoke(test_prompt)
 
     # Even with different temperature, fake models might be consistent

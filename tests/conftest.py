@@ -49,7 +49,7 @@ def fake_llm() -> BaseChatModel:
     Returns:
         BaseChatModel: Fake LLM instance using parrot_local_fake
     """
-    return get_llm(llm_id=FAKE_LLM_ID)
+    return get_llm(llm=FAKE_LLM_ID)
 
 
 @pytest.fixture
@@ -59,7 +59,7 @@ def fake_embeddings():
     Returns:
         Embeddings: Fake embeddings instance using embeddings_768_fake
     """
-    return get_embeddings(embeddings_id=FAKE_EMBEDDINGS_ID)
+    return get_embeddings(embeddings=FAKE_EMBEDDINGS_ID)
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def fake_llm_with_streaming():
     Returns:
         BaseChatModel: Fake LLM instance with streaming
     """
-    return get_llm(llm_id=FAKE_LLM_ID, streaming=True)
+    return get_llm(llm=FAKE_LLM_ID, streaming=True)
 
 
 @pytest.fixture
@@ -79,7 +79,7 @@ def fake_llm_with_json_mode():
     Returns:
         BaseChatModel: Fake LLM instance with JSON mode
     """
-    return get_llm(llm_id=FAKE_LLM_ID, json_mode=True)
+    return get_llm(llm=FAKE_LLM_ID, json_mode=True)
 
 
 @pytest.fixture
@@ -89,7 +89,7 @@ def fake_llm_with_cache():
     Returns:
         BaseChatModel: Fake LLM instance with memory cache
     """
-    return get_llm(llm_id=FAKE_LLM_ID, cache="memory")
+    return get_llm(llm=FAKE_LLM_ID, cache="memory")
 
 
 @pytest.fixture

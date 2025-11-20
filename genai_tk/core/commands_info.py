@@ -55,8 +55,8 @@ class InfoCommands(CliTopCommand):
             )
 
             # Default models info
-            default_llm = LlmFactory(llm_id=None)
-            default_embeddings = EmbeddingsFactory(embeddings_id=None)
+            default_llm = LlmFactory(llm=None)
+            default_embeddings = EmbeddingsFactory(embeddings=None)
             default_vector_store = EmbeddingsStore.create_from_config("default")
 
             models_table = Table(title="Default Components", show_header=True, header_style="bold magenta")

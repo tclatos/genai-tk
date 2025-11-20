@@ -20,7 +20,10 @@ from genai_tk.utils.langgraph import print_astream
 
 
 async def run_langgraph_agent_shell(
-    llm_id: str | None, tools: list[BaseTool] = [], mcp_server_names: list[str] = []
+    llm_id: str | None,
+    tools: list[BaseTool] = [],
+    mcp_server_names: list[str] = [],
+    system_prompt: str | None = None,
 ) -> None:
     """Run an interactive shell for sending prompts to a LanggGraph ReAct agent.
 
@@ -41,7 +44,7 @@ async def run_langgraph_agent_shell(
     console.print(Panel(welcome_text, title="Welcome", border_style="bright_blue"))
     console.print("[dim]Commands: /help, /quit, /trace\nUse up/down arrows to navigate prompt history[/dim]\n")
 
-    model = get_llm(llm_id=llm_id)
+    model = get_llm(llm=llm_id)
     if mcp_server_names:
         with console.status("[bold green]Connecting to MCP servers..."):
             client = MultiServerMCPClient(get_mcp_servers_dict(mcp_server_names))
@@ -49,7 +52,10 @@ async def run_langgraph_agent_shell(
             console.print("[green]✓ MCP servers connected[/green]\n")
 
     config = {"configurable": {"thread_id": "1"}}
-    agent = create_agent(model, tools, checkpointer=MemorySaver())
+    if system_prompt:
+        agent = create_agent(model, tools, system_prompt=system_prompt, checkpointer=MemorySaver())
+    else:
+        agent = create_agent(model, tools, checkpointer=MemorySaver())
 
     # Set up prompt history
     history_file = Path(".blueprint.input.history")
