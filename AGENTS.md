@@ -11,9 +11,8 @@
 - `make test-integration` - Run integration tests only
 - `make check` - Run format, lint, and test sequentially
 
-**Single Test Execution:**
-- `uv run pytest tests/unit_tests/core/test_llm_factory.py::test_basic_call -v`
-- `uv run pytest tests/unit_tests/ -k "test_name_pattern" -v`
+## Code and tools execution ##
+- Use 'uv' to run Python code, execute tests, install packages etc.
 
 ## Code Style Guidelines
 
@@ -21,13 +20,24 @@
 - Line length: 120 characters
 - Use ruff for formatting and linting
 - Import sorting: isort rules (handled by ruff)
-- Docstring convention: Google style
+
+## Documentation**
+- Rules for doctrings:
+    - Use Google style 
+    - Don't mention types 
+    - Don't mention raised exceptions 
+    - Use  ``` to format code in documentation (Fenced Code Blocks)
+   -  Don't repeat code examples in module description if they are already in function docstrings. 
+- Don't add comments for classes fields and arguments. Write only one line to describe the clas
 
 **Type System:**
 - Python 3.12+ required
 - Use type hints extensively (pydantic models preferred)
-- Runtime type checking with beartype
-- Return types encouraged but not strictly required (ANN201/ANN202 ignored)
+- Return types encouraged but not strictly required (ANN201/ANN202 ignored). 
+- Use 'None" type annotation when functions return nothing
+- Avoid 'Any' type except if its necessary.
+- Use Python 12 capabilities - Typically use '|' instead of 'Union', and '| None' instead of 'Optional'
+- Use Pydantic to define class whenener possible. Avoid __init__ methods, use model_post_init() instead.
 
 **Naming Conventions:**
 - Classes: PascalCase (e.g., `LlmFactory`, `OmegaConfig`)
@@ -36,11 +46,8 @@
 - Private members: underscore prefix (e.g., `_internal_method`)
 
 **Import Organization:**
-- Standard library imports first
-- Third-party imports second
-- Local imports third
 - Prefer explicit imports over star imports
-- profer absolute imports
+- Alwary use absolute  imports for project modules.   Don't use relative imports
 
 **Error Handling:**
 - Use structured logging with loguru

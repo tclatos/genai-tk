@@ -1,0 +1,20 @@
+# tools:
+#     shell:
+#         allow:
+#             - make *
+#             - uv *
+
+# paths:
+#     allow:
+#         - /home/tcl/prj/genai_tk/**
+
+# mcp_servers:
+#   context7:
+#     url: https://mcp.context7.com/mcp
+#   docs-langchain:
+#     url: https://docs.langchain.com/mcp
+  
+
+
+
+
