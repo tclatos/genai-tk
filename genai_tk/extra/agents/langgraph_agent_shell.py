@@ -11,12 +11,14 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.styles import Style
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
 from genai_tk.core.llm_factory import get_llm
 from genai_tk.core.mcp_client import get_mcp_servers_dict
-from genai_tk.utils.langgraph import print_astream
+from genai_tk.utils.agent_middleware import create_rich_agent_middlewares
+from genai_tk.utils.markdown import looks_like_markdown
 
 
 async def run_langgraph_agent_shell(
@@ -52,10 +54,22 @@ async def run_langgraph_agent_shell(
             console.print("[green]✓ MCP servers connected[/green]\n")
 
     config = {"configurable": {"thread_id": "1"}}
+    middleware = create_rich_agent_middlewares(console=console)
     if system_prompt:
-        agent = create_agent(model, tools, system_prompt=system_prompt, checkpointer=MemorySaver())
+        agent = create_agent(
+            model,
+            tools,
+            system_prompt=system_prompt,
+            checkpointer=MemorySaver(),
+            middleware=middleware,
+        )
     else:
-        agent = create_agent(model, tools, checkpointer=MemorySaver())
+        agent = create_agent(
+            model,
+            tools,
+            checkpointer=MemorySaver(),
+            middleware=middleware,
+        )
 
     # Set up prompt history
     history_file = Path(".blueprint.input.history")
@@ -102,8 +116,33 @@ async def run_langgraph_agent_shell(
 
             # Process the response
             with console.status("[bold green]Agent is thinking...\n[/bold green]"):
-                resp = agent.astream({"messages": user_input}, config)
-                await print_astream(resp)
+                result = await agent.ainvoke({"messages": user_input}, config)
+
+            # Render the final assistant message
+            final_message = None
+            if isinstance(result, dict) and "messages" in result:
+                out_messages = result["messages"]
+                final_message = out_messages[-1] if out_messages else None
+            else:
+                final_message = result
+
+            if final_message is not None:
+                content = getattr(final_message, "content", str(final_message))
+                if isinstance(content, list):
+                    content = "\n".join(str(block) for block in content)
+
+                if looks_like_markdown(str(content)):
+                    body = Markdown(str(content))
+                else:
+                    body = str(content)
+
+                console.print(
+                    Panel(
+                        body,
+                        title="[bold white on royal_blue1] Assistant [/bold white on royal_blue1]",
+                        border_style="royal_blue1",
+                    )
+                )
 
             console.print()  # Add spacing between interactions
 

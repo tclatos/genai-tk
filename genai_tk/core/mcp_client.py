@@ -43,10 +43,14 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcpadapt.core import MCPAdapt
 from mcpadapt.langchain_adapter import LangChainAdapter
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
 
 from genai_tk.core.llm_factory import get_llm
+from genai_tk.utils.agent_middleware import create_rich_agent_middlewares
 from genai_tk.utils.config_mngr import global_config
-from genai_tk.utils.langgraph import print_astream
+from genai_tk.utils.markdown import looks_like_markdown
 
 load_dotenv()
 
@@ -290,6 +294,7 @@ async def call_react_agent(
     from langchain.agents import create_agent
     from loguru import logger
 
+    console = Console()
     model = get_llm(llm=llm_id)
     client = MultiServerMCPClient(get_mcp_servers_dict(mcp_server_filter))
     try:
@@ -302,7 +307,8 @@ async def call_react_agent(
             all_tools.extend(additional_tools)
 
         # Create agent with optional pre_prompt
-        agent_kwargs = {"model": model, "tools": all_tools}
+        middleware = create_rich_agent_middlewares(console=console)
+        agent_kwargs = {"model": model, "tools": all_tools, "middleware": middleware}
         if pre_prompt:
             agent_kwargs["system_prompt"] = pre_prompt
         agent = create_agent(**agent_kwargs)
@@ -315,8 +321,34 @@ async def call_react_agent(
         if pre_prompt:
             messages.append(HumanMessage(content=pre_prompt))
         messages.append(HumanMessage(content=query))
-        resp = agent.astream({"messages": messages})
-        await print_astream(resp)
+
+        # Invoke the agent and render the final answer with Rich
+        result = await agent.ainvoke({"messages": messages})
+
+        # Handle both dict state and direct message responses
+        if isinstance(result, dict) and "messages" in result:
+            out_messages = result["messages"]
+            final_message = out_messages[-1] if out_messages else None
+        else:
+            final_message = result
+
+        if final_message is not None:
+            content = getattr(final_message, "content", str(final_message))
+            if isinstance(content, list):
+                content = "\n".join(str(block) for block in content)
+
+            if looks_like_markdown(str(content)):
+                body = Markdown(str(content))
+            else:
+                body = str(content)
+
+            console.print(
+                Panel(
+                    body,
+                    title="[bold white on royal_blue1] Assistant [/bold white on royal_blue1]",
+                    border_style="royal_blue1",
+                )
+            )
     finally:
         # Clean up the client if it has a close method
         if hasattr(client, "close"):

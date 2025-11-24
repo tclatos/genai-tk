@@ -21,7 +21,7 @@ class DataFrameTool(Tool):
     Attributes:
         name: Unique identifier for the tool
         description: Brief description of the tool's functionality
-        source_path: Path to the data file containing the DataFrame
+        source_path: Path to the data file containing the osDataFrame
     """
 
     name: str

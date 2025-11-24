@@ -62,6 +62,7 @@ dependencies = [
     "langchain-experimental>=0.0.42",
     "chonkie>=1.4.0",
     "ddgs>=9.7.0",
+    "langchain-litellm>=0.3.2",
 ]
 
 [project.urls]
