@@ -37,20 +37,13 @@ from langchain.agents import create_agent
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
-from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.memory import MemorySaver
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcpadapt.core import MCPAdapt
 from mcpadapt.langchain_adapter import LangChainAdapter
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
 
-from genai_tk.core.llm_factory import get_llm
-from genai_tk.utils.agent_middleware import create_rich_agent_middlewares
 from genai_tk.utils.config_mngr import global_config
-from genai_tk.utils.markdown import looks_like_markdown
 
 load_dotenv()
 
@@ -263,97 +256,6 @@ async def mcp_agent_runner(
         return result["messages"][-1].content
 
 
-## quick test ##
-async def call_react_agent(
-    query: str,
-    llm_id: str | None = None,
-    mcp_server_filter: list | None = None,
-    additional_tools: list | None = None,
-    pre_prompt: str | None = None,
-) -> None:
-    """Execute a query using MCP tools with a ReAct agent and stream the response.
-
-    Creates a ReAct agent with MCP tools and streams the response to the query.
-    This is a convenience wrapper around mcp_agent_runner with streaming output.
-
-    Args:
-        query: The input query to process
-        llm_id: Optional ID of the language model to use
-        mcp_server_filter: Optional list of server names to include in the agent
-        additional_tools: Optional list of additional tools to include in the agent
-        pre_prompt: Optional pre-prompt to include before the user query
-
-    Example:
-    ```python
-    await call_react_agent(
-        "What's the weather in Paris?",
-        mcp_server_filter=["weather"]
-    )
-    ```
-    """
-    from langchain.agents import create_agent
-    from loguru import logger
-
-    console = Console()
-    model = get_llm(llm=llm_id)
-    client = MultiServerMCPClient(get_mcp_servers_dict(mcp_server_filter))
-    try:
-        # Get MCP tools
-        mcp_tools = await client.get_tools()
-
-        # Combine MCP tools with additional tools from configuration
-        all_tools = list(mcp_tools)
-        if additional_tools:
-            all_tools.extend(additional_tools)
-
-        # Create agent with optional pre_prompt
-        middleware = create_rich_agent_middlewares(console=console)
-        agent_kwargs = {"model": model, "tools": all_tools, "middleware": middleware}
-        if pre_prompt:
-            agent_kwargs["system_prompt"] = pre_prompt
-        agent = create_agent(**agent_kwargs)
-
-        tool_names = [getattr(t, "name", str(type(t).__name__)) for t in all_tools]
-        logger.info(f"ReAct agent created with {len(all_tools)} tools: {', '.join(tool_names)}")
-
-        # Construct messages with optional pre_prompt
-        messages = []
-        if pre_prompt:
-            messages.append(HumanMessage(content=pre_prompt))
-        messages.append(HumanMessage(content=query))
-
-        # Invoke the agent and render the final answer with Rich
-        result = await agent.ainvoke({"messages": messages})
-
-        # Handle both dict state and direct message responses
-        if isinstance(result, dict) and "messages" in result:
-            out_messages = result["messages"]
-            final_message = out_messages[-1] if out_messages else None
-        else:
-            final_message = result
-
-        if final_message is not None:
-            content = getattr(final_message, "content", str(final_message))
-            if isinstance(content, list):
-                content = "\n".join(str(block) for block in content)
-
-            if looks_like_markdown(str(content)):
-                body = Markdown(str(content))
-            else:
-                body = str(content)
-
-            console.print(
-                Panel(
-                    body,
-                    title="[bold white on royal_blue1] Assistant [/bold white on royal_blue1]",
-                    border_style="royal_blue1",
-                )
-            )
-    finally:
-        # Clean up the client if it has a close method
-        if hasattr(client, "close"):
-            await client.close()
-
 
 if __name__ == "__main__":
     examples = [
@@ -361,6 +263,6 @@ if __name__ == "__main__":
         "list files in current directory",
         "connect to atos.net and get recent news",
     ]
-    #  asyncio.run(call_react_agent(examples[-1]))
-    # asyncio.run(call_react_agent(examples[0]))
-    asyncio.run(call_react_agent(";\n".join(examples), mcp_server_filter=["filesystem", "weather", "playwright"]))
+    # This module is now primarily focused on low-level MCP client utilities.
+    # Interactive and rich-agent helpers live in
+    # `genai_tk.extra.agents.langchain_agent_rich`.

@@ -71,9 +71,11 @@ class AgentCommands(CliTopCommand):
             """
 
             from genai_tk.core.llm_factory import LlmFactory
-            from genai_tk.core.mcp_client import call_react_agent
+            from genai_tk.extra.agents.langchain_agent_rich import (
+                run_langchain_agent_direct,
+                run_langchain_agent_shell,
+            )
             from genai_tk.extra.agents.langchain_setup import setup_langchain
-            from genai_tk.extra.agents.langgraph_agent_shell import run_langgraph_agent_shell
 
             # Handle configuration loading using shared loader
             config_tools = []
@@ -144,7 +146,14 @@ class AgentCommands(CliTopCommand):
             setup_langchain(final_llm_id, lc_debug, lc_verbose, cache)
 
             if chat:
-                asyncio.run(run_langgraph_agent_shell(final_llm_id, mcp_server_names=final_mcp_servers))
+                asyncio.run(
+                    run_langchain_agent_shell(
+                        final_llm_id,
+                        tools=config_tools,
+                        mcp_server_names=final_mcp_servers,
+                        system_prompt=final_pre_prompt,
+                    )
+                )
             else:
                 if not input and not sys.stdin.isatty():
                     input = sys.stdin.read()
@@ -153,10 +162,10 @@ class AgentCommands(CliTopCommand):
                     return
 
                 asyncio.run(
-                    call_react_agent(
+                    run_langchain_agent_direct(
                         input,
                         llm_id=final_llm_id,
-                        mcp_server_filter=final_mcp_servers,
+                        mcp_server_names=final_mcp_servers,
                         additional_tools=config_tools,
                         pre_prompt=final_pre_prompt,
                     )
