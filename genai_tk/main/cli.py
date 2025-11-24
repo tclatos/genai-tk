@@ -111,7 +111,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 # Import modules where runnables are registered
-from genai_tk.utils.cli.command_tree import display_command_tree
+from genai_tk.cli.command_tree import display_command_tree
 from genai_tk.utils.config_mngr import global_config, import_from_qualified
 from genai_tk.utils.logger_factory import setup_logging
 

@@ -325,7 +325,7 @@ class InfoCommands(CliTopCommand):
             Example:
                 uv run cli info commands
             """
-            from genai_tk.utils.cli.command_tree import display_command_tree
+            from genai_tk.cli.command_tree import display_command_tree
 
             display_command_tree(
                 cli_app,

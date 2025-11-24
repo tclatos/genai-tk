@@ -70,11 +70,11 @@ class AgentCommands(CliTopCommand):
             Use --chat to start an interactive shell where you can send multiple prompts to the agent.
             """
 
-            from genai_tk.core.llm_factory import LlmFactory
-            from genai_tk.extra.agents.langchain_agent_rich import (
+            from genai_tk.cli.langchain_agent import (
                 run_langchain_agent_direct,
                 run_langchain_agent_shell,
             )
+            from genai_tk.core.llm_factory import LlmFactory
             from genai_tk.extra.agents.langchain_setup import setup_langchain
 
             # Handle configuration loading using shared loader
@@ -98,7 +98,7 @@ class AgentCommands(CliTopCommand):
                 if agent_config is None:
                     print(f"❌ Error: Configuration '{config}' not found in config/basic/agents/langchain.yaml")
                     print()
-                    from genai_tk.utils.cli.config_display import display_react_agent_configs
+                    from genai_tk.cli.config_display import display_react_agent_configs
 
                     display_react_agent_configs()
                     return
@@ -240,7 +240,7 @@ class AgentCommands(CliTopCommand):
                 if demo_config is None:
                     print(f"❌ Error: Configuration '{config}' not found in {CONF_YAML_FILE}")
                     print()
-                    from genai_tk.utils.cli.config_display import display_smolagents_configs
+                    from genai_tk.cli.config_display import display_smolagents_configs
 
                     display_smolagents_configs()
                     return
