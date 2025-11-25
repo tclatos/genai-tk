@@ -18,9 +18,9 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
+from genai_tk.cli.rich_langchain_middleware import create_rich_agent_middlewares
 from genai_tk.core.llm_factory import get_llm
 from genai_tk.core.mcp_client import get_mcp_servers_dict
-from genai_tk.cli.rich_langchain_middleware import create_rich_agent_middlewares
 from genai_tk.utils.markdown import looks_like_markdown
 
 

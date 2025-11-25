@@ -106,7 +106,7 @@ def test_llm_factory_get_smolagent_model() -> None:
 def test_get_llm_info() -> None:
     """Test get_llm_info function."""
     info = get_llm_info(FAKE_LLM_ID)
-    assert info.id == FAKE_LLM_ID
+    assert info.llm == FAKE_LLM_ID
     assert info.provider == FAKE_LLM_PROVIDER
     assert info.model == "parrot"
 
@@ -202,7 +202,7 @@ def test_complex_provider_config_parsing() -> None:
 
     if complex_model:
         # Verify that complex configurations are parsed correctly
-        assert complex_model.id is not None
+        assert complex_model.llm is not None
         assert complex_model.provider is not None
         assert isinstance(complex_model.llm_args, dict)
 
@@ -216,7 +216,7 @@ def test_complex_provider_config_parsing() -> None:
         # If no complex model found, at least verify basic parsing works
         assert len(llms) > 0
         for llm in llms[:3]:  # Check first few models
-            assert llm.id is not None
+            assert llm.llm is not None
             assert llm.provider is not None
             assert isinstance(llm.llm_args, dict)
 

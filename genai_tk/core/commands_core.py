@@ -88,7 +88,7 @@ class CoreCommands(CliTopCommand):
             # Check if executed as part ot a pipe
             if not input and not sys.stdin.isatty():
                 input = sys.stdin.read()
-            if not input or len(input) < 5:
+            if not input or len(input) < 2:
                 print("Error: Input parameter or something in stdin is required")
                 return
 

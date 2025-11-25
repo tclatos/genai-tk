@@ -14,7 +14,7 @@ from genai_tk.utils.config_mngr import global_config
 
 
 def setup_langchain(
-    llm_id: str | None,
+    llm: str | None,
     lc_debug: bool | None = None,
     lc_verbose: bool | None = None,
     cache: str | CacheMethod | None = None,
@@ -38,16 +38,16 @@ def setup_langchain(
     if cache:
         LlmCache.set_method(cache)
 
-    if llm_id is not None:
-        if llm_id not in LlmFactory.known_items():
+    if llm is not None:
+        if llm not in LlmFactory.known_items():
             console.print(
                 Panel(
-                    f"[red]Error:[/red] '{llm_id}' is not a valid model ID.\n"
+                    f"[red]Error:[/red] '{llm}' is not a valid model ID.\n"
                     f"Valid options are: {', '.join(LlmFactory.known_items())}",
                     title="Error",
                     style="red",
                 )
             )
             return False
-        global_config().set("llm.models.default", llm_id)
+        global_config().set("llm.models.default", llm)
     return True

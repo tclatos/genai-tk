@@ -24,6 +24,7 @@
 # Amazon : https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
 # DeepSeek: https://api-docs.deepseek.com/quick_start/pricing 
 # HuggingFace: https://huggingface.co/models
+# LiteLLM: https://docs.litellm.ai/docs/providers
 # ...
 
 #cSpell: disable
@@ -78,3 +79,24 @@ llm:
   id: mistral_8b
   providers:
     - openrouter:  mistralai/ministral-8b
+
+- model:
+  id: gpt_4o_mini
+  providers:
+    - litellm: openai/gpt-4o-mini
+    - openai: gpt-4o-mini
+  capabilities: ['structured_outputs']
+
+- model:
+  id: claude_haiku
+  providers:
+    - litellm: anthropic/claude-haiku
+    - openrouter: anthropic/claude-haiku
+  capabilities: ['structured_outputs']
+
+- model:
+  id: gemini_pro
+  providers:
+    - litellm: google/gemini-pro
+    - openrouter: google/gemini-pro
+  capabilities: ['structured_outputs']
