@@ -39,11 +39,11 @@ Example:
 import functools
 import importlib.util
 import os
+import re
 from functools import cached_property, lru_cache
 from typing import Annotated, Any, cast
 
 import yaml
-from devtools import debug  # noqa: F401 - removed unused import
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -62,6 +62,14 @@ DEFAULT_MAX_RETRIES = 2
 OPENROUTER_BASE = "https://openrouter.ai"
 OPENROUTER_API_BASE = f"{OPENROUTER_BASE}/api/v1"
 DEEPSEEK_API_BASE = "https://api.deepseek.com"
+
+
+def _is_litellm(text: str) -> bool:
+    """
+    Validate if a text matches the pattern with 1-2 slashes and length requirements.
+    """
+    PATTERN = r"^([a-zA-Z0-9_.-]{6,}/){1,2}[a-zA-Z0-9_.-]{11,}$"
+    return bool(re.match(PATTERN, text))
 
 
 class LlmInfo(BaseModel):
@@ -95,7 +103,7 @@ def _read_llm_list_file() -> list[LlmInfo]:
     """Read the YAML file with list of LLM providers and info."""
 
     # The name of the file is in the configuration file
-    yml_file = global_config().get_file_path("llm.list")
+    yml_file = str(global_config().get_file_path("llm.list"))
     with open(yml_file) as f:
         data = yaml.safe_load(f)
 
@@ -173,8 +181,13 @@ class LlmFactory(BaseModel):
     @cached_property
     def info(self) -> LlmInfo:
         """Return LLM_INFO information on LLM."""
-        assert self.llm_id
-        return LlmFactory.known_items_dict().get(self.llm_id)  # type: ignore
+        if self.llm_id:
+            return LlmFactory.known_items_dict().get(self.llm_id)  # type: ignore
+        elif self.llm is not None and _is_litellm(self.llm):
+            # TO BE CONTINUED !!
+            return LlmInfo(id=self.llm, provider="litellm", model=self.llm, llm_args={})
+        else:
+            raise Exception()
 
     def model_post_init(self, __context: dict) -> None:
         """Post-initialization validation and tag resolution."""
@@ -293,6 +306,8 @@ class LlmFactory(BaseModel):
         try:
             return LlmFactory.find_llm_id_from_tag(llm)
         except ValueError as ex:
+            if _is_litellm(llm):
+                raise NotImplementedError("Support of LiteLLM model names not et implemented") from ex
             # If not a tag either, give a helpful error message
             raise ValueError(
                 f"Unknown LLM identifier '{llm}'. It is neither a valid LLM ID nor a valid LLM tag. "
@@ -518,7 +533,13 @@ class LlmFactory(BaseModel):
                 do_sample=False,
             )  # type: ignore
             return ChatHuggingFace(llm=llm)
+        elif self.info.provider == "litellm":
+            from langchain_litellm import ChatLiteLLM
 
+            llm = ChatLiteLLM(
+                model=self.info.model,
+                **llm_params,
+            )
         elif self.info.provider == "custom":
             # to be used for vLLM and other providers that comply with OpenAI API
 

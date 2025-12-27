@@ -27,10 +27,7 @@ import typer
 from loguru import logger
 from pydantic import BaseModel
 
-from genai_tk.extra.structured.baml_processor import BamlStructuredProcessor
-from genai_tk.extra.structured.baml_util import baml_invoke
 from genai_tk.main.cli import CliTopCommand
-from genai_tk.utils.pydantic.kv_store import PydanticStore
 
 LLM_ID = None
 KV_STORE_ID = "default"
@@ -38,6 +35,8 @@ KV_STORE_ID = "default"
 
 def check_kvstore_key_exists(key: str, model_cls: type[BaseModel], kvstore_id: str = KV_STORE_ID) -> bool:
     """Check if a key already exists in the KV store."""
+    from genai_tk.utils.pydantic.kv_store import PydanticStore
+
     store = PydanticStore(kvstore_id=kvstore_id, model=model_cls)
     cached_obj = store.load_object(key)
     return cached_obj is not None
@@ -45,6 +44,8 @@ def check_kvstore_key_exists(key: str, model_cls: type[BaseModel], kvstore_id: s
 
 def save_to_kvstore(key: str, obj: BaseModel, kvstore_id: str = KV_STORE_ID) -> None:
     """Save a Pydantic object to the KV store."""
+    from genai_tk.utils.pydantic.kv_store import PydanticStore
+
     store = PydanticStore(kvstore_id=kvstore_id, model=obj.__class__)
     store.save_obj(key, obj)
     logger.success(f"Saved to KV store with key: {key}")
@@ -100,6 +101,8 @@ class BamlCommands(CliTopCommand):
             param_dict = {"__input__": input_text} if input_text else {}
 
             # Execute the function using baml_invoke
+            from genai_tk.extra.structured.baml_util import baml_invoke
+
             try:
                 result = asyncio.run(baml_invoke(function_name, param_dict, config_name, llm))
             except Exception as e:
@@ -206,6 +209,8 @@ class BamlCommands(CliTopCommand):
                 logger.info(f"Using LLM: {llm}")
 
             # Create BAML processor - model_cls will be deduced from first result
+            from genai_tk.extra.structured.baml_processor import BamlStructuredProcessor
+
             processor = BamlStructuredProcessor(
                 function_name=function_name,
                 config_name=config_name,

@@ -466,19 +466,26 @@ def global_config_reload():
 def import_from_qualified(qualified_name: str) -> Callable:
     """Dynamically import and return a function, class, or object by its qualified name.
 
-    The configuration value should be a string in the format 'module.submodule:function_or_class_name'.
-    This method handles the import and returns the requested object.
+    The configuration value can be:
+    - Fully qualified: 'module.submodule:function_or_class_name'
+    - Short class name: 'ClassName' (will search for the class in the project)
+
+    If a short name is provided and multiple classes with that name exist, raises ValueError.
 
     Examples:
         ```python
-        #
+        # Fully qualified name
         historical_price_func = import_from_qualified("src.ai_extra.smolagents_tools:get_historical_price")
         df = historical_price_func("AAPL", date(2024,1,1), date(2024,12,31))
+
+        # Short class name (searches project automatically)
+        subgraph_class = import_from_qualified("CrmExtractSubGraph")
         ```
 
     """
     if ":" not in qualified_name:
-        raise ValueError(f"Invalid format for '{qualified_name}'. Expected format: 'module.submodule:object_name'")
+        # Short name provided - search for the class in the project
+        return _import_from_short_name(qualified_name)
 
     module_path, object_name = qualified_name.split(":", 1)
 
@@ -491,6 +498,84 @@ def import_from_qualified(qualified_name: str) -> Callable:
         raise AttributeError(
             f"Cannot find object '{object_name}' in module '{module_path}' for {qualified_name}': {e}"
         ) from e
+
+
+def _import_from_short_name(class_name: str) -> Callable:
+    """Find and import a class by its short name by searching the project.
+
+    Searches for Python files containing the class definition and imports it.
+    Raises ValueError if zero or multiple matches are found.
+
+    Args:
+        class_name: The short class name to search for (e.g., "CrmExtractSubGraph")
+
+    Returns:
+        The imported class
+
+    Raises:
+        ValueError: If no class found or multiple classes with the same name exist
+    """
+    import ast
+    from pathlib import Path
+
+    # Determine the project root (look for common markers)
+    current_dir = Path.cwd()
+    project_root = current_dir
+
+    # Look for project markers
+    for parent in [current_dir] + list(current_dir.parents):
+        if (parent / "pyproject.toml").exists() or (parent / "setup.py").exists():
+            project_root = parent
+            break
+
+    matches = []
+
+    # Search for Python files in the project
+    for py_file in project_root.rglob("*.py"):
+        # Skip virtual environments and common excluded directories
+        if any(part in py_file.parts for part in [".venv", "venv", "__pycache__", ".git", "node_modules", ".eggs"]):
+            continue
+
+        try:
+            content = py_file.read_text(encoding="utf-8")
+            tree = ast.parse(content)
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef) and node.name == class_name:
+                    # Found a matching class
+                    # Convert file path to module path
+                    rel_path = py_file.relative_to(project_root)
+                    module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
+                    module_path = ".".join(module_parts)
+
+                    matches.append((module_path, class_name, py_file))
+                    break  # Only one class definition per file with this name
+        except (SyntaxError, UnicodeDecodeError):
+            # Skip files that can't be parsed
+            continue
+
+    if len(matches) == 0:
+        raise ValueError(
+            f"No class named '{class_name}' found in the project. "
+            f"Please use the fully qualified format 'module.path:ClassName'"
+        )
+
+    if len(matches) > 1:
+        match_details = "\n".join([f"  - {m[0]}:{m[1]} (in {m[2]})" for m in matches])
+        raise ValueError(
+            f"Multiple classes named '{class_name}' found in the project:\n{match_details}\n"
+            f"Please use the fully qualified format to specify which one you want."
+        )
+
+    # Single match found - import it
+    module_path, object_name, _ = matches[0]
+    try:
+        module = importlib.import_module(module_path)
+        return getattr(module, object_name)
+    except ImportError as e:
+        raise ImportError(f"Cannot import module '{module_path}' for class '{class_name}': {e}") from e
+    except AttributeError as e:
+        raise AttributeError(f"Cannot find class '{object_name}' in module '{module_path}': {e}") from e
 
 
 ## for quick test ##
