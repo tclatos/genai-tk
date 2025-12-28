@@ -61,6 +61,7 @@ async def _prepare_rich_agent(
     system_prompt: str | None = None,
     console: Console | None = None,
     use_memory: bool = False,
+    single_tool_mode: bool = False,
 ) -> tuple[BaseChatModel, object, MultiServerMCPClient | None, list[BaseTool]]:
     """Create a LangChain agent with optional MCP tools and Rich middleware.
 
@@ -79,7 +80,7 @@ async def _prepare_rich_agent(
             all_tools.extend(mcp_tools)
             rich_console.print("[green]✓ MCP servers connected[/green]\n")
 
-    middleware = create_rich_agent_middlewares(console=rich_console)
+    middleware = create_rich_agent_middlewares(console=rich_console, single_tool_mode=single_tool_mode)
 
     agent_kwargs: dict = {
         "model": model,
@@ -198,11 +199,20 @@ async def run_langchain_agent_direct(
     mcp_server_names: list[str] | None = None,
     additional_tools: list[BaseTool] | None = None,
     pre_prompt: str | None = None,
+    single_tool_mode: bool = False,
 ) -> None:
     """Execute a single query using MCP tools with a ReAct agent and Rich output.
 
     This function consolidates the one-shot ReAct agent previously implemented
     as `call_react_agent` in `genai_tk.core.mcp_client`.
+
+    Args:
+        query: The user query to execute
+        llm_id: Optional ID of the language model to use
+        mcp_server_names: Optional list of MCP server names to include
+        additional_tools: Optional list of additional tools to provide to the agent
+        pre_prompt: Optional system prompt
+        single_tool_mode: If True, agent will stop after calling one tool and return raw result
     """
     from loguru import logger
 
@@ -216,12 +226,34 @@ async def run_langchain_agent_direct(
         system_prompt=pre_prompt,
         console=console,
         use_memory=False,
+        single_tool_mode=single_tool_mode,
     )
 
     try:
         tool_names = [getattr(t, "name", str(type(t).__name__)) for t in all_tools]
         logger.info(f"ReAct agent created with {len(all_tools)} tools: {', '.join(tool_names)}")
 
+        # In single-tool mode, use direct executor (pragmatic approach)
+        if single_tool_mode and len(all_tools) == 1:
+            from genai_tk.cli.rich_langchain_middleware import (
+                RichToolCallMiddleware,
+                SingleToolExecutorMiddleware,
+            )
+
+            executor = SingleToolExecutorMiddleware()
+            rich_middleware = RichToolCallMiddleware(console=console)
+
+            # Execute tool with Rich display via middleware
+            await executor.execute_single_tool(
+                tool=all_tools[0],
+                model=model,
+                query=query,
+                pre_prompt=pre_prompt,
+                tool_wrapper=rich_middleware.awrap_tool_call,
+            )
+            return
+
+        # Normal agent flow
         messages: list[HumanMessage] = []
         if pre_prompt:
             messages.append(HumanMessage(content=pre_prompt))
