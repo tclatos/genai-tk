@@ -26,7 +26,9 @@ from typing import Annotated
 import typer
 from loguru import logger
 from pydantic import BaseModel
+from upath import UPath
 
+from genai_tk.extra.prefect.runtime import run_flow_ephemeral
 from genai_tk.main.cli import CliTopCommand
 
 LLM_ID = None
@@ -226,3 +228,87 @@ class BamlCommands(CliTopCommand):
             logger.success(
                 f"BAML-based project extraction complete. {len(md_files)} files processed. Results saved to KV Store"
             )
+
+        @cli_app.command("prefect-extract")
+        def prefect_extract(
+            source: Annotated[
+                str,
+                typer.Argument(
+                    help=(
+                        "Markdown file or directory to process. "
+                        "Can be a local path or a remote URI supported by UPath."
+                    ),
+                ),
+            ],
+            recursive: bool = typer.Option(False, help="Search for files recursively"),
+            batch_size: int = typer.Option(5, help="Number of files to process concurrently in each batch"),
+            force: bool = typer.Option(False, "--force", help="Reprocess files even if unchanged in manifest"),
+            function_name: Annotated[
+                str,
+                typer.Option(
+                    "--function",
+                    help="BAML function name (e.g., ExtractRainbow, ExtractResume)",
+                ),
+            ] = "ExtractRainbow",
+            config_name: Annotated[
+                str,
+                typer.Option(
+                    "--config",
+                    help=(
+                        "Name of the structured config to use from YAML config "
+                        "(for example 'default' or 'rainbow')."
+                    ),
+                ),
+            ] = "default",
+            llm: Annotated[
+                str | None,
+                typer.Option(help="Name or tag of the LLM to use by BAML"),
+            ] = None,
+        ) -> None:
+            """Run BAML extraction as a Prefect flow and write JSON files.
+
+            The Prefect-powered variant discovers Markdown files under ``source``,
+            skips files that are unchanged according to a manifest stored in the
+            target directory, and processes the remaining files in parallel
+            batches using a thread-based task runner.
+
+            Example:
+            ```bash
+            uv run cli baml prefect-extract ./reviews --recursive \
+                --function ExtractRainbow --config default --force
+            ```
+            """
+
+            os.environ["BAML_LOG"] = "warn"
+
+            root = UPath(source)
+            if not root.exists():
+                logger.error(f"Source path does not exist: {root}")
+                raise typer.Exit(1)
+
+            if llm:
+                logger.info(f"Using LLM: {llm}")
+
+            logger.info(
+                f"Starting Prefect-based BAML extraction for '{root}' "
+                f"with function '{function_name}' and config '{config_name}'",
+            )
+
+            from genai_tk.extra.structured.baml_prefect_flow import baml_structured_extraction_flow
+
+            try:
+                run_flow_ephemeral(
+                    baml_structured_extraction_flow,
+                    source=str(root),
+                    recursive=recursive,
+                    batch_size=batch_size,
+                    force=force,
+                    function_name=function_name,
+                    config_name=config_name,
+                    llm=llm,
+                )
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.error(f"Prefect-based BAML extraction failed: {exc}")
+                raise typer.Exit(1) from exc
+
+            logger.success("Prefect-based BAML extraction completed successfully")
