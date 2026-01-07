@@ -255,7 +255,6 @@ async def mcp_agent_runner(
         return result["messages"][-1].content
 
 
-
 if __name__ == "__main__":
     examples = [
         "what's the weather in Toulouse ? ",

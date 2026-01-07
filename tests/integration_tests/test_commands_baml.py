@@ -68,7 +68,9 @@ class TestBamlInvokeFunction:
 
         # Verify content relates to input
         name_lower = result.name.lower()
-        assert any(skill.lower() in ["python", "machine learning", "data", "statistics", "sql"] for skill in result.skills)
+        assert any(
+            skill.lower() in ["python", "machine learning", "data", "statistics", "sql"] for skill in result.skills
+        )
 
     @pytest.mark.network
     def test_baml_invoke_with_extract_resume_default_llm(self):

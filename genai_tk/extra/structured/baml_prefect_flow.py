@@ -19,7 +19,6 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from hashlib import sha256
 from typing import Any
 
 from loguru import logger
@@ -30,12 +29,12 @@ from upath import UPath
 
 from genai_tk.extra.structured.baml_util import baml_invoke
 from genai_tk.utils.file_patterns import resolve_files
+from genai_tk.utils.hashing import buffer_digest
 
 
 class BamlExtractionManifestEntry(BaseModel):
     """Single processed file entry in the extraction manifest."""
 
-    source_path: str
     source_hash: str
     output_path: str
     processed_at: datetime
@@ -58,15 +57,8 @@ class _FileToProcess:
     content_text: str
 
 
-def _encode_path_to_filename(source_path: str) -> str:
-    """Encode source path into a filesystem-friendly JSON file name."""
-
-    safe = source_path.replace("\\", "_").replace("/", "_")
-    return f"{safe}.json"
-
-
 def _compute_hash(content: bytes) -> str:
-    return sha256(content).hexdigest()
+    return buffer_digest(content)
 
 
 def _load_manifest(manifest_path: UPath) -> BamlExtractionManifest | None:
@@ -136,11 +128,11 @@ def _prepare_files(
     for path in files:
         try:
             content_bytes = path.read_bytes()
+            content_hash = _compute_hash(content_bytes)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error(f"Error reading {path}: {exc}")
             continue
 
-        content_hash = _compute_hash(content_bytes)
         key = str(path)
         existing = manifest.entries.get(key)
 
@@ -167,10 +159,11 @@ async def _process_single_file_task(
     config_name: str,
     llm: str | None,
     structured_root: str,
-) -> tuple[BamlExtractionManifestEntry, str | None]:
+    root_dir: str,
+) -> tuple[str, BamlExtractionManifestEntry, str | None]:
     """Run BAML on a single file and persist result as JSON.
 
-    Returns a tuple of the new manifest entry and the detected model name.
+    Returns a tuple of (source_path, manifest_entry, model_name).
     """
 
     upath = file_info.path
@@ -194,21 +187,32 @@ async def _process_single_file_task(
 
     output_root.mkdir(parents=True, exist_ok=True)
 
-    output_filename = _encode_path_to_filename(str(upath))
-    output_path = output_root / output_filename
+    # Preserve directory structure: compute relative path from root_dir to source file
+    root_dir_path = UPath(root_dir)
+    try:
+        relative_source_path = upath.relative_to(root_dir_path)
+    except ValueError:
+        # If file is not under root_dir, use just the filename
+        relative_source_path = UPath(upath.name)
+
+    # Change extension to .json and maintain directory structure
+    relative_output_path = relative_source_path.with_suffix(".json")
+    output_path = output_root / relative_output_path
+
+    # Ensure parent directories exist
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     output_path.write_text(json_text, encoding="utf-8")
 
     entry = BamlExtractionManifestEntry(
-        source_path=str(upath),
         source_hash=file_info.content_hash,
-        output_path=str(output_path),
+        output_path=str(relative_output_path),
         processed_at=datetime.now(timezone.utc),
     )
 
     logger.success(f"Wrote structured output to {output_path}")
 
-    return entry, model_name
+    return str(upath), entry, model_name
 
 
 def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
@@ -317,6 +321,7 @@ def baml_structured_extraction_flow(
                 config_name=config_name,
                 llm=llm,
                 structured_root=str(structured_root_upath),
+                root_dir=root_dir,
             )
             for file_info in batch
         ]
@@ -325,10 +330,10 @@ def baml_structured_extraction_flow(
             result = future.result()  # type: ignore[misc]
             # Handle both sync and async results from Prefect tasks
             if asyncio.iscoroutine(result):
-                entry, model_name = asyncio.run(result)  # type: ignore[misc]
+                source_path, entry, model_name = asyncio.run(result)  # type: ignore[misc]
             else:
-                entry, model_name = result  # type: ignore[misc]
-            all_entries[entry.source_path] = entry
+                source_path, entry, model_name = result  # type: ignore[misc]
+            all_entries[source_path] = entry
             if model_name and detected_model_name is None:
                 detected_model_name = model_name
 

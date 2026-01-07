@@ -29,7 +29,9 @@ class _DummyModel(BaseModel):
     value: str
 
 
-def _patch_flow_dependencies(tmp_path, monkeypatch) -> tuple[list[tuple[str, dict[str, Any], str, str | None]], Callable[..., Any]]:
+def _patch_flow_dependencies(
+    tmp_path, monkeypatch
+) -> tuple[list[tuple[str, dict[str, Any], str, str | None]], Callable[..., Any]]:
     """Patch global_config and baml_invoke for the flow tests.
 
     Returns a tuple (calls, fake_baml_invoke) so tests can assert call counts.
@@ -43,7 +45,9 @@ def _patch_flow_dependencies(tmp_path, monkeypatch) -> tuple[list[tuple[str, dic
 
     calls: list[tuple[str, dict[str, Any], str, str | None]] = []
 
-    async def fake_baml_invoke(function_name: str, params: dict[str, Any], config_name: str, llm: str | None) -> _DummyModel:
+    async def fake_baml_invoke(
+        function_name: str, params: dict[str, Any], config_name: str, llm: str | None
+    ) -> _DummyModel:
         calls.append((function_name, params, config_name, llm))
         return _DummyModel(value="ok")
 

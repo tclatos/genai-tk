@@ -421,6 +421,24 @@ class InfoCommands(CliTopCommand):
             if include_patterns is None:
                 include_patterns = ["*"]
 
+            # Validate patterns before use
+            def validate_pattern(pattern: str, pattern_type: str) -> None:
+                """Validate that a glob pattern is valid for pathlib operations."""
+                if pattern.startswith("/"):
+                    logger.error(
+                        f"Invalid {pattern_type} pattern '{pattern}': "
+                        f"Patterns must be relative (cannot start with '/'). "
+                        f"Use '{pattern.lstrip('/')}' instead."
+                    )
+                    raise typer.Exit(1)
+
+            # Validate all patterns
+            for pattern in include_patterns:
+                validate_pattern(pattern, "include")
+            if exclude_patterns:
+                for pattern in exclude_patterns:
+                    validate_pattern(pattern, "exclude")
+
             logger.info(f"Include patterns: {include_patterns}")
             if exclude_patterns:
                 logger.info(f"Exclude patterns: {exclude_patterns}")
@@ -461,18 +479,45 @@ class InfoCommands(CliTopCommand):
             # Collect matching files and directories
             all_entries = []
 
-            if recursive:
-                # Use rglob for recursive listing
-                for pattern in include_patterns:
-                    for entry in target_path.rglob(pattern):
-                        if should_include(entry):
-                            all_entries.append(entry)
-            else:
-                # Use glob for non-recursive listing
-                for pattern in include_patterns:
-                    for entry in target_path.glob(pattern):
-                        if should_include(entry):
-                            all_entries.append(entry)
+            try:
+                if recursive:
+                    # Use rglob for recursive listing
+                    for pattern in include_patterns:
+                        try:
+                            for entry in target_path.rglob(pattern):
+                                if should_include(entry):
+                                    all_entries.append(entry)
+                        except NotImplementedError:
+                            logger.error(
+                                f"Pattern '{pattern}' is not supported for recursive glob. "
+                                f"Ensure the pattern is relative (doesn't start with '/')."
+                            )
+                            raise typer.Exit(1) from None
+                        except ValueError as e:
+                            logger.error(f"Invalid pattern '{pattern}': {e}")
+                            raise typer.Exit(1) from e
+                else:
+                    # Use glob for non-recursive listing
+                    for pattern in include_patterns:
+                        try:
+                            for entry in target_path.glob(pattern):
+                                if should_include(entry):
+                                    all_entries.append(entry)
+                        except NotImplementedError:
+                            logger.error(
+                                f"Pattern '{pattern}' is not supported for glob. "
+                                f"Ensure the pattern is relative (doesn't start with '/')."
+                            )
+                            raise typer.Exit(1) from None
+                        except ValueError as e:
+                            logger.error(f"Invalid pattern '{pattern}': {e}")
+                            raise typer.Exit(1) from e
+            except PermissionError as e:
+                logger.error(f"Permission denied while accessing directory: {e}")
+                raise typer.Exit(1) from e
+            except OSError as e:
+                logger.error(f"OS error while listing directory: {e}")
+                raise typer.Exit(1) from e
 
             # Remove duplicates and sort
             all_entries = sorted(set(all_entries))
