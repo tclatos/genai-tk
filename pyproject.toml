@@ -64,6 +64,7 @@ dependencies = [
     "ddgs>=9.7.0",
     "langchain-litellm>=0.3.2",
     "prefect>=3.6.7",
+    "xxhash>=3.6.0",
 ]
 
 [project.urls]

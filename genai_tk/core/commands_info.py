@@ -1,16 +1,16 @@
-"""CLI commands for interacting with AI Core functionality.
+"""CLI commands for information and utility operations.
 
 This module provides command-line interface commands for:
-- Running LLMs directly
-- Executing registered Runnable chains
-- Getting information about available models and chains
-- Working with embeddings
+- Displaying system information (config, models, tools)
+- Listing directory contents with pattern matching
+- Managing command registry
+- MCP tools inspection
 
 The commands are registered with a Typer CLI application and provide:
-- Input/output handling (including stdin)
-- Configuration of LLM parameters
-- Streaming support
-- Caching options
+- Configuration display and validation
+- Model and component listing
+- Directory listing with glob pattern support
+- Path resolution utilities
 """
 
 import os
@@ -331,3 +331,208 @@ class InfoCommands(CliTopCommand):
                 cli_app,
                 title="[bold cyan]📋 CLI Command Structure[/bold cyan]",
             )
+
+        @cli_app.command("ls")
+        def ls(
+            target_dir: Annotated[
+                str,
+                typer.Argument(
+                    help=("Directory to list. Supports config variables like ${paths.data_root}"),
+                ),
+            ],
+            include_patterns: Annotated[
+                list[str] | None,
+                typer.Option(
+                    "--include",
+                    "-i",
+                    help="Glob patterns to include (e.g., '*.py', 'test_*.py'). Default: ['*']",
+                ),
+            ] = None,
+            exclude_patterns: Annotated[
+                list[str] | None,
+                typer.Option(
+                    "--exclude",
+                    "-e",
+                    help="Glob patterns to exclude (e.g., '__pycache__', '*.pyc')",
+                ),
+            ] = None,
+            recursive: bool = typer.Option(False, "--recursive", "-r", help="List directories recursively"),
+            show_hidden: bool = typer.Option(False, "--all", "-a", help="Include hidden files (starting with .)"),
+            long_format: bool = typer.Option(False, "--long", "-l", help="Use long listing format with details"),
+        ) -> None:
+            """List directory contents with pattern matching and path resolution.
+
+            This command lists files and directories with support for:
+            - Configuration variable substitution (e.g., ${paths.data_root})
+            - Include/exclude glob patterns
+            - Recursive directory traversal
+            - Hidden file filtering
+
+            Primarily used to test path resolving and pattern matching capabilities.
+
+            Examples:
+                ```bash
+                # List all files in a directory
+                cli info ls ./src
+
+                # Use config variables
+                cli info ls '${paths.data_root}'
+
+                # List only Python files recursively
+                cli info ls ./src --include '*.py' --recursive
+
+                # Exclude test and cache files
+                cli info ls ./src --recursive \\
+                    --include '*.py' \\
+                    --exclude 'test_*.py' --exclude '__pycache__'
+
+                # Long format with all files
+                cli info ls ./src --long --all
+
+                # Multiple include patterns
+                cli info ls ./docs --include '*.md' --include '*.rst' --recursive
+                ```
+            """
+            from pathlib import Path
+
+            from loguru import logger
+            from rich.console import Console
+            from rich.table import Table
+
+            from genai_tk.utils.file_patterns import resolve_config_path
+
+            console = Console()
+
+            # Resolve config variables in the path
+            resolved_dir = resolve_config_path(target_dir)
+            logger.info(f"Resolved path: {target_dir} → {resolved_dir}")
+
+            target_path = Path(resolved_dir)
+
+            if not target_path.exists():
+                logger.error(f"Path does not exist: {resolved_dir}")
+                raise typer.Exit(1)
+
+            if not target_path.is_dir():
+                logger.error(f"Path is not a directory: {resolved_dir}")
+                raise typer.Exit(1)
+
+            # Default include patterns to all files if not specified
+            if include_patterns is None:
+                include_patterns = ["*"]
+
+            logger.info(f"Include patterns: {include_patterns}")
+            if exclude_patterns:
+                logger.info(f"Exclude patterns: {exclude_patterns}")
+
+            # Collect files matching patterns
+            from fnmatch import fnmatch
+
+            def matches_patterns(file_path: Path, patterns: list[str]) -> bool:
+                """Check if file matches any of the given patterns."""
+                name = file_path.name
+                # Also check against relative path for recursive matches
+                try:
+                    rel_path = str(file_path.relative_to(target_path))
+                except ValueError:
+                    rel_path = str(file_path)
+
+                for pattern in patterns:
+                    if fnmatch(name, pattern) or fnmatch(rel_path, pattern):
+                        return True
+                return False
+
+            def should_include(file_path: Path) -> bool:
+                """Determine if file should be included based on patterns."""
+                # Check hidden files
+                if not show_hidden and file_path.name.startswith("."):
+                    return False
+
+                # Check include patterns
+                if not matches_patterns(file_path, include_patterns):
+                    return False
+
+                # Check exclude patterns
+                if exclude_patterns and matches_patterns(file_path, exclude_patterns):
+                    return False
+
+                return True
+
+            # Collect matching files and directories
+            all_entries = []
+
+            if recursive:
+                # Use rglob for recursive listing
+                for pattern in include_patterns:
+                    for entry in target_path.rglob(pattern):
+                        if should_include(entry):
+                            all_entries.append(entry)
+            else:
+                # Use glob for non-recursive listing
+                for pattern in include_patterns:
+                    for entry in target_path.glob(pattern):
+                        if should_include(entry):
+                            all_entries.append(entry)
+
+            # Remove duplicates and sort
+            all_entries = sorted(set(all_entries))
+
+            if not all_entries:
+                logger.warning(f"No files found matching patterns in {resolved_dir}")
+                return
+
+            # Display results
+            if long_format:
+                # Long format with details
+                table = Table(
+                    title=f"📂 Directory listing: {resolved_dir}",
+                    show_header=True,
+                    header_style="bold magenta",
+                )
+                table.add_column("Type", style="cyan", width=6)
+                table.add_column("Name", style="green")
+                table.add_column("Size", style="yellow", justify="right")
+                table.add_column("Modified", style="blue")
+
+                for entry in all_entries:
+                    import datetime
+
+                    entry_type = "DIR" if entry.is_dir() else "FILE"
+                    size = "" if entry.is_dir() else f"{entry.stat().st_size:,}"
+                    mtime = datetime.datetime.fromtimestamp(entry.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+
+                    # Show relative path if recursive, otherwise just name
+                    if recursive:
+                        try:
+                            display_name = str(entry.relative_to(target_path))
+                        except ValueError:
+                            display_name = entry.name
+                    else:
+                        display_name = entry.name
+
+                    table.add_row(entry_type, display_name, size, mtime)
+
+                console.print(table)
+                console.print(f"\n[bold]Total:[/bold] {len(all_entries)} entries")
+
+            else:
+                # Simple format - just names
+                console.print(f"[bold cyan]📂 Directory:[/bold cyan] {resolved_dir}\n")
+
+                for entry in all_entries:
+                    # Show relative path if recursive, otherwise just name
+                    if recursive:
+                        try:
+                            display_name = str(entry.relative_to(target_path))
+                        except ValueError:
+                            display_name = entry.name
+                    else:
+                        display_name = entry.name
+
+                    # Add indicator for directories
+                    if entry.is_dir():
+                        console.print(f"[cyan]{display_name}/[/cyan]")
+                    else:
+                        console.print(display_name)
+
+                console.print(f"\n[bold]Total:[/bold] {len(all_entries)} entries")

@@ -138,11 +138,9 @@ class PydanticStore(BaseModel):
                 setattr(model_instance, "_metadata", {"legacy": True})  # noqa: B010
                 return model_instance
 
-        except ValidationError as ex:
-            logger.warning(f"failed to load JSON value for {self.model.__name__}/{encoded_key}. Error is : {ex}")
-            return None
         except Exception as ex:
-            logger.warning(f"failed to load JSON value for {self.model.__name__}/{encoded_key}. Exception is : {ex}")
+            # logger.warning(f"failed to load JSON value for {self.model.__name__}/{encoded_key}. Exception is : {ex}")
+            raise ex
             return None
 
 

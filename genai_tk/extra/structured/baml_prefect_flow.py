@@ -8,12 +8,13 @@ avoid duplicate processing.
 Typical usage from the CLI is similar to:
 
 ```bash
-uv run cli baml prefect-extract /path/to/docs --function ExtractRainbow --force
+uv run cli baml prefect /path/to/docs --function ExtractRainbow --force
 ```
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -23,12 +24,12 @@ from typing import Any
 
 from loguru import logger
 from prefect import flow, task
-from prefect.task_runners import ConcurrentTaskRunner
+from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
 from pydantic import BaseModel, Field
 from upath import UPath
 
 from genai_tk.extra.structured.baml_util import baml_invoke
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.file_patterns import resolve_files
 
 
 class BamlExtractionManifestEntry(BaseModel):
@@ -111,23 +112,17 @@ def _find_existing_manifest(
         manifest = _load_manifest(candidate)
         if manifest is None:
             continue
-        if (
-            manifest.function_name == function_name
-            and manifest.config_name == config_name
-            and manifest.llm == llm
-        ):
+        if manifest.function_name == function_name and manifest.config_name == config_name and manifest.llm == llm:
             return manifest, candidate
 
     return None, None
 
 
-def _iter_markdown_files(root: UPath, recursive: bool) -> Iterable[UPath]:
-    pattern = "*.[mM][dD]"
-    if root.is_file() and root.suffix.lower() in {".md", ".markdown"}:
-        yield root
-    elif root.is_dir():
-        iterator = root.rglob(pattern) if recursive else root.glob(pattern)
-        yield from iterator
+def _iter_markdown_files(files: list[UPath]) -> Iterable[UPath]:
+    """Yield markdown files from a pre-resolved list."""
+    for path in files:
+        if path.suffix.lower() in {".md", ".markdown"}:
+            yield path
 
 
 def _prepare_files(
@@ -224,35 +219,64 @@ def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
         yield items[i : i + size]
 
 
-@flow(name="baml_structured_extraction", task_runner=ConcurrentTaskRunner())
+@flow(name="baml_structured_extraction", task_runner=ConcurrentTaskRunner())  # type: ignore[call-arg]
 def baml_structured_extraction_flow(
-    source: str,
+    root_dir: str,
+    output_dir: str,
     *,
-    recursive: bool,
-    batch_size: int,
-    force: bool,
+    include_patterns: list[str] | None = None,
+    exclude_patterns: list[str] | None = None,
+    recursive: bool = False,
+    batch_size: int = 5,
+    force: bool = False,
     function_name: str,
-    config_name: str,
+    config_name: str = "default",
     llm: str | None = None,
 ) -> BamlExtractionManifest:
     """Run BAML structured extraction as a Prefect flow.
 
-    The flow discovers Markdown files under ``source``, skips files whose
-    content hash is unchanged according to the manifest, processes the
-    remaining files in parallel batches, and updates the manifest.
+    Args:
+        root_dir: Root directory to search for files (supports config variables)
+        output_dir: Directory to write output files and manifest (supports config variables)
+        include_patterns: List of glob patterns to include (default: ["*.md"])
+        exclude_patterns: List of glob patterns to exclude (default: None)
+        recursive: Search recursively in subdirectories
+        batch_size: Number of files to process concurrently per batch
+        force: Reprocess files even if unchanged in manifest
+        function_name: BAML function name to invoke
+        config_name: Configuration name from YAML config
+        llm: Optional LLM identifier
+
+    Returns:
+        Updated manifest with processing results
     """
 
-    cfg = global_config()
-    data_root = cfg.get_dir_path("paths.data_root", create_if_not_exists=True)
-    structured_root = data_root / "structured"
+    # Resolve file list using utility function
+    file_paths = resolve_files(
+        root_dir,
+        include_patterns=include_patterns,
+        exclude_patterns=exclude_patterns,
+        recursive=recursive,
+    )
 
-    root = UPath(source)
-    if not root.exists():
-        msg = f"Source path does not exist: {root}"
-        logger.error(msg)
-        raise FileNotFoundError(msg)
+    if not file_paths:
+        logger.warning("No files found to process")
+        # Return empty manifest
+        return BamlExtractionManifest(
+            function_name=function_name,
+            config_name=config_name,
+            llm=llm,
+        )
 
-    structured_root_upath = UPath(structured_root)
+    logger.info(f"Discovered {len(file_paths)} files to process")
+
+    # Resolve output directory
+    from genai_tk.utils.file_patterns import resolve_config_path
+
+    resolved_output = resolve_config_path(output_dir)
+    structured_root_upath = UPath(resolved_output)
+    structured_root_upath.mkdir(parents=True, exist_ok=True)
+
     manifest, manifest_path = _find_existing_manifest(
         structured_root_upath,
         function_name=function_name,
@@ -260,9 +284,6 @@ def baml_structured_extraction_flow(
         llm=llm,
     )
 
-    # If no manifest exists yet, start with an empty one so that
-    # _prepare_files builds the list of files to process without any
-    # deduplication on the first run.
     if manifest is None:
         manifest = BamlExtractionManifest(
             function_name=function_name,
@@ -270,12 +291,8 @@ def baml_structured_extraction_flow(
             llm=llm,
         )
 
-    files = list(_iter_markdown_files(root, recursive=recursive))
-    if not files:
-        logger.warning("No Markdown files found to process")
-        return manifest
-
-    logger.info(f"Discovered {len(files)} Markdown files under {root}")
+    # Convert Path objects to UPath for processing
+    files = list(_iter_markdown_files([UPath(p) for p in file_paths]))
 
     to_process, skipped = _prepare_files(files, manifest, force=force)
 
@@ -299,13 +316,18 @@ def baml_structured_extraction_flow(
                 function_name=function_name,
                 config_name=config_name,
                 llm=llm,
-                structured_root=str(structured_root),
+                structured_root=str(structured_root_upath),
             )
             for file_info in batch
         ]
 
         for future in futures:
-            entry, model_name = future.result()
+            result = future.result()  # type: ignore[misc]
+            # Handle both sync and async results from Prefect tasks
+            if asyncio.iscoroutine(result):
+                entry, model_name = asyncio.run(result)  # type: ignore[misc]
+            else:
+                entry, model_name = result  # type: ignore[misc]
             all_entries[entry.source_path] = entry
             if model_name and detected_model_name is None:
                 detected_model_name = model_name

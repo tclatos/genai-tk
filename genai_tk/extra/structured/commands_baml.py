@@ -1,34 +1,35 @@
 """BAML-based version of structured extraction CLI commands.
 
-
-
 Usage Examples:
     ```bash
     # Extract structured data from Markdown files using BAML
-    uv run cli baml extract file.md --baml ReviewedOpportunity:ExtractRainbow --force
+    uv run cli baml extract ./docs ./output --recursive --function ExtractRainbow --force
 
-    # Process recursively with custom settings
-    uv run cli baml extract ./reviews/ --recursive --batch-size 10 --force --baml ReviewedOpportunity:ExtractRainbow
+    # Use config variables for paths
+    uv run cli baml extract '${paths.data_root}/reviews' '${paths.data_root}/structured' \\
+        --recursive --batch-size 10 --force --function ExtractRainbow
+
+    # Custom include/exclude patterns
+    uv run cli baml extract ./reports ./output \\
+        --include 'report_*.md' --include 'summary_*.md' \\
+        --exclude '*_draft.md' --recursive
     ```
 
 Data Flow:
     1. Markdown files → BAML function → model instances
-    2. Model instances → KV Store → JSON structured data
-    3. Processed data → Available for EKG agent querying
+    2. Model instances → JSON structured data → output directory
+    3. Manifest tracks processed files → enables incremental processing
 """
 
 import asyncio
 import os
 import sys
-from pathlib import Path
 from typing import Annotated
 
 import typer
 from loguru import logger
 from pydantic import BaseModel
-from upath import UPath
 
-from genai_tk.extra.prefect.runtime import run_flow_ephemeral
 from genai_tk.main.cli import CliTopCommand
 
 LLM_ID = None
@@ -132,114 +133,158 @@ class BamlCommands(CliTopCommand):
             else:
                 print(result)
 
+        # @cli_app.command("extract")
+        # def extract(
+        #     file_or_dir: Annotated[
+        #         str,
+        #         typer.Argument(
+        #             help="Markdown file(s), directory, or glob pattern (e.g., /path/*.md, /path/**/*.md)",
+        #         ),
+        #     ],
+        #     recursive: bool = typer.Option(False, help="Search for files recursively"),
+        #     batch_size: int = typer.Option(5, help="Number of files to process in each batch"),
+        #     force: bool = typer.Option(False, "--force", help="Overwrite existing KV entries"),
+        #     function_name: Annotated[
+        #         str,
+        #         typer.Option(
+        #             "--function",
+        #             help="BAML function name (e.g., ExtractRainbow, ExtractResume)",
+        #         ),
+        #     ] = "ExtractRainbow",
+        #     config_name: Annotated[
+        #         str,
+        #         typer.Option(
+        #             "--config",
+        #             help="Name of the structured config to use from yaml config (e.g., 'default', 'rainbow')",
+        #         ),
+        #     ] = "default",
+        #     llm: Annotated[
+        #         str | None,
+        #         typer.Option(help="Name or tag of the LLM to use by BAML"),
+        #     ] = None,
+        # ) -> None:
+        #     """Extract structured project data from Markdown files using BAML and save as JSON in a KV store.
+
+        #     This command uses BAML-generated functions to extract data from markdown files.
+        #     The return type is automatically deduced from the BAML function signature.
+
+        #     Supports glob patterns for flexible file matching:
+        #     - Single file: file.md
+        #     - Multiple files: /path/*.md
+        #     - Recursive: /path/**/*.md (requires --recursive flag for directory expansion)
+
+        #     Example:
+        #     uv run cli baml extract file.md --function ExtractRainbow --force
+        #     uv run cli baml extract ./reviews/ --recursive --function ExtractResume --llm gpt-4o
+        #     uv run cli baml extract "/path/*_report*.md" --function ExtractRainbow
+        #     """
+
+        #     logger.info(f"Starting BAML-based project extraction with: {file_or_dir}")
+
+        #     os.environ["BAML_LOG"] = "warn"
+
+        #     # Collect all Markdown files
+        #     all_files = []
+        #     path_obj = Path(file_or_dir)
+
+        #     # Check if it's a glob pattern (contains * or ?)
+        #     if "*" in file_or_dir or "?" in file_or_dir:
+        #         # Expand glob pattern
+        #         matched_paths = glob.glob(file_or_dir, recursive=recursive)
+        #         if not matched_paths:
+        #             logger.error(f"No files matched the glob pattern: {file_or_dir}")
+        #             return
+        #         logger.info(f"Glob pattern matched {len(matched_paths)} file(s)")
+        #         # Filter to only markdown files
+        #         for match in matched_paths:
+        #             p = Path(match)
+        #             if p.is_file() and p.suffix.lower() in [".md", ".markdown"]:
+        #                 all_files.append(p)
+        #     elif path_obj.exists():
+        #         # Regular path handling
+        #         if path_obj.is_file() and path_obj.suffix.lower() in [".md", ".markdown"]:
+        #             # Single Markdown file
+        #             all_files.append(path_obj)
+        #         elif path_obj.is_dir():
+        #             # Directory - find Markdown files inside
+        #             if recursive:
+        #                 md_files = list(path_obj.rglob("*.[mM][dD]"))  # Case-insensitive match
+        #             else:
+        #                 md_files = list(path_obj.glob("*.[mM][dD]"))
+        #             all_files.extend(md_files)
+        #         else:
+        #             logger.error(f"Invalid path: {file_or_dir} - must be a Markdown file or directory")
+        #             return
+        #     else:
+        #         logger.error(f"Path does not exist: {file_or_dir}")
+        #         return
+
+        #     md_files = all_files  # All files are already Markdown files at this point
+
+        #     if not md_files:
+        #         logger.warning("No Markdown files found matching the provided patterns.")
+        #         return
+
+        #     logger.info(f"Found {len(md_files)} Markdown files to process")
+
+        #     if force:
+        #         logger.info("Force option enabled - will reprocess all files and overwrite existing KV entries")
+
+        #     if llm:
+        #         logger.info(f"Using LLM: {llm}")
+
+        #     # Create BAML processor - model_cls will be deduced from first result
+        #     from genai_tk.extra.structured.baml_processor import BamlStructuredProcessor
+
+        #     processor = BamlStructuredProcessor(
+        #         function_name=function_name,
+        #         config_name=config_name,
+        #         llm=llm,
+        #         kvstore_id=KV_STORE_ID,
+        #         force=force,
+        #     )
+        #     if not md_files:
+        #         logger.info("All files have already been processed. Use --force to reprocess.")
+        #         return
+        #     asyncio.run(processor.process_files(md_files, batch_size))
+
+        #     logger.success(
+        #         f"BAML-based project extraction complete. {len(md_files)} files processed. Results saved to KV Store"
+        #     )
+
         @cli_app.command("extract")
         def extract(
-            file_or_dir: Annotated[
-                Path,
+            root_dir: Annotated[
+                str,
                 typer.Argument(
-                    help="Markdown files or directories to process",
-                    exists=True,
-                    file_okay=True,
-                    dir_okay=True,
+                    help=("Root directory to search for files. Supports config variables like ${paths.data_root}"),
                 ),
             ],
-            recursive: bool = typer.Option(False, help="Search for files recursively"),
-            batch_size: int = typer.Option(5, help="Number of files to process in each batch"),
-            force: bool = typer.Option(False, "--force", help="Overwrite existing KV entries"),
-            function_name: Annotated[
-                str,
-                typer.Option(
-                    "--function",
-                    help="BAML function name (e.g., ExtractRainbow, ExtractResume)",
-                ),
-            ] = "ExtractRainbow",
-            config_name: Annotated[
-                str,
-                typer.Option(
-                    "--config",
-                    help="Name of the structured config to use from yaml config (e.g., 'default', 'rainbow')",
-                ),
-            ] = "default",
-            llm: Annotated[
-                str | None,
-                typer.Option(help="Name or tag of the LLM to use by BAML"),
-            ] = None,
-        ) -> None:
-            """Extract structured project data from Markdown files using BAML and save as JSON in a KV store.
-
-            This command uses BAML-generated functions to extract data from markdown files.
-            The return type is automatically deduced from the BAML function signature.
-
-            Example:
-            uv run cli baml extract file.md --function ExtractRainbow --force
-            uv run cli baml extract ./reviews/ --recursive --function ExtractResume --llm gpt-4o
-            """
-
-            logger.info(f"Starting BAML-based project extraction with: {file_or_dir}")
-
-            os.environ["BAML_LOG"] = "warn"
-
-            # Collect all Markdown files
-            all_files = []
-
-            if file_or_dir.is_file() and file_or_dir.suffix.lower() in [".md", ".markdown"]:
-                # Single Markdown file
-                all_files.append(file_or_dir)
-            elif file_or_dir.is_dir():
-                # Directory - find Markdown files inside
-                if recursive:
-                    md_files = list(file_or_dir.rglob("*.[mM][dD]"))  # Case-insensitive match
-                else:
-                    md_files = list(file_or_dir.glob("*.[mM][dD]"))
-                all_files.extend(md_files)
-            else:
-                logger.error(f"Invalid path: {file_or_dir} - must be a Markdown file or directory")
-                return
-
-            md_files = all_files  # All files are already Markdown files at this point
-
-            if not md_files:
-                logger.warning("No Markdown files found matching the provided patterns.")
-                return
-
-            logger.info(f"Found {len(md_files)} Markdown files to process")
-
-            if force:
-                logger.info("Force option enabled - will reprocess all files and overwrite existing KV entries")
-
-            if llm:
-                logger.info(f"Using LLM: {llm}")
-
-            # Create BAML processor - model_cls will be deduced from first result
-            from genai_tk.extra.structured.baml_processor import BamlStructuredProcessor
-
-            processor = BamlStructuredProcessor(
-                function_name=function_name,
-                config_name=config_name,
-                llm=llm,
-                kvstore_id=KV_STORE_ID,
-                force=force,
-            )
-            if not md_files:
-                logger.info("All files have already been processed. Use --force to reprocess.")
-                return
-            asyncio.run(processor.process_files(md_files, batch_size))
-
-            logger.success(
-                f"BAML-based project extraction complete. {len(md_files)} files processed. Results saved to KV Store"
-            )
-
-        @cli_app.command("prefect-extract")
-        def prefect_extract(
-            source: Annotated[
+            output_dir: Annotated[
                 str,
                 typer.Argument(
                     help=(
-                        "Markdown file or directory to process. "
-                        "Can be a local path or a remote URI supported by UPath."
+                        "Output directory for extracted data and manifest. "
+                        "Supports config variables like ${paths.data_root}/structured"
                     ),
                 ),
             ],
+            include_patterns: Annotated[
+                list[str] | None,
+                typer.Option(
+                    "--include",
+                    "-i",
+                    help="Glob patterns to include (e.g., '*.md', 'report_*.md'). Default: ['*.md']",
+                ),
+            ] = None,
+            exclude_patterns: Annotated[
+                list[str] | None,
+                typer.Option(
+                    "--exclude",
+                    "-e",
+                    help="Glob patterns to exclude (e.g., '*_draft.md')",
+                ),
+            ] = None,
             recursive: bool = typer.Option(False, help="Search for files recursively"),
             batch_size: int = typer.Option(5, help="Number of files to process concurrently in each batch"),
             force: bool = typer.Option(False, "--force", help="Reprocess files even if unchanged in manifest"),
@@ -254,10 +299,7 @@ class BamlCommands(CliTopCommand):
                 str,
                 typer.Option(
                     "--config",
-                    help=(
-                        "Name of the structured config to use from YAML config "
-                        "(for example 'default' or 'rainbow')."
-                    ),
+                    help="Name of the structured config to use from YAML config (e.g., 'default', 'rainbow')",
                 ),
             ] = "default",
             llm: Annotated[
@@ -265,41 +307,66 @@ class BamlCommands(CliTopCommand):
                 typer.Option(help="Name or tag of the LLM to use by BAML"),
             ] = None,
         ) -> None:
-            """Run BAML extraction as a Prefect flow and write JSON files.
+            """Extract structured data from files using BAML.
 
-            The Prefect-powered variant discovers Markdown files under ``source``,
-            skips files that are unchanged according to a manifest stored in the
-            target directory, and processes the remaining files in parallel
-            batches using a thread-based task runner.
+            Process files from a root directory using glob patterns and save
+            extracted structured data as JSON files. The manifest file tracks
+            processed files and is written to the output directory.
 
-            Example:
-            ```bash
-            uv run cli baml prefect-extract ./reviews --recursive \
-                --function ExtractRainbow --config default --force
-            ```
+            Examples:
+                ```bash
+                # Process all .md files in a directory
+                cli baml extract ./docs ./output --recursive
+
+                # Use config variables
+                cli baml extract '${paths.data_root}/reviews' '${paths.data_root}/structured' \\
+                    --recursive --function ExtractRainbow
+
+                # Custom include/exclude patterns
+                cli baml extract ./reports ./output \\
+                    --include 'report_*.md' --include 'summary_*.md' \\
+                    --exclude '*_draft.md' \\
+                    --recursive --force
+
+                # Process specific patterns only
+                cli baml extract ./docs ./output \\
+                    --include '2024_*.md' --include '2025_*.md' \\
+                    --function ExtractResume
+                ```
             """
 
             os.environ["BAML_LOG"] = "warn"
 
-            root = UPath(source)
-            if not root.exists():
-                logger.error(f"Source path does not exist: {root}")
-                raise typer.Exit(1)
+            # Default include patterns to markdown if not specified
+            if include_patterns is None:
+                include_patterns = ["*.md"]
+
+            # Validate that all include patterns are markdown files
+            for pattern in include_patterns:
+                if not any(pattern.endswith(ext) for ext in [".md", ".MD", ".markdown", ".MARKDOWN"]):
+                    logger.warning(
+                        f"Include pattern '{pattern}' does not have a markdown extension. "
+                        f"Only .md and .markdown files are supported."
+                    )
 
             if llm:
                 logger.info(f"Using LLM: {llm}")
 
             logger.info(
-                f"Starting Prefect-based BAML extraction for '{root}' "
+                f"Starting BAML extraction from '{root_dir}' to '{output_dir}' "
                 f"with function '{function_name}' and config '{config_name}'",
             )
 
+            from genai_tk.extra.prefect.runtime import run_flow_ephemeral
             from genai_tk.extra.structured.baml_prefect_flow import baml_structured_extraction_flow
 
             try:
                 run_flow_ephemeral(
                     baml_structured_extraction_flow,
-                    source=str(root),
+                    root_dir=root_dir,
+                    output_dir=output_dir,
+                    include_patterns=include_patterns,
+                    exclude_patterns=exclude_patterns,
                     recursive=recursive,
                     batch_size=batch_size,
                     force=force,
@@ -307,8 +374,8 @@ class BamlCommands(CliTopCommand):
                     config_name=config_name,
                     llm=llm,
                 )
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.error(f"Prefect-based BAML extraction failed: {exc}")
+            except Exception as exc:
+                logger.error(f"BAML extraction failed: {exc}")
                 raise typer.Exit(1) from exc
 
-            logger.success("Prefect-based BAML extraction completed successfully")
+            logger.success("BAML extraction completed successfully")
