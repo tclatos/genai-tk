@@ -27,7 +27,7 @@ from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defin
 from pydantic import BaseModel, Field
 from upath import UPath
 
-from genai_tk.extra.structured.baml_util import baml_invoke
+from genai_tk.extra.structured.baml_util import baml_invoke, prompt_fingerprint
 from genai_tk.utils.file_patterns import resolve_files
 from genai_tk.utils.hashing import buffer_digest
 
@@ -47,6 +47,7 @@ class BamlExtractionManifest(BaseModel):
     config_name: str
     llm: str | None = None
     model_name: str | None = None
+    schema_fingerprint: str | None = None
     entries: dict[str, BamlExtractionManifestEntry] = Field(default_factory=dict)
 
 
@@ -289,10 +290,18 @@ def baml_structured_extraction_flow(
     )
 
     if manifest is None:
+        # Calculate schema fingerprint for new manifest
+        try:
+            schema_fp = prompt_fingerprint(function_name, config_name)
+        except Exception as exc:
+            logger.warning(f"Failed to compute schema fingerprint: {exc}")
+            schema_fp = None
+
         manifest = BamlExtractionManifest(
             function_name=function_name,
             config_name=config_name,
             llm=llm,
+            schema_fingerprint=schema_fp,
         )
 
     # Convert Path objects to UPath for processing
@@ -348,11 +357,19 @@ def baml_structured_extraction_flow(
     else:
         manifest_dir = manifest_path.parent
 
+    # Calculate schema fingerprint for updated manifest
+    try:
+        schema_fp = prompt_fingerprint(function_name, config_name)
+    except Exception as exc:
+        logger.warning(f"Failed to compute schema fingerprint: {exc}")
+        schema_fp = manifest.schema_fingerprint  # Keep existing if calculation fails
+
     updated_manifest = BamlExtractionManifest(
         function_name=function_name,
         config_name=config_name,
         llm=llm,
         model_name=model_dir_name,
+        schema_fingerprint=schema_fp,
         entries=all_entries,
     )
 
@@ -364,3 +381,182 @@ def baml_structured_extraction_flow(
     )
 
     return updated_manifest
+
+
+@task
+async def _process_single_input_task(
+    input_text: str,
+    function_name: str,
+    config_name: str,
+    llm: str | None,
+    output_dir: str | None,
+    output_file: str | None,
+    input_hash: str,
+    force: bool,
+    existing_manifest: BamlExtractionManifest | None,
+) -> tuple[BaseModel | Any, str | None, str | None]:
+    """Run BAML on a single text input and optionally save result as JSON.
+
+    Returns a tuple of (result, model_name, output_path).
+    If output_dir/output_file are None, result is returned without saving.
+    """
+
+    logger.info(f"Processing input with BAML function: {function_name}")
+
+    # Check if already processed based on manifest
+    if not force and existing_manifest and output_dir and output_file:
+        input_key = f"input:{input_hash}"
+        existing_entry = existing_manifest.entries.get(input_key)
+        if existing_entry and existing_entry.source_hash == input_hash:
+            # Load and return existing result
+            output_path_obj = UPath(output_dir) / existing_entry.output_path
+            if output_path_obj.exists():
+                logger.info(f"Skipping - result already exists: {output_path_obj}")
+                json_text = output_path_obj.read_text(encoding="utf-8")
+                # Try to reconstruct the result, but return raw JSON if it fails
+                try:
+                    result_data = json.loads(json_text)
+                    return result_data, existing_manifest.model_name, str(existing_entry.output_path)
+                except Exception:
+                    return json_text, existing_manifest.model_name, str(existing_entry.output_path)
+
+    params: dict[str, Any] = {"__input__": input_text}
+    result = await baml_invoke(function_name, params, config_name, llm)
+
+    # If no output directory specified, just return the result
+    if not output_dir or not output_file:
+        model_name = type(result).__name__ if isinstance(result, BaseModel) else None
+        return result, model_name, None
+
+    # Determine model name
+    if isinstance(result, BaseModel):
+        model_name: str | None = type(result).__name__
+        json_text = result.model_dump_json(indent=2)
+    else:
+        model_name = None
+        json_text = json.dumps(result, indent=2, default=str)
+
+    # Create output directory structure: output_dir/ModelName/
+    output_root = UPath(output_dir)
+    if model_name:
+        output_root = output_root / model_name
+
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    # Write output file
+    output_path = output_root / output_file
+    output_path.write_text(json_text, encoding="utf-8")
+
+    logger.success(f"Wrote structured output to {output_path}")
+
+    return result, model_name, str(output_path.relative_to(output_dir))
+
+
+@flow(name="baml_single_input", task_runner=ConcurrentTaskRunner())  # type: ignore[call-arg]
+def baml_single_input_flow(
+    input_text: str,
+    function_name: str,
+    *,
+    config_name: str = "default",
+    llm: str | None = None,
+    output_dir: str | None = None,
+    output_file: str | None = None,
+    force: bool = False,
+) -> tuple[BaseModel | Any, str | None]:
+    """Run BAML on single text input as a Prefect flow.
+
+    Args:
+        input_text: Text input to process
+        function_name: BAML function name to invoke
+        config_name: Configuration name from YAML config
+        llm: Optional LLM identifier
+        output_dir: Optional output directory (supports config variables)
+        output_file: Optional output filename (must end with .json)
+        force: Reprocess even if result exists in manifest
+
+    Returns:
+        Tuple of (result, model_name) where result is the BAML output
+    """
+
+    # Compute input hash for caching
+    input_hash = _compute_hash(input_text.encode("utf-8"))
+
+    # Resolve output directory if provided
+    resolved_output_dir: str | None = None
+    if output_dir:
+        from genai_tk.utils.file_patterns import resolve_config_path
+
+        resolved_output_dir = resolve_config_path(output_dir)
+
+    # Load existing manifest if output is configured
+    existing_manifest: BamlExtractionManifest | None = None
+    manifest_path: UPath | None = None
+
+    if resolved_output_dir and output_file:
+        output_root = UPath(resolved_output_dir)
+        output_root.mkdir(parents=True, exist_ok=True)
+
+        existing_manifest, manifest_path = _find_existing_manifest(
+            output_root,
+            function_name=function_name,
+            config_name=config_name,
+            llm=llm,
+        )
+
+        if existing_manifest is None:
+            existing_manifest = BamlExtractionManifest(
+                function_name=function_name,
+                config_name=config_name,
+                llm=llm,
+            )
+
+    # Process the input
+    future = _process_single_input_task.submit(
+        input_text=input_text,
+        function_name=function_name,
+        config_name=config_name,
+        llm=llm,
+        output_dir=resolved_output_dir,
+        output_file=output_file,
+        input_hash=input_hash,
+        force=force,
+        existing_manifest=existing_manifest,
+    )
+
+    result_tuple = future.result()  # type: ignore[misc]
+    if asyncio.iscoroutine(result_tuple):
+        result, model_name, relative_output_path = asyncio.run(result_tuple)  # type: ignore[misc]
+    else:
+        result, model_name, relative_output_path = result_tuple  # type: ignore[misc]
+
+    # Update manifest if output was saved
+    if resolved_output_dir and output_file and relative_output_path:
+        input_key = f"input:{input_hash}"
+        entry = BamlExtractionManifestEntry(
+            source_hash=input_hash,
+            output_path=relative_output_path,
+            processed_at=datetime.now(timezone.utc),
+        )
+
+        if existing_manifest:
+            existing_manifest.entries[input_key] = entry
+            existing_manifest.model_name = model_name or existing_manifest.model_name
+        else:
+            existing_manifest = BamlExtractionManifest(
+                function_name=function_name,
+                config_name=config_name,
+                llm=llm,
+                model_name=model_name,
+                entries={input_key: entry},
+            )
+
+        # Save manifest
+        model_dir_name = model_name or function_name
+        if manifest_path is None:
+            manifest_dir = UPath(resolved_output_dir) / model_dir_name
+            manifest_path = manifest_dir / "manifest.json"
+
+        _save_manifest(existing_manifest, manifest_path)
+        logger.success(f"Manifest updated at {manifest_path}")
+
+    return result, model_name

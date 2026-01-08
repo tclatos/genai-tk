@@ -13,6 +13,13 @@ Usage Examples:
     uv run cli baml extract ./reports ./output \\
         --include 'report_*.md' --include 'summary_*.md' \\
         --exclude '*_draft.md' --recursive
+
+    # Run BAML function on single input
+    uv run cli baml run FakeResume -i "John Smith; SW engineer"
+
+    # Save result to file
+    uv run cli baml run FakeResume -i "John Smith; SW engineer" \\
+        --out-dir '${paths.data_root}' --out-file fake_cv_john_smith.json
     ```
 
 Data Flow:
@@ -21,7 +28,6 @@ Data Flow:
     3. Manifest tracks processed files → enables incremental processing
 """
 
-import asyncio
 import os
 import sys
 from typing import Annotated
@@ -31,27 +37,6 @@ from loguru import logger
 from pydantic import BaseModel
 
 from genai_tk.main.cli import CliTopCommand
-
-LLM_ID = None
-KV_STORE_ID = "default"
-
-
-def check_kvstore_key_exists(key: str, model_cls: type[BaseModel], kvstore_id: str = KV_STORE_ID) -> bool:
-    """Check if a key already exists in the KV store."""
-    from genai_tk.utils.pydantic.kv_store import PydanticStore
-
-    store = PydanticStore(kvstore_id=kvstore_id, model=model_cls)
-    cached_obj = store.load_object(key)
-    return cached_obj is not None
-
-
-def save_to_kvstore(key: str, obj: BaseModel, kvstore_id: str = KV_STORE_ID) -> None:
-    """Save a Pydantic object to the KV store."""
-    from genai_tk.utils.pydantic.kv_store import PydanticStore
-
-    store = PydanticStore(kvstore_id=kvstore_id, model=obj.__class__)
-    store.save_obj(key, obj)
-    logger.success(f"Saved to KV store with key: {key}")
 
 
 class BamlCommands(CliTopCommand):
@@ -63,7 +48,7 @@ class BamlCommands(CliTopCommand):
         def run(
             function_name: Annotated[
                 str,
-                typer.Argument(help="BAML function name to execute (e.g., ExtractResume)"),
+                typer.Argument(help="BAML function name to execute (e.g., ExtractResume, FakeResume)"),
             ],
             input_text: Annotated[
                 str | None,
@@ -80,177 +65,107 @@ class BamlCommands(CliTopCommand):
                 str | None,
                 typer.Option(help="Name or tag of the LLM to use by BAML"),
             ] = None,
-            kvstore_key: Annotated[
+            output_dir: Annotated[
                 str | None,
-                typer.Option(help="Key to store the result in the KV store (only for Pydantic outputs)"),
+                typer.Option(
+                    "--out-dir",
+                    help=(
+                        "Output directory for result (supports config variables like ${paths.data_root}). "
+                        "If not specified, outputs to stdout."
+                    ),
+                ),
             ] = None,
-            force: bool = typer.Option(False, "--force", help="Overwrite existing KV entry if key exists"),
+            output_file: Annotated[
+                str | None,
+                typer.Option(
+                    "--out-file",
+                    help="Output filename (must end with .json). If not specified, outputs to stdout.",
+                ),
+            ] = None,
+            force: bool = typer.Option(False, "--force", help="Overwrite existing output if it exists"),
         ) -> None:
-            """Execute a BAML function with input text and print the result.
+            """Execute a BAML function with input text and print/save the result.
 
-            Example:
-            echo "John Doe, john@example.com" | uv run cli baml run ExtractResume
-            uv run cli baml run ExtractResume --input "John Doe, john@example.com"
-            uv run cli baml run FakeResume -i "John Smith; SW engineer" --kvstore-key fake_cv_john_smith
+            The result is saved to a directory structure: output_dir/ModelName/output_file.
+            If output_dir or output_file are not specified, the result is printed to stdout.
+            A manifest.json file tracks processed inputs to avoid reprocessing.
+
+            Examples:
+                ```bash
+                # Output to stdout
+                uv run cli baml run FakeResume -i "John Smith; SW engineer"
+
+                # Save to file with config variables
+                uv run cli baml run FakeResume -i "John Smith; SW engineer" \\
+                    --out-dir '${paths.data_root}' --out-file fake_cv_john_smith.json
+
+                # Read from stdin and save to file
+                echo "John Doe, software architect" | uv run cli baml run ExtractResume \\
+                    --out-dir ./output --out-file john_doe.json
+
+                # Force reprocessing
+                uv run cli baml run FakeResume -i "John Smith; SW engineer" \\
+                    --out-dir ./output --out-file fake_cv.json --force
+                ```
             """
+            # Validate output parameters
+            if (output_dir and not output_file) or (output_file and not output_dir):
+                logger.error("Both --out-dir and --out-file must be specified together, or both omitted")
+                raise typer.Exit(1)
+
+            if output_file and not output_file.endswith(".json"):
+                logger.error("Output filename must have .json extension")
+                raise typer.Exit(1)
+
             # Get input from stdin if not provided
             if input_text is None:
                 if not sys.stdin.isatty():
-                    input_text = sys.stdin.read()
-                # else: input_text remains None, baml_invoke will handle no-param functions
+                    input_text = sys.stdin.read().strip()
+                else:
+                    logger.error("No input provided. Use --input/-i or pipe input via stdin")
+                    raise typer.Exit(1)
 
-            # Build parameters dict - baml_invoke will figure out parameter names
-            # We use a generic key that baml_invoke will map to the actual first parameter
-            param_dict = {"__input__": input_text} if input_text else {}
+            if not input_text:
+                logger.error("Input text cannot be empty")
+                raise typer.Exit(1)
 
-            # Execute the function using baml_invoke
-            from genai_tk.extra.structured.baml_util import baml_invoke
+            if llm:
+                logger.info(f"Using LLM: {llm}")
+
+            logger.info(f"Executing BAML function '{function_name}' with config '{config_name}'")
+
+            # Execute using Prefect flow
+            from genai_tk.extra.prefect.runtime import run_flow_ephemeral
+            from genai_tk.extra.structured.baml_prefect_flow import baml_single_input_flow
 
             try:
-                result = asyncio.run(baml_invoke(function_name, param_dict, config_name, llm))
-            except Exception as e:
-                logger.error(f"Failed to execute BAML function '{function_name}': {e}")
-                return
+                result, model_name = run_flow_ephemeral(
+                    baml_single_input_flow,
+                    input_text=input_text,
+                    function_name=function_name,
+                    config_name=config_name,
+                    llm=llm,
+                    output_dir=output_dir,
+                    output_file=output_file,
+                    force=force,
+                )
 
-            # Store in KV store if requested
-            if kvstore_key:
-                if not isinstance(result, BaseModel):
-                    logger.error(
-                        f"Cannot store to KV store: Result is not a Pydantic object (got {type(result).__name__})"
+                # Print result to stdout if no output file was specified
+                if not output_dir or not output_file:
+                    if isinstance(result, BaseModel):
+                        print(result.model_dump_json(indent=2))
+                    else:
+                        import json
+
+                        print(json.dumps(result, indent=2, default=str))
+                else:
+                    logger.success(
+                        f"Result saved to {output_dir}/{model_name or function_name}/{output_file}",
                     )
-                    return
 
-                # Check if key already exists unless force is set
-                if not force and check_kvstore_key_exists(kvstore_key, type(result), KV_STORE_ID):
-                    logger.error(f"Key '{kvstore_key}' already exists in KV store. Use --force to overwrite.")
-                    return
-
-                save_to_kvstore(kvstore_key, result, KV_STORE_ID)
-
-            # Print result
-            if isinstance(result, BaseModel):
-                print(result.model_dump_json(indent=2))
-            else:
-                print(result)
-
-        # @cli_app.command("extract")
-        # def extract(
-        #     file_or_dir: Annotated[
-        #         str,
-        #         typer.Argument(
-        #             help="Markdown file(s), directory, or glob pattern (e.g., /path/*.md, /path/**/*.md)",
-        #         ),
-        #     ],
-        #     recursive: bool = typer.Option(False, help="Search for files recursively"),
-        #     batch_size: int = typer.Option(5, help="Number of files to process in each batch"),
-        #     force: bool = typer.Option(False, "--force", help="Overwrite existing KV entries"),
-        #     function_name: Annotated[
-        #         str,
-        #         typer.Option(
-        #             "--function",
-        #             help="BAML function name (e.g., ExtractRainbow, ExtractResume)",
-        #         ),
-        #     ] = "ExtractRainbow",
-        #     config_name: Annotated[
-        #         str,
-        #         typer.Option(
-        #             "--config",
-        #             help="Name of the structured config to use from yaml config (e.g., 'default', 'rainbow')",
-        #         ),
-        #     ] = "default",
-        #     llm: Annotated[
-        #         str | None,
-        #         typer.Option(help="Name or tag of the LLM to use by BAML"),
-        #     ] = None,
-        # ) -> None:
-        #     """Extract structured project data from Markdown files using BAML and save as JSON in a KV store.
-
-        #     This command uses BAML-generated functions to extract data from markdown files.
-        #     The return type is automatically deduced from the BAML function signature.
-
-        #     Supports glob patterns for flexible file matching:
-        #     - Single file: file.md
-        #     - Multiple files: /path/*.md
-        #     - Recursive: /path/**/*.md (requires --recursive flag for directory expansion)
-
-        #     Example:
-        #     uv run cli baml extract file.md --function ExtractRainbow --force
-        #     uv run cli baml extract ./reviews/ --recursive --function ExtractResume --llm gpt-4o
-        #     uv run cli baml extract "/path/*_report*.md" --function ExtractRainbow
-        #     """
-
-        #     logger.info(f"Starting BAML-based project extraction with: {file_or_dir}")
-
-        #     os.environ["BAML_LOG"] = "warn"
-
-        #     # Collect all Markdown files
-        #     all_files = []
-        #     path_obj = Path(file_or_dir)
-
-        #     # Check if it's a glob pattern (contains * or ?)
-        #     if "*" in file_or_dir or "?" in file_or_dir:
-        #         # Expand glob pattern
-        #         matched_paths = glob.glob(file_or_dir, recursive=recursive)
-        #         if not matched_paths:
-        #             logger.error(f"No files matched the glob pattern: {file_or_dir}")
-        #             return
-        #         logger.info(f"Glob pattern matched {len(matched_paths)} file(s)")
-        #         # Filter to only markdown files
-        #         for match in matched_paths:
-        #             p = Path(match)
-        #             if p.is_file() and p.suffix.lower() in [".md", ".markdown"]:
-        #                 all_files.append(p)
-        #     elif path_obj.exists():
-        #         # Regular path handling
-        #         if path_obj.is_file() and path_obj.suffix.lower() in [".md", ".markdown"]:
-        #             # Single Markdown file
-        #             all_files.append(path_obj)
-        #         elif path_obj.is_dir():
-        #             # Directory - find Markdown files inside
-        #             if recursive:
-        #                 md_files = list(path_obj.rglob("*.[mM][dD]"))  # Case-insensitive match
-        #             else:
-        #                 md_files = list(path_obj.glob("*.[mM][dD]"))
-        #             all_files.extend(md_files)
-        #         else:
-        #             logger.error(f"Invalid path: {file_or_dir} - must be a Markdown file or directory")
-        #             return
-        #     else:
-        #         logger.error(f"Path does not exist: {file_or_dir}")
-        #         return
-
-        #     md_files = all_files  # All files are already Markdown files at this point
-
-        #     if not md_files:
-        #         logger.warning("No Markdown files found matching the provided patterns.")
-        #         return
-
-        #     logger.info(f"Found {len(md_files)} Markdown files to process")
-
-        #     if force:
-        #         logger.info("Force option enabled - will reprocess all files and overwrite existing KV entries")
-
-        #     if llm:
-        #         logger.info(f"Using LLM: {llm}")
-
-        #     # Create BAML processor - model_cls will be deduced from first result
-        #     from genai_tk.extra.structured.baml_processor import BamlStructuredProcessor
-
-        #     processor = BamlStructuredProcessor(
-        #         function_name=function_name,
-        #         config_name=config_name,
-        #         llm=llm,
-        #         kvstore_id=KV_STORE_ID,
-        #         force=force,
-        #     )
-        #     if not md_files:
-        #         logger.info("All files have already been processed. Use --force to reprocess.")
-        #         return
-        #     asyncio.run(processor.process_files(md_files, batch_size))
-
-        #     logger.success(
-        #         f"BAML-based project extraction complete. {len(md_files)} files processed. Results saved to KV Store"
-        #     )
+            except Exception as exc:
+                logger.error(f"BAML function execution failed: {exc}")
+                raise typer.Exit(1) from exc
 
         @cli_app.command("extract")
         def extract(
@@ -267,6 +182,13 @@ class BamlCommands(CliTopCommand):
                         "Output directory for extracted data and manifest. "
                         "Supports config variables like ${paths.data_root}/structured"
                     ),
+                ),
+            ],
+            function_name: Annotated[
+                str,
+                typer.Option(
+                    "--function",
+                    help="BAML function name (e.g., ExtractRainbow, ExtractResume)",
                 ),
             ],
             include_patterns: Annotated[
@@ -288,13 +210,6 @@ class BamlCommands(CliTopCommand):
             recursive: bool = typer.Option(False, help="Search for files recursively"),
             batch_size: int = typer.Option(5, help="Number of files to process concurrently in each batch"),
             force: bool = typer.Option(False, "--force", help="Reprocess files even if unchanged in manifest"),
-            function_name: Annotated[
-                str,
-                typer.Option(
-                    "--function",
-                    help="BAML function name (e.g., ExtractRainbow, ExtractResume)",
-                ),
-            ] = "ExtractRainbow",
             config_name: Annotated[
                 str,
                 typer.Option(

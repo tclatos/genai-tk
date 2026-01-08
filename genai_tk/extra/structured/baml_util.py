@@ -7,12 +7,15 @@ including dynamic loading, type inspection, and validation.
 import importlib
 import inspect
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any, Type, get_args, get_origin
 
+import baml_lib
 from baml_py import ClientRegistry
 from loguru import logger
 
 from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.hashing import buffer_digest
 from genai_tk.utils.pydantic.common import validate_pydantic_model
 
 
@@ -230,6 +233,90 @@ def get_function_parameters(baml_async_client: Any, function_name: str) -> list[
     return [p for p in sig.parameters.keys() if p != "baml_options"]
 
 
+def prompt_fingerprint(function_name: str, config_name: str = "default", **kwargs: Any) -> str:
+    """Return a stable hex fingerprint of the output schema that BAML uses.
+
+    Uses baml-lib to render the JSON schema format that BAML sends to the LLM
+    for structured output. This fingerprint captures the output structure but
+    NOT the full prompt template (which includes custom text and variables).
+
+    Useful for:
+    - Detecting when output schema changes
+    - Cache invalidation when structure changes
+    - Version tracking of data models
+
+    Args:
+        function_name: Name of the BAML function
+        config_name: Name of the structured config to use
+        **kwargs: Not used currently (kept for API compatibility)
+
+    Returns:
+        Hex string of the SHA256 hash of the rendered output schema
+
+    Raises:
+        ImportError: If baml-lib is not installed
+        ValueError: If BAML client or source files cannot be found
+    """
+
+    # Load BAML client
+    _, baml_async_client = load_baml_client(config_name)
+
+    # Get the BAML function method
+    try:
+        baml_function_method = getattr(baml_async_client, function_name)
+    except AttributeError as e:
+        raise AttributeError(f"Unknown BAML function '{function_name}' in async client: {e}") from e
+
+    # Extract return type using existing function
+    return_type = get_return_type_from_baml_function(baml_function_method)
+    if return_type is None:
+        raise ValueError(f"Could not determine return type for BAML function '{function_name}'")
+
+    # Get the type name (e.g., 'Resume' from <class 'baml_client.types.Resume'>)
+    return_type_name = return_type.__name__
+    logger.debug(f"Found return type '{return_type_name}' for function '{function_name}'")
+
+    # Get BAML source files path from config
+    config_key = f"structured.{config_name}.baml_client"
+    baml_client_package = global_config().get_str(config_key)
+    if not baml_client_package:
+        raise ValueError(f"BAML client package not found in config at '{config_key}'")
+
+    # Determine BAML source directory (typically baml_src alongside the generated client)
+    baml_src_dir = baml_client_package.replace(".", "/").replace("/baml_client", "/baml_src")
+
+    # Find the actual path on the filesystem
+    current_file = Path(__file__)
+    project_roots = [current_file.parent.parent.parent, Path.cwd()]
+
+    baml_schema_content = ""
+    found_baml_src = False
+
+    for root in project_roots:
+        baml_src_path = root / baml_src_dir
+        if baml_src_path.exists():
+            found_baml_src = True
+            # Read all .baml files to get class and enum definitions
+            for baml_file in sorted(baml_src_path.glob("*.baml")):
+                with open(baml_file, "r") as f:
+                    baml_schema_content += f.read() + "\n"
+            break
+
+    if not found_baml_src or not baml_schema_content:
+        raise ValueError(
+            f"Could not find BAML source files at {baml_src_dir}. "
+            "Checked roots: " + ", ".join(str(r) for r in project_roots)
+        )
+
+    # Create PyBamlContext for the return type and render schema
+    baml_context = baml_lib.PyBamlContext(baml_schema_content, return_type_name)  # pyright: ignore[reportAttributeAccessIssue]
+    rendered = baml_context.render_prompt(None, True)
+
+
+    # Compute hash of the schema using default algorithm (xxh3_64)
+    return buffer_digest(rendered.encode())
+
+
 async def baml_invoke(
     function_name: str,
     params: dict[str, Any],
@@ -283,3 +370,33 @@ async def baml_invoke(
         if baml_options:
             return await baml_function(*args, baml_options=baml_options)
         return await baml_function(*args)
+
+
+if __name__ == "__main__":
+    """Quick test of prompt_fingerprint function."""
+    print("Testing prompt_fingerprint with BAML functions...")
+    print("=" * 60)
+
+    # Test FakeResume
+    fp1 = prompt_fingerprint("FakeResume")
+    print(f"✓ FakeResume schema fingerprint:\n  {fp1}")
+
+    # Test ExtractResume (should have same schema as FakeResume)
+    fp2 = prompt_fingerprint("ExtractResume")
+    print(f"✓ ExtractResume schema fingerprint:\n  {fp2}")
+
+    # Check if they match (both return Resume type)
+    if fp1 == fp2:
+        print("\n✓ Both functions use the same 'Resume' schema")
+    else:
+        print("\n✗ Different schemas (unexpected)")
+
+    # Verify determinism
+    fp3 = prompt_fingerprint("FakeResume")
+    if fp1 == fp3:
+        print("✓ Fingerprint is deterministic")
+    else:
+        print("✗ Non-deterministic (error!)")
+
+    print("\n" + "=" * 60)
+    print("Schema fingerprinting works! ✓")

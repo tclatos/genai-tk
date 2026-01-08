@@ -65,6 +65,7 @@ dependencies = [
     "langchain-litellm>=0.3.2",
     "prefect>=3.6.7",
     "xxhash>=3.6.0",
+    "baml-lib>=0.42.0",
 ]
 
 [project.urls]
