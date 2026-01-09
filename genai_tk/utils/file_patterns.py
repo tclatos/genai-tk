@@ -6,6 +6,7 @@ with support for include and exclude filters.
 
 from __future__ import annotations
 
+import fnmatch
 import re
 
 from loguru import logger
@@ -53,6 +54,7 @@ def resolve_files(
     include_patterns: list[str] | None = None,
     exclude_patterns: list[str] | None = None,
     recursive: bool = False,
+    case_sensitive: bool = False,
 ) -> list[UPath]:
     """Resolve list of files from root directory using include/exclude patterns.
 
@@ -61,13 +63,14 @@ def resolve_files(
         include_patterns: List of glob patterns to include (default: ["*.*"])
         exclude_patterns: List of glob patterns to exclude (default: None)
         recursive: Whether to search recursively
+        case_sensitive: Whether pattern matching is case-sensitive (default: False)
 
     Returns:
         List of resolved file paths
 
     Example:
         ```python
-        # Find all markdown files
+        # Find all markdown files (case-insensitive by default)
         files = resolve_files("/data", include_patterns=["*.md"])
 
         # Find specific patterns, excluding some
@@ -77,6 +80,9 @@ def resolve_files(
             exclude_patterns=["*_draft.md"],
             recursive=True
         )
+
+        # Case-insensitive matching allows single pattern
+        files = resolve_files("/data", include_patterns=["*_CNES_*"])  # matches CNES, cnes, Cnes, etc.
         ```
     """
     resolved_root = resolve_config_path(root_dir)
@@ -93,17 +99,41 @@ def resolve_files(
         return []
 
     # Collect all matching files
-    matched_files: set[UPath] = set()
+    if case_sensitive:
+        # Use standard glob (case-sensitive on case-sensitive filesystems)
+        matched_files: set[UPath] = set()
+        for pattern in include_patterns:
+            if recursive:
+                matches = root_path.rglob(pattern)
+            else:
+                matches = root_path.glob(pattern)
 
-    for pattern in include_patterns:
+            for match in matches:
+                if match.is_file():
+                    matched_files.add(UPath(str(match)))
+    else:
+        # Case-insensitive: collect all files, then filter with fnmatch
+        all_files: set[UPath] = set()
         if recursive:
-            matches = root_path.rglob(pattern)
+            all_files = {UPath(str(f)) for f in root_path.rglob("*") if f.is_file()}
         else:
-            matches = root_path.glob(pattern)
+            all_files = {UPath(str(f)) for f in root_path.glob("*") if f.is_file()}
 
-        for match in matches:
-            if match.is_file():
-                matched_files.add(UPath(str(match)))
+        matched_files = set()
+        for file_path in all_files:
+            # Get relative path for pattern matching
+            try:
+                rel_path = file_path.relative_to(root_path)
+                rel_path_str = str(rel_path)
+
+                # Check if file matches any include pattern
+                for pattern in include_patterns:
+                    if fnmatch.fnmatch(rel_path_str.lower(), pattern.lower()):
+                        matched_files.add(file_path)
+                        break
+            except ValueError:
+                # File is not relative to root_path, skip it
+                continue
 
     if not matched_files:
         logger.warning(f"No files matched include patterns in {root_path}")
@@ -112,15 +142,30 @@ def resolve_files(
     # Apply exclude patterns
     if exclude_patterns:
         excluded_files: set[UPath] = set()
-        for pattern in exclude_patterns:
-            if recursive:
-                matches = root_path.rglob(pattern)
-            else:
-                matches = root_path.glob(pattern)
+        if case_sensitive:
+            # Use standard glob
+            for pattern in exclude_patterns:
+                if recursive:
+                    matches = root_path.rglob(pattern)
+                else:
+                    matches = root_path.glob(pattern)
 
-            for match in matches:
-                if match.is_file():
-                    excluded_files.add(UPath(str(match)))
+                for match in matches:
+                    if match.is_file():
+                        excluded_files.add(UPath(str(match)))
+        else:
+            # Case-insensitive matching for exclude patterns
+            for file_path in matched_files:
+                try:
+                    rel_path = file_path.relative_to(root_path)
+                    rel_path_str = str(rel_path)
+
+                    for pattern in exclude_patterns:
+                        if fnmatch.fnmatch(rel_path_str.lower(), pattern.lower()):
+                            excluded_files.add(file_path)
+                            break
+                except ValueError:
+                    continue
 
         matched_files = matched_files - excluded_files
         logger.info(f"Excluded {len(excluded_files)} files based on exclude patterns")
