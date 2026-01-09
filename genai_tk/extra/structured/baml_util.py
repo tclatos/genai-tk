@@ -16,7 +16,7 @@ from loguru import logger
 
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.hashing import buffer_digest
-from genai_tk.utils.pydantic.common import validate_pydantic_model
+from genai_tk.utils.pydantic_utils.common import validate_pydantic_model
 
 
 def load_baml_client(config_name: str = "default") -> tuple[Any, Any]:

@@ -58,23 +58,23 @@ def once(func: Callable[..., R]) -> Callable[..., R]:
         # If already a staticmethod, apply once_fn() to the underlying function
         inner_func = func.__func__
         wrapper = once_fn()(inner_func)
+        # Modify wrapper's docstring and annotations BEFORE wrapping in staticmethod
+        wrapper.__doc__ = f"ONCE FUNCTION (singleton)\n- {original_doc or ''}"
+        wrapper.__annotations__ = original_annotations
         wrapped = staticmethod(wrapper)
         # Forward the invalidate method to the staticmethod
-        wrapped.invalidate = wrapper.invalidate
+        wrapped.invalidate = wrapper.invalidate  # type: ignore
+        wrapped.__name__ = inner_func.__name__  # type: ignore
+        wrapped.__module__ = inner_func.__module__  # type: ignore
     else:
         # Otherwise create a new staticmethod with once_fn() applied
         wrapper = once_fn()(func)
+        # Modify wrapper's docstring and annotations BEFORE wrapping in staticmethod
+        wrapper.__doc__ = f"ONCE FUNCTION (singleton)\n- {original_doc or ''}"
+        wrapper.__annotations__ = original_annotations
         wrapped = staticmethod(wrapper)
         # Expose the invalidate method directly
-        wrapped.invalidate = wrapper.invalidate
-
-    # Preserve the original function's documentation and attributes
-    wrapped.__doc__ = original_doc
-    wrapped.__annotations__ = original_annotations
-    if isinstance(func, staticmethod):
-        wrapped.__name__ = inner_func.__name__
-        wrapped.__module__ = inner_func.__module__
-    else:
+        wrapped.invalidate = wrapper.invalidate  # type: ignore
         wrapped.__name__ = func.__name__
         wrapped.__module__ = func.__module__
 
@@ -130,7 +130,7 @@ def once_fn() -> Callable:
             with decorator._lock:  # type: ignore
                 decorator._cached_results.clear()  # type: ignore
 
-        wrapper.invalidate = invalidate
+        wrapper.invalidate = invalidate  # type: ignore
 
         return wrapper
 
@@ -165,6 +165,7 @@ if __name__ == "__main__":
 
     @once
     def get_my_class_singleton() -> TestClass1:
+        """for test"""
         return TestClass1(a=4)
 
     obj3 = get_my_class_singleton()
@@ -201,13 +202,13 @@ if __name__ == "__main__":
 
     # Test invalidation
     obj14 = TestClass1.singleton()
-    TestClass1.singleton.invalidate()
+    TestClass1.singleton.invalidate()  # type: ignore
     obj15 = TestClass1.singleton()
     assert obj14 is not obj15
 
     # Test function-based invalidation
     obj16 = get_my_class_singleton()
-    get_my_class_singleton.invalidate()
+    get_my_class_singleton.invalidate()  # type: ignore
     obj17 = get_my_class_singleton()
     assert obj16 is not obj17
 

@@ -97,7 +97,7 @@ class ExtraCommands(CliTopCommand):
             from rich.progress import BarColumn, Progress, SpinnerColumn, TaskProgressColumn, TextColumn
             from upath import UPath
 
-            from genai_tk.utils.pydantic.kv_store import PydanticStore
+            from genai_tk.utils.pydantic_utils.kv_store import PydanticStore
             from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel, create_warning_panel
 
             console = Console()

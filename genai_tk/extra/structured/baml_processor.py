@@ -49,7 +49,7 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
 
     async def abatch_analyze_documents(self, document_ids: list[str], markdown_contents: list[str]) -> list[T]:
         """Process multiple documents asynchronously with caching using BAML."""
-        from genai_tk.utils.pydantic.kv_store import PydanticStore, save_object_to_kvstore
+        from genai_tk.utils.pydantic_utils.kv_store import PydanticStore, save_object_to_kvstore
 
         analyzed_docs: list[T] = []
         remaining_ids: list[str] = []

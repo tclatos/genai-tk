@@ -24,7 +24,7 @@ from mistralai.models import OCRResponse
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from upath import UPath
 
-from genai_tk.utils.pydantic.kv_store import load_object_from_kvstore, save_object_to_kvstore
+from genai_tk.utils.pydantic_utils.kv_store import load_object_from_kvstore, save_object_to_kvstore
 
 
 def _encode_to_base64(path: UPath) -> str:
