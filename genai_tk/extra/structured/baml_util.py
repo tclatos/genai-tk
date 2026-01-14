@@ -312,9 +312,10 @@ def prompt_fingerprint(function_name: str, config_name: str = "default", **kwarg
     baml_context = baml_lib.PyBamlContext(baml_schema_content, return_type_name)  # pyright: ignore[reportAttributeAccessIssue]
     rendered = baml_context.render_prompt(None, True)
 
-
     # Compute hash of the schema using default algorithm (xxh3_64)
     return buffer_digest(rendered.encode())
+
+    # TODO: add digest of the function.
 
 
 async def baml_invoke(

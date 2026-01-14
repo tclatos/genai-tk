@@ -6,7 +6,6 @@ with support for include and exclude filters.
 
 from __future__ import annotations
 
-import fnmatch
 import re
 
 from loguru import logger
@@ -128,9 +127,17 @@ def resolve_files(
 
                 # Check if file matches any include pattern
                 for pattern in include_patterns:
-                    if fnmatch.fnmatch(rel_path_str.lower(), pattern.lower()):
+                    # Use pathlib.match() which properly handles ** globstar patterns
+                    # Also try without leading **/ to catch files at root level
+                    if rel_path.match(pattern):
                         matched_files.add(file_path)
                         break
+                    # If pattern starts with **/, also try without it to match root-level files
+                    elif pattern.startswith("**/"):
+                        alt_pattern = pattern[3:]  # Remove leading **/
+                        if rel_path.match(alt_pattern):
+                            matched_files.add(file_path)
+                            break
             except ValueError:
                 # File is not relative to root_path, skip it
                 continue
@@ -158,12 +165,18 @@ def resolve_files(
             for file_path in matched_files:
                 try:
                     rel_path = file_path.relative_to(root_path)
-                    rel_path_str = str(rel_path)
 
                     for pattern in exclude_patterns:
-                        if fnmatch.fnmatch(rel_path_str.lower(), pattern.lower()):
+                        # Use pathlib.match() which properly handles ** globstar patterns
+                        if rel_path.match(pattern):
                             excluded_files.add(file_path)
                             break
+                        # If pattern starts with **/, also try without it to match root-level files
+                        elif pattern.startswith("**/"):
+                            alt_pattern = pattern[3:]  # Remove leading **/
+                            if rel_path.match(alt_pattern):
+                                excluded_files.add(file_path)
+                                break
                 except ValueError:
                     continue
 

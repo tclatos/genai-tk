@@ -399,132 +399,38 @@ class InfoCommands(CliTopCommand):
             from rich.console import Console
             from rich.table import Table
 
-            from genai_tk.utils.file_patterns import resolve_config_path
+            from genai_tk.utils.file_patterns import resolve_files
 
             console = Console()
 
-            # Resolve config variables in the path
-            resolved_dir = resolve_config_path(target_dir)
-            logger.info(f"Resolved path: {target_dir} → {resolved_dir}")
-
-            target_path = Path(resolved_dir)
-
-            if not target_path.exists():
-                logger.error(f"Path does not exist: {resolved_dir}")
-                raise typer.Exit(1)
-
-            if not target_path.is_dir():
-                logger.error(f"Path is not a directory: {resolved_dir}")
-                raise typer.Exit(1)
-
-            # Default include patterns to all files if not specified
-            if include_patterns is None:
-                include_patterns = ["*"]
-
-            # Validate patterns before use
-            def validate_pattern(pattern: str, pattern_type: str) -> None:
-                """Validate that a glob pattern is valid for pathlib operations."""
-                if pattern.startswith("/"):
-                    logger.error(
-                        f"Invalid {pattern_type} pattern '{pattern}': "
-                        f"Patterns must be relative (cannot start with '/'). "
-                        f"Use '{pattern.lstrip('/')}' instead."
-                    )
-                    raise typer.Exit(1)
-
-            # Validate all patterns
-            for pattern in include_patterns:
-                validate_pattern(pattern, "include")
-            if exclude_patterns:
-                for pattern in exclude_patterns:
-                    validate_pattern(pattern, "exclude")
-
-            logger.info(f"Include patterns: {include_patterns}")
-            if exclude_patterns:
-                logger.info(f"Exclude patterns: {exclude_patterns}")
-
-            # Collect files matching patterns
-            from fnmatch import fnmatch
-
-            def matches_patterns(file_path: Path, patterns: list[str]) -> bool:
-                """Check if file matches any of the given patterns."""
-                name = file_path.name
-                # Also check against relative path for recursive matches
-                try:
-                    rel_path = str(file_path.relative_to(target_path))
-                except ValueError:
-                    rel_path = str(file_path)
-
-                for pattern in patterns:
-                    if fnmatch(name, pattern) or fnmatch(rel_path, pattern):
-                        return True
-                return False
-
-            def should_include(file_path: Path) -> bool:
-                """Determine if file should be included based on patterns."""
-                # Check hidden files
-                if not show_hidden and file_path.name.startswith("."):
-                    return False
-
-                # Check include patterns
-                if not matches_patterns(file_path, include_patterns):
-                    return False
-
-                # Check exclude patterns
-                if exclude_patterns and matches_patterns(file_path, exclude_patterns):
-                    return False
-
-                return True
-
-            # Collect matching files and directories
-            all_entries = []
-
+            # Use resolve_files to handle all pattern matching consistently
             try:
-                if recursive:
-                    # Use rglob for recursive listing
-                    for pattern in include_patterns:
-                        try:
-                            for entry in target_path.rglob(pattern):
-                                if should_include(entry):
-                                    all_entries.append(entry)
-                        except NotImplementedError:
-                            logger.error(
-                                f"Pattern '{pattern}' is not supported for recursive glob. "
-                                f"Ensure the pattern is relative (doesn't start with '/')."
-                            )
-                            raise typer.Exit(1) from None
-                        except ValueError as e:
-                            logger.error(f"Invalid pattern '{pattern}': {e}")
-                            raise typer.Exit(1) from e
-                else:
-                    # Use glob for non-recursive listing
-                    for pattern in include_patterns:
-                        try:
-                            for entry in target_path.glob(pattern):
-                                if should_include(entry):
-                                    all_entries.append(entry)
-                        except NotImplementedError:
-                            logger.error(
-                                f"Pattern '{pattern}' is not supported for glob. "
-                                f"Ensure the pattern is relative (doesn't start with '/')."
-                            )
-                            raise typer.Exit(1) from None
-                        except ValueError as e:
-                            logger.error(f"Invalid pattern '{pattern}': {e}")
-                            raise typer.Exit(1) from e
-            except PermissionError as e:
-                logger.error(f"Permission denied while accessing directory: {e}")
-                raise typer.Exit(1) from e
-            except OSError as e:
-                logger.error(f"OS error while listing directory: {e}")
+                files = resolve_files(
+                    target_dir,
+                    include_patterns=include_patterns,
+                    exclude_patterns=exclude_patterns,
+                    recursive=recursive,
+                    case_sensitive=False,
+                )
+            except Exception as e:
+                logger.error(f"Failed to resolve files: {e}")
                 raise typer.Exit(1) from e
 
-            # Remove duplicates and sort
-            all_entries = sorted(set(all_entries))
+            # Filter out hidden files if needed
+            if not show_hidden:
+                files = [f for f in files if not f.name.startswith(".")]
+
+            # Convert to Path objects and sort
+            all_entries = sorted([Path(f) for f in files])
 
             if not all_entries:
-                logger.warning(f"No files found matching patterns in {resolved_dir}")
+                logger.warning(f"No files found matching patterns in {target_dir}")
                 return
+
+            # Get resolved directory for display
+            from genai_tk.utils.file_patterns import resolve_config_path
+            resolved_dir = resolve_config_path(target_dir)
+            target_path = Path(resolved_dir)
 
             # Display results
             if long_format:
