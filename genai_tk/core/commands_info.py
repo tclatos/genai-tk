@@ -429,6 +429,7 @@ class InfoCommands(CliTopCommand):
 
             # Get resolved directory for display
             from genai_tk.utils.file_patterns import resolve_config_path
+
             resolved_dir = resolve_config_path(target_dir)
             target_path = Path(resolved_dir)
 
