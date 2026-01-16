@@ -142,20 +142,18 @@ class TestRAGCommands:
         assert "Query Results" in output or "No Results" in output
 
     def test_query_command_with_parameters(self, cli_app, cli_runner):
-        """Test querying with k and threshold parameters."""
+        """Test querying with k and filter parameters."""
         # First embed some text
         cli_runner.invoke(cli_app, ["rag", "embed", "default", "--text", "Machine learning is a subset of AI"])
 
-        # Query with parameters
-        result = cli_runner.invoke(
-            cli_app, ["rag", "query", "default", "machine learning", "--k", "2", "--threshold", "0.5"]
-        )
+        # Query with k parameter
+        result = cli_runner.invoke(cli_app, ["rag", "query", "default", "machine learning", "--k", "2"])
 
         # Should succeed
         assert result.exit_code == 0
 
         output = result.stdout
-        # With fake embeddings and threshold, might not find results
+        # Should show query results
         assert "Query" in output or "No Results" in output or "machine learning" in output
 
     def test_query_command_invalid_k(self, cli_app, cli_runner):
@@ -169,16 +167,29 @@ class TestRAGCommands:
         assert "Invalid Parameter" in output
         assert "k must be at least 1" in output
 
-    def test_query_command_invalid_threshold(self, cli_app, cli_runner):
-        """Test query command with invalid threshold parameter."""
-        result = cli_runner.invoke(cli_app, ["rag", "query", "default", "test query", "--threshold", "1.5"])
+    def test_query_command_with_filter(self, cli_app, cli_runner):
+        """Test query command with metadata filter parameter."""
+        # Test with a valid JSON filter
+        result = cli_runner.invoke(
+            cli_app, ["rag", "query", "default", "test query", "--filter", '{"file_hash": "abc123"}']
+        )
+
+        # Should succeed (even if no results found)
+        assert result.exit_code == 0
+
+        output = result.stdout
+        # Should show query summary or no results
+        assert "Query" in output or "No Results" in output
+
+    def test_query_command_invalid_filter(self, cli_app, cli_runner):
+        """Test query command with invalid filter JSON."""
+        result = cli_runner.invoke(cli_app, ["rag", "query", "default", "test query", "--filter", "not valid json"])
 
         # Should succeed (error handled gracefully)
         assert result.exit_code == 0
 
         output = result.stdout
-        assert "Invalid Parameter" in output
-        assert "threshold must be between" in output
+        assert "Invalid Filter" in output or "Failed to parse" in output
 
     def test_delete_command_empty_store(self, cli_app, cli_runner):
         """Test deleting from an empty vector store."""

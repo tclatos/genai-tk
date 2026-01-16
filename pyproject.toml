@@ -5,67 +5,103 @@ description = "GenAI Toolkit - Core components for building AI applications"
 authors = [{ name = "Thierry Caminel", email = "thierry.caminel@atos.net" }]
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    # Core dependencies - minimal set for the toolkit
-    "pydantic>=2.7.0,<3", # Data validation framework
-    "loguru>=0.7.3", # Logging library
-    "typer>=0.13.0", # CLI framework
-    "omegaconf>=2.3.0", # Configuration management
-    "rich[jupyter]>=13.9.4", # Terminal formatting
-    "universal-pathlib>=0.2.6", # Cross-platform paths
-    "python-dotenv>=1.1.1", # Environment variables
-    "beartype>=0.21.0", # Runtime type checking
-    "devtools>=0.12.2", # Development utilities
-    # AI/ML Core Dependencies (required for core functionality)
-    "langchain>=1.0",
-    "langchain-core>=1.0",
-    "langchain-classic>=1.0.0",
-    "langchain-community>=0.4",
-    #  "langchain-experimental>=0.0.42",
-    "langgraph>=1.0",
-    "langserve>=0.3",
-    "deepagents>=0.0.5",
-    "langchainhub>=0.1",
-    "langchain-openai>=1.0",
-    "langchain-ollama>=1.0",
-    "langchain-deepseek>=1.0",
-    "langchain-mistralai>=1.0",
-    "langchain-mcp-adapters>=0.1",
-    "langchain-groq>=1.0",
-    "openai>=1.80.0",
-    "litellm>=1.74,<2",
-    "mistralai>=1.7.0",
-    "smolagents[toolkit, mcp, openai, litellm, docker]>=1.17",
-    "mcp[cli]>=1.4.1",
-    # Extra features (moved from extra group - commonly used)
-    "chromadb>=1.0",
-    "langchain-chroma>=1.0",
-    "gpt-researcher>=0.13",
-    "unidecode>=1.3.8",
-    "tavily-python>=0.7.12",
-    "openpyxl>=3.1.5",
-    "fuzzysearch>=0.8.0",
-    "markpickle>=1.6.1",
-    "markitdown[pdf, docx, pptx]>=0.1.3",
-    # Knowledge Graphs (moved from kg group - core for graph operations)
-    "baml-cli>=0.1.0",
-    "langchain-kuzu>=0.3.0",
-    "kuzu>=0.7.1",
-    # NLP & Search (moved from nlp group - core for text processing)
-    "spacy>=3.7.4",
-    "rank-bm25>=0.2.2",
-    "bm25s>=0.2.13",
-    "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
-    "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
-    "abbreviations>=0.2.5",
-    "presidio-analyzer>=2.2.360", # PII detection
-    "presidio-anonymizer>=2.2.360", # PII anonymization
-    "langchain-experimental>=0.0.42",
-    "chonkie>=1.4.0",
-    "ddgs>=9.7.0",
-    "langchain-litellm>=0.3.2",
-    "prefect>=3.6.7",
-    "xxhash>=3.6.0",
-    "baml-lib>=0.42.0",
+    # ============================================
+    # Core Infrastructure
+    # ============================================
+    "pydantic>=2.7.0,<3",       # Data validation and settings management
+    "loguru>=0.7.3",            # Structured logging with better UX
+    "typer>=0.13.0",            # CLI framework with type hints
+    "omegaconf>=2.3.0",         # Hierarchical configuration system
+    "rich[jupyter]>=13.9.4",    # Rich terminal formatting and progress bars
+    "universal-pathlib>=0.2.6", # Unified path interface for local/cloud storage
+    "python-dotenv>=1.1.1",     # Environment variable management
+    "beartype>=0.21.0",         # Runtime type validation
+    "devtools>=0.12.2",         # Debug printing and development utilities
+    "xxhash>=3.6.0",            # Fast non-cryptographic hash functions
+
+    # ============================================
+    # LangChain Core Framework
+    # ============================================
+    "langchain>=1.0",                 # Core LangChain library
+    "langchain-core>=1.0",            # LangChain abstractions and base classes
+    "langchain-classic>=1.0.0",       # Classic LangChain components
+    "langchain-community>=0.4",       # Community-contributed integrations
+    "langchain-experimental>=0.0.42", # Experimental features and patterns
+    "langgraph>=1.0",                 # Graph-based workflows and agent orchestration
+    "langserve>=0.3",                 # Deploy LangChain apps as REST APIs
+    "langchainhub>=0.1",              # Share and discover prompts/chains
+
+    # ============================================
+    # LLM Provider Integrations
+    # ============================================
+    "langchain-openai>=1.0",    # OpenAI models (GPT-4, GPT-3.5, etc.)
+    "langchain-ollama>=1.0",    # Local Ollama models integration
+    "langchain-deepseek>=1.0",  # DeepSeek models integration
+    "langchain-mistralai>=1.0", # Mistral AI models integration
+    "langchain-groq>=1.0",      # Groq inference engine integration
+    "langchain-litellm>=0.3.2", # LiteLLM unified interface
+    "openai>=1.80.0",           # Official OpenAI Python client
+    "litellm>=1.74,<2",         # Unified LLM API (100+ models)
+    "mistralai>=1.7.0",         # Official Mistral AI client
+
+    # ============================================
+    # Agent Frameworks
+    # ============================================
+    "smolagents[toolkit, mcp, openai, litellm, docker]>=1.17", # Lightweight agentic framework
+    "deepagents>=0.0.5",                                       # Deep learning agent utilities
+    "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
+    "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
+
+    # ============================================
+    # Vector Stores & Embeddings
+    # ============================================
+    "chromadb>=1.0",         # Vector database for embeddings
+    "langchain-chroma>=1.0", # LangChain integration for ChromaDB
+
+    # ============================================
+    # Knowledge Graphs & Structured Data
+    # ============================================
+    "baml-cli>=0.1.0",       # BAML CLI for structured data extraction
+    "baml-lib>=0.42.0",      # BAML library for LLM-powered parsing
+    "langchain-kuzu>=0.3.0", # LangChain integration for Kuzu graph DB
+    "kuzu>=0.7.1",           # Embedded graph database
+
+    # ============================================
+    # NLP & Text Processing
+    # ============================================
+    "spacy>=3.7.4",                                                                                                                           # Industrial-strength NLP library
+    "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", # Small English model
+    "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl", # Large English model with word vectors
+    "abbreviations>=0.2.5",                                                                                                                   # Abbreviation detection and expansion
+    "unidecode>=1.3.8",                                                                                                                       # ASCII transliteration of Unicode text
+
+    # ============================================
+    # Search & Retrieval
+    # ============================================
+    "rank-bm25>=0.2.2",      # BM25 ranking algorithm implementation
+    "bm25s>=0.2.13",         # Fast BM25 search with NumPy
+    "fuzzysearch>=0.8.0",    # Fuzzy string matching
+    "gpt-researcher>=0.13",  # Autonomous web research agent
+    "tavily-python>=0.7.12", # Tavily search API client
+    "ddgs>=9.7.0",           # DuckDuckGo search wrapper
+
+    # ============================================
+    # Privacy & Security
+    # ============================================
+    "presidio-analyzer>=2.2.360",   # PII detection and analysis
+    "presidio-anonymizer>=2.2.360", # PII anonymization and redaction
+
+    # ============================================
+    # Document Processing
+    # ============================================
+    "markitdown[pdf, docx, pptx]>=0.1.3", # Convert documents to markdown
+    "markpickle>=1.6.1",                  # Pickle with markdown support
+    "openpyxl>=3.1.5",                    # Excel file reading and writing
+
+    # ============================================
+    # Workflow Orchestration
+    # ============================================
+    "prefect>=3.6.7", # Modern workflow orchestration
 ]
 
 [project.urls]
@@ -73,38 +109,54 @@ Homepage = "https://github.com/tclatos/genai-tk"
 Repository = "https://github.com/tclatos/genai-tk"
 
 [dependency-groups]
-# Note: consider using project.optional-dependencies (extras) 
+# Optional dependency groups for specific use cases
+# Install with: uv sync --group <group-name>
 
-postgres = [ # PostgreSQL
-    "langchain-postgres>=0.0.15", # PostgreSQL integration for LangChain
-    "psycopg[binary]>=3.2.9",     # PostgreSQL adapter v3
-    "psycopg2-binary>=2.9.10",    # PostgreSQL adapter v2
+# ============================================
+# Database Backends
+# ============================================
+postgres = [
+    "langchain-postgres>=0.0.15", # LangChain PostgreSQL integration for vector storage
+    "psycopg[binary]>=3.2.9",     # Modern PostgreSQL adapter (v3)
+    "psycopg2-binary>=2.9.10",    # Legacy PostgreSQL adapter (v2)
 ]
 
-browser-control = [ # Browser Control
-    "playwright>=1.51.0",     # Browser automation
-    "browser-use-sdk>=2.0.4", # Browser automation agent
+# ============================================
+# Browser Automation
+# ============================================
+browser-control = [
+    "playwright>=1.51.0",     # Headless browser automation framework
+    "browser-use-sdk>=2.0.4", # High-level browser automation agent SDK
 ]
 
-transformers = [ #   Transformers (large dependency)
-    "accelerate>=1.4.0",            # Model acceleration
-    "langchain-huggingface>=0.1.2", # Hugging Face integration
-    "sentence-transformers>=3.4.1", # Sentence embeddings
-]
-autogen = [ # AutoGen
-    "autogen-openaiext-client>=0.0.3", # OpenAI extension client
-    "autogen-agentchat>=0.4.3",        # Multi-agent chat framework
-    "autogen-ext[openai]>=0.4.3",      # AutoGen OpenAI extensions
+# ============================================
+# Machine Learning Models
+# ============================================
+transformers = [
+    "accelerate>=1.4.0",            # PyTorch model acceleration utilities
+    "langchain-huggingface>=0.1.2", # LangChain integration for Hugging Face models
+    "sentence-transformers>=3.4.1", # Semantic sentence embeddings
 ]
 
+# ============================================
+# Multi-Agent Systems
+# ============================================
+autogen = [
+    "autogen-openaiext-client>=0.0.3", # OpenAI extension client for AutoGen
+    "autogen-agentchat>=0.4.3",        # Multi-agent conversation framework
+    "autogen-ext[openai]>=0.4.3",      # AutoGen extensions with OpenAI support
+]
+
+# ============================================
+# Development Tools
+# ============================================
 dev = [
-    "ruff>=0.9.1",            # Python linter
-    "pytest>=8.1.1",          # Testing framework
-    "pytest-asyncio>=0.24.0", # Async test support
-    "faker>=25.0.0",          # Fake data generation for tests
-
-    "ipykernel>=6.29.4", # Jupyter kernel
-    "ipywidgets>=8.1.2", # Jupyter widgets
+    "ruff>=0.9.1",            # Fast Python linter and formatter
+    "pytest>=8.1.1",          # Modern testing framework
+    "pytest-asyncio>=0.24.0", # Async test support for pytest
+    "faker>=25.0.0",          # Generate fake data for testing
+    "ipykernel>=6.29.4",      # Jupyter kernel for notebooks
+    "ipywidgets>=8.1.2",      # Interactive widgets for Jupyter
 ]
 
 [tool.uv]

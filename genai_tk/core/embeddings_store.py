@@ -126,7 +126,7 @@ from langchain_core.vectorstores import VectorStore
 from typing_extensions import deprecated
 
 try:
-    from langchain_postgres.v2.hybrid_search_config import HybridSearchConfig
+    from langchain_postgres.v2.hybrid_search_config import HybridSearchConfig  # pyright: ignore[reportMissingImports]  # noqa: I001
 except ImportError:
     HybridSearchConfig = None  # Optional dependency
 from loguru import logger
@@ -472,6 +472,7 @@ class EmbeddingsStore(BaseModel):
                 vector_store,
                 cleanup="incremental",
                 source_id_key="source",
+                key_encoder="blake2b",
             )
             return info
 
@@ -534,7 +535,13 @@ class EmbeddingsStore(BaseModel):
             NotImplementedError: For unsupported vector store backends
         """
         if self.backend == "PgVector":
-            from langchain_postgres import PGEngine
+            try:
+                from langchain_postgres import PGEngine  # pyright: ignore[reportMissingImports]
+            except ImportError as e:
+                raise ImportError(
+                    "langchain_postgres is required for PgVector operations. "
+                    "Install it with: uv pip install langchain-postgres"
+                ) from e
 
             if pg_engine := self._conf.get("pg_engine"):
                 logger.info(f"drop table {self._conf['schema_name']}.{self._conf['table_name']}")
@@ -614,31 +621,21 @@ class EmbeddingsStore(BaseModel):
             # IndexingResult case
             return getattr(result, "upserted", [])
 
-    def query(self, query: str, k: int = 4, score_threshold: float | None = None) -> list[Document]:
+    async def query(self, query: str, k: int = 4, filter: dict[str, Any] | None = None) -> list[Document]:
         """Query the vector store for similar documents.
 
         Args:
             query: Query text to search for
             k: Number of results to return
-            score_threshold: Optional score threshold for filtering results
+            filter: Optional metadata filter dictionary for filtering results
 
         Returns:
             List of documents matching the query
         """
         vector_store = self.get_vector_store()
 
-        if score_threshold is not None:
-            # Use similarity search with score threshold if supported
-            try:
-                results = vector_store.similarity_search_with_relevance_scores(query, k=k)
-                # Filter by threshold
-                filtered_results = [doc for doc, score in results if score >= score_threshold]
-                return filtered_results
-            except (NotImplementedError, AttributeError):
-                logger.warning(f"Score threshold filtering not supported for {self.backend}, ignoring threshold")
-
-        # Fallback to regular similarity search
-        return vector_store.similarity_search(query, k=k)
+        # Use similarity search with optional filter
+        return vector_store.similarity_search(query, k=k, filter=filter)
 
     def get_stats(self) -> dict[str, Any]:
         """Get statistics about the vector store.

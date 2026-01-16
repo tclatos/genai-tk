@@ -11,19 +11,23 @@ The commands support multiple vector store backends configured via YAML
 and provide rich formatted output with tables and panels.
 """
 
+from __future__ import annotations
+
+import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 import typer
 from langchain_core.documents import Document
 from rich.console import Console
 from rich.table import Table
 
-from genai_tk.core.embeddings_store import EmbeddingsStore
 from genai_tk.main.cli import CliTopCommand
-from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel, create_warning_panel
+
+if TYPE_CHECKING:
+    from genai_tk.core.embeddings_store import EmbeddingsStore
 
 
 def _create_info_table(stats: dict) -> Table:
@@ -47,17 +51,18 @@ def _create_info_table(stats: dict) -> Table:
     return table
 
 
-def _create_documents_table(documents: list[Document], show_scores: bool = False) -> Table:
+def _create_documents_table(documents: list[Document], show_scores: bool = False, max_length: int = 100) -> Table:
     """Create a Rich table for displaying documents.
 
     Args:
         documents: List of documents to display
         show_scores: Whether to show relevance scores
+        max_length: Maximum length of content to display per document
 
     Returns:
         Rich Table with formatted document information
     """
-    table = Table(title="Query Results", show_header=True, header_style="bold magenta")
+    table = Table(title="Query Results", show_header=True, header_style="bold magenta", show_lines=True)
     table.add_column("Index", style="cyan", width=6)
     table.add_column("Content", style="white")
     table.add_column("Metadata", style="dim white")
@@ -66,7 +71,7 @@ def _create_documents_table(documents: list[Document], show_scores: bool = False
         table.add_column("Score", style="green", width=8)
 
     for i, doc in enumerate(documents, 1):
-        content = doc.page_content[:100] + "..." if len(doc.page_content) > 100 else doc.page_content
+        content = doc.page_content[:max_length] + "..." if len(doc.page_content) > max_length else doc.page_content
         metadata = json.dumps(doc.metadata) if doc.metadata else "{}"
 
         if show_scores:
@@ -78,7 +83,7 @@ def _create_documents_table(documents: list[Document], show_scores: bool = False
     return table
 
 
-def _get_vector_store_safe(store_name: str) -> EmbeddingsStore | None:
+def _get_embeddings_store_safe(store_name: str) -> EmbeddingsStore | None:
     """Safely get a vector store by name, with error handling.
 
     Args:
@@ -87,6 +92,10 @@ def _get_vector_store_safe(store_name: str) -> EmbeddingsStore | None:
     Returns:
         EmbeddingsStore instance or None if not found
     """
+
+    from genai_tk.core.embeddings_store import EmbeddingsStore
+    from genai_tk.utils.rich_widgets import create_error_panel
+
     console = Console()
 
     try:
@@ -184,22 +193,43 @@ class RagCommands(CliTopCommand):
                 # Process with larger batch size for better parallelism
                 cli rag add-files ./docs --store chroma_indexed \\
                     --batch-size 20
+
+                # Use config variables
+                cli rag add-files '${paths.data_root}/docs' --store chroma_indexed
                 ```
             """
             console = Console()
 
+            # Resolve YAML config variables in path
+            from genai_tk.utils.file_patterns import resolve_config_path
+            from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel, create_warning_panel
+
+            resolved_root_dir = resolve_config_path(root_dir)
+
             # Validate root directory
-            root_path = Path(root_dir)
+            root_path = Path(resolved_root_dir)
             if not root_path.exists():
-                console.print(create_error_panel("Invalid Path", f"Root directory does not exist: {root_dir}"))
+                console.print(
+                    create_error_panel(
+                        "Invalid Path",
+                        f"Root directory does not exist: {root_dir}"
+                        + (f"\n(Resolved to: {resolved_root_dir})" if resolved_root_dir != root_dir else ""),
+                    )
+                )
                 raise typer.Exit(1)
 
             if not root_path.is_dir():
-                console.print(create_error_panel("Invalid Path", f"Path is not a directory: {root_dir}"))
+                console.print(
+                    create_error_panel(
+                        "Invalid Path",
+                        f"Path is not a directory: {root_dir}"
+                        + (f"\n(Resolved to: {resolved_root_dir})" if resolved_root_dir != root_dir else ""),
+                    )
+                )
                 raise typer.Exit(1)
 
             # Validate vector store
-            vector_store = _get_vector_store_safe(store_name)
+            vector_store = _get_embeddings_store_safe(store_name)
             if not vector_store:
                 raise typer.Exit(1)
 
@@ -207,8 +237,13 @@ class RagCommands(CliTopCommand):
             if include is None:
                 include = ["**/*"]
 
-            # Log the operation
-            console.print(f"[bold cyan]Starting file ingestion from '{root_dir}' to store '{store_name}'[/bold cyan]")
+            # Log the operation (show resolved path if different)
+            display_path = (
+                f"'{root_dir}'"
+                if resolved_root_dir == root_dir
+                else f"'{root_dir}' (resolved to '{resolved_root_dir}')"
+            )
+            console.print(f"[bold cyan]Starting file ingestion from {display_path} to store '{store_name}'[/bold cyan]")
             if include:
                 console.print(f"  Include patterns: {', '.join(include)}")
             if exclude:
@@ -224,7 +259,7 @@ class RagCommands(CliTopCommand):
 
                 result = run_flow_ephemeral(
                     rag_file_ingestion_flow,
-                    root_dir=root_dir,
+                    root_dir=resolved_root_dir,
                     store_name=store_name,
                     include_patterns=include,
                     exclude_patterns=exclude,
@@ -272,15 +307,18 @@ class RagCommands(CliTopCommand):
             store_name: Annotated[
                 str, typer.Option("--store", "-s", help="Name of the vector store configuration")
             ] = "default",
+            force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")] = False,
         ) -> None:
             """Delete all documents from a vector store.
 
             This command clears all documents from the specified vector store while keeping
-            the store configuration intact.
+            the store configuration intact. Requires confirmation unless --force is used.
             """
+            from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel, create_warning_panel
+
             console = Console()
 
-            vector_store = _get_vector_store_safe(store_name)
+            vector_store = _get_embeddings_store_safe(store_name)
             if not vector_store:
                 return
 
@@ -294,6 +332,20 @@ class RagCommands(CliTopCommand):
                         create_warning_panel("Nothing to Delete", f"Vector store '{store_name}' is already empty.")
                     )
                     return
+
+                # Ask for confirmation unless --force is used
+                if not force:
+                    if isinstance(doc_count, int):
+                        message = (
+                            f"Are you sure you want to delete {doc_count} documents from vector store '{store_name}'?"
+                        )
+                    else:
+                        message = f"Are you sure you want to clear vector store '{store_name}'?"
+
+                    confirmed = typer.confirm(message, default=False)
+                    if not confirmed:
+                        console.print(create_warning_panel("Cancelled", "Deletion cancelled by user."))
+                        return
 
                 success = vector_store.clear()
                 if success:
@@ -328,9 +380,11 @@ class RagCommands(CliTopCommand):
             The text can be provided via the --text option or read from stdin.
             Optional metadata can be provided as a JSON string.
             """
+            from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel
+
             console = Console()
 
-            vector_store = _get_vector_store_safe(store_name)
+            vector_store = _get_embeddings_store_safe(store_name)
             if not vector_store:
                 return
 
@@ -392,10 +446,14 @@ class RagCommands(CliTopCommand):
         def query(
             query_text: Annotated[str, typer.Argument(help="Query text to search for")],
             k: Annotated[int, typer.Option("--k", help="Number of results to return")] = 4,
-            threshold: Annotated[
-                Optional[float], typer.Option("--threshold", help="Minimum similarity score (0.0-1.0)")
+            filter: Annotated[
+                Optional[str],
+                typer.Option("--filter", help='Metadata filter as JSON string (e.g., \'{"file_hash": "abc123"}\''),
             ] = None,
             full: Annotated[bool, typer.Option("--full", help="Show full document content")] = False,
+            max_length: Annotated[
+                int, typer.Option("--max-length", "-l", help="Maximum length of content to display per document")
+            ] = 100,
             store_name: Annotated[
                 str, typer.Option("--store", "-s", help="Name of the vector store configuration")
             ] = "default",
@@ -403,30 +461,40 @@ class RagCommands(CliTopCommand):
             """Query a vector store for similar documents.
 
             Search for documents similar to the provided query text and display
-            the results in a formatted table.
+            the results in a formatted table. Optionally filter by metadata.
+
+            Example:
+                cli rag query "CNES" --filter '{"file_hash": "1fa730def69ff25e"}'
             """
+            from genai_tk.utils.rich_widgets import create_error_panel, create_warning_panel
+
             console = Console()
 
-            vector_store = _get_vector_store_safe(store_name)
-            if not vector_store:
+            embeddings_store = _get_embeddings_store_safe(store_name)
+            if not embeddings_store:
                 return
 
             if k < 1:
                 console.print(create_error_panel("Invalid Parameter", "k must be at least 1"))
                 return
 
-            if threshold is not None and (threshold < 0.0 or threshold > 1.0):
-                console.print(create_error_panel("Invalid Parameter", "threshold must be between 0.0 and 1.0"))
-                return
+            # Parse metadata filter if provided
+            metadata_filter = None
+            if filter:
+                try:
+                    metadata_filter = json.loads(filter)
+                except json.JSONDecodeError as e:
+                    console.print(create_error_panel("Invalid Filter", f"Failed to parse filter JSON: {e}"))
+                    return
 
             try:
-                # Perform the query
-                results = vector_store.query(query_text, k=k, score_threshold=threshold)
+                # Perform the query (async)
+                results = asyncio.run(embeddings_store.query(query_text, k=k, filter=metadata_filter))
 
                 if not results:
                     message = f"No results found for query: '{query_text}'"
-                    if threshold is not None:
-                        message += f" (threshold: {threshold})"
+                    if metadata_filter:
+                        message += f" (filter: {json.dumps(metadata_filter)})"
                     console.print(create_warning_panel("No Results", message))
                     return
 
@@ -441,7 +509,7 @@ class RagCommands(CliTopCommand):
                                 console.print(f"  {key}: {value}")
                         console.print("-" * 80)
                 else:
-                    console.print(_create_documents_table(results))
+                    console.print(_create_documents_table(results, max_length=max_length))
 
                 # Show query summary
                 summary_table = Table(title="Query Summary", show_header=True, header_style="bold blue")
@@ -451,8 +519,8 @@ class RagCommands(CliTopCommand):
                 summary_table.add_row("Query", query_text)
                 summary_table.add_row("Results Found", str(len(results)))
                 summary_table.add_row("Requested (k)", str(k))
-                if threshold is not None:
-                    summary_table.add_row("Score Threshold", str(threshold))
+                if metadata_filter:
+                    summary_table.add_row("Metadata Filter", json.dumps(metadata_filter))
 
                 console.print(summary_table)
 
@@ -473,9 +541,11 @@ class RagCommands(CliTopCommand):
             Display detailed information about the vector store configuration,
             document count, and other relevant statistics.
             """
+            from genai_tk.utils.rich_widgets import create_error_panel
+
             console = Console()
 
-            vector_store = _get_vector_store_safe(store_name)
+            vector_store = _get_embeddings_store_safe(store_name)
             if not vector_store:
                 return
 
@@ -494,6 +564,8 @@ class RagCommands(CliTopCommand):
             other RAG commands, including backend type and storage information.
             """
             console = Console()
+            from genai_tk.core.embeddings_store import EmbeddingsStore
+            from genai_tk.utils.rich_widgets import create_error_panel, create_warning_panel
 
             try:
                 configs = EmbeddingsStore.list_available_configs()

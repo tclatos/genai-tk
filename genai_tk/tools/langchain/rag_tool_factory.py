@@ -1,11 +1,11 @@
 """RAG Tool Factory for LangChain Integration.
 
 This module provides a factory for creating RAG (Retrieval-Augmented Generation)
-tools that can be used with LangChain agents. The factory creates tools that combine
-vector store similarity search capabilities with configurable text splitting.
+tools that can be used with LangChain agents. The factory creates tools that perform
+similarity searches against vector stores with optional metadata filtering.
 """
 
-import importlib
+import json
 from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -23,43 +23,30 @@ class RAGToolConfig(BaseModel):
         config = RAGToolConfig(
             embeddings_store="default",
             tool_name="knowledge_base",
-            tool_description="Search company knowledge base",
-            text_splitter_config={
-                "class": "RecursiveCharacterTextSplitter",
-                "chunk_size": 500,
-                "chunk_overlap": 50
-            },
-            filter_expression={"source": "docs"}
+            tool_description="Search company knowledge base for relevant documents",
+            default_filter={"source": "docs"},
+            top_k=5
         )
         ```
     """
 
-    embeddings_store: str = Field(description="Name of vector store registry config")
+    embeddings_store: str = Field(description="Name of vector store configuration to use")
     tool_name: str = Field(default="rag_search", description="Name of the generated tool")
     tool_description: str = Field(
-        default="Search vector store for relevant documents",
+        default="Search vector store for relevant documents. Accepts a query string and optional metadata filter in JSON format.",
         description="Description of what the tool does",
     )
-    text_splitter_config: dict[str, Any] = Field(
-        default_factory=lambda: {"class": "RecursiveCharacterTextSplitter", "chunk_size": 1000},
-        description="Text splitter configuration with class name and parameters",
+    default_filter: dict[str, Any] | None = Field(
+        default=None, description="Default metadata filter to apply to queries (merged with runtime filter)"
     )
-    filter_expression: dict[str, Any] | None = Field(
-        default=None, description="Optional filter expression for vector store queries"
-    )
-    top_k: int = Field(default=5, description="Maximum number of results to return")
-
-    def model_post_init(self, __context) -> None:
-        """Validate text splitter configuration."""
-        if "class" not in self.text_splitter_config:
-            raise ValueError("text_splitter_config must contain a 'class' key")
+    top_k: int = Field(default=4, description="Default maximum number of results to return")
 
 
 class RAGToolFactory:
     """Factory for creating RAG (Retrieval-Augmented Generation) tools for LangChain agents.
 
     This factory creates tools that can execute similarity searches against vector stores
-    using configurable text splitting and filtering capabilities.
+    using the EmbeddingsStore with optional metadata filtering capabilities.
 
     Example:
         ```
@@ -67,16 +54,15 @@ class RAGToolFactory:
             embeddings_store="knowledge_base",
             tool_name="search_docs",
             tool_description="Search technical documentation",
-            text_splitter_config={
-                "class": "RecursiveCharacterTextSplitter",
-                "chunk_size": 1000,
-                "chunk_overlap": 100
-            },
-            filter_expression={"category": "technical"}
+            default_filter={"category": "technical"},
+            top_k=5
         )
 
         factory = RAGToolFactory(llm)
         tool = factory.create_tool(config)
+
+        # The tool accepts a query and optional filter
+        result = tool.invoke({"query": "Python best practices", "filter": '{"author": "John"}'})
         ```
     """
 
@@ -84,7 +70,7 @@ class RAGToolFactory:
         """Initialize the factory with a language model.
 
         Args:
-            llm: Language model for potential future use in result processing
+            llm: Language model (kept for compatibility, not currently used)
         """
         self.llm = llm
 
@@ -92,43 +78,51 @@ class RAGToolFactory:
         """Create a RAG tool based on the provided configuration.
 
         Args:
-            config: Configuration specifying vector store, text splitter, and tool behavior
+            config: Configuration specifying vector store and tool behavior
 
         Returns:
-            Configured LangChain tool for RAG search
+            Configured LangChain tool for RAG search that accepts query and optional filter
+
+        Raises:
+            ValueError: If embeddings store configuration is invalid
         """
-        # Create vector store registry
+        # Create embeddings store from configuration
         try:
             embeddings_store = EmbeddingsStore.create_from_config(config.embeddings_store)
-            vector_store = embeddings_store.get()
         except Exception as e:
-            raise ValueError(f"Failed to create vector store from registry '{config.embeddings_store}': {e}") from e
-
-        # Validate text splitter configuration
-        try:
-            splitter_class_name = config.text_splitter_config["class"]
-            splitter_params = {k: v for k, v in config.text_splitter_config.items() if k != "class"}
-
-            # Import text splitter class dynamically to validate it exists
-            module = importlib.import_module("langchain_classic.text_splitter")
-            splitter_class = getattr(module, splitter_class_name)
-            # Text splitter can be instantiated for future use if needed
-            splitter_class(**splitter_params)
-        except (ImportError, AttributeError) as e:
-            raise ValueError(f"Failed to import text splitter class '{splitter_class_name}': {e}") from e
-        except Exception as e:
-            raise ValueError(f"Failed to create text splitter: {e}") from e
+            raise ValueError(f"Failed to create embeddings store '{config.embeddings_store}': {e}") from e
 
         @tool
-        async def rag_search_tool(query: str) -> str:
-            """Search vector store for relevant documents."""
-            try:
-                # Perform similarity search
-                kwargs = {"k": config.top_k}
-                if config.filter_expression:
-                    kwargs["filter"] = config.filter_expression
+        async def rag_search_tool(query: str, filter: str | None = None) -> str:
+            """Search vector store for relevant documents.
 
-                docs = await vector_store.asimilarity_search(query, **kwargs)
+            Args:
+                query: The search query string
+                filter: Optional metadata filter as JSON string (e.g., '{"file_hash": "abc123"}')
+
+            Returns:
+                Formatted string containing relevant documents
+            """
+            try:
+                # Parse runtime filter if provided
+                runtime_filter = None
+                if filter:
+                    try:
+                        runtime_filter = json.loads(filter)
+                    except json.JSONDecodeError as e:
+                        return f"Error: Invalid filter JSON format: {e}"
+
+                # Merge default filter with runtime filter
+                merged_filter = None
+                if config.default_filter or runtime_filter:
+                    merged_filter = {}
+                    if config.default_filter:
+                        merged_filter.update(config.default_filter)
+                    if runtime_filter:
+                        merged_filter.update(runtime_filter)
+
+                # Perform similarity search using embeddings_store.query
+                docs = await embeddings_store.query(query, k=config.top_k, filter=merged_filter)
 
                 # Format documents into a single string
                 if not docs:
@@ -136,7 +130,10 @@ class RAGToolFactory:
 
                 result_parts = []
                 for i, doc in enumerate(docs, 1):
-                    result_parts.append(f"Document {i}: {doc.page_content}")
+                    result_parts.append(f"Document {i}:\n{doc.page_content}")
+                    if doc.metadata:
+                        metadata_str = ", ".join(f"{k}={v}" for k, v in doc.metadata.items())
+                        result_parts.append(f"Metadata: {metadata_str}")
 
                 return "\n\n".join(result_parts)
             except Exception as e:
@@ -169,7 +166,7 @@ def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | Non
 
     Args:
         config: Configuration dictionary with tool settings
-        llm: Language model for potential future use (optional, will use default if not provided)
+        llm: Language model (optional, will use default if not provided)
 
     Returns:
         Configured RAG search tool
@@ -179,17 +176,21 @@ def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | Non
         config = {
             "embeddings_store": "knowledge_base",
             "tool_name": "search_documents",
-            "tool_description": "Search company documents",
-            "text_splitter_config": {
-                "class": "RecursiveCharacterTextSplitter",
-                "chunk_size": 1000,
-                "chunk_overlap": 100
-            },
-            "filter_expression": {"department": "engineering"},
-            "top_k": 3
+            "tool_description": "Search company documents for relevant information",
+            "default_filter": {"department": "engineering"},
+            "top_k": 5
         }
 
         tool = create_rag_tool_from_config(config)
+
+        # Use the tool with a query
+        result = tool.invoke({"query": "What are the coding standards?"})
+
+        # Use the tool with a query and additional filter
+        result = tool.invoke({
+            "query": "Python best practices",
+            "filter": '{"author": "John Smith"}'
+        })
         ```
     """
     # Get LLM if not provided
