@@ -1,0 +1,351 @@
+"""Prefect-powered file ingestion for RAG vector stores.
+
+This module defines a Prefect flow that processes files, chunks them,
+and adds them to a vector store with deduplication based on file hashes.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from langchain_core.documents import Document
+from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
+from loguru import logger
+from prefect import flow, task
+from upath import UPath
+
+from genai_tk.core.embeddings_store import EmbeddingsStore
+from genai_tk.utils.file_patterns import resolve_files
+from genai_tk.utils.hashing import file_digest
+
+
+@dataclass(slots=True)
+class FileToProcess:
+    """File to be processed for RAG ingestion."""
+
+    path: UPath
+    content_hash: str
+    content: str
+
+
+def _load_file_content(path: UPath) -> str:
+    """Load file content with error handling."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception as e:
+        logger.error(f"Error reading {path}: {e}")
+        raise
+
+
+def _chunk_markdown(
+    content: str,
+    chunk_size: int = 1000,
+    chunk_overlap: int = 200,
+    header_chunk_size: int = 500,
+    header_chunk_overlap: int = 100,
+) -> list[str]:
+    """Chunk markdown content using header-aware splitter followed by recursive splitter.
+
+    First splits by headers, then further chunks large sections if needed.
+    """
+    # Define markdown headers to split on
+    headers_to_split_on = [
+        ("#", "Header 1"),
+        ("##", "Header 2"),
+        ("###", "Header 3"),
+        ("####", "Header 4"),
+    ]
+
+    # First pass: split by headers
+    markdown_splitter = MarkdownHeaderTextSplitter(
+        headers_to_split_on=headers_to_split_on,
+        strip_headers=False,
+    )
+    header_splits = markdown_splitter.split_text(content)
+
+    # Second pass: recursively split large chunks
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=header_chunk_size,
+        chunk_overlap=header_chunk_overlap,
+        length_function=len,
+        is_separator_regex=False,
+    )
+
+    final_chunks = []
+    for doc in header_splits:
+        # If chunk is small enough, keep it as is
+        if len(doc.page_content) <= header_chunk_size:
+            final_chunks.append(doc.page_content)
+        else:
+            # Further split large chunks
+            splits = text_splitter.split_text(doc.page_content)
+            final_chunks.extend(splits)
+
+    return final_chunks
+
+
+def _chunk_text(
+    content: str,
+    chunk_size: int = 1000,
+    chunk_overlap: int = 200,
+) -> list[str]:
+    """Chunk text content using recursive character splitter."""
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        length_function=len,
+        is_separator_regex=False,
+    )
+    return text_splitter.split_text(content)
+
+
+def _chunk_file_content(
+    path: UPath,
+    content: str,
+    chunk_size: int = 1000,
+    chunk_overlap: int = 200,
+) -> list[str]:
+    """Chunk file content based on file type."""
+    # Check if it's a markdown file
+    if path.suffix.lower() in {".md", ".markdown"}:
+        logger.debug(f"Using markdown chunker for {path}")
+        return _chunk_markdown(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    else:
+        logger.debug(f"Using recursive text chunker for {path}")
+        return _chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+
+
+def _prepare_files(
+    files: list[UPath],
+    force: bool,
+    vector_store: EmbeddingsStore,
+) -> tuple[list[FileToProcess], int]:
+    """Prepare files for processing, filtering out already processed files unless force is True.
+
+    Args:
+        files: List of file paths to process
+        force: If True, process all files regardless of existing hashes
+        vector_store: Vector store instance to check for existing files
+
+    Returns:
+        Tuple of (files_to_process, skipped_count)
+    """
+    to_process: list[FileToProcess] = []
+    skipped = 0
+
+    # Get existing document metadata from vector store if available
+    existing_hashes: set[str] = set()
+    if not force and vector_store.backend == "Chroma":
+        try:
+            # Try to get existing file hashes from vector store metadata
+            vs = vector_store.get_vector_store()
+            all_docs = vs._collection.get(include=["metadatas"])  # type: ignore
+            if all_docs and "metadatas" in all_docs:
+                for metadata in all_docs["metadatas"]:
+                    if metadata and "file_hash" in metadata:
+                        existing_hashes.add(metadata["file_hash"])
+            logger.debug(f"Found {len(existing_hashes)} existing file hashes in vector store")
+        except Exception as e:
+            logger.warning(f"Could not retrieve existing file hashes: {e}")
+
+    for path in files:
+        try:
+            # Compute file hash
+            content_hash = file_digest(path)
+
+            # Skip if already processed (unless force is True)
+            if not force and content_hash in existing_hashes:
+                logger.info(f"Skipping already processed file: {path}")
+                skipped += 1
+                continue
+
+            # Load content
+            content = _load_file_content(path)
+
+            to_process.append(
+                FileToProcess(
+                    path=path,
+                    content_hash=content_hash,
+                    content=content,
+                )
+            )
+        except Exception as e:
+            logger.error(f"Error preparing {path}: {e}")
+            continue
+
+    return to_process, skipped
+
+
+@task
+def process_file_task(
+    file_info: FileToProcess,
+    store_name: str,
+    chunk_size: int,
+    chunk_overlap: int,
+    root_dir: UPath,
+) -> int:
+    """Process a single file and add its chunks to the vector store.
+
+    Args:
+        file_info: File information including path, hash, and content
+        store_name: Name of the vector store configuration
+        chunk_size: Maximum size of each chunk
+        chunk_overlap: Overlap between consecutive chunks
+        root_dir: Root directory for computing relative paths
+
+    Returns:
+        Number of chunks added to the vector store
+    """
+    logger.info(f"Processing file: {file_info.path}")
+
+    # Chunk the content
+    chunks = _chunk_file_content(
+        file_info.path,
+        file_info.content,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+    )
+
+    if not chunks:
+        logger.warning(f"No chunks created for {file_info.path}")
+        return 0
+
+    # Compute relative path
+    try:
+        relative_path = file_info.path.relative_to(root_dir)
+        file_name = str(relative_path)
+    except ValueError:
+        # If file is not under root_dir, use absolute path
+        file_name = str(file_info.path)
+
+    # Create documents with metadata
+    documents = []
+    for i, chunk_text in enumerate(chunks):
+        metadata = {
+            "source": file_name,
+            "file_hash": file_info.content_hash,
+            "chunk_index": i,
+            "total_chunks": len(chunks),
+        }
+        doc = Document(page_content=chunk_text, metadata=metadata)
+        documents.append(doc)
+
+    # Add to vector store
+    vector_store = EmbeddingsStore.create_from_config(store_name)
+    _ = vector_store.add_documents(documents)
+
+    logger.info(f"Added {len(documents)} chunks from {file_info.path} to vector store")
+    return len(documents)
+
+
+@flow(
+    name="RAG File Ingestion",
+    description="Ingest files into RAG vector store with parallel processing",
+)
+def rag_file_ingestion_flow(
+    root_dir: str,
+    store_name: str,
+    include_patterns: list[str] | None = None,
+    exclude_patterns: list[str] | None = None,
+    recursive: bool = True,
+    force: bool = False,
+    batch_size: int = 10,
+    chunk_size: int = 1000,
+    chunk_overlap: int = 200,
+) -> dict[str, Any]:
+    """Ingest files into a RAG vector store with parallel processing.
+
+    Args:
+        root_dir: Root directory containing files to process
+        store_name: Name of the vector store configuration
+        include_patterns: List of glob patterns for files to include
+        exclude_patterns: List of glob patterns for files to exclude
+        recursive: Whether to search directories recursively
+        force: If True, reprocess all files regardless of existing hashes
+        batch_size: Number of files to process in parallel
+        chunk_size: Maximum size of each chunk
+        chunk_overlap: Overlap between consecutive chunks
+
+    Returns:
+        Dictionary with statistics about the ingestion process
+    """
+    logger.info(f"Starting RAG file ingestion from '{root_dir}' to store '{store_name}'")
+
+    # Resolve files
+    root_path = UPath(root_dir)
+    if not root_path.exists():
+        raise ValueError(f"Root directory does not exist: {root_dir}")
+
+    if include_patterns is None:
+        include_patterns = ["**/*"]
+
+    files = resolve_files(
+        str(root_path),
+        include_patterns=include_patterns,
+        exclude_patterns=exclude_patterns,
+        recursive=recursive,
+    )
+
+    logger.info(f"Found {len(files)} files matching patterns")
+
+    if not files:
+        logger.warning("No files found to process")
+        return {
+            "total_files": 0,
+            "processed_files": 0,
+            "skipped_files": 0,
+            "total_chunks": 0,
+        }
+
+    # Get vector store instance for checking existing files
+    vector_store = EmbeddingsStore.create_from_config(store_name)
+
+    # Prepare files
+    files_to_process, skipped = _prepare_files(files, force, vector_store)
+
+    logger.info(f"Processing {len(files_to_process)} files, skipping {skipped} already processed files")
+
+    if not files_to_process:
+        logger.info("No new files to process")
+        return {
+            "total_files": len(files),
+            "processed_files": 0,
+            "skipped_files": skipped,
+            "total_chunks": 0,
+        }
+
+    # Process files in batches
+    total_chunks = 0
+    for i in range(0, len(files_to_process), batch_size):
+        batch = files_to_process[i : i + batch_size]
+        logger.info(f"Processing batch {i // batch_size + 1} with {len(batch)} files")
+
+        # Submit tasks for the batch
+        futures = []
+        for file_info in batch:
+            future = process_file_task.submit(
+                file_info=file_info,
+                store_name=store_name,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                root_dir=root_path,
+            )
+            futures.append(future)
+
+        # Wait for batch to complete and collect results
+        for future in futures:
+            try:
+                chunk_count = future.result()
+                total_chunks += chunk_count
+            except Exception as e:
+                logger.error(f"Error processing file in batch: {e}")
+
+    logger.info(f"Completed RAG file ingestion: {len(files_to_process)} files, {total_chunks} chunks")
+
+    return {
+        "total_files": len(files),
+        "processed_files": len(files_to_process),
+        "skipped_files": skipped,
+        "total_chunks": total_chunks,
+    }

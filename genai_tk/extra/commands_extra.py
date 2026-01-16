@@ -121,8 +121,8 @@ class ExtraCommands(CliTopCommand):
                 cli tools markdownize ./documents ./output --exclude '*_draft*' --recursive
                 ```
             """
-            from genai_tk.extra.prefect.runtime import run_flow_ephemeral
             from genai_tk.extra.markdownize_prefect_flow import markdownize_flow
+            from genai_tk.extra.prefect.runtime import run_flow_ephemeral
 
             logger.info(
                 f"Starting markdownize from '{root_dir}' to '{output_dir}' "

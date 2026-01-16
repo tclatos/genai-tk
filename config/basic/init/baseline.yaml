@@ -23,21 +23,23 @@ vector_store:
 embeddings_store:
   # Updated configuration using new field names (backend instead of id, storage instead of chroma_path)
  
-  default:
-    backend: Chroma
-    embeddings: default
-    config:
-      storage: ${paths.data_root}/vector_store  # Persistent storage on disk
-
+  # default:
+  #   backend: Chroma
+  #   embeddings: default
+  #   config:
+  #     storage: ${paths.data_root}/vector_store  # Persistent storage on disk
+  
   in_memory:
     backend: InMemory
   
-  in_memory_chroma:
+  in_memory_chroma: &default_store  # Anchor is defined here first
     backend: Chroma
     embeddings: default
     table_name_prefix: embeddings
     config:
       storage: '::memory::'  # In-memory Chroma storage
+  
+  default: *default_store  # Now we can reference it
   
   chroma_indexed:
     backend: Chroma

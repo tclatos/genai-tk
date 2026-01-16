@@ -17,7 +17,6 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
 
 from loguru import logger
 from prefect import flow, task
@@ -57,7 +56,6 @@ class MistralOCRBatchProcessor:
         import os
 
         from mistralai import Mistral
-        from mistralai.models import OCRResponse
 
         api_key = os.environ.get("MISTRAL_API_KEY")
         if not api_key:
@@ -191,7 +189,6 @@ class MistralOCRBatchProcessor:
         Returns:
             True if job succeeded, False otherwise
         """
-        import time
 
         for attempt in range(max_attempts):
             job = client.batch.jobs.get(job_id=job_id)
@@ -427,7 +424,7 @@ async def _process_single_file_task(
                 content_parts.append("\n\n")
 
             content = "".join(content_parts)
-            
+
             # TODO: Download and save linked JPEG/HTML assets from OCR response
             # This requires handling ocr_response.pages[*].images and document structure
 

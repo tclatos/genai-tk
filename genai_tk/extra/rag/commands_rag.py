@@ -3,6 +3,7 @@
 This module provides command-line interface commands for:
 - Managing vector stores (create, delete, query)
 - Adding documents to vector stores with embeddings
+- Ingesting files into vector stores with parallel processing
 - Querying vector stores for similar documents
 - Getting information and statistics about vector stores
 
@@ -12,6 +13,7 @@ and provide rich formatted output with tables and panels.
 
 import json
 import sys
+from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
@@ -92,12 +94,30 @@ def _get_vector_store_safe(store_name: str) -> EmbeddingsStore | None:
     except ValueError:
         available_configs = EmbeddingsStore.list_available_configs()
         if available_configs:
-            config_list = ", ".join(f"'{config}'" for config in available_configs)
-            error_msg = f"Vector store '{store_name}' not found.\nAvailable configurations: {config_list}"
-        else:
-            error_msg = f"Vector store '{store_name}' not found and no configurations are available."
+            # Create a nice table of available configurations
+            table = Table(title="Available Vector Store Configurations", show_header=True, header_style="bold cyan")
+            table.add_column("Configuration Name", style="green")
 
-        console.print(create_error_panel("Configuration Not Found", error_msg))
+            for config in sorted(available_configs):
+                table.add_row(config)
+
+            console.print(
+                create_error_panel(
+                    "Configuration Not Found",
+                    f"Vector store configuration '{store_name}' not found.\n\n"
+                    f"Please choose from the available configurations below:",
+                )
+            )
+            console.print(table)
+            console.print("\n[dim]Tip: Use 'cli rag list-configs' to see detailed configuration information.[/dim]\n")
+        else:
+            console.print(
+                create_error_panel(
+                    "No Configurations Available",
+                    f"Vector store '{store_name}' not found and no configurations are available.\n"
+                    f"Please check your configuration file.",
+                )
+            )
         return None
     except Exception as e:
         console.print(create_error_panel("Error", f"Failed to create vector store: {e}"))
@@ -112,7 +132,147 @@ class RagCommands(CliTopCommand):
 
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
         @cli_app.command()
-        def delete(store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")]) -> None:
+        def add_files(
+            root_dir: Annotated[str, typer.Argument(help="Root directory containing files to ingest")],
+            store_name: Annotated[
+                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
+            ] = "default",
+            include: Annotated[
+                Optional[list[str]],
+                typer.Option("--include", "-i", help="Include patterns (can be specified multiple times)"),
+            ] = None,
+            exclude: Annotated[
+                Optional[list[str]],
+                typer.Option("--exclude", "-e", help="Exclude patterns (can be specified multiple times)"),
+            ] = None,
+            recursive: Annotated[
+                bool, typer.Option("--recursive/--no-recursive", "-r", help="Search recursively")
+            ] = True,
+            force: Annotated[bool, typer.Option("--force", "-f", help="Reprocess all files, ignoring hashes")] = False,
+            batch_size: Annotated[
+                int, typer.Option("--batch-size", "-b", help="Number of files to process in parallel")
+            ] = 10,
+            chunk_size: Annotated[int, typer.Option("--chunk-size", help="Maximum size of each chunk")] = 1000,
+            chunk_overlap: Annotated[int, typer.Option("--chunk-overlap", help="Overlap between chunks")] = 200,
+        ) -> None:
+            """Ingest files into a vector store with parallel processing.
+
+            Process files from a root directory using glob patterns, chunk them,
+            and add them to a vector store. Uses file hashes to avoid reprocessing
+            unchanged files unless --force is specified.
+
+            For Markdown files, uses header-aware chunking; for other files, uses
+            recursive character splitting.
+
+            Examples:
+                ```bash
+                # Ingest all files in a directory
+                cli rag add-files ./docs --store chroma_indexed
+
+                # Ingest with custom patterns
+                cli rag add-files ./docs --store chroma_indexed \\
+                    --include "*.md" --include "*.txt" \\
+                    --exclude "*draft*" --recursive
+
+                # Force reprocessing of all files
+                cli rag add-files ./docs --store chroma_indexed --force
+
+                # Custom chunking parameters
+                cli rag add-files ./docs --store chroma_indexed \\
+                    --chunk-size 1500 --chunk-overlap 300
+
+                # Process with larger batch size for better parallelism
+                cli rag add-files ./docs --store chroma_indexed \\
+                    --batch-size 20
+                ```
+            """
+            console = Console()
+
+            # Validate root directory
+            root_path = Path(root_dir)
+            if not root_path.exists():
+                console.print(create_error_panel("Invalid Path", f"Root directory does not exist: {root_dir}"))
+                raise typer.Exit(1)
+
+            if not root_path.is_dir():
+                console.print(create_error_panel("Invalid Path", f"Path is not a directory: {root_dir}"))
+                raise typer.Exit(1)
+
+            # Validate vector store
+            vector_store = _get_vector_store_safe(store_name)
+            if not vector_store:
+                raise typer.Exit(1)
+
+            # Default include patterns
+            if include is None:
+                include = ["**/*"]
+
+            # Log the operation
+            console.print(f"[bold cyan]Starting file ingestion from '{root_dir}' to store '{store_name}'[/bold cyan]")
+            if include:
+                console.print(f"  Include patterns: {', '.join(include)}")
+            if exclude:
+                console.print(f"  Exclude patterns: {', '.join(exclude)}")
+            console.print(f"  Recursive: {recursive}")
+            console.print(f"  Force: {force}")
+            console.print(f"  Batch size: {batch_size}")
+            console.print(f"  Chunk size: {chunk_size}, overlap: {chunk_overlap}")
+
+            try:
+                from genai_tk.extra.prefect.runtime import run_flow_ephemeral
+                from genai_tk.extra.rag.rag_prefect_flow import rag_file_ingestion_flow
+
+                result = run_flow_ephemeral(
+                    rag_file_ingestion_flow,
+                    root_dir=root_dir,
+                    store_name=store_name,
+                    include_patterns=include,
+                    exclude_patterns=exclude,
+                    recursive=recursive,
+                    force=force,
+                    batch_size=batch_size,
+                    chunk_size=chunk_size,
+                    chunk_overlap=chunk_overlap,
+                )
+
+                # Display results
+                result_table = Table(title="Ingestion Results", show_header=True, header_style="bold green")
+                result_table.add_column("Metric", style="cyan")
+                result_table.add_column("Value", style="white")
+
+                result_table.add_row("Total Files Found", str(result["total_files"]))
+                result_table.add_row("Files Processed", str(result["processed_files"]))
+                result_table.add_row("Files Skipped", str(result["skipped_files"]))
+                result_table.add_row("Total Chunks Created", str(result["total_chunks"]))
+
+                console.print(result_table)
+
+                if result["processed_files"] > 0:
+                    console.print(
+                        create_success_panel(
+                            "Ingestion Complete",
+                            f"Successfully ingested {result['processed_files']} files "
+                            f"({result['total_chunks']} chunks) into vector store '{store_name}'",
+                        )
+                    )
+                else:
+                    console.print(
+                        create_warning_panel(
+                            "No New Files",
+                            "No new files were processed. Use --force to reprocess existing files.",
+                        )
+                    )
+
+            except Exception as e:
+                console.print(create_error_panel("Ingestion Failed", f"Failed to ingest files: {e}"))
+                raise typer.Exit(1) from e
+
+        @cli_app.command()
+        def delete(
+            store_name: Annotated[
+                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
+            ] = "default",
+        ) -> None:
             """Delete all documents from a vector store.
 
             This command clears all documents from the specified vector store while keeping
@@ -153,13 +313,15 @@ class RagCommands(CliTopCommand):
 
         @cli_app.command()
         def embed(
-            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")],
             text: Annotated[
                 Optional[str], typer.Option("--text", "-t", help="Text to embed (or read from stdin)")
             ] = None,
             metadata: Annotated[
                 Optional[str], typer.Option("--metadata", "-m", help="JSON metadata to attach to document")
             ] = None,
+            store_name: Annotated[
+                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
+            ] = "default",
         ) -> None:
             """Embed text and store it in a vector store.
 
@@ -228,12 +390,15 @@ class RagCommands(CliTopCommand):
 
         @cli_app.command()
         def query(
-            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")],
             query_text: Annotated[str, typer.Argument(help="Query text to search for")],
             k: Annotated[int, typer.Option("--k", help="Number of results to return")] = 4,
             threshold: Annotated[
                 Optional[float], typer.Option("--threshold", help="Minimum similarity score (0.0-1.0)")
             ] = None,
+            full: Annotated[bool, typer.Option("--full", help="Show full document content")] = False,
+            store_name: Annotated[
+                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
+            ] = "default",
         ) -> None:
             """Query a vector store for similar documents.
 
@@ -265,8 +430,18 @@ class RagCommands(CliTopCommand):
                     console.print(create_warning_panel("No Results", message))
                     return
 
-                # Display results
-                console.print(_create_documents_table(results))
+                # Display results with full content if requested
+                if full:
+                    for i, doc in enumerate(results, 1):
+                        console.print(f"\n[bold cyan]Document {i}[/bold cyan]")
+                        console.print(f"[bold]Content:[/bold]\n{doc.page_content}")
+                        if doc.metadata:
+                            console.print("\n[bold]Metadata:[/bold]")
+                            for key, value in doc.metadata.items():
+                                console.print(f"  {key}: {value}")
+                        console.print("-" * 80)
+                else:
+                    console.print(_create_documents_table(results))
 
                 # Show query summary
                 summary_table = Table(title="Query Summary", show_header=True, header_style="bold blue")
@@ -283,9 +458,16 @@ class RagCommands(CliTopCommand):
 
             except Exception as e:
                 console.print(create_error_panel("Query Failed", f"Failed to query vector store: {e}"))
+                import traceback
+
+                console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
         @cli_app.command()
-        def info(store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")]) -> None:
+        def info(
+            store_name: Annotated[
+                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
+            ] = "default",
+        ) -> None:
             """Get information and statistics about a vector store.
 
             Display detailed information about the vector store configuration,
