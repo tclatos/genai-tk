@@ -18,7 +18,6 @@ dependencies = [
     "beartype>=0.21.0",         # Runtime type validation
     "devtools>=0.12.2",         # Debug printing and development utilities
     "xxhash>=3.6.0",            # Fast non-cryptographic hash functions
-
     # ============================================
     # LangChain Core Framework
     # ============================================
@@ -30,7 +29,6 @@ dependencies = [
     "langgraph>=1.0",                 # Graph-based workflows and agent orchestration
     "langserve>=0.3",                 # Deploy LangChain apps as REST APIs
     "langchainhub>=0.1",              # Share and discover prompts/chains
-
     # ============================================
     # LLM Provider Integrations
     # ============================================
@@ -43,7 +41,6 @@ dependencies = [
     "openai>=1.80.0",           # Official OpenAI Python client
     "litellm>=1.74,<2",         # Unified LLM API (100+ models)
     "mistralai>=1.7.0",         # Official Mistral AI client
-
     # ============================================
     # Agent Frameworks
     # ============================================
@@ -51,13 +48,11 @@ dependencies = [
     "deepagents>=0.0.5",                                       # Deep learning agent utilities
     "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
-
     # ============================================
     # Vector Stores & Embeddings
     # ============================================
     "chromadb>=1.0",         # Vector database for embeddings
     "langchain-chroma>=1.0", # LangChain integration for ChromaDB
-
     # ============================================
     # Knowledge Graphs & Structured Data
     # ============================================
@@ -65,7 +60,6 @@ dependencies = [
     "baml-lib>=0.42.0",      # BAML library for LLM-powered parsing
     "langchain-kuzu>=0.3.0", # LangChain integration for Kuzu graph DB
     "kuzu>=0.7.1",           # Embedded graph database
-
     # ============================================
     # NLP & Text Processing
     # ============================================
@@ -74,34 +68,24 @@ dependencies = [
     "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl", # Large English model with word vectors
     "abbreviations>=0.2.5",                                                                                                                   # Abbreviation detection and expansion
     "unidecode>=1.3.8",                                                                                                                       # ASCII transliteration of Unicode text
-
     # ============================================
     # Search & Retrieval
     # ============================================
     "rank-bm25>=0.2.2",      # BM25 ranking algorithm implementation
     "bm25s>=0.2.13",         # Fast BM25 search with NumPy
-    "fuzzysearch>=0.8.0",    # Fuzzy string matching
-    "gpt-researcher>=0.13",  # Autonomous web research agent
+    "fuzzysearch>=0.8.0",    # Autonomous web research agent
     "tavily-python>=0.7.12", # Tavily search API client
     "ddgs>=9.7.0",           # DuckDuckGo search wrapper
-
-    # ============================================
-    # Privacy & Security
-    # ============================================
-    "presidio-analyzer>=2.2.360",   # PII detection and analysis
-    "presidio-anonymizer>=2.2.360", # PII anonymization and redaction
-
     # ============================================
     # Document Processing
     # ============================================
     "markitdown[pdf, docx, pptx]>=0.1.3", # Convert documents to markdown
-    "markpickle>=1.6.1",                  # Pickle with markdown support
     "openpyxl>=3.1.5",                    # Excel file reading and writing
-
     # ============================================
     # Workflow Orchestration
     # ============================================
-    "prefect>=3.6.7", # Modern workflow orchestration
+    "prefect>=3.6.7",         # Modern workflow orchestration
+    "gpt-researcher>=0.14.0", # Requires cryptography>=45.0.2
 ]
 
 [project.urls]
