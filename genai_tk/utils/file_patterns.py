@@ -185,3 +185,159 @@ def resolve_files(
     result = sorted(matched_files)
     # logger.info(f"Resolved {len(result)} files from {root_path}")
     return result
+
+
+def resolve_entries(
+    root_dir: str,
+    *,
+    include_patterns: list[str] | None = None,
+    exclude_patterns: list[str] | None = None,
+    recursive: bool = False,
+    case_sensitive: bool = False,
+    include_files: bool = True,
+    include_directories: bool = True,
+) -> list[UPath]:
+    """Resolve list of files and/or directories from root directory using include/exclude patterns.
+
+    Args:
+        root_dir: Root directory to search (supports config variables like ${paths.data_root})
+        include_patterns: List of glob patterns to include (default: ["*"])
+        exclude_patterns: List of glob patterns to exclude (default: None)
+        recursive: Whether to search recursively
+        case_sensitive: Whether pattern matching is case-sensitive (default: False)
+        include_files: Whether to include files in results (default: True)
+        include_directories: Whether to include directories in results (default: True)
+
+    Returns:
+        List of resolved file and/or directory paths
+
+    Example:
+        ```python
+        # Find all entries (files and directories)
+        entries = resolve_entries("/data", include_patterns=["*"])
+
+        # Find only directories
+        dirs = resolve_entries("/data", include_directories=True, include_files=False)
+
+        # Find all .py files and directories matching pattern
+        entries = resolve_entries(
+            "${paths.data_root}/src",
+            include_patterns=["*.py", "test*"],
+            recursive=True
+        )
+        ```
+    """
+    resolved_root = resolve_config_path(root_dir)
+    if include_patterns is None:
+        include_patterns = ["*"]
+
+    root_path = UPath(resolved_root)
+    if not root_path.exists():
+        logger.error(f"Root directory does not exist: {root_path}")
+        return []
+
+    if not root_path.is_dir():
+        logger.error(f"Root path is not a directory: {root_path}")
+        return []
+
+    # Collect all matching files and directories
+    if case_sensitive:
+        # Use standard glob (case-sensitive on case-sensitive filesystems)
+        matched_entries: set[UPath] = set()
+        for pattern in include_patterns:
+            if recursive:
+                matches = root_path.rglob(pattern)
+            else:
+                matches = root_path.glob(pattern)
+
+            for match in matches:
+                if (include_files and match.is_file()) or (include_directories and match.is_dir()):
+                    matched_entries.add(UPath(str(match)))
+    else:
+        # Case-insensitive: collect all entries, then filter with fnmatch
+        all_entries: set[UPath] = set()
+        if recursive:
+            if include_files and include_directories:
+                all_entries = {UPath(str(f)) for f in root_path.rglob("*")}
+            elif include_files:
+                all_entries = {UPath(str(f)) for f in root_path.rglob("*") if f.is_file()}
+            elif include_directories:
+                all_entries = {UPath(str(f)) for f in root_path.rglob("*") if f.is_dir()}
+        else:
+            if include_files and include_directories:
+                all_entries = {UPath(str(f)) for f in root_path.glob("*")}
+            elif include_files:
+                all_entries = {UPath(str(f)) for f in root_path.glob("*") if f.is_file()}
+            elif include_directories:
+                all_entries = {UPath(str(f)) for f in root_path.glob("*") if f.is_dir()}
+
+        matched_entries = set()
+        for entry_path in all_entries:
+            # Get relative path for pattern matching
+            try:
+                rel_path = entry_path.relative_to(root_path)
+
+                # Check if entry matches any include pattern
+                for pattern in include_patterns:
+                    # Use pathlib.match() which properly handles ** globstar patterns
+                    # Also try without leading **/ to catch entries at root level
+                    if rel_path.match(pattern):
+                        matched_entries.add(entry_path)
+                        break
+                    # If pattern starts with **/, also try without it to match root-level entries
+                    elif pattern.startswith("**/"):
+                        alt_pattern = pattern[3:]  # Remove leading **/
+                        if rel_path.match(alt_pattern):
+                            matched_entries.add(entry_path)
+                            break
+            except ValueError:
+                # Entry is not relative to root_path, skip it
+                continue
+
+    if not matched_entries:
+        entry_types = []
+        if include_files:
+            entry_types.append("files")
+        if include_directories:
+            entry_types.append("directories")
+        entry_type_str = " or ".join(entry_types) or "entries"
+        logger.warning(f"No {entry_type_str} matched include patterns in {root_path}")
+        return []
+
+    # Apply exclude patterns
+    if exclude_patterns:
+        excluded_entries: set[UPath] = set()
+        if case_sensitive:
+            # Use standard glob
+            for pattern in exclude_patterns:
+                if recursive:
+                    matches = root_path.rglob(pattern)
+                else:
+                    matches = root_path.glob(pattern)
+
+                for match in matches:
+                    if (include_files and match.is_file()) or (include_directories and match.is_dir()):
+                        excluded_entries.add(UPath(str(match)))
+        else:
+            # Case-insensitive: filter using fnmatch
+            for entry_path in matched_entries:
+                try:
+                    rel_path = entry_path.relative_to(root_path)
+                    # Check if entry matches any exclude pattern
+                    for pattern in exclude_patterns:
+                        if rel_path.match(pattern):
+                            excluded_entries.add(entry_path)
+                            break
+                        # If pattern starts with **/, also try without it to match root-level entries
+                        elif pattern.startswith("**/"):
+                            alt_pattern = pattern[3:]  # Remove leading **/
+                            if rel_path.match(alt_pattern):
+                                excluded_entries.add(entry_path)
+                                break
+                except ValueError:
+                    continue
+
+        matched_entries = matched_entries - excluded_entries
+
+    result = sorted(matched_entries)
+    return result

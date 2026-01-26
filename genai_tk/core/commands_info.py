@@ -399,21 +399,23 @@ class InfoCommands(CliTopCommand):
             from rich.console import Console
             from rich.table import Table
 
-            from genai_tk.utils.file_patterns import resolve_files
+            from genai_tk.utils.file_patterns import resolve_entries
 
             console = Console()
 
-            # Use resolve_files to handle all pattern matching consistently
+            # Use resolve_entries to handle all pattern matching consistently (files and directories)
             try:
-                files = resolve_files(
+                files = resolve_entries(
                     target_dir,
                     include_patterns=include_patterns,
                     exclude_patterns=exclude_patterns,
                     recursive=recursive,
                     case_sensitive=False,
+                    include_files=True,
+                    include_directories=True,
                 )
             except Exception as e:
-                logger.error(f"Failed to resolve files: {e}")
+                logger.error(f"Failed to resolve entries: {e}")
                 raise typer.Exit(1) from e
 
             # Filter out hidden files if needed
@@ -424,7 +426,7 @@ class InfoCommands(CliTopCommand):
             all_entries = sorted([Path(f) for f in files])
 
             if not all_entries:
-                logger.warning(f"No files found matching patterns in {target_dir}")
+                logger.warning(f"No files or directories found matching patterns in {target_dir}")
                 return
 
             # Get resolved directory for display
@@ -441,7 +443,7 @@ class InfoCommands(CliTopCommand):
                     show_header=True,
                     header_style="bold magenta",
                 )
-                table.add_column("Type", style="cyan", width=6)
+                table.add_column("Type", style="cyan", width=8, no_wrap=True)
                 table.add_column("Name", style="green")
                 table.add_column("Size", style="yellow", justify="right")
                 table.add_column("Modified", style="blue")
@@ -449,20 +451,33 @@ class InfoCommands(CliTopCommand):
                 for entry in all_entries:
                     import datetime
 
-                    entry_type = "DIR" if entry.is_dir() else "FILE"
-                    size = "" if entry.is_dir() else f"{entry.stat().st_size:,}"
-                    mtime = datetime.datetime.fromtimestamp(entry.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-
-                    # Show relative path if recursive, otherwise just name
-                    if recursive:
+                    # Determine entry type
+                    if entry.is_dir():
+                        entry_type = "📁 DIR"
+                        size = "-"
+                    elif entry.is_file():
+                        entry_type = "📄 FILE"
                         try:
-                            display_name = str(entry.relative_to(target_path))
-                        except ValueError:
-                            display_name = entry.name
+                            size = f"{entry.stat().st_size:,}"
+                        except OSError:
+                            size = "?"
                     else:
-                        display_name = entry.name
+                        entry_type = "❓ OTHER"
+                        size = "?"
 
-                    table.add_row(entry_type, display_name, size, mtime)
+                    # Get modification time
+                    try:
+                        mtime = datetime.datetime.fromtimestamp(entry.stat().st_mtime)
+                        mod_time = mtime.strftime("%Y-%m-%d %H:%M")
+                    except OSError:
+                        mod_time = "?"
+
+                    table.add_row(
+                        entry_type,
+                        entry.name,
+                        size,
+                        mod_time,
+                    )
 
                 console.print(table)
                 console.print(f"\n[bold]Total:[/bold] {len(all_entries)} entries")
