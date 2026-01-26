@@ -24,12 +24,12 @@ from genai_tk.utils.hashing import file_digest
 _text_chunker: RecursiveChunker | None = None
 
 
-def _get_text_chunker(chunk_size: int = 2000) -> RecursiveChunker:
+def _get_text_chunker(max_chunk_tokens: int) -> RecursiveChunker:
     """Get or create a text chunker."""
     global _text_chunker
-    if _text_chunker is None or _text_chunker.chunk_size != chunk_size:
+    if _text_chunker is None or _text_chunker.chunk_size != max_chunk_tokens:
         _text_chunker = RecursiveChunker(
-            chunk_size=chunk_size,
+            chunk_size=max_chunk_tokens,
             tokenizer="character",
         )
     return _text_chunker
@@ -53,32 +53,32 @@ def _load_file_content(path: UPath) -> str:
         raise
 
 
-def _chunk_markdown(content: str, chunk_size: int = 2000) -> list[str]:
+def _chunk_markdown(content: str, max_chunk_tokens: int) -> list[str]:
     """Chunk markdown content using the markdown_chunking module.
 
     Uses chunk_markdown_content to parse markdown and extract tables, code blocks,
     and text chunks separately. Returns only the text content of each chunk.
     """
 
-    chunks = chunk_markdown_content(content, max_tokens=chunk_size)
+    chunks = chunk_markdown_content(content, max_tokens=max_chunk_tokens)
     return [chunk.content for chunk in chunks]
 
 
-def _chunk_text(content: str, chunk_size: int = 2000) -> list[str]:
+def _chunk_text(content: str, max_chunk_tokens: int) -> list[str]:
     """Chunk text content using chonkie's RecursiveChunker."""
-    chunker = _get_text_chunker(chunk_size)
+    chunker = _get_text_chunker(max_chunk_tokens)
     chunks = chunker.chunk(content)
     return [chunk.text for chunk in chunks]
 
 
-def _chunk_file_content(path: UPath, content: str, chunk_size: int = 2000) -> list[str]:
+def _chunk_file_content(path: UPath, content: str, max_chunk_tokens: int) -> list[str]:
     """Chunk file content based on file type."""
     if path.suffix.lower() in {".md", ".markdown"}:
         logger.debug(f"Using MarkdownChef for {path}")
-        return _chunk_markdown(content, chunk_size=chunk_size)
+        return _chunk_markdown(content, max_chunk_tokens=max_chunk_tokens)
     else:
         logger.debug(f"Using text chunker for {path}")
-        return _chunk_text(content, chunk_size=chunk_size)
+        return _chunk_text(content, max_chunk_tokens=max_chunk_tokens)
 
 
 def _prepare_files(
@@ -146,7 +146,7 @@ def _prepare_files(
 def process_file_task(
     file_info: FileToProcess,
     store_name: str,
-    chunk_size: int = 2000,
+    max_chunk_tokens: int,
     root_dir: UPath | None = None,
 ) -> int:
     """Process a single file and add its chunks to the vector store.
@@ -154,7 +154,7 @@ def process_file_task(
     Args:
         file_info: File information including path, hash, and content
         store_name: Name of the vector store configuration
-        chunk_size: Maximum size of each chunk
+        max_chunk_tokens: Maximum token count per chunk
         root_dir: Root directory for computing relative paths
 
     Returns:
@@ -166,7 +166,7 @@ def process_file_task(
     chunks = _chunk_file_content(
         file_info.path,
         file_info.content,
-        chunk_size=chunk_size,
+        max_chunk_tokens=max_chunk_tokens,
     )
 
     if not chunks:
@@ -208,24 +208,24 @@ def process_file_task(
 def rag_file_ingestion_flow(
     root_dir: str,
     store_name: str,
+    max_chunk_tokens: int,
     include_patterns: list[str] | None = None,
     exclude_patterns: list[str] | None = None,
     recursive: bool = True,
     force: bool = False,
     batch_size: int = 10,
-    chunk_size: int = 2000,
 ) -> dict[str, Any]:
     """Ingest files into a RAG vector store with parallel processing.
 
     Args:
         root_dir: Root directory containing files to process
         store_name: Name of the vector store configuration
+        max_chunk_tokens: Maximum token count per chunk
         include_patterns: List of glob patterns for files to include
         exclude_patterns: List of glob patterns for files to exclude
         recursive: Whether to search directories recursively
         force: If True, reprocess all files regardless of existing hashes
         batch_size: Number of files to process in parallel
-        chunk_size: Maximum size of each chunk
 
     Returns:
         Dictionary with statistics about the ingestion process
@@ -287,7 +287,7 @@ def rag_file_ingestion_flow(
             future = process_file_task.submit(
                 file_info=file_info,
                 store_name=store_name,
-                chunk_size=chunk_size,
+                max_chunk_tokens=max_chunk_tokens,
                 root_dir=root_path,
             )
             futures.append(future)

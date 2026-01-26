@@ -161,7 +161,7 @@ class RagCommands(CliTopCommand):
             batch_size: Annotated[
                 int, typer.Option("--batch-size", "-b", help="Number of files to process in parallel")
             ] = 10,
-            chunk_size: Annotated[int, typer.Option("--chunk-size", help="Maximum size of each chunk")] = 2000,
+            chunk_size: Annotated[int, typer.Option("--chunk-size", help="Maximum size of each chunk in tokens")] = 512,
         ) -> None:
             """Ingest files into a vector store with parallel processing.
 
@@ -186,7 +186,7 @@ class RagCommands(CliTopCommand):
                 cli rag add-files ./docs --store chroma_indexed --force
 
                 # Custom chunking parameters
-                cli rag add-files ./docs --store chroma_indexed --chunk-size 3000
+                cli rag add-files ./docs --store chroma_indexed --chunk-size 768
 
                 # Process with larger batch size for better parallelism
                 cli rag add-files ./docs --store chroma_indexed \\
@@ -259,12 +259,12 @@ class RagCommands(CliTopCommand):
                     rag_file_ingestion_flow,
                     root_dir=resolved_root_dir,
                     store_name=store_name,
+                    max_chunk_tokens=chunk_size,
                     include_patterns=include,
                     exclude_patterns=exclude,
                     recursive=recursive,
                     force=force,
                     batch_size=batch_size,
-                    chunk_size=chunk_size,
                 )
 
                 # Display results

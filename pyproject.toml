@@ -63,6 +63,7 @@ dependencies = [
     # ============================================
     # NLP & Text Processing
     # ============================================
+    "tokenizers>=0.21.0",                                                                                                                     # Hugging Face tokenizers (for chonkie)
     "spacy>=3.7.4",                                                                                                                           # Industrial-strength NLP library
     "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", # Small English model
     "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl", # Large English model with word vectors

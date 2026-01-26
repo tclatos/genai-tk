@@ -5,10 +5,15 @@ MarkdownChef for intelligent parsing of markdown structure (text, tables, code b
 Small chunks are merged with adjacent ones to avoid fragmentation.
 Position tracking (start/end) is preserved for lineage.
 Token counting uses tiktoken with the o200k_base encoding (GPT-4o and newer models).
+
+Note: You may see a warning from chonkie about falling back to tiktoken when using
+o200k_base encoding. This is expected behavior since o200k_base is tiktoken-specific
+and not available in the HuggingFace tokenizers library.
 """
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -17,6 +22,16 @@ from chonkie import MarkdownChef, RecursiveChunker, TableChunker
 from upath import UPath
 
 # Tiktoken encoding for token counting (o200k_base is used by GPT-4o and newer)
+TIKTOKEN_ENCODING = "o200k_base"
+
+# Suppress expected chonkie warning about falling back to tiktoken for o200k_base
+# This is the intended behavior since o200k_base is tiktoken-specific
+warnings.filterwarnings(
+    "ignore",
+    message="Could not load tokenizer with 'tokenizers'",
+    category=UserWarning,
+    module="chonkie.tokenizer",
+)
 TIKTOKEN_ENCODING = "o200k_base"
 
 # Initialize chunkers once (they are reusable and thread-safe)
@@ -38,8 +53,8 @@ def _count_tokens(text: str) -> int:
 
 # Default max rows per table chunk (header is always preserved)
 DEFAULT_TABLE_MAX_ROWS = 10
-DEFAULT_MAX_TOKENS = 1000
-DEFAULT_MIN_TOKENS = 100  # Minimum token count to avoid tiny fragments
+DEFAULT_MAX_TOKENS = 350
+DEFAULT_MIN_TOKENS = 80  # Minimum token count to avoid tiny fragments
 
 
 @dataclass(slots=True)
