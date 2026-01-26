@@ -140,7 +140,7 @@ class RagCommands(CliTopCommand):
         return "rag", self.description
 
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
-        @cli_app.command()
+        @cli_app.command("add-files")
         def add_files(
             root_dir: Annotated[str, typer.Argument(help="Root directory containing files to ingest")],
             store_name: Annotated[
@@ -161,8 +161,7 @@ class RagCommands(CliTopCommand):
             batch_size: Annotated[
                 int, typer.Option("--batch-size", "-b", help="Number of files to process in parallel")
             ] = 10,
-            chunk_size: Annotated[int, typer.Option("--chunk-size", help="Maximum size of each chunk")] = 1000,
-            chunk_overlap: Annotated[int, typer.Option("--chunk-overlap", help="Overlap between chunks")] = 200,
+            chunk_size: Annotated[int, typer.Option("--chunk-size", help="Maximum size of each chunk")] = 2000,
         ) -> None:
             """Ingest files into a vector store with parallel processing.
 
@@ -187,8 +186,7 @@ class RagCommands(CliTopCommand):
                 cli rag add-files ./docs --store chroma_indexed --force
 
                 # Custom chunking parameters
-                cli rag add-files ./docs --store chroma_indexed \\
-                    --chunk-size 1500 --chunk-overlap 300
+                cli rag add-files ./docs --store chroma_indexed --chunk-size 3000
 
                 # Process with larger batch size for better parallelism
                 cli rag add-files ./docs --store chroma_indexed \\
@@ -251,7 +249,7 @@ class RagCommands(CliTopCommand):
             console.print(f"  Recursive: {recursive}")
             console.print(f"  Force: {force}")
             console.print(f"  Batch size: {batch_size}")
-            console.print(f"  Chunk size: {chunk_size}, overlap: {chunk_overlap}")
+            console.print(f"  Chunk size: {chunk_size}")
 
             try:
                 from genai_tk.extra.prefect.runtime import run_flow_ephemeral
@@ -267,7 +265,6 @@ class RagCommands(CliTopCommand):
                     force=force,
                     batch_size=batch_size,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap,
                 )
 
                 # Display results

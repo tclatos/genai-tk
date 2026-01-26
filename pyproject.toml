@@ -71,11 +71,12 @@ dependencies = [
     # ============================================
     # Search & Retrieval
     # ============================================
-    "rank-bm25>=0.2.2",      # BM25 ranking algorithm implementation
-    "bm25s>=0.2.13",         # Fast BM25 search with NumPy
-    "fuzzysearch>=0.8.0",    # Autonomous web research agent
-    "tavily-python>=0.7.12", # Tavily search API client
-    "ddgs>=9.7.0",           # DuckDuckGo search wrapper
+    "rank-bm25>=0.2.2",       # BM25 ranking algorithm implementation
+    "bm25s>=0.2.13",          # Fast BM25 search with NumPy
+    "fuzzysearch>=0.8.0",     # Autonomous web research agent
+    "tavily-python>=0.7.12",  # Tavily search API client
+    "ddgs>=9.7.0",            # DuckDuckGo search wrapper
+    "gpt-researcher>=0.14.0", # Deep search; Requires cryptography>=45.0.2
     # ============================================
     # Document Processing
     # ============================================
@@ -84,8 +85,8 @@ dependencies = [
     # ============================================
     # Workflow Orchestration
     # ============================================
-    "prefect>=3.6.7",         # Modern workflow orchestration
-    "gpt-researcher>=0.14.0", # Requires cryptography>=45.0.2
+    "prefect>=3.6.7", # Modern workflow orchestration
+    "chonkie>=1.5.2",
 ]
 
 [project.urls]

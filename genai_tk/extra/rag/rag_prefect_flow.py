@@ -9,8 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from chonkie import RecursiveChunker
 from langchain_core.documents import Document
-from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from loguru import logger
 from prefect import flow, task
 from upath import UPath
@@ -18,6 +18,34 @@ from upath import UPath
 from genai_tk.core.embeddings_store import EmbeddingsStore
 from genai_tk.utils.file_patterns import resolve_files
 from genai_tk.utils.hashing import file_digest
+
+# Initialize chunkers once (they are reusable and thread-safe)
+_markdown_chunker: RecursiveChunker | None = None
+_text_chunker: RecursiveChunker | None = None
+
+
+def _get_markdown_chunker(chunk_size: int = 2000) -> RecursiveChunker:
+    """Get or create a markdown-aware chunker."""
+    global _markdown_chunker
+    if _markdown_chunker is None or _markdown_chunker.chunk_size != chunk_size:
+        _markdown_chunker = RecursiveChunker.from_recipe(
+            "markdown",
+            lang="en",
+            chunk_size=chunk_size,
+            tokenizer="character",  # Use character count for consistency
+        )
+    return _markdown_chunker
+
+
+def _get_text_chunker(chunk_size: int = 2000) -> RecursiveChunker:
+    """Get or create a text chunker."""
+    global _text_chunker
+    if _text_chunker is None or _text_chunker.chunk_size != chunk_size:
+        _text_chunker = RecursiveChunker(
+            chunk_size=chunk_size,
+            tokenizer="character",
+        )
+    return _text_chunker
 
 
 @dataclass(slots=True)
@@ -38,82 +66,28 @@ def _load_file_content(path: UPath) -> str:
         raise
 
 
-def _chunk_markdown(
-    content: str,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200,
-    header_chunk_size: int = 500,
-    header_chunk_overlap: int = 100,
-) -> list[str]:
-    """Chunk markdown content using header-aware splitter followed by recursive splitter.
-
-    First splits by headers, then further chunks large sections if needed.
-    """
-    # Define markdown headers to split on
-    headers_to_split_on = [
-        ("#", "Header 1"),
-        ("##", "Header 2"),
-        ("###", "Header 3"),
-        ("####", "Header 4"),
-    ]
-
-    # First pass: split by headers
-    markdown_splitter = MarkdownHeaderTextSplitter(
-        headers_to_split_on=headers_to_split_on,
-        strip_headers=False,
-    )
-    header_splits = markdown_splitter.split_text(content)
-
-    # Second pass: recursively split large chunks
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=header_chunk_size,
-        chunk_overlap=header_chunk_overlap,
-        length_function=len,
-        is_separator_regex=False,
-    )
-
-    final_chunks = []
-    for doc in header_splits:
-        # If chunk is small enough, keep it as is
-        if len(doc.page_content) <= header_chunk_size:
-            final_chunks.append(doc.page_content)
-        else:
-            # Further split large chunks
-            splits = text_splitter.split_text(doc.page_content)
-            final_chunks.extend(splits)
-
-    return final_chunks
+def _chunk_markdown(content: str, chunk_size: int = 2000) -> list[str]:
+    """Chunk markdown content using chonkie's markdown-aware RecursiveChunker."""
+    chunker = _get_markdown_chunker(chunk_size)
+    chunks = chunker.chunk(content)
+    return [chunk.text for chunk in chunks]
 
 
-def _chunk_text(
-    content: str,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200,
-) -> list[str]:
-    """Chunk text content using recursive character splitter."""
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len,
-        is_separator_regex=False,
-    )
-    return text_splitter.split_text(content)
+def _chunk_text(content: str, chunk_size: int = 2000) -> list[str]:
+    """Chunk text content using chonkie's RecursiveChunker."""
+    chunker = _get_text_chunker(chunk_size)
+    chunks = chunker.chunk(content)
+    return [chunk.text for chunk in chunks]
 
 
-def _chunk_file_content(
-    path: UPath,
-    content: str,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200,
-) -> list[str]:
+def _chunk_file_content(path: UPath, content: str, chunk_size: int = 2000) -> list[str]:
     """Chunk file content based on file type."""
-    # Check if it's a markdown file
     if path.suffix.lower() in {".md", ".markdown"}:
         logger.debug(f"Using markdown chunker for {path}")
-        return _chunk_markdown(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        return _chunk_markdown(content, chunk_size=chunk_size)
     else:
-        logger.debug(f"Using recursive text chunker for {path}")
-        return _chunk_text(content, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        logger.debug(f"Using text chunker for {path}")
+        return _chunk_text(content, chunk_size=chunk_size)
 
 
 def _prepare_files(
@@ -181,9 +155,8 @@ def _prepare_files(
 def process_file_task(
     file_info: FileToProcess,
     store_name: str,
-    chunk_size: int,
-    chunk_overlap: int,
-    root_dir: UPath,
+    chunk_size: int = 2000,
+    root_dir: UPath | None = None,
 ) -> int:
     """Process a single file and add its chunks to the vector store.
 
@@ -191,7 +164,6 @@ def process_file_task(
         file_info: File information including path, hash, and content
         store_name: Name of the vector store configuration
         chunk_size: Maximum size of each chunk
-        chunk_overlap: Overlap between consecutive chunks
         root_dir: Root directory for computing relative paths
 
     Returns:
@@ -204,7 +176,6 @@ def process_file_task(
         file_info.path,
         file_info.content,
         chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
     )
 
     if not chunks:
@@ -251,8 +222,7 @@ def rag_file_ingestion_flow(
     recursive: bool = True,
     force: bool = False,
     batch_size: int = 10,
-    chunk_size: int = 1000,
-    chunk_overlap: int = 200,
+    chunk_size: int = 2000,
 ) -> dict[str, Any]:
     """Ingest files into a RAG vector store with parallel processing.
 
@@ -265,7 +235,6 @@ def rag_file_ingestion_flow(
         force: If True, reprocess all files regardless of existing hashes
         batch_size: Number of files to process in parallel
         chunk_size: Maximum size of each chunk
-        chunk_overlap: Overlap between consecutive chunks
 
     Returns:
         Dictionary with statistics about the ingestion process
@@ -328,7 +297,6 @@ def rag_file_ingestion_flow(
                 file_info=file_info,
                 store_name=store_name,
                 chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap,
                 root_dir=root_path,
             )
             futures.append(future)
