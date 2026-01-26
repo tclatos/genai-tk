@@ -180,8 +180,8 @@ def resolve_files(
                     continue
 
         matched_files = matched_files - excluded_files
-        logger.info(f"Excluded {len(excluded_files)} files based on exclude patterns")
+        # logger.info(f"Excluded {len(excluded_files)} files based on exclude patterns")
 
     result = sorted(matched_files)
-    logger.info(f"Resolved {len(result)} files from {root_path}")
+    # logger.info(f"Resolved {len(result)} files from {root_path}")
     return result

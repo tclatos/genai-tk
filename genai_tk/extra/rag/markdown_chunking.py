@@ -4,24 +4,42 @@ This module provides functions to chunk markdown content using chonkie's
 MarkdownChef for intelligent parsing of markdown structure (text, tables, code blocks).
 Small chunks are merged with adjacent ones to avoid fragmentation.
 Position tracking (start/end) is preserved for lineage.
+Token counting uses tiktoken with the o200k_base encoding (GPT-4o and newer models).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 
+import tiktoken
 from chonkie import MarkdownChef, RecursiveChunker, TableChunker
 from upath import UPath
+
+# Tiktoken encoding for token counting (o200k_base is used by GPT-4o and newer)
+TIKTOKEN_ENCODING = "o200k_base"
 
 # Initialize chunkers once (they are reusable and thread-safe)
 _markdown_chef: MarkdownChef | None = None
 _text_chunker: RecursiveChunker | None = None
 _table_chunker: TableChunker | None = None
 
+
+@lru_cache(maxsize=1)
+def _get_tiktoken_encoding() -> tiktoken.Encoding:
+    """Get cached tiktoken encoding."""
+    return tiktoken.get_encoding(TIKTOKEN_ENCODING)
+
+
+def _count_tokens(text: str) -> int:
+    """Count tokens in text using tiktoken."""
+    return len(_get_tiktoken_encoding().encode(text))
+
+
 # Default max rows per table chunk (header is always preserved)
 DEFAULT_TABLE_MAX_ROWS = 10
-DEFAULT_CHUNK_SIZE = 1000
-DEFAULT_MIN_CHUNK_SIZE = 100  # Minimum chunk size to avoid tiny fragments
+DEFAULT_MAX_TOKENS = 1000
+DEFAULT_MIN_TOKENS = 100  # Minimum token count to avoid tiny fragments
 
 
 @dataclass(slots=True)
@@ -31,7 +49,7 @@ class ChunkInfo:
     index: int
     chunk_type: str  # "text", "table", "code", or "mixed" (merged)
     content: str
-    char_count: int
+    token_count: int
     start_pos: int  # Start position in original content
     end_pos: int  # End position in original content
 
@@ -40,17 +58,17 @@ def _get_markdown_chef() -> MarkdownChef:
     """Get or create a MarkdownChef for parsing markdown."""
     global _markdown_chef
     if _markdown_chef is None:
-        _markdown_chef = MarkdownChef(tokenizer="character")
+        _markdown_chef = MarkdownChef(tokenizer=TIKTOKEN_ENCODING)
     return _markdown_chef
 
 
-def _get_text_chunker(chunk_size: int = DEFAULT_CHUNK_SIZE) -> RecursiveChunker:
+def _get_text_chunker(max_tokens: int = DEFAULT_MAX_TOKENS) -> RecursiveChunker:
     """Get or create a text chunker."""
     global _text_chunker
-    if _text_chunker is None or _text_chunker.chunk_size != chunk_size:
+    if _text_chunker is None or _text_chunker.chunk_size != max_tokens:
         _text_chunker = RecursiveChunker(
-            chunk_size=chunk_size,
-            tokenizer="character",
+            chunk_size=max_tokens,
+            tokenizer=TIKTOKEN_ENCODING,
         )
     return _text_chunker
 
@@ -78,7 +96,7 @@ class _RawChunk:
 
 def _collect_raw_chunks(
     content: str,
-    chunk_size: int,
+    max_tokens: int,
 ) -> list[_RawChunk]:
     """Parse markdown and collect all chunks in document order with positions.
 
@@ -93,9 +111,9 @@ def _collect_raw_chunks(
     # Add text chunks
     for chunk in doc.chunks:
         if chunk.text.strip():
-            if len(chunk.text) > chunk_size:
+            if chunk.token_count > max_tokens:
                 # Split large text chunks
-                text_chunker = _get_text_chunker(chunk_size)
+                text_chunker = _get_text_chunker(max_tokens)
                 sub_chunks = text_chunker.chunk(chunk.text)
                 # Distribute positions proportionally among sub-chunks
                 text_start = chunk.start_index
@@ -154,8 +172,8 @@ def _collect_raw_chunks(
 
 def _merge_small_chunks(
     raw_chunks: list[_RawChunk],
-    min_chunk_size: int,
-    max_chunk_size: int,
+    min_tokens: int,
+    max_tokens: int,
 ) -> list[ChunkInfo]:
     """Merge small chunks with adjacent ones to avoid tiny fragments.
 
@@ -196,6 +214,7 @@ def _merge_small_chunks(
             return
 
         merged_content = "\n\n".join(c.content for c in pending)
+        merged_tokens = _count_tokens(merged_content)
         start_pos = pending[0].start_pos
         end_pos = pending[-1].end_pos
         types = {c.chunk_type for c in pending}
@@ -205,14 +224,15 @@ def _merge_small_chunks(
             # Try to append to last result chunk
             last = result[-1]
             combined = last.content + "\n\n" + merged_content
-            if len(combined) <= max_chunk_size * 1.2:
+            combined_tokens = _count_tokens(combined)
+            if combined_tokens <= max_tokens * 1.2:
                 # Merge with last
                 new_type = last.chunk_type if last.chunk_type == merged_type else "mixed"
                 result[-1] = ChunkInfo(
                     index=last.index,
                     chunk_type=new_type,
                     content=combined,
-                    char_count=len(combined),
+                    token_count=combined_tokens,
                     start_pos=last.start_pos,
                     end_pos=end_pos,
                 )
@@ -225,7 +245,7 @@ def _merge_small_chunks(
                 index=len(result),
                 chunk_type=merged_type,
                 content=merged_content,
-                char_count=len(merged_content),
+                token_count=merged_tokens,
                 start_pos=start_pos,
                 end_pos=end_pos,
             )
@@ -233,7 +253,8 @@ def _merge_small_chunks(
         pending.clear()
 
     for chunk in raw_chunks:
-        is_small = len(chunk.content) < min_chunk_size
+        chunk_tokens = _count_tokens(chunk.content)
+        is_small = chunk_tokens < min_tokens
 
         if is_small:
             pending.append(chunk)
@@ -242,9 +263,10 @@ def _merge_small_chunks(
         # We have a substantial chunk
         # Check if we can merge pending with it
         if pending:
-            total_pending = sum(len(c.content) for c in pending)
-            if total_pending + len(chunk.content) + 4 <= max_chunk_size * 1.2:  # +4 for "\n\n"
+            total_pending_tokens = sum(_count_tokens(c.content) for c in pending)
+            if total_pending_tokens + chunk_tokens + 2 <= max_tokens * 1.2:  # +2 tokens for "\n\n"
                 chunk = _merge_pending_with(chunk)
+                chunk_tokens = _count_tokens(chunk.content)
             else:
                 # Pending too big to merge - flush it
                 _flush_pending_to_result()
@@ -254,7 +276,7 @@ def _merge_small_chunks(
                 index=len(result),
                 chunk_type=chunk.chunk_type,
                 content=chunk.content,
-                char_count=len(chunk.content),
+                token_count=chunk_tokens,
                 start_pos=chunk.start_pos,
                 end_pos=chunk.end_pos,
             )
@@ -272,38 +294,38 @@ def _merge_small_chunks(
 
 def chunk_markdown_content(
     content: str,
-    chunk_size: int = DEFAULT_CHUNK_SIZE,
-    min_chunk_size: int = DEFAULT_MIN_CHUNK_SIZE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+    min_tokens: int = DEFAULT_MIN_TOKENS,
 ) -> list[ChunkInfo]:
     """Chunk markdown content and return detailed chunk information.
 
     Uses chonkie's MarkdownChef to parse markdown and extract tables, code blocks,
     and text chunks. Elements are kept in document order. Small chunks are merged
-    with adjacent ones (regardless of type).
+    with adjacent ones (regardless of type). Token counting uses tiktoken.
 
     Args:
         content: The markdown content to chunk.
-        chunk_size: Maximum size of each text chunk.
-        min_chunk_size: Minimum size for a chunk. Smaller chunks are merged with adjacent ones.
+        max_tokens: Maximum number of tokens per chunk.
+        min_tokens: Minimum tokens for a chunk. Smaller chunks are merged with adjacent ones.
 
     Returns:
         List of ChunkInfo objects with details about each chunk.
     """
-    raw_chunks = _collect_raw_chunks(content, chunk_size)
-    return _merge_small_chunks(raw_chunks, min_chunk_size, chunk_size)
+    raw_chunks = _collect_raw_chunks(content, max_tokens)
+    return _merge_small_chunks(raw_chunks, min_tokens, max_tokens)
 
 
 def chunk_markdown_file(
     file_path: UPath | str,
-    chunk_size: int = DEFAULT_CHUNK_SIZE,
-    min_chunk_size: int = DEFAULT_MIN_CHUNK_SIZE,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+    min_tokens: int = DEFAULT_MIN_TOKENS,
 ) -> list[ChunkInfo]:
     """Chunk a markdown file and return detailed chunk information.
 
     Args:
         file_path: Path to the markdown file.
-        chunk_size: Maximum size of each text chunk.
-        min_chunk_size: Minimum size for a chunk. Smaller chunks are merged with adjacent ones.
+        max_tokens: Maximum number of tokens per chunk.
+        min_tokens: Minimum tokens for a chunk. Smaller chunks are merged with adjacent ones.
 
     Returns:
         List of ChunkInfo objects with details about each chunk.
@@ -321,4 +343,4 @@ def chunk_markdown_file(
         raise ValueError(f"Not a markdown file: {path}")
 
     content = path.read_text(encoding="utf-8")
-    return chunk_markdown_content(content, chunk_size=chunk_size, min_chunk_size=min_chunk_size)
+    return chunk_markdown_content(content, max_tokens=max_tokens, min_tokens=min_tokens)

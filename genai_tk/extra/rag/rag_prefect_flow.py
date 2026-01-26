@@ -60,7 +60,7 @@ def _chunk_markdown(content: str, chunk_size: int = 2000) -> list[str]:
     and text chunks separately. Returns only the text content of each chunk.
     """
 
-    chunks = chunk_markdown_content(content, chunk_size=chunk_size)
+    chunks = chunk_markdown_content(content, max_tokens=chunk_size)
     return [chunk.content for chunk in chunks]
 
 
