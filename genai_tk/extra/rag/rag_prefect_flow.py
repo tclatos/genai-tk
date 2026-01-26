@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from chonkie import RecursiveChunker
+from chonkie import MarkdownChef, RecursiveChunker, TableChunker
 from langchain_core.documents import Document
 from loguru import logger
 from prefect import flow, task
@@ -20,21 +20,20 @@ from genai_tk.utils.file_patterns import resolve_files
 from genai_tk.utils.hashing import file_digest
 
 # Initialize chunkers once (they are reusable and thread-safe)
-_markdown_chunker: RecursiveChunker | None = None
+_markdown_chef: MarkdownChef | None = None
 _text_chunker: RecursiveChunker | None = None
+_table_chunker: TableChunker | None = None
+
+# Default max rows per table chunk (header is always preserved)
+DEFAULT_TABLE_MAX_ROWS = 10
 
 
-def _get_markdown_chunker(chunk_size: int = 2000) -> RecursiveChunker:
-    """Get or create a markdown-aware chunker."""
-    global _markdown_chunker
-    if _markdown_chunker is None or _markdown_chunker.chunk_size != chunk_size:
-        _markdown_chunker = RecursiveChunker.from_recipe(
-            "markdown",
-            lang="en",
-            chunk_size=chunk_size,
-            tokenizer="character",  # Use character count for consistency
-        )
-    return _markdown_chunker
+def _get_markdown_chef() -> MarkdownChef:
+    """Get or create a MarkdownChef for parsing markdown."""
+    global _markdown_chef
+    if _markdown_chef is None:
+        _markdown_chef = MarkdownChef(tokenizer="character")
+    return _markdown_chef
 
 
 def _get_text_chunker(chunk_size: int = 2000) -> RecursiveChunker:
@@ -46,6 +45,17 @@ def _get_text_chunker(chunk_size: int = 2000) -> RecursiveChunker:
             tokenizer="character",
         )
     return _text_chunker
+
+
+def _get_table_chunker(max_rows: int = DEFAULT_TABLE_MAX_ROWS) -> TableChunker:
+    """Get or create a TableChunker for splitting large tables."""
+    global _table_chunker
+    if _table_chunker is None or _table_chunker.chunk_size != max_rows:
+        _table_chunker = TableChunker(
+            tokenizer="row",
+            chunk_size=max_rows,
+        )
+    return _table_chunker
 
 
 @dataclass(slots=True)
@@ -67,10 +77,50 @@ def _load_file_content(path: UPath) -> str:
 
 
 def _chunk_markdown(content: str, chunk_size: int = 2000) -> list[str]:
-    """Chunk markdown content using chonkie's markdown-aware RecursiveChunker."""
-    chunker = _get_markdown_chunker(chunk_size)
-    chunks = chunker.chunk(content)
-    return [chunk.text for chunk in chunks]
+    """Chunk markdown content using chonkie's MarkdownChef and TableChunker.
+
+    MarkdownChef parses markdown and extracts tables, code blocks, and text chunks
+    separately. Large tables are further split by TableChunker while preserving headers.
+    """
+    chef = _get_markdown_chef()
+    doc = chef.parse(content)
+
+    chunks: list[str] = []
+
+    # Add text chunks
+    for chunk in doc.chunks:
+        if chunk.text.strip():
+            # If chunk is too large, split it further
+            if len(chunk.text) > chunk_size:
+                text_chunker = _get_text_chunker(chunk_size)
+                sub_chunks = text_chunker.chunk(chunk.text)
+                chunks.extend(c.text for c in sub_chunks if c.text.strip())
+            else:
+                chunks.append(chunk.text)
+
+    # Add tables - split large ones with TableChunker
+    table_chunker = _get_table_chunker()
+    for table in doc.tables:
+        if table.content.strip():
+            # Count rows (excluding header and separator)
+            lines = table.content.strip().split("\n")
+            data_rows = len(lines) - 2 if len(lines) > 2 else 0
+
+            if data_rows > DEFAULT_TABLE_MAX_ROWS:
+                # Large table - split it
+                table_chunks = table_chunker.chunk(table.content)
+                chunks.extend(tc.text for tc in table_chunks if tc.text.strip())
+            else:
+                # Small table - keep as is
+                chunks.append(table.content)
+
+    # Add code blocks as separate chunks
+    for code in doc.code:
+        if code.content.strip():
+            lang_prefix = f"```{code.language}\n" if code.language else "```\n"
+            chunks.append(f"{lang_prefix}{code.content}\n```")
+
+    return chunks
 
 
 def _chunk_text(content: str, chunk_size: int = 2000) -> list[str]:
@@ -83,7 +133,7 @@ def _chunk_text(content: str, chunk_size: int = 2000) -> list[str]:
 def _chunk_file_content(path: UPath, content: str, chunk_size: int = 2000) -> list[str]:
     """Chunk file content based on file type."""
     if path.suffix.lower() in {".md", ".markdown"}:
-        logger.debug(f"Using markdown chunker for {path}")
+        logger.debug(f"Using MarkdownChef for {path}")
         return _chunk_markdown(content, chunk_size=chunk_size)
     else:
         logger.debug(f"Using text chunker for {path}")
