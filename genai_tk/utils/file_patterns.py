@@ -123,7 +123,6 @@ def resolve_files(
             # Get relative path for pattern matching
             try:
                 rel_path = file_path.relative_to(root_path)
-                rel_path_str = str(rel_path)
 
                 # Check if file matches any include pattern
                 for pattern in include_patterns:

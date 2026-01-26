@@ -100,9 +100,7 @@ class ExtraCommands(CliTopCommand):
             recursive: bool = typer.Option(False, help="Search for files recursively"),
             batch_size: int = typer.Option(5, help="Number of files to process concurrently in each batch"),
             force: bool = typer.Option(False, "--force", help="Reprocess files even if unchanged in manifest"),
-            mistral_ocr: bool = typer.Option(
-                False, "--mistral-ocr", help="Use Mistral OCR for PDF processing"
-            ),
+            mistral_ocr: bool = typer.Option(False, "--mistral-ocr", help="Use Mistral OCR for PDF processing"),
         ) -> None:
             """Convert documents to Markdown using markitdown or Mistral OCR.
 
@@ -125,8 +123,7 @@ class ExtraCommands(CliTopCommand):
             from genai_tk.extra.prefect.runtime import run_flow_ephemeral
 
             logger.info(
-                f"Starting markdownize from '{root_dir}' to '{output_dir}' "
-                f"with batch_size {batch_size}",
+                f"Starting markdownize from '{root_dir}' to '{output_dir}' with batch_size {batch_size}",
             )
 
             try:

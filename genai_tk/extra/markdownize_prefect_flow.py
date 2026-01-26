@@ -77,9 +77,7 @@ class MistralOCRBatchProcessor:
 
             # Upload batch file and process
             try:
-                batch_results = await self._submit_and_poll_batch(
-                    client, batch_requests, batch_files, output_dir
-                )
+                batch_results = await self._submit_and_poll_batch(client, batch_requests, batch_files, output_dir)
                 results.update(batch_results)
             except Exception as e:
                 logger.error(f"Batch processing failed: {e}")
@@ -167,9 +165,7 @@ class MistralOCRBatchProcessor:
             # Download and process results
             retrieved_job = client.batch.jobs.get(job_id=job.id)
             if retrieved_job.output_file:
-                results = await self._process_batch_results(
-                    client, retrieved_job.output_file, file_paths, output_dir
-                )
+                results = await self._process_batch_results(client, retrieved_job.output_file, file_paths, output_dir)
 
         finally:
             # Clean up temp file
@@ -190,7 +186,7 @@ class MistralOCRBatchProcessor:
             True if job succeeded, False otherwise
         """
 
-        for attempt in range(max_attempts):
+        for _attempt in range(max_attempts):
             job = client.batch.jobs.get(job_id=job_id)
             logger.info(f"Batch job status: {job.status}")
 
@@ -542,18 +538,16 @@ def markdownize_flow(
     all_entries: dict[str, MarkdownizeManifestEntry] = dict(manifest.entries)
 
     # Handle Mistral OCR batch processing separately if enabled
-    ocr_processor = None
     pdf_files = [f for f in to_process if f.path.suffix.lower() == ".pdf"] if use_mistral_ocr else []
 
     if use_mistral_ocr and pdf_files:
         try:
-            ocr_processor = MistralOCRBatchProcessor(batch_size=batch_size)
+            _ocr_processor = MistralOCRBatchProcessor(batch_size=batch_size)  # noqa: F841 - reserved for future use
             logger.info(f"Processing {len(pdf_files)} PDF files with Mistral OCR batch processor")
             # Note: In practice, this would be called within a task for better Prefect integration
             # For now, we use the single-file fallback in _process_single_file_task
         except Exception as e:
             logger.warning(f"Could not initialize Mistral OCR batch processor: {e}. Using single-file OCR.")
-            ocr_processor = None
 
     # Process in batches
     for batch in _chunked(to_process, batch_size):
