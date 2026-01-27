@@ -144,6 +144,81 @@ class ExtraCommands(CliTopCommand):
 
             logger.success("Markdownize conversion completed successfully")
 
+        @cli_app.command()
+        def ppt2pdf(
+            root_dir: Annotated[
+                str,
+                typer.Argument(
+                    help="Root directory to search for PowerPoint files to convert",
+                ),
+            ],
+            output_dir: Annotated[
+                str,
+                typer.Argument(
+                    help="Output directory for PDF files and manifest",
+                ),
+            ],
+            include_patterns: Annotated[
+                list[str] | None,
+                typer.Option(
+                    "--include",
+                    "-i",
+                    help="Glob patterns to include (e.g., '*.pptx', '*.ppt'). Default: all supported formats",
+                ),
+            ] = None,
+            exclude_patterns: Annotated[
+                list[str] | None,
+                typer.Option(
+                    "--exclude",
+                    "-e",
+                    help="Glob patterns to exclude (e.g., '*_draft.pptx')",
+                ),
+            ] = None,
+            recursive: bool = typer.Option(False, help="Search for files recursively"),
+            batch_size: int = typer.Option(5, help="Number of files to process concurrently in each batch"),
+            force: bool = typer.Option(False, "--force", help="Reprocess files even if unchanged in manifest"),
+        ) -> None:
+            """Convert PowerPoint files to PDF using LibreOffice headless mode.
+
+            Processes PowerPoint files (PPT, PPTX, ODP) from root directory and converts
+            them to PDF using LibreOffice. Supports parallel batch processing with Prefect
+            and manifest-based tracking for incremental processing.
+
+            Examples:
+                ```bash
+                cli tools ppt2pdf ./presentations ./output --recursive
+
+                cli tools ppt2pdf ./data ./pdfs --include '*.pptx' --force
+
+                cli tools ppt2pdf '${paths.rainbow_ppt}' '${paths.rainbow_pdf}' --recursive --batch-size 10
+
+                cli tools ppt2pdf ./documents ./output --exclude '*_draft*' --recursive
+                ```
+            """
+            from genai_tk.extra.ppt2pdf_prefect_flow import ppt2pdf_flow
+            from genai_tk.extra.prefect.runtime import run_flow_ephemeral
+
+            logger.info(
+                f"Starting ppt2pdf from '{root_dir}' to '{output_dir}' with batch_size {batch_size}",
+            )
+
+            try:
+                run_flow_ephemeral(
+                    ppt2pdf_flow,
+                    root_dir=root_dir,
+                    output_dir=output_dir,
+                    include_patterns=include_patterns,
+                    exclude_patterns=exclude_patterns,
+                    recursive=recursive,
+                    batch_size=batch_size,
+                    force=force,
+                )
+            except Exception as exc:
+                logger.error(f"PowerPoint to PDF conversion failed: {exc}")
+                raise typer.Exit(1) from exc
+
+            logger.success("PowerPoint to PDF conversion completed successfully")
+
     def unmaintained_commands(cli_app: typer.Typer) -> None:
         @cli_app.command()
         def browser_agent(

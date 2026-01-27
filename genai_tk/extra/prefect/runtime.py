@@ -7,6 +7,7 @@ requiring a long‑lived API or agent.
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -14,6 +15,7 @@ from typing import TypeVar
 
 from prefect.settings import (
     PREFECT_API_URL,
+    PREFECT_LOGGING_LEVEL,
     PREFECT_SERVER_ALLOW_EPHEMERAL_MODE,
     PREFECT_SERVER_EPHEMERAL_ENABLED,
     temporary_settings,
@@ -61,8 +63,14 @@ def ephemeral_prefect_settings() -> Iterator[None]:
                 PREFECT_API_URL: None,
                 PREFECT_SERVER_EPHEMERAL_ENABLED: True,
                 PREFECT_SERVER_ALLOW_EPHEMERAL_MODE: True,
+                PREFECT_LOGGING_LEVEL: "WARNING",  # Reduce Prefect logging noise
             }
         ):
+            # Also quiet down Prefect loggers directly
+            logging.getLogger("prefect").setLevel(logging.WARNING)
+            logging.getLogger("prefect.flow_runs").setLevel(logging.WARNING)
+            logging.getLogger("prefect.task_runs").setLevel(logging.WARNING)
+            logging.getLogger("prefect.engine").setLevel(logging.ERROR)
             yield
     finally:
         # Restore previous environment variables.
