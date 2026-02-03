@@ -18,6 +18,8 @@ Supported Providers:
 - EdenAI
 - Azure OpenAI
 - Ollama
+- OpenRouter
+- DeepInfra
 
 Example:
     # Get default embeddings
@@ -354,6 +356,14 @@ class EmbeddingsFactory(BaseModel):
 
             emb = DeepInfraEmbeddings(
                 model_id=self.info.model, deepinfra_api_token=api_key.get_secret_value() if api_key else None
+            )
+        elif self.info.provider == "openrouter":
+            from langchain_openai import OpenAIEmbeddings
+
+            emb = OpenAIEmbeddings(
+                model=self.info.model,
+                openai_api_key=api_key,
+                openai_api_base="https://openrouter.ai/api/v1",
             )
         elif self.info.provider == "fake":
             from langchain_community.embeddings import DeterministicFakeEmbedding

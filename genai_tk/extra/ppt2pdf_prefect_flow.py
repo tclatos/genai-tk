@@ -291,7 +291,7 @@ def ppt2pdf_flow(
     output_upath.mkdir(parents=True, exist_ok=True)
 
     # Load or create manifest
-    manifest_path = output_upath / "ppt2pdf_manifest.json"
+    manifest_path = output_upath / "manifest.json"
     manifest = _load_manifest(manifest_path)
     if manifest is None:
         manifest = Ppt2PdfManifest()
