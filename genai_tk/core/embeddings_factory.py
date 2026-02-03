@@ -43,7 +43,7 @@ from pydantic import BaseModel, Field, computed_field
 
 from genai_tk.extra.kv_store_registry import KvStoreRegistry
 from genai_tk.utils.config_mngr import global_config
-from genai_tk.core.providers import get_provider_api_env_var, get_provider_api_key
+from genai_tk.core.providers import OPENROUTER_API_BASE, get_provider_api_env_var, get_provider_api_key
 
 _ = load_dotenv(verbose=True)
 
@@ -362,8 +362,8 @@ class EmbeddingsFactory(BaseModel):
 
             emb = OpenAIEmbeddings(
                 model=self.info.model,
-                openai_api_key=api_key,
-                openai_api_base="https://openrouter.ai/api/v1",
+                api_key=api_key,
+                base_url=OPENROUTER_API_BASE,
             )
         elif self.info.provider == "fake":
             from langchain_community.embeddings import DeterministicFakeEmbedding

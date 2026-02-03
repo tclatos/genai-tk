@@ -53,15 +53,11 @@ from loguru import logger
 from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 
 from genai_tk.core.cache import LlmCache
-from genai_tk.core.providers import PROVIDER_INFO, get_provider_api_env_var, get_provider_api_key
+from genai_tk.core.providers import OPENROUTER_API_BASE, PROVIDER_INFO, get_provider_api_env_var, get_provider_api_key
 from genai_tk.utils.config_mngr import global_config
 
 SEED = 42  # Arbitrary value....
 DEFAULT_MAX_RETRIES = 2
-
-OPENROUTER_BASE = "https://openrouter.ai"
-OPENROUTER_API_BASE = f"{OPENROUTER_BASE}/api/v1"
-DEEPSEEK_API_BASE = "https://api.deepseek.com"
 
 
 def _is_litellm(text: str) -> bool:

@@ -9,6 +9,11 @@ import os
 
 from pydantic import SecretStr
 
+OPENROUTER_BASE = "https://openrouter.ai"
+OPENROUTER_API_BASE = f"{OPENROUTER_BASE}/api/v1"
+DEEPSEEK_API_BASE = "https://api.deepseek.com"
+
+
 # List of implemented LLM providers, with the Python class to be loaded, and the name of the API key environment variable
 PROVIDER_INFO = {
     "fake": ("langchain_core", ""),
