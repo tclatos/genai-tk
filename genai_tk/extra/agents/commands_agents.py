@@ -157,7 +157,7 @@ class AgentCommands(CliTopCommand):
             else:
                 if not input and not sys.stdin.isatty():
                     input = sys.stdin.read()
-                if not input or len(input) < 5:
+                if not input or len(input.strip()) < 1:
                     print("Error: Input parameter or something in stdin is required")
                     return
 
@@ -288,7 +288,7 @@ class AgentCommands(CliTopCommand):
                 # Handle input from --input parameter or stdin
                 if not input and not sys.stdin.isatty():
                     input = sys.stdin.read()
-                if not input or len(input) < 5:
+                if not input or len(input.strip()) < 1:
                     print("Error: Input parameter or something in stdin is required")
                     return
 
