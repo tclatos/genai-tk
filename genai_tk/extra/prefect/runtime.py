@@ -1,8 +1,10 @@
-"""Prefect runtime helpers for running flows with ephemeral settings.
+"""Prefect runtime helpers for running flows with ephemeral or server settings.
 
 This module centralises common Prefect setup used by CLI commands so that
 flows can be executed with an in-process, ephemeral Prefect server without
-requiring a long‑lived API or agent.
+requiring a long-lived API or agent.  Optionally, flows can connect to a
+deployed Prefect server when ``prefect.api_url`` is configured in the
+application config.
 """
 
 from __future__ import annotations
@@ -24,16 +26,40 @@ from prefect.settings import (
 T = TypeVar("T")
 
 
+def _get_configured_api_url() -> str | None:
+    """Return configured Prefect API URL from app config or env, if any."""
+    # Explicit env var takes precedence
+    env_url = os.environ.get("GENAI_PREFECT_API_URL")
+    if env_url:
+        return env_url
+
+    # Check application config (best-effort)
+    try:
+        from genai_tk.utils.config_mngr import global_config
+
+        return global_config().get("prefect.api_url", default=None)
+    except Exception:
+        return None
+
+
 @contextmanager
 def ephemeral_prefect_settings() -> Iterator[None]:
     """Temporarily configure Prefect to use an in-process ephemeral server.
 
-    This helper disables any configured Prefect API URL for the duration
-    of the context, enables the ephemeral server mode, and sanitises HTTP
-    proxy environment variables that can interfere with localhost
-    traffic. This ensures flows keep working even when PREFECT_API_URL
-    is set but unreachable.
+    If ``prefect.api_url`` is set in the application config (or via the
+    ``GENAI_PREFECT_API_URL`` environment variable), connects to the
+    deployed Prefect server instead for full dashboard / history support.
     """
+    configured_url = _get_configured_api_url()
+
+    if configured_url:
+        # Use the deployed Prefect server — just quiet down logging
+        with temporary_settings({PREFECT_API_URL: configured_url, PREFECT_LOGGING_LEVEL: "WARNING"}):
+            logging.getLogger("prefect").setLevel(logging.WARNING)
+            logging.getLogger("prefect.flow_runs").setLevel(logging.WARNING)
+            logging.getLogger("prefect.task_runs").setLevel(logging.WARNING)
+            yield
+        return
 
     # Run with an ephemeral in-process server and ensure localhost
     # traffic is not sent through proxies.
@@ -82,12 +108,6 @@ def ephemeral_prefect_settings() -> Iterator[None]:
 
 
 def run_flow_ephemeral(flow_fn: Callable[..., T], *args, **kwargs) -> T:
-    """Run a Prefect flow function inside an ephemeral runtime context.
-
-    The provided callable is expected to be a Prefect flow, but this helper
-    does not depend on Prefect internals and simply executes the callable
-    within :func:`ephemeral_prefect_settings`.
-    """
-
+    """Run a Prefect flow function inside an ephemeral (or configured server) runtime context."""
     with ephemeral_prefect_settings():
         return flow_fn(*args, **kwargs)
