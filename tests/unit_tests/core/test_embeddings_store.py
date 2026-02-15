@@ -32,8 +32,8 @@ def fresh_embeddings_store():
     This fixture ensures test isolation by creating a unique store
     instance for each test, preventing document pollution between tests.
     """
-    # Use in_memory_chroma config which creates a fresh in-memory store
-    embeddings_store = EmbeddingsStore.create_from_config("in_memory_chroma")
+    # Use InMemory backend to avoid shared Chroma state across tests
+    embeddings_store = EmbeddingsStore.create_from_config("in_memory")
     yield embeddings_store
 
 

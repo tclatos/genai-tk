@@ -4,6 +4,9 @@ This module provides shared fixtures and configuration for all tests,
 ensuring consistent use of fake models and test setup.
 """
 
+from pathlib import Path
+from typing import Generator
+
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -99,20 +102,9 @@ def sample_documents():
     Returns:
         List[Document]: List of sample documents with metadata
     """
-    from langchain_core.documents import Document
+    from tests.utils.test_data import generate_sample_documents
 
-    texts = [
-        "The quick brown fox jumps over the lazy dog.",
-        "Python is a powerful programming language for AI development.",
-        "Machine learning models require training data to perform well.",
-        "Vector databases enable efficient similarity search.",
-        "Embeddings represent text as numerical vectors.",
-    ]
-
-    return [
-        Document(page_content=texts[i % len(texts)], metadata={"id": i, "source": f"doc_{i}", "page": i // 2 + 1})
-        for i in range(5)
-    ]
+    return generate_sample_documents(5)
 
 
 @pytest.fixture
@@ -122,13 +114,9 @@ def sample_texts():
     Returns:
         List[str]: List of sample text strings
     """
-    return [
-        "The quick brown fox jumps over the lazy dog.",
-        "Python is a powerful programming language for AI development.",
-        "Machine learning models require training data to perform well.",
-        "Vector databases enable efficient similarity search.",
-        "Embeddings represent text as numerical vectors.",
-    ]
+    from tests.utils.test_data import generate_sample_texts
+
+    return generate_sample_texts(5)
 
 
 @pytest.fixture
@@ -138,13 +126,24 @@ def sample_queries():
     Returns:
         List[str]: List of sample search queries
     """
-    return [
-        "programming language",
-        "machine learning",
-        "similarity search",
-        "artificial intelligence",
-        "data science",
-    ]
+    from tests.utils.test_data import generate_sample_queries
+
+    return generate_sample_queries()
+
+
+@pytest.fixture
+def temp_test_dir(tmp_path: Path) -> Generator[Path, None, None]:
+    """Create a temporary directory for test files.
+
+    Args:
+        tmp_path: pytest's temporary path fixture
+
+    Returns:
+        Path to temporary test directory
+    """
+    test_dir = tmp_path / "test_data"
+    test_dir.mkdir(exist_ok=True)
+    yield test_dir
 
 
 @pytest.fixture

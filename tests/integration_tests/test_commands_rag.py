@@ -193,7 +193,7 @@ class TestRAGCommands:
 
     def test_delete_command_empty_store(self, cli_app, cli_runner):
         """Test deleting from an empty vector store."""
-        result = cli_runner.invoke(cli_app, ["rag", "delete", "default"])
+        result = cli_runner.invoke(cli_app, ["rag", "delete", "default", "--force"])
 
         # Should succeed
         assert result.exit_code == 0
@@ -208,7 +208,7 @@ class TestRAGCommands:
         cli_runner.invoke(cli_app, ["rag", "embed", "default", "--text", "Document to be deleted"])
 
         # Then delete
-        result = cli_runner.invoke(cli_app, ["rag", "delete", "default"])
+        result = cli_runner.invoke(cli_app, ["rag", "delete", "default", "--force"])
 
         # Should succeed
         assert result.exit_code == 0

@@ -22,36 +22,27 @@ class TestRAGToolConfig:
             embeddings_store="test_registry",
             tool_name="test_tool",
             tool_description="Test description",
-            text_splitter_config={"class": "RecursiveCharacterTextSplitter", "chunk_size": 500, "chunk_overlap": 50},
-            filter_expression={"category": "test"},
+            default_filter={"category": "test"},
             top_k=3,
         )
         assert config.embeddings_store == "test_registry"
         assert config.tool_name == "test_tool"
         assert config.tool_description == "Test description"
-        assert config.text_splitter_config["class"] == "RecursiveCharacterTextSplitter"
-        assert config.filter_expression == {"category": "test"}
+        assert config.default_filter == {"category": "test"}
         assert config.top_k == 3
 
     def test_default_values(self):
         """Test default configuration values."""
         config = RAGToolConfig(embeddings_store="test")
         assert config.tool_name == "rag_search"
-        assert config.tool_description == "Search vector store for relevant documents"
-        assert config.text_splitter_config["class"] == "RecursiveCharacterTextSplitter"
-        assert config.text_splitter_config["chunk_size"] == 1000
-        assert config.filter_expression is None
-        assert config.top_k == 5
+        assert "Search vector store for relevant documents" in config.tool_description
+        assert config.default_filter is None
+        assert config.top_k == 4
 
-    def test_missing_splitter_class(self):
-        """Test validation error when text splitter class is missing."""
-        with pytest.raises(ValueError, match="text_splitter_config must contain a 'class' key"):
-            RAGToolConfig(embeddings_store="test", text_splitter_config={"chunk_size": 500})
-
-    def test_none_filter_expression(self):
-        """Test that None filter expression is allowed."""
-        config = RAGToolConfig(embeddings_store="test", filter_expression=None)
-        assert config.filter_expression is None
+    def test_none_default_filter(self):
+        """Test that None default filter is allowed."""
+        config = RAGToolConfig(embeddings_store="test", default_filter=None)
+        assert config.default_filter is None
 
 
 class TestRAGToolFactory:
@@ -74,31 +65,18 @@ class TestRAGToolFactory:
             embeddings_store="test_registry",
             tool_name="test_search",
             tool_description="Test search tool",
-            text_splitter_config={"class": "RecursiveCharacterTextSplitter", "chunk_size": 500},
             top_k=3,
         )
 
     @patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")
-    @patch("genai_tk.tools.langchain.rag_tool_factory.importlib")
-    def test_create_tool_success(self, mock_importlib, mock_registry_class, factory, basic_config):
+    def test_create_tool_success(self, mock_registry_class, factory, basic_config):
         """Test successful tool creation."""
-        # Mock vector store registry
-        mock_registry = Mock()
-        mock_vector_store = AsyncMock()
-        mock_registry.get.return_value = mock_vector_store
-        mock_registry_class.create_from_config.return_value = mock_registry
-
-        # Mock text splitter
-        mock_module = Mock()
-        mock_splitter_class = Mock()
-        mock_splitter = Mock()
-        mock_module.RecursiveCharacterTextSplitter = mock_splitter_class
-        mock_splitter_class.return_value = mock_splitter
-        mock_importlib.import_module.return_value = mock_module
-
-        # Mock vector store search results
-        mock_docs = [Document(page_content="First document"), Document(page_content="Second document")]
-        mock_vector_store.asimilarity_search = AsyncMock(return_value=mock_docs)
+        # Mock embeddings store
+        mock_embeddings_store = Mock()
+        mock_embeddings_store.query = AsyncMock(
+            return_value=[Document(page_content="First document"), Document(page_content="Second document")]
+        )
+        mock_registry_class.create_from_config.return_value = mock_embeddings_store
 
         # Create tool
         tool = factory.create_tool(basic_config)
@@ -107,123 +85,92 @@ class TestRAGToolFactory:
         assert tool.name == "test_search"
         assert tool.description == "Test search tool"
 
-        # Verify vector store registry was created correctly
+        # Verify embeddings store was created correctly
         mock_registry_class.create_from_config.assert_called_once_with("test_registry")
-        mock_registry.get.assert_called_once()
-
-        # Verify text splitter was created correctly
-        mock_importlib.import_module.assert_called_once_with("langchain_classic.text_splitter")
-        mock_splitter_class.assert_called_once_with(chunk_size=500)
 
     @patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")
-    def test_create_tool_vector_store_error(self, mock_registry_class, factory, basic_config):
-        """Test error when vector store creation fails."""
-        mock_registry_class.create_from_config.side_effect = Exception("Vector store error")
+    def test_create_tool_embeddings_store_error(self, mock_registry_class, factory, basic_config):
+        """Test error when embeddings store creation fails."""
+        mock_registry_class.create_from_config.side_effect = Exception("Embeddings store error")
 
-        with pytest.raises(ValueError, match="Failed to create vector store from registry 'test_registry'"):
+        with pytest.raises(ValueError, match="Failed to create embeddings store 'test_registry'"):
             factory.create_tool(basic_config)
 
     @patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")
-    @patch("genai_tk.tools.langchain.rag_tool_factory.importlib")
-    def test_create_tool_text_splitter_import_error(self, mock_importlib, mock_registry_class, factory, basic_config):
-        """Test error when text splitter import fails."""
-        # Mock vector store registry
-        mock_registry = Mock()
-        mock_vector_store = Mock()
-        mock_registry.get.return_value = mock_vector_store
-        mock_registry_class.create_from_config.return_value = mock_registry
-
-        # Mock import error
-        mock_importlib.import_module.side_effect = ImportError("Module not found")
-
-        with pytest.raises(ValueError, match="Failed to import text splitter class 'RecursiveCharacterTextSplitter'"):
-            factory.create_tool(basic_config)
-
-    @patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")
-    @patch("genai_tk.tools.langchain.rag_tool_factory.importlib")
     @pytest.mark.asyncio
-    async def test_tool_ainvoke_success(self, mock_importlib, mock_registry_class, factory, basic_config):
+    async def test_tool_ainvoke_success(self, mock_registry_class, factory, basic_config):
         """Test tool ainvoke returns formatted documents."""
-        # Mock vector store registry
-        mock_registry = Mock()
-        mock_vector_store = AsyncMock()
-        mock_registry.get.return_value = mock_vector_store
-        mock_registry_class.create_from_config.return_value = mock_registry
-
-        # Mock text splitter
-        mock_module = Mock()
-        mock_splitter_class = Mock()
-        mock_module.RecursiveCharacterTextSplitter = mock_splitter_class
-        mock_importlib.import_module.return_value = mock_module
-
-        # Mock search results
-        mock_docs = [Document(page_content="First document content"), Document(page_content="Second document content")]
-        mock_vector_store.asimilarity_search = AsyncMock(return_value=mock_docs)
+        # Mock embeddings store
+        mock_embeddings_store = Mock()
+        mock_docs = [
+            Document(page_content="First document content"),
+            Document(page_content="Second document content"),
+        ]
+        mock_embeddings_store.query = AsyncMock(return_value=mock_docs)
+        mock_registry_class.create_from_config.return_value = mock_embeddings_store
 
         # Create and invoke tool
         tool = factory.create_tool(basic_config)
         result = await tool.ainvoke({"query": "test query"})
 
-        # Verify search was called correctly
-        mock_vector_store.asimilarity_search.assert_called_once_with("test query", k=3)
+        # Verify query was called correctly
+        mock_embeddings_store.query.assert_called_once_with("test query", k=3, filter=None)
 
         # Verify result formatting
-        expected_result = "Document 1: First document content\n\nDocument 2: Second document content"
-        assert result == expected_result
+        assert "Document 1:" in result
+        assert "First document content" in result
+        assert "Document 2:" in result
+        assert "Second document content" in result
 
     @patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")
-    @patch("genai_tk.tools.langchain.rag_tool_factory.importlib")
     @pytest.mark.asyncio
-    async def test_tool_ainvoke_with_filter(self, mock_importlib, mock_registry_class, factory):
+    async def test_tool_ainvoke_with_filter(self, mock_registry_class, factory):
         """Test tool ainvoke with filter expression."""
-        config = RAGToolConfig(embeddings_store="test_registry", filter_expression={"category": "technical"}, top_k=2)
+        config = RAGToolConfig(embeddings_store="test_registry", default_filter={"category": "technical"}, top_k=2)
 
-        # Mock vector store registry
-        mock_registry = Mock()
-        mock_vector_store = AsyncMock()
-        mock_registry.get.return_value = mock_vector_store
-        mock_registry_class.create_from_config.return_value = mock_registry
-
-        # Mock text splitter
-        mock_module = Mock()
-        mock_splitter_class = Mock()
-        mock_module.RecursiveCharacterTextSplitter = mock_splitter_class
-        mock_importlib.import_module.return_value = mock_module
-
-        # Mock search results
+        # Mock embeddings store
+        mock_embeddings_store = Mock()
         mock_docs = [Document(page_content="Filtered document")]
-        mock_vector_store.asimilarity_search = AsyncMock(return_value=mock_docs)
+        mock_embeddings_store.query = AsyncMock(return_value=mock_docs)
+        mock_registry_class.create_from_config.return_value = mock_embeddings_store
 
         # Create and invoke tool
         tool = factory.create_tool(config)
         result = await tool.ainvoke({"query": "test query"})
 
-        # Verify search was called with filter
-        mock_vector_store.asimilarity_search.assert_called_once_with(
-            "test query", k=2, filter={"category": "technical"}
-        )
+        # Verify query was called with filter
+        mock_embeddings_store.query.assert_called_once_with("test query", k=2, filter={"category": "technical"})
 
-        assert result == "Document 1: Filtered document"
+        assert "Document 1:" in result
+        assert "Filtered document" in result
 
     @patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")
-    @patch("genai_tk.tools.langchain.rag_tool_factory.importlib")
     @pytest.mark.asyncio
-    async def test_tool_ainvoke_no_results(self, mock_importlib, mock_registry_class, factory, basic_config):
+    async def test_tool_ainvoke_with_runtime_filter(self, mock_registry_class, factory, basic_config):
+        """Test tool ainvoke with runtime filter passed as JSON string."""
+        # Mock embeddings store
+        mock_embeddings_store = Mock()
+        mock_docs = [Document(page_content="Runtime filtered document")]
+        mock_embeddings_store.query = AsyncMock(return_value=mock_docs)
+        mock_registry_class.create_from_config.return_value = mock_embeddings_store
+
+        # Create and invoke tool with runtime filter
+        tool = factory.create_tool(basic_config)
+        result = await tool.ainvoke({"query": "test query", "filter": '{"author": "John"}'})
+
+        # Verify query was called with merged filter
+        mock_embeddings_store.query.assert_called_once_with("test query", k=3, filter={"author": "John"})
+
+        assert "Document 1:" in result
+
+    @patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")
+    @pytest.mark.asyncio
+    async def test_tool_ainvoke_no_results(self, mock_registry_class, factory, basic_config):
         """Test tool ainvoke when no documents are found."""
-        # Mock vector store registry
-        mock_registry = Mock()
-        mock_vector_store = AsyncMock()
-        mock_registry.get.return_value = mock_vector_store
-        mock_registry_class.create_from_config.return_value = mock_registry
-
-        # Mock text splitter
-        mock_module = Mock()
-        mock_splitter_class = Mock()
-        mock_module.RecursiveCharacterTextSplitter = mock_splitter_class
-        mock_importlib.import_module.return_value = mock_module
-
-        # Mock empty search results
-        mock_vector_store.asimilarity_search = AsyncMock(return_value=[])
+        # Mock embeddings store
+        mock_embeddings_store = Mock()
+        mock_embeddings_store.query = AsyncMock(return_value=[])
+        mock_registry_class.create_from_config.return_value = mock_embeddings_store
 
         # Create and invoke tool
         tool = factory.create_tool(basic_config)
@@ -232,30 +179,20 @@ class TestRAGToolFactory:
         assert result == "No relevant documents found."
 
     @patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")
-    @patch("genai_tk.tools.langchain.rag_tool_factory.importlib")
     @pytest.mark.asyncio
-    async def test_tool_ainvoke_search_error(self, mock_importlib, mock_registry_class, factory, basic_config):
+    async def test_tool_ainvoke_search_error(self, mock_registry_class, factory, basic_config):
         """Test tool ainvoke handles search errors gracefully."""
-        # Mock vector store registry
-        mock_registry = Mock()
-        mock_vector_store = AsyncMock()
-        mock_registry.get.return_value = mock_vector_store
-        mock_registry_class.create_from_config.return_value = mock_registry
-
-        # Mock text splitter
-        mock_module = Mock()
-        mock_splitter_class = Mock()
-        mock_module.RecursiveCharacterTextSplitter = mock_splitter_class
-        mock_importlib.import_module.return_value = mock_module
-
-        # Mock search error
-        mock_vector_store.asimilarity_search = AsyncMock(side_effect=Exception("Search failed"))
+        # Mock embeddings store
+        mock_embeddings_store = Mock()
+        mock_embeddings_store.query = AsyncMock(side_effect=Exception("Search failed"))
+        mock_registry_class.create_from_config.return_value = mock_embeddings_store
 
         # Create and invoke tool
         tool = factory.create_tool(basic_config)
         result = await tool.ainvoke({"query": "test query"})
 
-        assert "Error searching vector store: Search failed" in result
+        assert "Error searching vector store:" in result
+        assert "Search failed" in result
 
     def test_create_tool_from_dict(self, factory):
         """Test creating tool from dictionary configuration."""
@@ -263,7 +200,6 @@ class TestRAGToolFactory:
             "embeddings_store": "test_registry",
             "tool_name": "dict_tool",
             "tool_description": "Tool from dict",
-            "text_splitter_config": {"class": "RecursiveCharacterTextSplitter", "chunk_size": 800},
             "top_k": 4,
         }
 
