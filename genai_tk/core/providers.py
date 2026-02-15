@@ -6,6 +6,7 @@ managing API keys across different AI service providers.
 """
 
 import os
+from dataclasses import dataclass
 
 from pydantic import SecretStr
 
@@ -14,26 +15,49 @@ OPENROUTER_API_BASE = f"{OPENROUTER_BASE}/api/v1"
 DEEPSEEK_API_BASE = "https://api.deepseek.com"
 
 
-# List of implemented LLM providers, with the Python class to be loaded, and the name of the API key environment variable
-PROVIDER_INFO = {
-    "fake": ("langchain_core", ""),
-    "openai": ("langchain_openai", "OPENAI_API_KEY"),
-    "deepinfra": ("langchain_community.chat_models.deepinfra", "DEEPINFRA_API_TOKEN"),
-    "groq": ("langchain_groq", "GROQ_API_KEY"),
-    "ollama": ("langchain_ollama", ""),
-    "edenai": ("langchain_community.chat_models.edenai", "EDENAI_API_KEY"),
-    "azure": ("langchain_openai", "AZURE_OPENAI_API_KEY"),
-    "together": ("langchain_together", "TOGETHER_API_KEY"),
-    "deepseek": ("langchain_deepseek", "DEEPSEEK_API_KEY"),
-    "openrouter": ("langchain_openai", "OPENROUTER_API_KEY"),
-    "huggingface": ("langchain_huggingface", "HUGGINGFACEHUB_API_TOKEN"),
-    "mistralai": ("langchain_mistralai", "MISTRAL_API_KEY"),
-    "litellm": ("litellm", ""),
+@dataclass(frozen=True)
+class ProviderInfo:
+    """Structured information about an LLM provider.
+
+    Attributes:
+        module: Python module name to import
+        langchain_class: LangChain class name (e.g., "ChatOpenAI")
+        api_key_env_var: Environment variable name for API key (empty string if not required)
+        api_base: Optional API base URL for OpenAI-compatible providers
+    """
+
+    module: str
+    langchain_class: str
+    api_key_env_var: str
+    api_base: str | None = None
+
+    def get_use_string(self) -> str:
+        """Get the 'use' string module:ClassName  format."""
+        return f"{self.module}:{self.langchain_class}"
+
+
+# List of implemented LLM providers, with structured configuration
+PROVIDER_INFO: dict[str, ProviderInfo] = {
+    "fake": ProviderInfo("langchain_core.language_models.fake_chat_models", "ParrotFakeChatModel", ""),
+    "openai": ProviderInfo("langchain_openai", "ChatOpenAI", "OPENAI_API_KEY"),
+    "deepinfra": ProviderInfo(
+        "langchain_openai", "ChatOpenAI", "DEEPINFRA_API_TOKEN", "https://api.deepinfra.com/v1/openai"
+    ),
+    "groq": ProviderInfo("langchain_openai", "ChatOpenAI", "GROQ_API_KEY", "https://api.groq.com/openai/v1"),
+    "ollama": ProviderInfo("langchain_ollama", "ChatOllama", ""),
+    "edenai": ProviderInfo("langchain_openai", "ChatOpenAI", "EDENAI_API_KEY", "https://api.edenai.run/v2/llm"),
+    "azure": ProviderInfo("langchain_openai", "AzureChatOpenAI", "AZURE_OPENAI_API_KEY"),
+    "together": ProviderInfo("langchain_together", "ChatTogether", "TOGETHER_API_KEY"),
+    "deepseek": ProviderInfo("langchain_deepseek", "ChatDeepSeek", "DEEPSEEK_API_KEY"),
+    "openrouter": ProviderInfo("langchain_openai", "ChatOpenAI", "OPENROUTER_API_KEY", OPENROUTER_API_BASE),
+    "huggingface": ProviderInfo("langchain_openai", "ChatOpenAI", "HUGGINGFACEHUB_API_TOKEN"),
+    "mistralai": ProviderInfo("langchain_openai", "ChatOpenAI", "MISTRAL_API_KEY", "https://api.mistral.ai/v1"),
+    "litellm": ProviderInfo("litellm", "ChatLiteLLM", ""),
     # NOT TESTED:
-    "bedrock": ("langchain_aws", "AWS_ACCESS_KEY_ID"),
-    "anthropic": ("langchain_anthropic", "ANTHROPIC_API_KEY"),
-    "google": ("langchain_google_vertexai", "GOOGLE_API_KEY"),
-    "custom": ("langchain_openai", ""),
+    "bedrock": ProviderInfo("langchain_aws", "ChatBedrock", "AWS_ACCESS_KEY_ID"),
+    "anthropic": ProviderInfo("langchain_anthropic", "ChatAnthropic", "ANTHROPIC_API_KEY"),
+    "google": ProviderInfo("langchain_google_genai", "ChatGoogleGenerativeAI", "GOOGLE_API_KEY"),
+    "custom": ProviderInfo("langchain_openai", "ChatOpenAI", ""),
 }
 
 
@@ -49,8 +73,7 @@ def get_provider_api_env_var(provider: str) -> str | None:
     """
     if provider not in PROVIDER_INFO:
         raise ValueError(f"Unknown provider: {provider}. Valid providers are: {list(PROVIDER_INFO.keys())}")
-    env_var = PROVIDER_INFO[provider][1]
-    return env_var
+    return PROVIDER_INFO[provider].api_key_env_var
 
 
 def get_provider_api_key(provider: str) -> SecretStr | None:
@@ -70,3 +93,20 @@ def get_provider_api_key(provider: str) -> SecretStr | None:
         return SecretStr(r)
     else:
         return None
+
+
+def get_provider_info(provider: str) -> ProviderInfo:
+    """Get the full ProviderInfo for a given provider.
+
+    Args:
+        provider: Name of the AI provider (e.g. "openai", "google")
+
+    Returns:
+        ProviderInfo object with all provider configuration
+
+    Raises:
+        ValueError: If provider is unknown
+    """
+    if provider not in PROVIDER_INFO:
+        raise ValueError(f"Unknown provider: {provider}. Valid providers are: {list(PROVIDER_INFO.keys())}")
+    return PROVIDER_INFO[provider]

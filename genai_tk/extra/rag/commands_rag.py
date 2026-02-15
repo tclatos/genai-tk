@@ -301,9 +301,7 @@ class RagCommands(CliTopCommand):
 
         @cli_app.command()
         def delete(
-            store_name: Annotated[
-                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
-            ] = "default",
+            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")] = "default",
             force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")] = False,
         ) -> None:
             """Delete all documents from a vector store.
@@ -362,15 +360,13 @@ class RagCommands(CliTopCommand):
 
         @cli_app.command()
         def embed(
+            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")] = "default",
             text: Annotated[
                 Optional[str], typer.Option("--text", "-t", help="Text to embed (or read from stdin)")
             ] = None,
             metadata: Annotated[
                 Optional[str], typer.Option("--metadata", "-m", help="JSON metadata to attach to document")
             ] = None,
-            store_name: Annotated[
-                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
-            ] = "default",
         ) -> None:
             """Embed text and store it in a vector store.
 
@@ -441,19 +437,17 @@ class RagCommands(CliTopCommand):
 
         @cli_app.command()
         def query(
-            query_text: Annotated[str, typer.Argument(help="Query text to search for")],
+            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")] = "default",
+            query_text: Annotated[str, typer.Argument(help="Query text to search for")] = "",
             k: Annotated[int, typer.Option("--k", help="Number of results to return")] = 4,
             filter: Annotated[
                 Optional[str],
-                typer.Option("--filter", help='Metadata filter as JSON string (e.g., \'{"file_hash": "abc123"}\''),
+                typer.Option("--filter", help='Metadata filter as JSON string (e.g., \'{"file_hash": "abc123"}\')'),
             ] = None,
             full: Annotated[bool, typer.Option("--full", help="Show full document content")] = False,
             max_length: Annotated[
                 int, typer.Option("--max-length", "-l", help="Maximum length of content to display per document")
             ] = 100,
-            store_name: Annotated[
-                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
-            ] = "default",
         ) -> None:
             """Query a vector store for similar documents.
 
@@ -529,9 +523,7 @@ class RagCommands(CliTopCommand):
 
         @cli_app.command()
         def info(
-            store_name: Annotated[
-                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
-            ] = "default",
+            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")] = "default",
         ) -> None:
             """Get information and statistics about a vector store.
 
@@ -632,3 +624,16 @@ class RagCommands(CliTopCommand):
 
             except Exception as e:
                 console.print(create_error_panel("List Failed", f"Failed to list configurations: {e}"))
+
+
+def register_commands(cli_app: typer.Typer) -> None:
+    """Register RAG commands with the CLI application.
+
+    This function creates an instance of RagCommands and registers its
+    sub-commands with the provided Typer application.
+
+    Args:
+        cli_app: The Typer app instance to register commands to
+    """
+    rag_commands = RagCommands()
+    rag_commands.register(cli_app)

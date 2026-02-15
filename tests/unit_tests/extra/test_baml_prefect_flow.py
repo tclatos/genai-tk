@@ -69,7 +69,8 @@ def test_flow_writes_json_and_manifest_under_model_dir(tmp_path, monkeypatch) ->
     md_file.write_text("# Example", encoding="utf-8")
 
     manifest = mod.baml_structured_extraction_flow(
-        source=str(docs_dir),
+        root_dir=str(docs_dir),
+        output_dir="${paths.data_root}/structured",
         recursive=False,
         batch_size=2,
         force=False,
@@ -108,7 +109,8 @@ def test_flow_uses_manifest_to_skip_unchanged_files(tmp_path, monkeypatch) -> No
 
     # First run populates manifest and outputs.
     manifest1 = mod.baml_structured_extraction_flow(
-        source=str(docs_dir),
+        root_dir=str(docs_dir),
+        output_dir="${paths.data_root}/structured",
         recursive=False,
         batch_size=2,
         force=False,
@@ -122,7 +124,8 @@ def test_flow_uses_manifest_to_skip_unchanged_files(tmp_path, monkeypatch) -> No
 
     # Second run on the same content should use the manifest to skip.
     manifest2 = mod.baml_structured_extraction_flow(
-        source=str(docs_dir),
+        root_dir=str(docs_dir),
+        output_dir="${paths.data_root}/structured",
         recursive=False,
         batch_size=2,
         force=False,

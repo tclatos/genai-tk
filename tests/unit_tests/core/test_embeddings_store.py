@@ -25,6 +25,18 @@ def sample_documents():
     ]
 
 
+@pytest.fixture
+def fresh_embeddings_store():
+    """Create a fresh in-memory embeddings store for each test.
+
+    This fixture ensures test isolation by creating a unique store
+    instance for each test, preventing document pollution between tests.
+    """
+    # Use in_memory_chroma config which creates a fresh in-memory store
+    embeddings_store = EmbeddingsStore.create_from_config("in_memory_chroma")
+    yield embeddings_store
+
+
 @pytest.mark.parametrize("config_name", ["default"])  # Use existing config
 def test_vector_store_creation_and_search(sample_documents, config_name) -> None:
     """Test vector store creation, document addition, and similarity search.
@@ -124,22 +136,18 @@ def test_vector_store_factory_known_items() -> None:
     assert "Chroma_in_memory" not in known_items
 
 
-def test_vector_store_empty_search() -> None:
+def test_vector_store_empty_search(fresh_embeddings_store) -> None:
     """Test vector store behavior with empty document set."""
-    embeddings_store = EmbeddingsStore.create_from_config("default")
-
-    db = embeddings_store.get_vector_store()
+    db = fresh_embeddings_store.get_vector_store()
 
     # Search on empty database should not crash
     results = db.similarity_search("test query", k=2)
     assert len(results) == 0
 
 
-def test_vector_store_large_k_parameter(sample_documents) -> None:
+def test_vector_store_large_k_parameter(sample_documents, fresh_embeddings_store) -> None:
     """Test vector store behavior when k exceeds document count."""
-    embeddings_store = EmbeddingsStore.create_from_config("default")
-
-    db = embeddings_store.get_vector_store()
+    db = fresh_embeddings_store.get_vector_store()
     db.add_documents(sample_documents)
 
     # Request more results than available documents

@@ -8,7 +8,7 @@
 # Use pattern {self.model_family_name}_{version}
 # model_name is provider specific.  It can contains several fields decoded in the factory.
 
-# Capabilities can be : 'reasonning', 'structured_outputs', 'pdf', 'vision'
+# Capabilities can be : 'thinking', 'structured_outputs', 'pdf', 'vision'
 # !!! THE ONE HERE ARE INCOMPLETE, AND POSSIBLY INCORRECT !!!! 
 
 # Provider documentation links:
@@ -31,10 +31,10 @@
 
 llm:
 - model:
-  id: deepseek_v31
+  id: deepseek_v32
   providers:
     - deepseek: deepseek-chat
-    - openrouter: deepseek/deepseek-chat-v3.1
+    - openrouter: deepseek/deepseek-chat-v3.2
     - edenai: deepseek/deepseek-chat
   capabilities: ['structured_outputs']
 
@@ -58,10 +58,10 @@ llm:
   capabilities: ['structured_outputs']
 
 - model:
-  id: qwen31_17
+  id: qwen3_maxtinking
   providers:
-    - ollama: qwen3:1.7b
-  capabilities: ['structured_outputs']
+    - openrouter: qwen/qwen3-max-thinking
+  capabilities: ['thinking', 'structured_outputs']
 
 
 - model:
@@ -76,9 +76,10 @@ llm:
   capabilities: ['structured_outputs']
 
 - model:
-  id: mistral_8b
+  id: ministral_8b
   providers:
-    - openrouter:  mistralai/ministral-8b
+    - openrouter: mistralai/ministral-8b-latest
+  capabilities: ['structured_outputs']
 
 - model:
   id: gpt_4o_mini
@@ -95,8 +96,8 @@ llm:
   capabilities: ['structured_outputs']
 
 - model:
-  id: gemini_pro
+  id: google_gemini3flash
   providers:
-    - litellm: google/gemini-pro
-    - openrouter: google/gemini-pro
-  capabilities: ['structured_outputs']
+    - litellm: google/gemini-3-flash
+    - openrouter: google/gemini-3-flash
+  capabilities: ['vision', 'structured_outputs']

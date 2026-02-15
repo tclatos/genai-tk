@@ -53,7 +53,13 @@ from loguru import logger
 from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 
 from genai_tk.core.cache import LlmCache
-from genai_tk.core.providers import OPENROUTER_API_BASE, PROVIDER_INFO, get_provider_api_env_var, get_provider_api_key
+from genai_tk.core.providers import (
+    OPENROUTER_API_BASE,
+    PROVIDER_INFO,
+    get_provider_api_env_var,
+    get_provider_api_key,
+    get_provider_info,
+)
 from genai_tk.utils.config_mngr import global_config
 
 SEED = 42  # Arbitrary value....
@@ -93,6 +99,27 @@ class LlmInfo(BaseModel):
         if len(parts) < 2:
             raise ValueError("id must have at least 2 parts separated by underscores")
         return v
+
+    @property
+    def llm(self) -> str:
+        """Backward compatibility property. Returns the id field."""
+        return self.id
+
+    def get_provider_info(self):
+        """Get ProviderInfo for this LLM's provider."""
+        return get_provider_info(self.provider)
+
+    def get_use_string(self) -> str:
+        """Get the 'use' string in Deer-flow format (module:ClassName)."""
+        return self.get_provider_info().get_use_string()
+
+    def get_api_base(self) -> str | None:
+        """Get the API base URL for this provider if applicable."""
+        return self.get_provider_info().api_base
+
+    def get_api_key_env_var(self) -> str:
+        """Get the API key environment variable name for this provider."""
+        return self.get_provider_info().api_key_env_var
 
 
 def _read_llm_list_file() -> list[LlmInfo]:
@@ -252,21 +279,28 @@ class LlmFactory(BaseModel):
         """
         known_items = {}
         for item in LlmFactory.known_list():
-            module_name, api_key = PROVIDER_INFO.get(item.provider, (None, None))
-            assert module_name, f"No PROVIDER_INFO for LLM provider {item.provider}"
-            if api_key in os.environ or api_key == "":
+            provider_info = PROVIDER_INFO.get(item.provider)
+            if not provider_info:
+                if explain:
+                    logger.debug(f"No PROVIDER_INFO for LLM provider {item.provider}")
+                continue
+
+            module_name = provider_info.module
+            api_key_env_var = provider_info.api_key_env_var
+
+            if api_key_env_var in os.environ or api_key_env_var == "":
                 spec = importlib.util.find_spec(module_name)
                 if spec is not None:
                     known_items[item.id] = item
                 elif explain:
                     logger.debug(f"Module {module_name} for {item.provider} could not be imported.")
             elif explain:
-                logger.debug(f"No API key {api_key} for {item.provider}")
+                logger.debug(f"No API key {api_key_env_var} for {item.provider}")
         return known_items
 
     @staticmethod
     def known_items() -> list[str]:
-        """Return id of known LLM in the registry whose API key environment variable is known and Python module installed."""
+        """Return id of known LLM in the registry whose API key is available and Python module installed."""
         return sorted(LlmFactory.known_items_dict().keys())
 
     @staticmethod
@@ -334,7 +368,8 @@ class LlmFactory(BaseModel):
                 f"   • uv run cli info config    (shows LLM tags like 'fast_model', 'powerful_model')\n"
                 f"   • uv run cli info models    (shows all available LLM IDs)\n\n"
                 f"🏷️  Available LLM tags: Use tags defined in your config for easier access\n"
-                f"🆔 Available LLM IDs: {', '.join(LlmFactory.known_items()[:3])}{'...' if len(LlmFactory.known_items()) > 3 else ''}"
+                f"🆔 Available LLM IDs: {', '.join(LlmFactory.known_items()[:3])}"
+                f"{'...' if len(LlmFactory.known_items()) > 3 else ''}"
             )
             return None, error_msg
 
@@ -414,7 +449,6 @@ class LlmFactory(BaseModel):
 
     def model_factory(self) -> BaseChatModel:
         """Model factory, according to the model class."""
-        from langchain.chat_models.base import _SUPPORTED_PROVIDERS
         from langchain_core.globals import get_llm_cache
         from langchain_openai import ChatOpenAI
 
@@ -436,15 +470,26 @@ class LlmFactory(BaseModel):
         if self.json_mode:
             llm_params |= {"response_format": {"type": "json_object"}}
 
-        langchain_factory_supported_profider = set(_SUPPORTED_PROVIDERS)
-        langchain_factory_supported_profider -= {"huggingface", "google", "azure", "ollama"}
+        # Providers that require custom implementation (not supported by init_chat_model or need special handling)
+        CUSTOM_IMPLEMENTATION_PROVIDERS = {
+            "deepinfra",
+            "edenai",
+            "google",
+            "azure",
+            "openrouter",
+            "huggingface",
+            "litellm",
+            "custom",
+            "ollama",
+            "fake",
+        }
 
         # case for most "standard" providers -> we use LangChain factory
-        if self.info.provider in langchain_factory_supported_profider:
+        if self.info.provider not in CUSTOM_IMPLEMENTATION_PROVIDERS:
             # Some parameters are handled differently between provider. Here some workaround:
             if self.info.provider in ["groq", "mistralai"]:
                 seed = llm_params.pop("seed")
-                if self.info.provider in ["groq"]:
+                if self.info.provider == "groq":
                     llm_params |= {"model_kwargs": {"seed": seed}}
             llm = init_chat_model(
                 model=self.info.model, model_provider=self.info.provider, api_key=api_key, **llm_params
@@ -779,7 +824,7 @@ def get_configurable_llm(
         from genai_tk.core.llm_factory import get_configurable_llm, llm_config
 
         chain = def_prompt("tell me a joke") | get_configurable_llm()
-        r = chain.with_config(llm_config("claude_haiku35_openrouter")).invoke({})
+        r = chain.with_config(llm_config("claude_haiku45_openrouter")).invoke({})
         # or:
         r = chain.invoke({}, config=llm_config("gpt_35_openai"))
 
@@ -818,7 +863,7 @@ def llm_config(llm_id: str) -> RunnableConfig:
 
     Examples :
     ```
-        r = chain.with_config(llm_config("claude_haiku35_openrouter")).invoke({})
+        r = chain.with_config(llm_config("claude_haiku45_openrouter")).invoke({})
         # or:
         r = graph.invoke({}, config=llm_config("gpt_35_openai") | {"recursion_limit": 6}) )
     ```
