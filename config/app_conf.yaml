@@ -10,6 +10,7 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
   - ${paths.config}/init/baseline.yaml
   - ${paths.config}/init/overrides.yaml
   - ${paths.config}/init/mcp_servers.yaml
+  - ${paths.config}/agents/deerflow_config.yaml
  
 :env:
   LOGURU_LEVEL: info 

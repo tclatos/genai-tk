@@ -513,7 +513,7 @@ class AgentCommands(CliTopCommand):
                         result = await run_deep_agent(
                             agent=agent,
                             messages=messages,
-                            files=file_contents if file_contents else None,
+                            files=file_contents or None,
                             stream=stream,
                         )
 
@@ -554,6 +554,177 @@ class AgentCommands(CliTopCommand):
 
             # Run the async function
             asyncio.run(run_agent())
+
+        @cli_app.command("deerflow")
+        def deerflow(
+            input_text: Annotated[
+                Optional[str],
+                typer.Argument(help="User query text (positional). If omitted, reads from stdin or uses --chat mode."),
+            ] = None,
+            profile: Annotated[
+                Optional[str],
+                typer.Option(
+                    "--profile",
+                    "-p",
+                    help="Profile name from deerflow.yaml (required unless --list)",
+                ),
+            ] = None,
+            chat: Annotated[
+                bool,
+                typer.Option(
+                    "--chat",
+                    "-s",
+                    help="Interactive multi-turn chat mode (REPL). Use /quit to exit.",
+                ),
+            ] = False,
+            llm: Annotated[
+                Optional[str],
+                typer.Option(
+                    "--llm",
+                    "-m",
+                    help="LLM model override (e.g., 'gpt_41_openrouter', 'ollama/llama3.2')",
+                ),
+            ] = None,
+            mcp: Annotated[
+                list[str],
+                typer.Option(
+                    "--mcp",
+                    help="Additional MCP server names to enable (merged with profile's list)",
+                ),
+            ] = [],
+            mode: Annotated[
+                Optional[str],
+                typer.Option(
+                    "--mode",
+                    help="Override agent mode: flash|thinking|pro|ultra",
+                ),
+            ] = None,
+            stream: Annotated[
+                bool,
+                typer.Option(
+                    "--stream",
+                    help="Stream intermediate agent steps in real-time",
+                ),
+            ] = False,
+            list_profiles: Annotated[
+                bool,
+                typer.Option(
+                    "--list",
+                    help="List available profiles from deerflow.yaml and exit",
+                ),
+            ] = False,
+            config: Annotated[
+                Optional[str],
+                typer.Option(
+                    "--config",
+                    "-c",
+                    help="Path to deerflow.yaml config file",
+                ),
+            ] = None,
+        ) -> None:
+            """Run Deer-flow agents with advanced reasoning capabilities.
+
+            Deer-flow agents offer advanced capabilities:
+            - Subagent orchestration (parallel task delegation)
+            - Thinking mode (enhanced reasoning)
+            - Planning mode (multi-step task planning)
+            - Skills system (loadable workflows)
+
+            Examples:
+                # List available profiles
+                cli agents deerflow --list
+
+                # Run with a profile
+                cli agents deerflow -p "Research Assistant" "Explain quantum computing"
+
+                # Interactive chat mode
+                cli agents deerflow -p "Research Assistant" --chat
+
+                # With LLM override
+                cli agents deerflow -p "Coder" --llm gpt_41_openrouter "Write a sorting algorithm"
+
+                # Stream intermediate steps
+                cli agents deerflow -p "Research Assistant" --stream "What are AI trends?"
+
+                # Add extra MCP servers
+                cli agents deerflow -p "Coder" --mcp math --mcp weather "Calculate weather patterns"
+
+                # Override mode
+                cli agents deerflow -p "Web Browser" --mode ultra "Research topic"
+
+                # Read from stdin
+                echo "What is RAG?" | cli agents deerflow -p "Research Assistant"
+            """
+            from genai_tk.extra.agents.deer_flow.cli_commands import (
+                _list_profiles,
+                _run_chat_mode,
+                _run_single_shot,
+            )
+
+            if config is None:
+                # Use config manager to get the proper path
+                config_dir = global_config().get_dir_path("paths.config")
+                config_path = str(config_dir / "agents" / "deerflow.yaml")
+            else:
+                config_path = config
+
+            # Handle --list flag
+            if list_profiles:
+                _list_profiles(config_path)
+                return
+
+            # Validate profile requirement
+            if not profile:
+                print("❌ Error: --profile/-p is required (or use --list to see available profiles)")
+                raise typer.Exit(1)
+
+            # Get input from stdin if not provided
+            if not input_text and not chat:
+                if not sys.stdin.isatty():
+                    input_text = sys.stdin.read().strip()
+                    if not input_text:
+                        print("❌ Error: No input provided")
+                        raise typer.Exit(1)
+                else:
+                    print("⚠️  Warning: No input provided. Use positional argument, stdin, or --chat mode.")
+                    raise typer.Exit(1)
+
+            # Run agent
+            try:
+                if chat:
+                    asyncio.run(
+                        _run_chat_mode(
+                            profile_name=profile,
+                            config_path=config_path,
+                            llm_override=llm,
+                            extra_mcp=mcp,
+                            mode_override=mode,
+                            stream_enabled=stream,
+                            initial_input=input_text,
+                        )
+                    )
+                else:
+                    asyncio.run(
+                        _run_single_shot(
+                            profile_name=profile,
+                            user_input=input_text,
+                            config_path=config_path,
+                            llm_override=llm,
+                            extra_mcp=mcp,
+                            mode_override=mode,
+                            stream_enabled=stream,
+                        )
+                    )
+            except KeyboardInterrupt:
+                print("\n⚠️  Interrupted by user")
+                raise typer.Exit(0) from None
+            except typer.Exit:
+                # Clean exit with already-displayed error message
+                raise
+            except Exception as e:
+                print(f"\n❌ Error: {e}")
+                logger.exception("Deer-flow agent error")
+                raise typer.Exit(1) from e
 
         # @cli_app.command("list-deep")
         def list_deep_old() -> None:
