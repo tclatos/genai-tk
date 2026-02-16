@@ -713,8 +713,8 @@ if __name__ == "__main__":
     print("🧪 Testing hybrid search with PostgreSQL...")
 
     # Create embeddings factory
-    embeddings_factory = EmbeddingsFactory(embeddings="embeddings_768_fake")
-    embeddings_factory_cached = EmbeddingsFactory(embeddings="embeddings_768_fake", cache_embeddings=True)
+    embeddings_factory = EmbeddingsFactory(embeddings="embeddings_768@fake")
+    embeddings_factory_cached = EmbeddingsFactory(embeddings="embeddings_768@fake", cache_embeddings=True)
 
     # Note: This example shows legacy usage patterns for testing purposes
     # In production code, use EmbeddingsStore.create_from_config() instead

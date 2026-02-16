@@ -5,8 +5,8 @@ consistent usage across all test files.
 """
 
 # Fake model identifiers
-FAKE_LLM_ID = "parrot_local_fake"
-FAKE_EMBEDDINGS_ID = "embeddings_768_fake"
+FAKE_LLM_ID = "parrot_local@fake"
+FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
 
 # Fake provider names
 FAKE_LLM_PROVIDER = "fake"

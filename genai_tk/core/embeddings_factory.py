@@ -26,7 +26,7 @@ Example:
     embeddings = get_embeddings()
 
     # Get specific model
-    embeddings = get_embeddings(embeddings="huggingface_all-mpnet-base-v2")
+    embeddings = get_embeddings(embeddings="ada_002@openai")
     vectors = embeddings.embed_documents(["Sample text"])
 """
 
@@ -39,11 +39,16 @@ from dotenv import load_dotenv
 from langchain_classic.embeddings import CacheBackedEmbeddings
 from langchain_core.embeddings import Embeddings
 from loguru import logger
-from pydantic import BaseModel, Field, computed_field
+from pydantic import BaseModel, Field, computed_field, field_validator
 
 from genai_tk.extra.kv_store_registry import KvStoreRegistry
 from genai_tk.utils.config_mngr import global_config
-from genai_tk.core.providers import OPENROUTER_API_BASE, get_provider_api_env_var, get_provider_api_key
+from genai_tk.core.providers import (
+    OPENROUTER_API_BASE,
+    get_provider_api_env_var,
+    get_provider_api_key,
+    get_provider_info,
+)
 
 _ = load_dotenv(verbose=True)
 
@@ -69,8 +74,33 @@ class EmbeddingsInfo(BaseModel):
     prefix: str = ""
     dimension: int | None = None
 
+    @field_validator("id")
+    @classmethod
+    def validate_id_format(cls, v: str) -> str:
+        """Validate that id contains exactly one @ separator."""
+        parts = v.split("@")
+        if len(parts) != 2:
+            raise ValueError("id must have exactly one @ separator (format: model@provider)")
+        return v
+
     def __hash__(self) -> int:
         return hash(self.id)
+
+    def get_provider_info(self):
+        """Get ProviderInfo for this embeddings model's provider."""
+        return get_provider_info(self.provider)
+
+    def get_use_string(self) -> str:
+        """Get the 'use' string in Deer-flow format (module:ClassName)."""
+        return self.get_provider_info().get_use_string()
+
+    def get_api_base(self) -> str | None:
+        """Get the API base URL for this provider if applicable."""
+        return self.get_provider_info().api_base
+
+    def get_api_key_env_var(self) -> str:
+        """Get the API key environment variable name for this provider."""
+        return self.get_provider_info().api_key_env_var
 
 
 def _read_embeddings_list_file() -> list[EmbeddingsInfo]:
@@ -93,7 +123,7 @@ def _read_embeddings_list_file() -> list[EmbeddingsInfo]:
             for provider_info in model_entry["providers"]:
                 for provider, model_name in provider_info.items():
                     embedding_info = {
-                        "id": f"{model_id}_{provider}",
+                        "id": f"{model_id}@{provider}",
                         "provider": provider,
                         "model": model_name,
                         "dimension": dimension,
@@ -123,6 +153,12 @@ class EmbeddingsFactory(BaseModel):
     encoding_str: str | None = None
     retrieving_str: str | None = None
     cache_embeddings: bool = False
+
+    @property
+    def provider(self) -> str:
+        """Extract provider from the ID (part after @ separator)."""
+        assert self.embeddings_id is not None
+        return self.embeddings_id.split("@")[1]
 
     @computed_field
     @cached_property
@@ -394,14 +430,30 @@ class EmbeddingsFactory(BaseModel):
         return cached_embedder
 
     def short_name(self) -> str:
-        """Return the model ID without the provider (everything before the last underscore)."""
-        return self.info.id.rsplit("_", maxsplit=1)[0]
+        """Return the model ID without the provider (everything before @ separator)."""
+        return self.info.id.split("@")[0]
 
     def get_dimension(self) -> int:
         """Get the dimension of the embeddings model from configuration."""
         if self.info.dimension is None:
             raise ValueError(f"Dimension not configured for model '{self.info.id}'")
         return self.info.dimension
+
+    def get_provider_info(self):
+        """Get ProviderInfo for this embeddings model's provider."""
+        return get_provider_info(self.provider)
+
+    def get_use_string(self) -> str:
+        """Get the 'use' string in Deer-flow format (module:ClassName)."""
+        return self.get_provider_info().get_use_string()
+
+    def get_api_base(self) -> str | None:
+        """Get the API base URL for this provider if applicable."""
+        return self.get_provider_info().api_base
+
+    def get_api_key_env_var(self) -> str:
+        """Get the API key environment variable name for this provider."""
+        return self.get_provider_info().api_key_env_var
 
 
 def get_embeddings(

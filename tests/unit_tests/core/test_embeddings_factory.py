@@ -6,7 +6,7 @@ This module contains basic regression tests for the embeddings factory and utili
 from genai_tk.core.embeddings_factory import EmbeddingsFactory
 
 # Fake model constants
-FAKE_EMBEDDINGS_ID = "embeddings_768_fake"
+FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
 FAKE_EMBEDDINGS_DIMENSION = 768
 
 SENTENCE_1 = "Tokenization is the process of breaking down a text into individual units."

@@ -12,8 +12,8 @@ Key Features:
 - Configuration through YAML files
 - API key management via environment variables
 
-Models are identified by unique IDs following the pattern: model_version_provider
-Example: gpt_35_openai for GPT-3.5 from OpenAI
+Models are identified by unique IDs following the pattern: model_version@provider
+Example: gpt_4o@openai for GPT-4o from OpenAI
 
 Configuration is stored in models_providers.yaml and supports:
 - Default model selection
@@ -26,7 +26,7 @@ Example:
     >>> llm = get_llm()
 
     >>> # Get specific model with JSON output
-    >>> llm = get_llm(llm="gpt_35_openai", json_mode=True)
+    >>> llm = get_llm(llm="gpt_4o@openai", json_mode=True)
 
     >>> # Get configurable LLM with fallback
     >>> llm = get_configurable_llm(with_fallback=True)
@@ -78,7 +78,7 @@ class LlmInfo(BaseModel):
     """Description of an LLM model and its configuration.
 
     Attributes:
-        id: Unique identifier in format model_id_provider (e.g. gpt_35_openai)
+        id: Unique identifier in format model_id@provider (e.g. gpt_4o@openai)
         provider: name of the provider
         model: Model identifier used by the provider
         api_key_env_var: API key environment variable name (computed from cls)
@@ -94,10 +94,12 @@ class LlmInfo(BaseModel):
     @field_validator("id")
     @classmethod
     def validate_id_format(cls, v: str) -> str:
-        # Ensure the ID ends with the provider name
-        parts = v.split("_")
-        if len(parts) < 2:
-            raise ValueError("id must have at least 2 parts separated by underscores")
+        # Ensure the ID contains @ separator between model and provider
+        if "@" not in v:
+            raise ValueError("id must contain @ separator between model and provider (e.g. 'gpt_4o@openai')")
+        parts = v.split("@")
+        if len(parts) != 2:
+            raise ValueError("id must have exactly one @ separator (format: model@provider)")
         return v
 
     @property
@@ -141,7 +143,7 @@ def _read_llm_list_file() -> list[LlmInfo]:
                         # Complex configuration (like vllm)
                         model_name = config.pop("model", "")
                         llm_info = {
-                            "id": f"{model_id}_{provider}",
+                            "id": f"{model_id}@{provider}",
                             "provider": provider,
                             "model": model_name,
                             "llm_args": config,
@@ -149,7 +151,7 @@ def _read_llm_list_file() -> list[LlmInfo]:
                     else:
                         # Simple string configuration
                         llm_info = {
-                            "id": f"{model_id}_{provider}",
+                            "id": f"{model_id}@{provider}",
                             "provider": provider,
                             "model": str(config),
                             "llm_args": {},
@@ -159,7 +161,7 @@ def _read_llm_list_file() -> list[LlmInfo]:
                 # Handle legacy format (shouldn't happen with new YAML)
                 for provider, model_name in provider_info.items():
                     llm_info = {
-                        "id": f"{model_id}_{provider}",
+                        "id": f"{model_id}@{provider}",
                         "provider": provider,
                         "model": str(model_name),
                         "config": {},
@@ -175,30 +177,28 @@ class LlmFactory(BaseModel):
     configuration based on the model type and provider.
 
     Attributes:
-        llm: Unified LLM identifier (can be either LLM ID or tag) - recommended
-        llm_id: (Deprecated) Unique model identifier (if None, uses default from config)
-        llm_tag: (Deprecated) LLM tag from config (e.g., 'fake', 'powerful_model')
+        llm: Unified LLM identifier (can be either LLM ID or tag from config)
         json_mode: Whether to force JSON output format (where supported)
         streaming: Whether to enable streaming responses (where supported)
         reasoning: Whether to show reasoning/thinking process (None=default, True=enable, False=disable)
-        cache: cache method ("sqlite", "memory", no"_cache, ..) or "default", or None if no change (global setting)
-        llm_params : other llm parameters (temperature, max_token, ....)
+        cache: cache method ("sqlite", "memory", "no_cache", ..) or "default", or None if no change (global setting)
+        llm_params: other llm parameters (temperature, max_token, ....)
     """
 
     llm: Annotated[str | None, Field(validate_default=True)] = None
-    llm_id: Annotated[str | None, Field(validate_default=True)] = None
-    llm_tag: str | None = None
     json_mode: bool = False
     streaming: bool = False
     reasoning: bool | None = None
     cache: str | None = None
     llm_params: dict = {}
-    _unified_param: str | None = None  # Internal field for unified parameter resolution
+
+    # Internal field set during resolution
+    llm_id: Annotated[str | None, Field(validate_default=True)] = None
 
     @property
     def provider(self) -> str:
-        """Extract provider from the ID (last part after underscore)."""
-        return self.info.id.rsplit("_", maxsplit=1)[1]
+        """Extract provider from the ID (part after @ separator)."""
+        return self.info.id.split("@")[1]
 
     @computed_field
     @cached_property
@@ -213,43 +213,13 @@ class LlmFactory(BaseModel):
             raise Exception()
 
     def model_post_init(self, __context: dict) -> None:
-        """Post-initialization validation and tag resolution."""
-        # Handle deprecation warnings and parameter resolution
-        if self.llm_id is not None:
-            logger.warning(
-                "⚠️  'llm_id' parameter is deprecated. Use 'llm' instead. "
-                "Example: LlmFactory(llm='gpt_35_openai') or LlmFactory(llm='fast_model')"
-            )
-
-        if self.llm_tag is not None:
-            logger.warning(
-                "⚠️  'llm_tag' parameter is deprecated. Use 'llm' instead. Example: LlmFactory(llm='fast_model')"
-            )
-
-        # Check for conflicting parameters
-        unified_params_count = sum(
-            [self.llm is not None, self.llm_id is not None, self.llm_tag is not None, self._unified_param is not None]
-        )
-        if unified_params_count > 1:
-            raise ValueError("Cannot specify multiple LLM selection parameters. Use 'llm' parameter only (recommended)")
-
-        # Resolve unified 'llm' parameter
+        """Post-initialization validation and ID resolution."""
+        # Resolve unified 'llm' parameter (can be ID or tag)
         if self.llm is not None:
             resolved_id = LlmFactory.resolve_llm_identifier(self.llm)
             object.__setattr__(self, "llm_id", resolved_id)
 
-        # Handle legacy _unified_param (for internal use)
-        elif self._unified_param is not None:
-            resolved_id = LlmFactory.resolve_llm_identifier(self._unified_param)
-            object.__setattr__(self, "llm_id", resolved_id)
-            object.__setattr__(self, "_unified_param", None)
-
-        # Handle legacy llm_tag parameter
-        elif self.llm_tag is not None:
-            resolved_id = LlmFactory.find_llm_id_from_tag(self.llm_tag)
-            object.__setattr__(self, "llm_id", resolved_id)
-
-        # Set default if neither llm nor llm_id nor llm_tag provided
+        # Set default if llm not provided
         if self.llm_id is None:
             default_id = global_config().get_str("llm.models.default")
             object.__setattr__(self, "llm_id", default_id)
@@ -379,8 +349,8 @@ class LlmFactory(BaseModel):
         return self.llm_id
 
     def short_name(self) -> str:
-        """Return the model ID without the provider (everything before the last underscore)."""
-        return self.info.id.rsplit("_", maxsplit=1)[0]
+        """Return the model ID without the provider (everything before @ separator)."""
+        return self.info.id.split("@")[0]
 
     def get_litellm_model_name(self, separator: str = "/") -> str:
         """Return the LiteLLM id string from our llm_id  (best effort).
@@ -641,40 +611,6 @@ class LlmFactory(BaseModel):
 
         return llm  # type: ignore
 
-    def get_configurable(self, with_fallback: bool = False) -> BaseChatModel:
-        """Make the LLM configurable at run time."""
-        from langchain_core.runnables import ConfigurableField
-
-        default_llm_id = self.llm_id
-        if default_llm_id is None:
-            default_llm_id = global_config().get_str("llm.models.default")
-
-        # The field alternatives is created from our list of LLM
-        alternatives = {}
-        for llm_id in LlmFactory.known_items():
-            if llm_id != default_llm_id:
-                try:
-                    llm_obj = LlmFactory(llm=llm_id).get()
-                    alternatives |= {llm_id: llm_obj}
-                except Exception as ex:
-                    logger.info(f"Cannot load {llm_id}: {ex}")
-
-        selected_llm = (
-            LlmFactory(llm=self.llm_id)
-            .get()
-            .configurable_alternatives(  # select default LLM
-                ConfigurableField(id="llm_id"),
-                default_key=default_llm_id,
-                prefix_keys=False,
-                **alternatives,
-            )
-        )
-        if with_fallback:
-            # Not well tested !!!
-            logger.warning("LLM falback - Not well tested")
-            selected_llm = selected_llm.with_fallbacks([LlmFactory(llm="gpt_41mini_openrouter").get()])
-        return selected_llm  # type: ignore
-
 
 def get_llm(
     llm: str | None = None,
@@ -909,4 +845,4 @@ def get_print_chain(string: str = "") -> RunnableLambda:
 
 # QUICK TEST
 if __name__ == "__main__":
-    get_llm("gpt_4o_azure")
+    get_llm("gpt_4o@azure")

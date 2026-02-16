@@ -6,59 +6,80 @@ managing API keys across different AI service providers.
 """
 
 import os
-from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 
-from pydantic import SecretStr
+import yaml
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 OPENROUTER_BASE = "https://openrouter.ai"
 OPENROUTER_API_BASE = f"{OPENROUTER_BASE}/api/v1"
 DEEPSEEK_API_BASE = "https://api.deepseek.com"
 
 
-@dataclass(frozen=True)
-class ProviderInfo:
+class ProviderInfo(BaseModel):
     """Structured information about an LLM provider.
 
     Attributes:
-        module: Python module name to import
-        langchain_class: LangChain class name (e.g., "ChatOpenAI")
-        api_key_env_var: Environment variable name for API key (empty string if not required)
+        use: Combined module:ClassName string (e.g., 'langchain_openai:ChatOpenAI')
+        api_key_env_var: Environment variable name for API key
         api_base: Optional API base URL for OpenAI-compatible providers
     """
 
-    module: str
-    langchain_class: str
+    use: str = Field(..., description="Module and class in format 'module.path:ClassName'")
     api_key_env_var: str
     api_base: str | None = None
 
+    model_config = {"frozen": True}
+
+    @field_validator("use")
+    @classmethod
+    def validate_use_format(cls, v: str) -> str:
+        """Validate that use field contains module:ClassName format."""
+        if ":" not in v:
+            raise ValueError(f"'use' field must be in format 'module:ClassName', got: {v}")
+        return v
+
+    @property
+    def module(self) -> str:
+        """Extract module path from use string."""
+        return self.use.split(":")[0]
+
+    @property
+    def langchain_class(self) -> str:
+        """Extract class name from use string."""
+        return self.use.split(":")[1]
+
     def get_use_string(self) -> str:
-        """Get the 'use' string module:ClassName  format."""
-        return f"{self.module}:{self.langchain_class}"
+        """Get the 'use' string in module:ClassName format."""
+        return self.use
 
 
-# List of implemented LLM providers, with structured configuration
-PROVIDER_INFO: dict[str, ProviderInfo] = {
-    "fake": ProviderInfo("langchain_core.language_models.fake_chat_models", "ParrotFakeChatModel", ""),
-    "openai": ProviderInfo("langchain_openai", "ChatOpenAI", "OPENAI_API_KEY"),
-    "deepinfra": ProviderInfo(
-        "langchain_openai", "ChatOpenAI", "DEEPINFRA_API_TOKEN", "https://api.deepinfra.com/v1/openai"
-    ),
-    "groq": ProviderInfo("langchain_openai", "ChatOpenAI", "GROQ_API_KEY", "https://api.groq.com/openai/v1"),
-    "ollama": ProviderInfo("langchain_ollama", "ChatOllama", ""),
-    "edenai": ProviderInfo("langchain_openai", "ChatOpenAI", "EDENAI_API_KEY", "https://api.edenai.run/v2/llm"),
-    "azure": ProviderInfo("langchain_openai", "AzureChatOpenAI", "AZURE_OPENAI_API_KEY"),
-    "together": ProviderInfo("langchain_together", "ChatTogether", "TOGETHER_API_KEY"),
-    "deepseek": ProviderInfo("langchain_deepseek", "ChatDeepSeek", "DEEPSEEK_API_KEY"),
-    "openrouter": ProviderInfo("langchain_openai", "ChatOpenAI", "OPENROUTER_API_KEY", OPENROUTER_API_BASE),
-    "huggingface": ProviderInfo("langchain_openai", "ChatOpenAI", "HUGGINGFACEHUB_API_TOKEN"),
-    "mistralai": ProviderInfo("langchain_openai", "ChatOpenAI", "MISTRAL_API_KEY", "https://api.mistral.ai/v1"),
-    "litellm": ProviderInfo("litellm", "ChatLiteLLM", ""),
-    # NOT TESTED:
-    "bedrock": ProviderInfo("langchain_aws", "ChatBedrock", "AWS_ACCESS_KEY_ID"),
-    "anthropic": ProviderInfo("langchain_anthropic", "ChatAnthropic", "ANTHROPIC_API_KEY"),
-    "google": ProviderInfo("langchain_google_genai", "ChatGoogleGenerativeAI", "GOOGLE_API_KEY"),
-    "custom": ProviderInfo("langchain_openai", "ChatOpenAI", ""),
-}
+@lru_cache(maxsize=1)
+def _load_provider_info_from_yaml() -> dict[str, ProviderInfo]:
+    """Load provider information from YAML config file."""
+    # Look for providers.yaml in config/basic/providers/ directory
+    config_path = Path(__file__).parent.parent.parent / "config" / "basic" / "providers" / "providers.yaml"
+
+    if not config_path.exists():
+        raise FileNotFoundError(f"Provider config file not found: {config_path}")
+
+    with open(config_path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    providers = {}
+    for name, info in data["providers"].items():
+        providers[name] = ProviderInfo(
+            use=info["use"],
+            api_key_env_var=info.get("api_key_env_var", ""),
+            api_base=info.get("api_base"),
+        )
+
+    return providers
+
+
+# List of implemented LLM providers, loaded from YAML configuration
+PROVIDER_INFO: dict[str, ProviderInfo] = _load_provider_info_from_yaml()
 
 
 def get_provider_api_env_var(provider: str) -> str | None:

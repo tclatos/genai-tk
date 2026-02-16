@@ -2,7 +2,7 @@
 langchain_agents:
   - name: "filesystem"
     pre_prompt: You have the ability to manipulate file system.  Is the user ask somethin else, refuse politly.
-    # llm: gpt_41mini_openai  # Optional: specify LLM ID (e.g., gpt_41mini_openai) or tag (e.g., fast_model). If omitted, uses default LLM.
+    # llm: gpt_41mini@openai  # Optional: specify LLM ID (e.g., gpt_41mini@openai) or tag (e.g., fast_model). If omitted, uses default LLM.
     tools:  
       - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
         verbose: true
@@ -12,7 +12,7 @@ langchain_agents:
       - "What are the configuration files in current directory"
  
   - name: "Chinook DB"
-    llm: deepseek_v31_openrouter  # Example: using a specific model ID
+    llm: deepseek_v31@openrouter  # Example: using a specific model ID
     tools:
       - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_tool_from_config
         config:

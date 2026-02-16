@@ -8,7 +8,7 @@ from genai_tk.core.chain_registry import ChainRegistry, Example, RunnableItem
 from genai_tk.core.llm_factory import get_llm
 
 # Constants
-FAKE_LLM_ID = "parrot_local_fake"
+FAKE_LLM_ID = "parrot_local@fake"
 
 
 def test_registry_initialization() -> None:

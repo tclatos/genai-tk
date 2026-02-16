@@ -8,9 +8,9 @@ pytest:
       test: gpt_41mini_openai
   embeddings:
     models:
-      default: embeddings_768_fake
-      fake: embeddings_768_fake
-      test: ada-002-openai
+      default: embeddings_768@fake
+      fake: embeddings_768@fake
+      test: ada-002@openai
   kv_store:
     engine: "memory"
   llm_cache:

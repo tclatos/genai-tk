@@ -589,13 +589,9 @@ class RagCommands(CliTopCommand):
                         # Get embeddings information
                         embeddings_id = store.embeddings_factory.embeddings_id or "default"
                         # Simplify the embeddings ID for display
-                        if "_" in embeddings_id:
-                            # Extract meaningful part (e.g., "ada_002_openai" -> "ada_002")
-                            parts = embeddings_id.split("_")
-                            if len(parts) >= 2:
-                                embeddings = "_".join(parts[:2])  # Take first two parts
-                            else:
-                                embeddings = embeddings_id
+                        if "@" in embeddings_id:
+                            # Extract model part before @ (e.g., "ada_002@openai" -> "ada_002")
+                            embeddings = embeddings_id.split("@")[0]
                         else:
                             embeddings = embeddings_id
 

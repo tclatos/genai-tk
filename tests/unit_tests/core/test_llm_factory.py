@@ -27,9 +27,9 @@ from genai_tk.core.llm_factory import (
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 # Fake model constants - using same values as in test utils
-FAKE_LLM_ID = "parrot_local_fake"
+FAKE_LLM_ID = "parrot_local@fake"
 FAKE_LLM_PROVIDER = "fake"
-LLM_ID_FOR_TEST = "gpt_41mini_openrouter"
+LLM_ID_FOR_TEST = "gpt_41mini@openrouter"
 
 
 def test_basic_call(fake_llm) -> None:

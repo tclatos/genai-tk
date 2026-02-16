@@ -90,10 +90,10 @@ class InfoCommands(CliTopCommand):
                         is_available = llm_id in LlmFactory.known_items()
                         status = "[green]✓ available[/green]" if is_available else "[red]✗ unavailable[/red]"
 
-                        # Extract provider from LLM ID (last part after underscore)
+                        # Extract provider from LLM ID (part after @ separator)
                         provider = "unknown"
-                        if isinstance(llm_id, str) and "_" in llm_id:
-                            provider = llm_id.rsplit("_", 1)[-1]
+                        if isinstance(llm_id, str) and "@" in llm_id:
+                            provider = llm_id.split("@")[1]
 
                         # Create usage example
                         example = f"--llm {tag}"
@@ -132,7 +132,8 @@ class InfoCommands(CliTopCommand):
             keys_table.add_column("Environment Variable", style="green")
             keys_table.add_column("Status", style="yellow")
 
-            for provider, (_, key_name) in PROVIDER_INFO.items():
+            for provider, provider_info in PROVIDER_INFO.items():
+                key_name = provider_info.api_key_env_var
                 if key_name:
                     status = "[green]✓ set[/green]" if key_name in os.environ else "[red]✗ not set[/red]"
                     keys_table.add_row(provider, key_name, status)

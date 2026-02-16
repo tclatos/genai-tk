@@ -15,8 +15,8 @@ from genai_tk.core.llm_factory import get_llm
 from genai_tk.utils.config_mngr import global_config
 
 # Constants for fake models
-FAKE_LLM_ID = "parrot_local_fake"
-FAKE_EMBEDDINGS_ID = "embeddings_768_fake"
+FAKE_LLM_ID = "parrot_local@fake"
+FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
 PYTEST_CONFIG_NAME = "pytest"
 
 

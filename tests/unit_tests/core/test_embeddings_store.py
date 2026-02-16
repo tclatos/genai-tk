@@ -11,7 +11,7 @@ from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.core.embeddings_store import EmbeddingsStore
 
 # Fake model constants
-FAKE_EMBEDDINGS_ID = "embeddings_768_fake"
+FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
 
 
 @pytest.fixture
