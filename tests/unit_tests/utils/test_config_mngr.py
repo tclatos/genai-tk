@@ -5,6 +5,12 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
+from genai_tk.utils.config_exceptions import (
+    ConfigFileNotFoundError,
+    ConfigKeyNotFoundError,
+    ConfigTypeError,
+    ConfigValidationError,
+)
 from genai_tk.utils.config_mngr import OmegaConfig, global_config, global_config_reload
 
 
@@ -116,7 +122,7 @@ ui:
         model = self.config.get_str("llm.models.default")
         self.assertEqual(model, "gpt-3.5-turbo")
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ConfigTypeError):
             self.config.get_str("llm.max_tokens")
 
     def test_get_bool_method(self) -> None:
@@ -134,7 +140,7 @@ ui:
         commands = self.config.get_list("cli.commands")
         self.assertEqual(commands, ["test.module:register_commands", "test.module2:register_commands"])
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ConfigTypeError):
             self.config.get_list("llm.models.default")
 
     def test_get_list_with_value_type(self) -> None:
@@ -156,7 +162,7 @@ ui:
 
         # Test type validation failure
         self.config.set("test_mixed_list", ["string", 123, 3.14])
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ConfigTypeError):
             self.config.get_list("test_mixed_list", value_type=str)
 
         # Test with empty list
@@ -178,7 +184,7 @@ ui:
         db_config_validated = self.config.get_dict("db", expected_keys=["host", "port", "name"])
         self.assertEqual(db_config_validated, expected)
 
-        with self.assertRaises(KeyError):
+        with self.assertRaises(ConfigValidationError):
             self.config.get_dict("db", expected_keys=["host", "missing_key"])
 
     def test_select_config(self) -> None:
@@ -193,7 +199,7 @@ ui:
         self.assertEqual(self.config.get("llm.max_tokens"), 2000)
 
         # Test switching to non-existent config
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ConfigKeyNotFoundError):
             self.config.select_config("nonexistent_env")
 
     def test_set_runtime_override(self) -> None:
@@ -238,7 +244,7 @@ ui:
 
             # Test non-existent file
             self.config.set("missing_file", "/nonexistent/path/file.txt")
-            with self.assertRaises(FileNotFoundError):
+            with self.assertRaises(ConfigFileNotFoundError):
                 self.config.get_file_path("missing_file")
         finally:
             os.unlink(temp_path)
@@ -303,7 +309,7 @@ additional_env:
 
     def test_missing_config_section(self) -> None:
         """Test handling of missing configuration sections."""
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ConfigKeyNotFoundError):
             self.config.get("missing_section.key")
 
     def test_nested_access(self) -> None:

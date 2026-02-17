@@ -43,13 +43,13 @@ import re
 from functools import cached_property, lru_cache
 from typing import Annotated, Any, cast
 
-import yaml
 from langchain.chat_models import init_chat_model
 from langchain_core.language_models.base import BaseLanguageModel
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig, RunnableLambda
 from litellm.litellm_core_utils.get_llm_provider_logic import get_llm_provider
 from loguru import logger
+from omegaconf import DictConfig, ListConfig
 from pydantic import BaseModel, Field, SecretStr, computed_field, field_validator
 
 from genai_tk.core.cache import LlmCache
@@ -125,22 +125,66 @@ class LlmInfo(BaseModel):
 
 
 def _read_llm_list_file() -> list[LlmInfo]:
-    """Read the YAML file with list of LLM providers and info."""
+    """Read LLM providers from merged configuration.
 
-    # The name of the file is in the configuration file
-    yml_file = str(global_config().get_file_path("llm.list"))
-    with open(yml_file) as f:
-        data = yaml.safe_load(f)
+    The providers are now merged into the main config via :merge in app_conf.yaml,
+    so we read from llm.providers instead of loading a separate file.
+    """
+    from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError, ConfigTypeError
+
+    try:
+        providers_data = global_config().get("llm.providers")
+    except Exception as e:
+        logger.error(
+            "Failed to load LLM providers from config. "
+            "Ensure 'config/providers/llm.yaml' is in the :merge list in app_conf.yaml"
+        )
+        raise ConfigKeyNotFoundError(
+            "llm.providers",
+            available_keys=[],
+        ) from e
+
+    if not isinstance(providers_data, (list, ListConfig)):
+        raise ConfigTypeError(
+            "llm.providers", expected_type=list, actual_type=type(providers_data), actual_value=providers_data
+        )
 
     llms = []
-    for model_entry in data["llm"]:
-        model_id = model_entry["id"]
-        for provider_info in model_entry["providers"]:
-            if isinstance(provider_info, dict):
+    for idx, model_entry in enumerate(providers_data):
+        if not model_entry or not isinstance(model_entry, (dict, DictConfig)):
+            logger.warning(f"Skipping invalid model entry at index {idx}: {model_entry}")
+            continue
+
+        # The model entry has this structure:
+        # - model:
+        #     id: xxx
+        #   providers: [...]
+        model_info = model_entry.get("model")
+        if not model_info:
+            logger.warning(f"Skipping model entry without 'model' key at index {idx}: {model_entry}")
+            continue
+
+        # Get model ID from model_info (can be dict with 'id' or just the id string)
+        if isinstance(model_info, (dict, DictConfig)):
+            model_id = model_info.get("id")
+        else:
+            model_id = str(model_info)
+
+        if not model_id:
+            logger.warning(f"Skipping model entry without id at index {idx}: {model_entry}")
+            continue
+
+        providers_list = model_entry.get("providers", [])
+        if not providers_list:
+            logger.debug(f"Model {model_id} has no providers")
+            continue
+
+        for provider_info in providers_list:
+            if isinstance(provider_info, (dict, DictConfig)):
                 # provider can be a dict with configuration
                 for provider, config in provider_info.items():
-                    if isinstance(config, dict):
-                        # Complex configuration (like vllm)
+                    if isinstance(config, (dict, DictConfig)):
+                        # Complex configuration (like vllm or custom)
                         model_name = config.pop("model", "")
                         llm_info = {
                             "id": f"{model_id}@{provider}",
@@ -158,15 +202,11 @@ def _read_llm_list_file() -> list[LlmInfo]:
                         }
                     llms.append(LlmInfo(**llm_info))
             else:
-                # Handle legacy format (shouldn't happen with new YAML)
-                for provider, model_name in provider_info.items():
-                    llm_info = {
-                        "id": f"{model_id}@{provider}",
-                        "provider": provider,
-                        "model": str(model_name),
-                        "config": {},
-                    }
-                    llms.append(LlmInfo(**llm_info))
+                logger.warning(f"Unexpected provider format for model {model_id}: {provider_info}")
+
+    if not llms:
+        logger.warning("No LLM providers found in configuration")
+
     return llms
 
 

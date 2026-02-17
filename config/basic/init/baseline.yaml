@@ -1,7 +1,6 @@
 
 # A simple baseline configuration 
 llm:
-  list: ${paths.config}/providers/llm.yaml
   models:
     default: gpt_41mini@openai  
     fake: parrot_local@fake 
@@ -9,7 +8,6 @@ llm:
   cache_path: data/llm_cache/langchain.db
 
 embeddings:
-  list: ${paths.config}/providers/embeddings.yaml
   models:
     default: ada_002@openai
     local: artic_22@ollama

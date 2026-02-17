@@ -112,6 +112,14 @@ from pydantic import BaseModel
 
 # Import modules where runnables are registered
 from genai_tk.cli.command_tree import display_command_tree
+from genai_tk.utils.config_exceptions import (
+    ConfigError,
+    ConfigFileNotFoundError,
+    ConfigKeyNotFoundError,
+    ConfigParseError,
+    ConfigTypeError,
+    ConfigValidationError,
+)
 from genai_tk.utils.config_mngr import global_config, import_from_qualified
 from genai_tk.utils.logger_factory import setup_logging
 
@@ -253,10 +261,27 @@ def load_and_register_commands(cli_app: typer.Typer) -> None:
 
     Args:
         cli_app: The Typer app instance to register commands to
-    """
-    modules = global_config().get_list("cli.commands", value_type=str)
-    # Import and register commands from each module
 
+    Raises:
+        ConfigError: If configuration cannot be loaded or is invalid
+    """
+    try:
+        modules = global_config().get_list("cli.commands", value_type=str)
+    except ConfigKeyNotFoundError as e:
+        logger.error(f"CLI commands configuration not found: {e.message}\nSuggestion: {e.suggestion}")
+        raise typer.Exit(1) from e
+    except ConfigTypeError as e:
+        logger.error(
+            f"Invalid CLI commands configuration type: {e.message}\n"
+            f"Expected: {e.expected_type.__name__}, Got: {e.actual_type.__name__}\n"
+            f"Suggestion: {e.suggestion}"
+        )
+        raise typer.Exit(1) from e
+    except ConfigError as e:
+        logger.error(f"Configuration error: {e.message}\nSuggestion: {e.suggestion}")
+        raise typer.Exit(1) from e
+
+    # Import and register commands from each module
     for module in modules:
         try:
             imported = import_from_qualified(module)
@@ -296,22 +321,54 @@ def register_commands(cli_app: typer.Typer) -> None:
 
 
 def main() -> None:
-    # We could fo better with Typer @cli_app.callback(), but I haven't succeded
+    """Main entry point for the GenAI Lab CLI.
+
+    Handles logging setup, command registration, and error handling.
+    """
+    # We could do better with Typer @cli_app.callback(), but I haven't succeeded
     if "--logging" in sys.argv:
         level = "TRACE"
         sys.argv.remove("--logging")
     else:
         level = None
 
-    setup_logging(level)
-    load_and_register_commands(cli_app)
+    try:
+        setup_logging(level)
+        load_and_register_commands(cli_app)
+    except (ConfigFileNotFoundError, ConfigParseError, ConfigValidationError) as e:
+        # Fatal configuration errors - display and exit
+        logger.error(f"\n{'=' * 60}")
+        logger.error(f"❌ Configuration Error: {e.__class__.__name__}")
+        logger.error(f"{'=' * 60}")
+        logger.error(f"Message: {e.message}")
+        if hasattr(e, "suggestion") and e.suggestion:
+            logger.error(f"\n💡 Suggestion: {e.suggestion}")
+        logger.error(f"{'=' * 60}\n")
+        raise typer.Exit(1) from e
+    except ConfigError as e:
+        # Generic configuration error
+        logger.error(f"\n❌ Configuration error: {e.message}")
+        if hasattr(e, "suggestion") and e.suggestion:
+            logger.error(f"💡 Suggestion: {e.suggestion}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        # Unexpected error during initialization
+        logger.exception(f"Unexpected error during CLI initialization: {e}")
+        raise typer.Exit(1) from e
 
     # Check if --help is requested or no arguments provided (show custom tree instead of default help)
     if len(sys.argv) == 1 or ("--help" in sys.argv and len(sys.argv) == 2):
         display_command_tree(cli_app)
         return
 
-    cli_app()
+    try:
+        cli_app()
+    except ConfigError as e:
+        # Handle configuration errors during command execution
+        logger.error(f"\n❌ {e.__class__.__name__}: {e.message}")
+        if hasattr(e, "suggestion") and e.suggestion:
+            logger.error(f"💡 Suggestion: {e.suggestion}")
+        raise typer.Exit(1) from e
 
 
 if __name__ == "__main__":

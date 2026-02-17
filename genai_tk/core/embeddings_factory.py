@@ -33,12 +33,12 @@ Example:
 import os  # noqa: I001
 from functools import cached_property, lru_cache
 from typing import Annotated
-import yaml
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
 from langchain_classic.embeddings import CacheBackedEmbeddings
 from langchain_core.embeddings import Embeddings
 from loguru import logger
+from omegaconf import DictConfig, ListConfig
 from pydantic import BaseModel, Field, computed_field, field_validator
 
 from genai_tk.extra.kv_store_registry import KvStoreRegistry
@@ -104,31 +104,86 @@ class EmbeddingsInfo(BaseModel):
 
 
 def _read_embeddings_list_file() -> list[EmbeddingsInfo]:
-    """Read embeddings configuration from YAML file.
+    """Read embeddings providers from merged configuration.
+
+    The providers are now merged into the main config via :merge in app_conf.yaml,
+    so we read from embeddings.providers instead of loading a separate file.
 
     Returns:
         List of configured embeddings models
 
     Raises:
-        AssertionError: If configuration file is not found
+        ConfigKeyNotFoundError: If embeddings.providers is not found in config
+        ConfigTypeError: If embeddings.providers is not a list
     """
-    yml_file = global_config().get_file_path("embeddings.list")
-    with open(yml_file) as f:
-        data = yaml.safe_load(f)
+    from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError, ConfigTypeError
+
+    try:
+        providers_data = global_config().get("embeddings.providers")
+    except Exception as e:
+        logger.error(
+            "Failed to load embeddings providers from config. "
+            "Ensure 'config/providers/embeddings.yaml' is in the :merge list in app_conf.yaml"
+        )
+        raise ConfigKeyNotFoundError(
+            "embeddings.providers",
+            available_keys=[],
+        ) from e
+
+    if not isinstance(providers_data, (list, ListConfig)):
+        raise ConfigTypeError(
+            "embeddings.providers", expected_type=list, actual_type=type(providers_data), actual_value=providers_data
+        )
+
     embeddings = []
-    if "embeddings" in data:
-        for model_entry in data["embeddings"]:
-            model_id = model_entry["model"]["id"]
-            dimension = model_entry.get("dimension")
-            for provider_info in model_entry["providers"]:
+    for idx, model_entry in enumerate(providers_data):
+        if not model_entry or not isinstance(model_entry, (dict, DictConfig)):
+            logger.warning(f"Skipping invalid embeddings entry at index {idx}: {model_entry}")
+            continue
+
+        # The model entry has this structure:
+        # - model:
+        #     id: xxx
+        #   providers: [...]
+        #   dimension: xxx
+        model_info = model_entry.get("model")
+        if not model_info:
+            logger.warning(f"Skipping embeddings entry without 'model' key at index {idx}: {model_entry}")
+            continue
+
+        # Get model ID from model_info (can be dict with 'id' or just the id string)
+        if isinstance(model_info, (dict, DictConfig)):
+            model_id = model_info.get("id")
+        else:
+            model_id = str(model_info)
+
+        if not model_id:
+            logger.warning(f"Skipping embeddings entry without id at index {idx}: {model_entry}")
+            continue
+
+        dimension = model_entry.get("dimension")
+        providers_list = model_entry.get("providers", [])
+
+        if not providers_list:
+            logger.debug(f"Embeddings model {model_id} has no providers")
+            continue
+
+        for provider_info in providers_list:
+            if isinstance(provider_info, (dict, DictConfig)):
                 for provider, model_name in provider_info.items():
                     embedding_info = {
                         "id": f"{model_id}@{provider}",
                         "provider": provider,
-                        "model": model_name,
+                        "model": str(model_name),
                         "dimension": dimension,
                     }
                     embeddings.append(EmbeddingsInfo(**embedding_info))
+            else:
+                logger.warning(f"Unexpected provider format for embeddings {model_id}: {provider_info}")
+
+    if not embeddings:
+        logger.warning("No embeddings providers found in configuration")
+
     return embeddings
 
 

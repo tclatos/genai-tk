@@ -24,6 +24,14 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import BaseModel, ConfigDict
 from upath import UPath
 
+from genai_tk.utils.config_exceptions import (
+    ConfigFileNotFoundError,
+    ConfigInterpolationError,
+    ConfigKeyNotFoundError,
+    ConfigParseError,
+    ConfigTypeError,
+    ConfigValidationError,
+)
 from genai_tk.utils.singleton import once
 
 load_dotenv()
@@ -51,15 +59,25 @@ class OmegaConfig(BaseModel):
 
         # Load main config file
         app_conf_path = Path(APPLICATION_CONFIG_FILE)
+        searched_paths = [str(app_conf_path)]
         if not app_conf_path.exists():
             app_conf_path = Path("config/app_conf.yaml").absolute()
-        assert app_conf_path.exists(), f"cannot find config file: '{app_conf_path}'"
+            searched_paths.append(str(app_conf_path))
+
+        if not app_conf_path.exists():
+            raise ConfigFileNotFoundError(APPLICATION_CONFIG_FILE, searched_paths)
+
         return OmegaConfig.create(app_conf_path)
 
     @staticmethod
     def create(app_conf_path: Path) -> OmegaConfig:
-        config = OmegaConf.load(app_conf_path)
-        assert isinstance(config, DictConfig)
+        try:
+            config = OmegaConf.load(app_conf_path)
+        except Exception as e:
+            raise ConfigParseError(str(app_conf_path), original_error=e)
+
+        if not isinstance(config, DictConfig):
+            raise ConfigTypeError("root", expected_type="DictConfig", actual_type=type(config), actual_value=config)
 
         os.environ["PWD"] = os.popen("pwd").read().strip()  # Hack because PWD is sometime set to a Windows path in WSL
 
@@ -90,15 +108,95 @@ class OmegaConfig(BaseModel):
             del config["merge"]
         # :env keys are already removed during processing
 
-        return OmegaConfig(root=config, selected_config=selected_config)  # type: ignore
+        # Perform early validation
+        instance = OmegaConfig(root=config, selected_config=selected_config)  # type: ignore
+        instance._validate_config()
+
+        return instance
 
     def select_config(self, config_name: str) -> None:
         """Select a different configuration section to override defaults."""
         if config_name not in self.root:
             logger.error(f"Configuration section '{config_name}' not found")
-            raise ValueError(f"Configuration section '{config_name}' not found")
+            available = [k for k in self.root.keys() if not k.startswith(":")]
+            raise ConfigKeyNotFoundError(config_name, available_keys=available)
         logger.info(f"Switching to configuration section: {config_name}")
         self.selected_config = config_name
+
+    def _validate_config(self) -> None:
+        """Perform early validation of configuration structure.
+
+        Checks for common configuration issues and required keys to provide
+        helpful error messages at startup rather than during execution.
+
+        Raises:
+            ConfigValidationError: If validation fails
+        """
+        errors = []
+        warnings = []
+
+        # Check for LLM configuration
+        try:
+            llm_providers = self.get("llm.providers", default=None)
+            if llm_providers is None:
+                warnings.append("No LLM providers found (llm.providers). Ensure provider files are in the :merge list.")
+            elif not isinstance(llm_providers, (list, ListConfig)):
+                errors.append(f"llm.providers should be a list, got {type(llm_providers).__name__}")
+            elif len(llm_providers) == 0:
+                warnings.append("llm.providers is empty - no LLM models configured")
+        except Exception as e:
+            logger.debug(f"Could not validate llm.providers: {e}")
+
+        # Check for embeddings configuration
+        try:
+            emb_providers = self.get("embeddings.providers", default=None)
+            if emb_providers is None:
+                warnings.append(
+                    "No embeddings providers found (embeddings.providers). "
+                    "Ensure provider files are in the :merge list."
+                )
+            elif not isinstance(emb_providers, (list, ListConfig)):
+                errors.append(f"embeddings.providers should be a list, got {type(emb_providers).__name__}")
+            elif len(emb_providers) == 0:
+                warnings.append("embeddings.providers is empty - no embeddings models configured")
+        except Exception as e:
+            logger.debug(f"Could not validate embeddings.providers: {e}")
+
+        # Check for default models
+        try:
+            default_llm = self.get("llm.models.default", default=None)
+            if default_llm is None:
+                warnings.append("No default LLM model configured (llm.models.default)")
+        except Exception as e:
+            logger.debug(f"Could not check default LLM: {e}")
+
+        try:
+            default_emb = self.get("embeddings.models.default", default=None)
+            if default_emb is None:
+                warnings.append("No default embeddings model configured (embeddings.models.default)")
+        except Exception as e:
+            logger.debug(f"Could not check default embeddings: {e}")
+
+        # Check for paths configuration
+        try:
+            paths = self.get("paths", default=None)
+            if paths is None:
+                errors.append("Missing required 'paths' configuration section")
+            else:
+                required_paths = ["project", "config"]
+                for path_key in required_paths:
+                    if not self.get(f"paths.{path_key}", default=None):
+                        errors.append(f"Missing required path configuration: paths.{path_key}")
+        except Exception as e:
+            logger.debug(f"Could not validate paths: {e}")
+
+        # Log warnings
+        for warning in warnings:
+            logger.warning(f"Configuration warning: {warning}")
+
+        # Raise validation error if there are errors
+        if errors:
+            raise ConfigValidationError(errors, config_name=self.selected_config)
 
     def merge_with(self, file_path: str | UPath) -> OmegaConfig:
         """Merge additional YAML configuration file into the current config.
@@ -110,10 +208,15 @@ class OmegaConfig(BaseModel):
         """
         path = UPath(file_path)
         if not path.exists():
-            raise FileNotFoundError(f"Config file to merge not found: {file_path}")
+            raise ConfigFileNotFoundError(str(file_path))
 
-        new_conf = OmegaConf.load(path)
-        assert isinstance(new_conf, DictConfig), f"Added conf not a Dict : type{new_conf}"
+        try:
+            new_conf = OmegaConf.load(path)
+        except Exception as e:
+            raise ConfigParseError(str(file_path), original_error=e)
+
+        if not isinstance(new_conf, DictConfig):
+            raise ConfigTypeError(f"merge_file_{path.name}", expected_type="DictConfig", actual_type=type(new_conf))
 
         # Process :env pseudo-key to load environment variables (pass self.root for interpolation)
         OmegaConfig._process_env_variables(new_conf, parent_config=self.root)
@@ -138,6 +241,9 @@ class OmegaConfig(BaseModel):
             default: Default value if key not found
         Returns:
             The configuration value or default if not found
+        Raises:
+            ConfigKeyNotFoundError: If key not found and no default provided
+            ConfigInterpolationError: If interpolation resolution fails
         """
         # Create merged config with runtime overrides first
         merged = OmegaConf.merge(self.root, self.selected or {})
@@ -146,13 +252,28 @@ class OmegaConfig(BaseModel):
             if value is None:
                 if default is not None:
                     return default
-                else:
-                    raise ValueError(f"Configuration key '{key}' not found")
+                # Try to get available keys at the parent level for better error messages
+                parts = key.split(".")
+                if len(parts) > 1:
+                    parent_key = ".".join(parts[:-1])
+                    try:
+                        parent = OmegaConf.select(merged, parent_key)
+                        if isinstance(parent, DictConfig):
+                            available = list(parent.keys())
+                            raise ConfigKeyNotFoundError(key, available_keys=available)
+                    except Exception:
+                        pass
+                raise ConfigKeyNotFoundError(key)
             return value
+        except ConfigKeyNotFoundError:
+            raise
         except Exception as e:
             if default is not None:
                 return default
-            raise ValueError(f"Configuration key '{key}' not found") from e
+            # Check if it's an interpolation error
+            if "${" in str(e) or "interpolation" in str(e).lower():
+                raise ConfigInterpolationError(key, str(e), original_error=e)
+            raise ConfigKeyNotFoundError(key) from e
 
     def set(self, key: str, value: Any) -> None:
         """Set a runtime configuration value using dot notation.
@@ -169,16 +290,25 @@ class OmegaConfig(BaseModel):
         OmegaConf.update(selected_section, key, value, merge=True)
 
     def get_str(self, key: str, default: Optional[str] = None) -> str:
-        """Get a string configuration value."""
+        """Get a string configuration value.
+
+        Raises:
+            ConfigKeyNotFoundError: If key not found and no default provided
+            ConfigTypeError: If value is not a string
+        """
         value = self.get(key, default)
         if not isinstance(value, str):
-            raise TypeError(f"Configuration value for '{key}' is not a string (its a {type(value)})")
+            raise ConfigTypeError(key, expected_type=str, actual_type=type(value), actual_value=value)
         return value
 
     def get_bool(self, key: str, default: Optional[bool] = None) -> bool:
         """Get a boolean configuration value.
 
         Handles both native boolean values and string representations ('true', 'false', '1', '0', ...).
+
+        Raises:
+            ConfigKeyNotFoundError: If key not found and no default provided
+            ConfigTypeError: If value cannot be interpreted as boolean
         """
         value = self.get(key, default)
         if isinstance(value, str):
@@ -187,9 +317,11 @@ class OmegaConfig(BaseModel):
                 return True
             if value in ("false", "0", "no", "[]"):
                 return False
-            raise TypeError(f"Cannot convert string '{value}' to boolean for key '{key}'")
+            raise ConfigTypeError(
+                key, expected_type="boolean or boolean-like string", actual_type=type(value), actual_value=value
+            )
         if not isinstance(value, bool):
-            raise TypeError(f"Configuration value for '{key}' is not a boolean (its a {type(value)})")
+            raise ConfigTypeError(key, expected_type=bool, actual_type=type(value), actual_value=value)
         return value
 
     def get_list(self, key: str, default: Optional[list] = None, value_type: type[T] | Any = Any) -> list[T]:
@@ -198,10 +330,14 @@ class OmegaConfig(BaseModel):
         Args:
             key: Configuration key in dot notation
             default: Default value if key not found
-            type: Optional type to validate list elements against
+            value_type: Optional type to validate list elements against
 
         Returns:
             List of configuration values, optionally typed
+
+        Raises:
+            ConfigKeyNotFoundError: If key not found and no default provided
+            ConfigTypeError: If value is not a list or list elements don't match value_type
 
         Example:
             ```python
@@ -209,12 +345,12 @@ class OmegaConfig(BaseModel):
             modules = config.get_list("chains.modules")
 
             # Get typed list with validation
-            names = config.get_list("user.names", type=str)
+            names = config.get_list("user.names", value_type=str)
             ```
         """
         value = self.get(key, default)
         if not (isinstance(value, ListConfig) or isinstance(value, list)):
-            raise TypeError(f"Configuration value for '{key}' is not a list (its a {type(value)})")
+            raise ConfigTypeError(key, expected_type=list, actual_type=type(value), actual_value=value)
 
         # Handle both ListConfig and regular Python lists
         if isinstance(value, ListConfig):
@@ -230,8 +366,8 @@ class OmegaConfig(BaseModel):
         if value_type is not Any:
             for i, item in enumerate(result):
                 if not isinstance(item, value_type):
-                    raise TypeError(
-                        f"List item at index {i} for key '{key}' is not of type '{value_type}' but '{type(item)}' "
+                    raise ConfigTypeError(
+                        f"{key}[{i}]", expected_type=value_type, actual_type=type(item), actual_value=item
                     )
 
         return result
@@ -245,16 +381,19 @@ class OmegaConfig(BaseModel):
         Returns:
             The dictionary configuration value
         Raises:
-            ValueError: If value is not a dict or if expected keys validation fails
+            ConfigKeyNotFoundError: If key not found
+            ConfigTypeError: If value is not a dict
+            ConfigValidationError: If expected keys validation fails
         """
         value = self.get(key)
         if not isinstance(value, DictConfig):
-            raise TypeError(f"Configuration value for '{key}' is not a dict (its a {type(value)})")
+            raise ConfigTypeError(key, expected_type=dict, actual_type=type(value), actual_value=value)
         result = OmegaConf.to_container(value, resolve=True)
         if expected_keys is not None:
             missing_keys = [k for k in expected_keys if k not in result]
             if missing_keys:
-                raise KeyError(f"Missing required keys '{key}': {', '.join(missing_keys)}")
+                errors = [f"Missing required key: '{k}'" for k in missing_keys]
+                raise ConfigValidationError(errors, config_name=key)
         return result  # pyright: ignore[reportReturnType]
 
     def get_dir_path(self, key: str, create_if_not_exists: bool = False) -> UPath:
@@ -266,7 +405,10 @@ class OmegaConfig(BaseModel):
         Returns:
             The Path object
         Raises:
-            ValueError: If path doesn't exist, is not a directory, or create_if_not_exists=False
+            ConfigKeyNotFoundError: If key not found
+            ConfigTypeError: If value is not a string
+            ConfigFileNotFoundError: If path doesn't exist and create_if_not_exists=False
+            ConfigValueError: If path exists but is not a directory
         """
         path = UPath(self.get_str(key))
         if not path.exists():
@@ -274,16 +416,29 @@ class OmegaConfig(BaseModel):
                 logger.warning(f"Creating missing directory: {path}")
                 path.mkdir(parents=True, exist_ok=True)
             else:
-                raise FileNotFoundError(f"Directory path for '{key}' does not exist: '{path}'")
+                raise ConfigFileNotFoundError(str(path))
         if not path.is_dir():
-            raise FileNotFoundError(f"Path for '{key}' is not a directory: '{path}'")
+            from genai_tk.utils.config_exceptions import ConfigValueError
+
+            raise ConfigValueError(key, value=str(path), reason="Path exists but is not a directory")
         return path
 
     def get_file_path(self, key: str, check_if_exists: bool = True) -> UPath:
-        """Get a file path. Can be local or remote  (https, S3, webdav, sftp,...)"""
+        """Get a file path. Can be local or remote  (https, S3, webdav, sftp,...)
+
+        Args:
+            key: Configuration key containing the file path
+            check_if_exists: If True, verify that the file exists
+        Returns:
+            The Path object
+        Raises:
+            ConfigKeyNotFoundError: If key not found
+            ConfigTypeError: If value is not a string
+            ConfigFileNotFoundError: If file doesn't exist and check_if_exists=True
+        """
         path = UPath(self.get_str(key))
         if not path.exists() and check_if_exists:
-            raise FileNotFoundError(f"File path for '{key}' does not exist: '{path}'")
+            raise ConfigFileNotFoundError(str(path))
         return path
 
     def get_dsn(self, key: str, driver: str | None = None) -> str:
@@ -419,19 +574,33 @@ class OmegaConfig(BaseModel):
         for file_path_raw in merge_files:
             # Resolve the file path with proper context
             if isinstance(file_path_raw, str) and "${" in file_path_raw:
-                temp_conf = OmegaConf.create({"_temp": file_path_raw})
-                merged_for_resolution = OmegaConf.merge(resolution_config, temp_conf)
-                file_path = str(merged_for_resolution["_temp"])
+                try:
+                    temp_conf = OmegaConf.create({"_temp": file_path_raw})
+                    merged_for_resolution = OmegaConf.merge(resolution_config, temp_conf)
+                    file_path = str(merged_for_resolution["_temp"])
+                except Exception as e:
+                    raise ConfigInterpolationError(":merge file path", str(file_path_raw), original_error=e)
             else:
                 file_path = str(file_path_raw)
 
             merge_path = Path(file_path)
+            searched_paths = [str(merge_path)]
             if not merge_path.exists():
                 merge_path = Path("config") / file_path
-            assert merge_path.exists(), f"cannot find config file: '{merge_path}'"
+                searched_paths.append(str(merge_path))
 
-            merge_config = OmegaConf.load(merge_path)
-            assert isinstance(merge_config, DictConfig), f"Merged config is not a DictConfig: {type(merge_config)}"
+            if not merge_path.exists():
+                raise ConfigFileNotFoundError(file_path, searched_paths)
+
+            try:
+                merge_config = OmegaConf.load(merge_path)
+            except Exception as e:
+                raise ConfigParseError(str(merge_path), original_error=e)
+
+            if not isinstance(merge_config, DictConfig):
+                raise ConfigTypeError(
+                    f"merge_file_{merge_path.name}", expected_type="DictConfig", actual_type=type(merge_config)
+                )
 
             # Process :env variables in the merged file (pass resolution config for interpolation)
             OmegaConfig._process_env_variables(merge_config, parent_config=resolution_config)
