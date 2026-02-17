@@ -503,7 +503,7 @@ def _create_agent_with_extra_tools(
     Instead of using make_lead_agent (which has a fixed tool list), we replicate
     its logic but add our extra tools to the tool list.
     """
-    from langgraph.prebuilt import create_react_agent as create_agent
+    from langchain.agents import create_agent
     from src.agents.lead_agent.prompt import apply_prompt_template
     from src.agents.thread_state import ThreadState
     from src.models import create_chat_model
@@ -609,7 +609,7 @@ def create_deer_flow_agent_simple(
     setup_deer_flow_config(mcp_server_names=profile.mcp_servers or None)
 
     # Import deer-flow after path setup
-    from langgraph.prebuilt import create_react_agent as create_agent
+    from langchain.agents import create_agent
     from src.config.app_config import reload_app_config
     from src.tools import get_available_tools
 

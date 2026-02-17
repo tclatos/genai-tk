@@ -34,13 +34,13 @@ session.set_graph(custom_agent)
 
 from typing import AsyncIterator, Iterator, cast
 
+from langchain.agents import create_agent
 from langchain_core.language_models.base import LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from langgraph.prebuilt import create_react_agent as create_agent
 from langgraph.pregel import Pregel
 from pydantic import BaseModel, ConfigDict
 

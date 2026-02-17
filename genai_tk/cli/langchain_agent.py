@@ -2,13 +2,13 @@ import webbrowser
 from collections.abc import Sequence
 from pathlib import Path
 
+from langchain.agents import create_agent
 from langchain_core.language_models.base import LanguageModelInput, LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import create_react_agent as create_agent
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
