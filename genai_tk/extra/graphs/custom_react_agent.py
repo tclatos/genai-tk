@@ -5,6 +5,7 @@ taken from https://langchain-ai.github.io/langgraph/how-tos/react-agent-from-scr
 
 """
 
+from langchain_core.language_models.base import LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool
@@ -31,7 +32,7 @@ def create_custom_react_agent(model: BaseChatModel, tools: list[BaseTool], check
     tools_by_name = {tool.name: tool for tool in tools}
 
     @task
-    def call_model(messages):
+    def call_model(messages) -> LanguageModelOutput:
         """Call model with a sequence of messages."""
         response = model.bind_tools(tools).invoke(messages)
         return response

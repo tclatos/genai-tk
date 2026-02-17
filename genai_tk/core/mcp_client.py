@@ -33,6 +33,7 @@ from itertools import chain
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
 from langchain.agents import create_agent
+from langchain_core.language_models.base import LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -205,7 +206,7 @@ def dict_to_stdio_server_list(param_list: dict) -> list[StdioServerParameters]:
 
 async def mcp_agent_runner(
     model: BaseChatModel, servers: list[StdioServerParameters], prompt: str, config: RunnableConfig | None = None
-) -> str | None:
+) -> LanguageModelOutput | None:
     """Execute a query using MCP tools with a ReAct agent.
 
     Creates a ReAct agent with MCP tools and processes the query.

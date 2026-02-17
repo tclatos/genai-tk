@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
+from langchain_core.language_models.base import LanguageModelOutput
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -158,7 +159,7 @@ class RichToolCallMiddleware(AgentMiddleware):
             )
         )
 
-    def _print_tool_result(self, tool_name: str, response: Any) -> None:
+    def _print_tool_result(self, tool_name: str, response: LanguageModelOutput | Any) -> None:
         content = getattr(response, "content", str(response))
         if isinstance(content, list):  # e.g. structured content blocks
             content = "\n".join(str(block) for block in content)

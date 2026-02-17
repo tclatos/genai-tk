@@ -35,6 +35,7 @@ session.set_graph(custom_agent)
 from typing import AsyncIterator, Iterator, cast
 
 from langchain.agents import create_agent
+from langchain_core.language_models.base import LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
@@ -87,7 +88,7 @@ class LangGraphSession(BaseModel):
         """Set a custom graph for the session."""
         self._graph = graph
 
-    async def ainvoke(self, query: str, call_config: dict = {}) -> AIMessage:
+    async def ainvoke(self, query: str, call_config: dict = {}) -> LanguageModelOutput:
         """Execute a query asynchronously and return the final response.
 
         Example:

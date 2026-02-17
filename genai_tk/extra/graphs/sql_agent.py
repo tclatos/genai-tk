@@ -13,6 +13,7 @@ from typing import TypedDict
 
 from langchain_community.tools.sql_database.tool import QuerySQLDatabaseTool
 from langchain_community.utilities import SQLDatabase
+from langchain_core.language_models.base import LanguageModelInput, LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import START, StateGraph

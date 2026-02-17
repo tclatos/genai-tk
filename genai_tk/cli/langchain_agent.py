@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from langchain.agents import create_agent
+from langchain_core.language_models.base import LanguageModelInput, LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import BaseTool
@@ -24,7 +25,7 @@ from genai_tk.core.mcp_client import get_mcp_servers_dict
 from genai_tk.utils.markdown import looks_like_markdown
 
 
-def _render_final_message(result: object, console: Console) -> None:
+def _render_final_message(result: LanguageModelOutput | dict, console: Console) -> None:
     """Render the final assistant message using Rich, handling LangGraph state or direct messages."""
     if isinstance(result, dict) and "messages" in result:
         out_messages = result["messages"]
@@ -194,7 +195,7 @@ async def run_langchain_agent_shell(
 
 
 async def run_langchain_agent_direct(
-    query: str,
+    query: LanguageModelInput,
     llm_id: str | None = None,
     mcp_server_names: list[str] | None = None,
     additional_tools: list[BaseTool] | None = None,
