@@ -36,7 +36,6 @@ Example:
 # TODO
 #  implement from langchain_core.rate_limiters import InMemoryRateLimiter
 
-import functools
 import importlib.util
 import os
 import re
@@ -709,10 +708,15 @@ def get_llm(
             "⚠️  'llm_tag' parameter in get_llm() is deprecated. Use 'llm' instead. Example: get_llm(llm='fast_model')"
         )
 
+    # Handle deprecated llm_id and llm_tag by converting to unified llm parameter
+    resolved_llm = llm
+    if llm is None and llm_id is not None:
+        resolved_llm = llm_id
+    elif llm is None and llm_tag is not None:
+        resolved_llm = llm_tag
+
     factory = LlmFactory(
-        llm=llm,
-        llm_id=llm_id,
-        llm_tag=llm_tag,
+        llm=resolved_llm,
         json_mode=json_mode,
         streaming=streaming,
         reasoning=reasoning,
@@ -763,7 +767,7 @@ def get_llm_unified(
         ```
     """
     factory = LlmFactory(
-        _unified_param=llm,
+        llm=llm,
         json_mode=json_mode,
         streaming=streaming,
         reasoning=reasoning,

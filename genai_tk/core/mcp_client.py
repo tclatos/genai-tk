@@ -32,12 +32,12 @@ from itertools import chain
 
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
-from langchain.agents import create_agent
 from langchain_core.language_models.base import LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.prebuilt import create_react_agent as create_agent
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcpadapt.core import MCPAdapt
