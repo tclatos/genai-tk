@@ -28,8 +28,8 @@ Example:
     >>> # Get specific model with JSON output
     >>> llm = get_llm(llm="gpt_4o@openai", json_mode=True)
 
-    >>> # Get configurable LLM with fallback
-    >>> llm = get_configurable_llm(with_fallback=True)
+    >>> # Get LLM with specific configuration
+    >>> llm = get_llm(llm="gpt_4o@openai")
 """
 
 
@@ -778,50 +778,6 @@ def get_llm_unified(
     info += f" -extra: {kwargs}" if kwargs else ""
     logger.debug(info)
     return factory.get()
-
-
-def get_configurable_llm(
-    json_mode: bool = False, with_fallback: bool = False, streaming: bool = False, cache: str | None = None, **kwargs
-) -> BaseChatModel:
-    """Create a configurable LangChain BaseLanguageModel instance.
-
-    Args:
-        json_mode: Whether to force JSON output format (where supported)
-        streaming: Whether to enable streaming responses (where supported)
-        cache: cache method ("sqlite", "memory", no"_cache, ..) or "default", or None if no change (global setting)
-        **kwargs: other llm parameters (temperature, max_token, ....)
-
-    Returns:
-        BaseLanguageModel: Configured language model instance
-
-    Example :
-    .. code-block:: python
-        from genai_tk.core.prompts import def_prompt
-        from genai_tk.core.llm_factory import get_configurable_llm, llm_config
-
-        chain = def_prompt("tell me a joke") | get_configurable_llm()
-        r = chain.with_config(llm_config("claude_haiku45_openrouter")).invoke({})
-        # or:
-        r = chain.invoke({}, config=llm_config("gpt_35_openai"))
-
-    """
-    factory = LlmFactory(llm=None, json_mode=json_mode, streaming=streaming, cache=cache, llm_params=kwargs)
-
-    info = f"get configurable LLM. Default is:'{factory.llm_id}'"
-    info += " -streaming" if streaming else ""
-    info += " -json_mode" if json_mode else ""
-    info += f" -cache: {cache}" if cache else ""
-    info += f" -extra: {kwargs}" if kwargs else ""
-
-    logger.info(info)
-    return factory.get_configurable(with_fallback=with_fallback)
-
-
-# workaround  to cache the function while keeping its signature.  See :
-# https://github.com/python/typeshed/issues/11280#issuecomment-1987620682
-# todo : consider https://github.com/umarbutler/persist-cache
-# TODO: Does not work with Python 3.12
-get_configurable_llm = functools.wraps(get_configurable_llm)(functools.cache(get_configurable_llm))
 
 
 def get_llm_info(llm_id: str) -> LlmInfo:

@@ -32,7 +32,7 @@ class TestSharedConfigLoaderLLM:
         agents_config = [
             {
                 "name": "test_agent",
-                "llm": "parrot_local_fake",  # Use a known fake model from tests
+                "llm": "parrot_local@fake",  # Use a known fake model from tests
                 "tools": [],
                 "mcp_servers": [],
                 "examples": ["Test example"],
@@ -48,7 +48,7 @@ class TestSharedConfigLoaderLLM:
 
             assert agent_config is not None
             assert agent_config.name == "test_agent"
-            assert agent_config.llm_id == "parrot_local_fake"
+            assert agent_config.llm_id == "parrot_local@fake"
             assert agent_config.examples == ["Test example"]
 
         finally:
@@ -59,7 +59,7 @@ class TestSharedConfigLoaderLLM:
         agents_config = [
             {
                 "name": "test_agent_tag",
-                "llm": "fake",  # This should resolve to parrot_local_fake
+                "llm": "fake",  # This should resolve to parrot_local@fake
                 "tools": [],
                 "mcp_servers": [],
                 "examples": [],
@@ -75,7 +75,7 @@ class TestSharedConfigLoaderLLM:
 
             assert agent_config is not None
             assert agent_config.name == "test_agent_tag"
-            assert agent_config.llm_id == "parrot_local_fake"
+            assert agent_config.llm_id == "parrot_local@fake"
 
         finally:
             Path(config_file).unlink()
@@ -136,7 +136,7 @@ class TestSharedConfigLoaderLLM:
     def test_nonexistent_agent_configuration(self):
         """Test loading a non-existent agent configuration."""
         agents_config = [
-            {"name": "existing_agent", "llm": "parrot_local_fake", "tools": [], "mcp_servers": [], "examples": []}
+            {"name": "existing_agent", "llm": "parrot_local@fake", "tools": [], "mcp_servers": [], "examples": []}
         ]
 
         config_file = self.create_test_config_file(agents_config)
@@ -159,7 +159,7 @@ class TestSharedConfigLoaderLLM:
         agents_config = [
             {
                 "name": "full_config_agent",
-                "llm": "parrot_local_fake",
+                "llm": "parrot_local@fake",
                 "pre_prompt": "You are a helpful assistant.",
                 "tools": [],
                 "mcp_servers": ["filesystem"],
@@ -176,7 +176,7 @@ class TestSharedConfigLoaderLLM:
 
             assert agent_config is not None
             assert agent_config.name == "full_config_agent"
-            assert agent_config.llm_id == "parrot_local_fake"
+            assert agent_config.llm_id == "parrot_local@fake"
             assert agent_config.pre_prompt == "You are a helpful assistant."
             assert agent_config.mcp_servers == ["filesystem"]
             assert agent_config.examples == ["Example 1", "Example 2"]
@@ -187,7 +187,7 @@ class TestSharedConfigLoaderLLM:
     def test_load_all_agents_with_mixed_llm_configs(self):
         """Test loading all agents with mixed LLM configurations."""
         agents_config = [
-            {"name": "agent_with_id", "llm": "parrot_local_fake", "tools": [], "examples": []},
+            {"name": "agent_with_id", "llm": "parrot_local@fake", "tools": [], "examples": []},
             {"name": "agent_with_tag", "llm": "fake", "tools": [], "examples": []},
             {
                 "name": "agent_default",
@@ -212,10 +212,10 @@ class TestSharedConfigLoaderLLM:
             configs_by_name = {config.name: config for config in all_configs}
 
             assert "agent_with_id" in configs_by_name
-            assert configs_by_name["agent_with_id"].llm_id == "parrot_local_fake"
+            assert configs_by_name["agent_with_id"].llm_id == "parrot_local@fake"
 
             assert "agent_with_tag" in configs_by_name
-            assert configs_by_name["agent_with_tag"].llm_id == "parrot_local_fake"  # Resolved from tag
+            assert configs_by_name["agent_with_tag"].llm_id == "parrot_local@fake"  # Resolved from tag
 
             assert "agent_default" in configs_by_name
             assert configs_by_name["agent_default"].llm_id is None  # No LLM specified

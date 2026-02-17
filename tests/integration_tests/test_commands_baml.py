@@ -56,14 +56,14 @@ class TestBamlInvokeFunction:
 
     @pytest.mark.network
     def test_baml_invoke_with_fake_resume_mistral_8b(self):
-        """Test baml_invoke with FakeResume function using gpt_41mini_openrouter LLM."""
+        """Test baml_invoke with FakeResume function using gpt_41mini@openrouter LLM."""
         input_text = "Jane Doe; Data Scientist"
 
         result = _run_baml_invoke(
             "FakeResume",
             {"blabla": input_text},
             config_name="default",
-            llm="gpt_41mini_openrouter",
+            llm="gpt_41mini@openrouter",
         )
 
         # Verify result is a Resume instance
@@ -132,12 +132,12 @@ class TestBamlInvokeFunction:
         # Test with default LLM
         result1 = _run_baml_invoke("FakeResume", {"blabla": input_text}, config_name="default")
 
-        # Test with gpt_41mini_openrouter
+        # Test with gpt_41mini@openrouter
         result2 = _run_baml_invoke(
             "FakeResume",
             {"blabla": input_text},
             config_name="default",
-            llm="gpt_41mini_openrouter",
+            llm="gpt_41mini@openrouter",
         )
 
         # Both should return valid Resume objects

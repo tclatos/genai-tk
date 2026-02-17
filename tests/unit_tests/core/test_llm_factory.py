@@ -18,7 +18,6 @@ from langchain_core.messages.human import HumanMessage
 from genai_tk.core.llm_factory import (
     LlmFactory,
     configurable,
-    get_configurable_llm,
     get_llm,
     get_llm_info,
     llm_config,
@@ -135,18 +134,6 @@ def test_configurable() -> None:
     config = configurable({"test_key": "test_value"})
     assert "configurable" in config
     assert config["configurable"]["test_key"] == "test_value"
-
-
-def test_get_configurable_llm(fake_llm) -> None:
-    """Test get_configurable_llm function."""
-    llm = get_configurable_llm(llm=FAKE_LLM_ID)
-    assert llm is not None
-
-
-def test_get_configurable_llm_with_fallback(fake_llm) -> None:
-    """Test get_configurable_llm with fallback option."""
-    llm = get_configurable_llm(llm=FAKE_LLM_ID, with_fallback=True)
-    assert llm is not None
 
 
 def test_json_mode_parameter(fake_llm_with_json_mode) -> None:

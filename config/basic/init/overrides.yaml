@@ -3,8 +3,8 @@ pytest:
   # Use  for pytest
   llm:
     models:
-      default: parrot_local_fake
-      fake: parrot_local_fake
+      default: parrot_local@fake
+      fake: parrot_local@fake
       test: gpt_41mini_openai
   embeddings:
     models:

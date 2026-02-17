@@ -69,8 +69,8 @@ class TestRAGCommands:
         assert result.exit_code == 0
 
         output = result.stdout
-        # Should show error message
-        assert "Configuration Not Found" in output
+        # Should show error message with new structured exception format
+        assert "Configuration key" in output or "not found" in output
         assert "nonexistent_store" in output
 
     def test_embed_command_with_text_option(self, cli_app, cli_runner):
