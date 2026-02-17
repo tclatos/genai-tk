@@ -270,7 +270,7 @@ class ExtraCommands(CliTopCommand):
             set_debug(debug_mode)
             set_verbose(verbose)
 
-            config = {"llm": llm if llm else global_config().get_str("llm.models.default")}
+            config = {"llm": llm or global_config().get_str("llm.models.default")}
             chain = get_fabric_chain(config)
             input = repr("\n".join(sys.stdin))
             input = input.replace("{", "{{").replace("}", "}}")

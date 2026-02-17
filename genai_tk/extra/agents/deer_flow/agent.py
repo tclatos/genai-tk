@@ -246,6 +246,7 @@ def validate_llm_identifier(llm_id: str) -> str:
     Raises:
         ValueError: If LLM identifier format is invalid
     """
+    from genai_tk.core.llm_factory import get_llm
 
     if not llm_id or "/" not in llm_id:
         raise ValueError(

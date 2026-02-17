@@ -397,7 +397,7 @@ class LlmFactory(BaseModel):
 
         Not all cases covered.
         """
-        if self.provider in ["openai"]:
+        if self.provider == "openai":
             result = f"{self.info.model}"
         else:
             result = f"{self.provider}/{self.info.model}"
@@ -419,7 +419,7 @@ class LlmFactory(BaseModel):
 
         # Seems better to set these variables, nut not sure.
 
-        if self.provider in ["azure"]:
+        if self.provider == "azure":
             name, _, api_version = self.info.model.partition("/")
             model = AzureOpenAIServerModel(
                 model_id=name,

@@ -74,7 +74,7 @@ class OmegaConfig(BaseModel):
         try:
             config = OmegaConf.load(app_conf_path)
         except Exception as e:
-            raise ConfigParseError(str(app_conf_path), original_error=e)
+            raise ConfigParseError(str(app_conf_path), original_error=e) from e
 
         if not isinstance(config, DictConfig):
             raise ConfigTypeError("root", expected_type="DictConfig", actual_type=type(config), actual_value=config)
@@ -213,7 +213,7 @@ class OmegaConfig(BaseModel):
         try:
             new_conf = OmegaConf.load(path)
         except Exception as e:
-            raise ConfigParseError(str(file_path), original_error=e)
+            raise ConfigParseError(str(file_path), original_error=e) from e
 
         if not isinstance(new_conf, DictConfig):
             raise ConfigTypeError(f"merge_file_{path.name}", expected_type="DictConfig", actual_type=type(new_conf))
@@ -272,7 +272,7 @@ class OmegaConfig(BaseModel):
                 return default
             # Check if it's an interpolation error
             if "${" in str(e) or "interpolation" in str(e).lower():
-                raise ConfigInterpolationError(key, str(e), original_error=e)
+                raise ConfigInterpolationError(key, str(e), original_error=e) from e
             raise ConfigKeyNotFoundError(key) from e
 
     def set(self, key: str, value: Any) -> None:
@@ -579,7 +579,7 @@ class OmegaConfig(BaseModel):
                     merged_for_resolution = OmegaConf.merge(resolution_config, temp_conf)
                     file_path = str(merged_for_resolution["_temp"])
                 except Exception as e:
-                    raise ConfigInterpolationError(":merge file path", str(file_path_raw), original_error=e)
+                    raise ConfigInterpolationError(":merge file path", str(file_path_raw), original_error=e) from e
             else:
                 file_path = str(file_path_raw)
 
@@ -595,7 +595,7 @@ class OmegaConfig(BaseModel):
             try:
                 merge_config = OmegaConf.load(merge_path)
             except Exception as e:
-                raise ConfigParseError(str(merge_path), original_error=e)
+                raise ConfigParseError(str(merge_path), original_error=e) from e
 
             if not isinstance(merge_config, DictConfig):
                 raise ConfigTypeError(

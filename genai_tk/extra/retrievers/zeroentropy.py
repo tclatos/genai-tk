@@ -257,7 +257,7 @@ class ZeroEntropyRetriever(BaseRetriever):
                 documents = []
                 for result in response.results:
                     # Use content if available, otherwise create summary
-                    content = result.content if result.content else f"Page {result.page_index} from {result.path}"
+                    content = result.content or f"Page {result.page_index} from {result.path}"
 
                     documents.append(
                         Document(
