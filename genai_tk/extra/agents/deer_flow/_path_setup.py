@@ -1,13 +1,10 @@
 """Path setup for Deer-flow backend imports.
 
-Deer-flow's backend is not pip-installable (no build-system in pyproject.toml).
-This module adds the deer-flow backend directory to sys.path so that its internal
-imports (e.g., `from src.agents import make_lead_agent`) work correctly.
+Deer-flow's backend is installed as a package dependency.
+This module adds the deer-flow backend directory to sys.path and sets up
+required environment variables.
 
-The deer-flow backend is expected at one of:
-    1. ext/deer-flow/backend  (cloned via `make deer-flow-install`)
-    2. DEER_FLOW_PATH env var pointing to deer-flow root
-    3. ../deer-flow/backend   (sibling directory)
+Requires DEER_FLOW_PATH environment variable pointing to deer-flow root directory.
 """
 
 import os
@@ -21,53 +18,45 @@ _deer_flow_backend_path: Path | None = None
 
 
 def get_deer_flow_backend_path() -> Path:
-    """Resolve the deer-flow backend directory path.
-
-    Search order:
-        1. DEER_FLOW_PATH environment variable (points to deer-flow root)
-        2. ext/deer-flow/backend (relative to project root)
-        3. ../deer-flow/backend (sibling to project)
-        4. /home/tcl/ext_prj/deer-flow/backend (development fallback)
+    """Get the deer-flow backend directory path from DEER_FLOW_PATH environment variable.
 
     Returns:
         Path to the deer-flow backend directory
 
     Raises:
-        FileNotFoundError: If deer-flow backend cannot be found
+        EnvironmentError: If DEER_FLOW_PATH is not set or invalid
     """
     global _deer_flow_backend_path
     if _deer_flow_backend_path is not None:
         return _deer_flow_backend_path
 
-    project_root = Path.cwd()
-    candidates = []
-
-    # 1. Environment variable
     env_path = os.environ.get("DEER_FLOW_PATH")
-    if env_path:
-        candidates.append(Path(env_path) / "backend")
+    if not env_path:
+        raise EnvironmentError(
+            "DEER_FLOW_PATH environment variable is not set.\n"
+            "Please set it to the deer-flow root directory:\n"
+            "  export DEER_FLOW_PATH=/path/to/deer-flow\n\n"
+            "Example: export DEER_FLOW_PATH=/home/user/ext_prj/deer-flow"
+        )
 
-    # 2. ext/deer-flow inside project
-    candidates.append(project_root / "ext" / "deer-flow" / "backend")
+    backend_path = Path(env_path) / "backend"
+    if not backend_path.exists():
+        raise EnvironmentError(
+            f"Deer-flow backend not found at: {backend_path}\n"
+            f"DEER_FLOW_PATH is set to: {env_path}\n"
+            "Please verify the path points to the deer-flow root directory."
+        )
 
-    # 3. Sibling directory
-    candidates.append(project_root.parent / "deer-flow" / "backend")
+    if not (backend_path / "src" / "__init__.py").exists():
+        raise EnvironmentError(
+            f"Invalid deer-flow backend at: {backend_path}\n"
+            "The backend/src/__init__.py file is missing.\n"
+            "Please ensure deer-flow is properly installed."
+        )
 
-    # 4. Development fallback
-    candidates.append(Path.home() / "ext_prj" / "deer-flow" / "backend")
-
-    for candidate in candidates:
-        if candidate.exists() and (candidate / "src" / "__init__.py").exists():
-            _deer_flow_backend_path = candidate.resolve()
-            logger.info(f"Deer-flow backend found at: {_deer_flow_backend_path}")
-            return _deer_flow_backend_path
-
-    searched = "\n  ".join(str(c) for c in candidates)
-    raise FileNotFoundError(
-        f"Deer-flow backend not found. Searched:\n  {searched}\n\n"
-        "Install with: make deer-flow-install\n"
-        "Or set DEER_FLOW_PATH environment variable to the deer-flow root directory."
-    )
+    _deer_flow_backend_path = backend_path.resolve()
+    logger.info(f"Deer-flow backend found at: {_deer_flow_backend_path}")
+    return _deer_flow_backend_path
 
 
 def setup_deer_flow_path() -> Path:

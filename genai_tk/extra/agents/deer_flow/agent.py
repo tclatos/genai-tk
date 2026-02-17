@@ -72,8 +72,10 @@ class DeerFlowAgentConfig:
     thinking_enabled: bool = True
     is_plan_mode: bool = False
     mode: str = "flash"  # flash, thinking, pro, ultra
+    llm: str | None = None  # LLM identifier (ID like 'gpt_41mini@openai' or tag like 'fast_model')
     mcp_servers: list[str] = field(default_factory=list)
-    skills: list[str] = field(default_factory=list)  # List of "category/skill-name" or "skill-name"
+    skills: list[str] = field(default_factory=list)  # Deprecated: use skill_directories
+    skill_directories: list[str] = field(default_factory=list)  # Directories to load skills from recursively
     tools: list[BaseTool] = field(default_factory=list)
     tool_configs: list[dict[str, Any]] = field(default_factory=list)
     features: list[str] = field(default_factory=list)
@@ -130,8 +132,10 @@ def load_deer_flow_profiles(
             thinking_enabled=entry.get("thinking_enabled", True),
             is_plan_mode=entry.get("is_plan_mode", False),
             mode=entry.get("mode", "flash"),
+            llm=entry.get("llm"),  # LLM identifier (ID or tag)
             mcp_servers=entry.get("mcp_servers", []),
-            skills=entry.get("skills", []),
+            skills=entry.get("skills", []),  # Deprecated but still supported
+            skill_directories=entry.get("skill_directories", []),  # New field
             tool_configs=raw_tools,
             features=entry.get("features", []),
             example_queries=entry.get("examples", []),  # Map 'examples' to 'example_queries'
@@ -359,7 +363,8 @@ def create_deer_flow_agent(
     setup_deer_flow_path()
     setup_deer_flow_config(
         mcp_server_names=profile.mcp_servers or None,
-        enabled_skills=profile.skills or None,
+        enabled_skills=profile.skills or None,  # Deprecated but still supported
+        skill_directories=profile.skill_directories or None,
     )
 
     # Step 2: Resolve extra tools from profile config

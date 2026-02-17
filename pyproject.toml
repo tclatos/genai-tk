@@ -72,11 +72,11 @@ dependencies = [
     # ============================================
     # Search & Retrieval
     # ============================================
-    "rank-bm25>=0.2.2",       # BM25 ranking algorithm implementation
-    "bm25s>=0.2.13",          # Fast BM25 search with NumPy
-    "fuzzysearch>=0.8.0",     # Autonomous web research agent
-    "tavily-python>=0.7.12",  # Tavily search API client
-    "ddgs>=9.7.0",            # DuckDuckGo search wrapper
+    "rank-bm25>=0.2.2",      # BM25 ranking algorithm implementation
+    "bm25s>=0.2.13",         # Fast BM25 search with NumPy
+    "fuzzysearch>=0.8.0",    # Autonomous web research agent
+    "tavily-python>=0.7.12", # Tavily search API client
+    "ddgs>=9.7.0",           # DuckDuckGo search wrapper
     #"gpt-researcher>=0.14.0", # Deep search; Requires cryptography>=45.0.2
     # ============================================
     # Document Processing
@@ -88,6 +88,7 @@ dependencies = [
     # ============================================
     "prefect>=3.6.7", # Modern workflow orchestration
     "chonkie>=1.5.2",
+    "jinaai>=0.2.10",
 ]
 
 [project.urls]
@@ -132,6 +133,15 @@ autogen = [
     "autogen-agentchat>=0.4.3",        # Multi-agent conversation framework
     "autogen-ext[openai]>=0.4.3",      # AutoGen extensions with OpenAI support
 ]
+
+# ============================================
+# Deer-flow Agent Integration  
+# ============================================
+# NOTE: Deer-flow must be installed manually after setting DEER_FLOW_PATH
+#   export DEER_FLOW_PATH=/path/to/deer-flow
+#   uv pip install -e $DEER_FLOW_PATH/backend
+# This is intentionally left empty since uv doesn't support ${VAR} in file:// URLs
+deer-flow = []
 
 # ============================================
 # Development Tools

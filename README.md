@@ -218,6 +218,37 @@ genai_tk/
 - **Groq** - Fast inference endpoints
 - **LiteLLM** - 100+ LLM providers unified API
 
+## Agent Frameworks
+
+### Deer-flow Integration
+
+GenAI Toolkit integrates with [Deer-flow](https://github.com/bytedance/deer-flow), ByteDance's LangGraph-based agent system with advanced features like subagents, sandboxed execution, and skill libraries.
+
+**Setup**:
+```bash
+# Quick setup with automated script
+bash scripts/setup_deerflow.sh
+
+# Or manual setup:
+export DEER_FLOW_PATH=/path/to/deer-flow
+git clone https://github.com/bytedance/deer-flow.git $DEER_FLOW_PATH
+uv pip install -e $DEER_FLOW_PATH/backend
+```
+
+**Usage**:
+```bash
+# List available profiles
+cli agents deerflow --list
+
+# Run in chat mode
+cli agents deerflow --chat
+
+# Single-shot query
+cli agents deerflow "Research the latest AI developments"
+```
+
+See [docs/Deer_Flow_Integration.md](docs/Deer_Flow_Integration.md) for full documentation.
+
 ## Configuration
 
 **🚀 Enhanced Configuration System**

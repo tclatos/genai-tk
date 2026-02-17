@@ -20,6 +20,58 @@ from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.extra.agents.deer_flow._path_setup import get_deer_flow_backend_path
 
 
+def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
+    """Load all skills from specified directories recursively.
+
+    Discovers skills in 'public/' and 'custom/' subdirectories within each directory.
+    Returns skills in format: 'category/skill-name' (e.g., 'public/deep-research').
+
+    Args:
+        skill_directories: List of directories to search for skills
+
+    Returns:
+        List of skill identifiers in format 'category/skill-name'
+    """
+    from genai_tk.utils.config_mngr import global_config
+
+    skills = []
+    config = global_config().root
+
+    for skill_dir_template in skill_directories:
+        # Resolve path variables using global config
+        if "${paths.project}" in skill_dir_template:
+            project_path = global_config().get_dir_path("paths.project")
+            skill_dir_str = skill_dir_template.replace("${paths.project}", str(project_path))
+        else:
+            skill_dir_str = skill_dir_template
+
+        skill_dir = Path(skill_dir_str)
+
+        if not skill_dir.exists():
+            logger.warning(f"Skill directory does not exist: {skill_dir}")
+            continue
+
+        # Look for 'public' and 'custom' subdirectories
+        for category in ["public", "custom"]:
+            category_dir = skill_dir / category
+            if not category_dir.exists():
+                continue
+
+            # Get all skill directories (non-hidden directories)
+            for skill_path in category_dir.iterdir():
+                if skill_path.is_dir() and not skill_path.name.startswith("."):
+                    skill_name = skill_path.name
+                    skill_id = f"{category}/{skill_name}"
+                    skills.append(skill_id)
+
+    # Log discovered skills
+    trace_loading = OmegaConf.select(config, "deerflow.skills.trace_loading", default=True)
+    if trace_loading and skills:
+        logger.info(f"Discovered {len(skills)} skills from directories: {', '.join(skills)}")
+
+    return skills
+
+
 def generate_deer_flow_models(llm_config_path: str = "config/providers/llm.yaml") -> list[dict[str, Any]]:
     """Generate Deer-flow model configs from GenAI Toolkit's llm.yaml.
 
@@ -284,13 +336,16 @@ def write_extensions_config(
 def setup_deer_flow_config(
     mcp_server_names: list[str] | None = None,
     enabled_skills: list[str] | None = None,
+    skill_directories: list[str] | None = None,
     config_dir: str | None = None,
 ) -> tuple[Path, Path]:
     """One-call setup: generates both Deer-flow config files and sets env vars.
 
     Args:
         mcp_server_names: MCP servers to enable
-        enabled_skills: Skills to enable (format: \"category/skill-name\" or \"skill-name\" for public)
+        enabled_skills: Skills to enable (format: "category/skill-name" or "skill-name" for public)
+                       Deprecated: use skill_directories instead
+        skill_directories: Directories to load skills from recursively
         config_dir: Directory for config files (default: temp dir inside deer-flow backend)
 
     Returns:
@@ -307,15 +362,30 @@ def setup_deer_flow_config(
     # Generate extensions config with MCP servers
     extensions_config = generate_extensions_config(mcp_server_names)
 
+    # Determine which skills to enable
+    skills_to_enable = enabled_skills or []
+
+    # If skill_directories is provided, load all skills from those directories
+    if skill_directories:
+        discovered_skills = load_skills_from_directories(skill_directories)
+        skills_to_enable = discovered_skills
+    # Fall back to global config if neither is specified
+    elif not enabled_skills:
+        config = global_config().root
+        default_dirs = OmegaConf.select(config, "deerflow.skills.directories")
+        if default_dirs:
+            discovered_skills = load_skills_from_directories(default_dirs)
+            skills_to_enable = discovered_skills
+
     # Add skills state configuration
-    if enabled_skills:
+    if skills_to_enable:
         config = global_config().root
         trace_loading = OmegaConf.select(config, "deerflow.skills.trace_loading", default=True)
         if trace_loading:
-            logger.info(f"Enabling skills: {', '.join(enabled_skills)}")
+            logger.info(f"Enabling {len(skills_to_enable)} skills")
 
         skills_state = {}
-        for skill_spec in enabled_skills:
+        for skill_spec in skills_to_enable:
             # Parse "category/skill-name" or just "skill-name" (defaults to public)
             if "/" in skill_spec:
                 category, skill_name = skill_spec.split("/", 1)

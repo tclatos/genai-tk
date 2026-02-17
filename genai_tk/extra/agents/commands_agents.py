@@ -613,14 +613,6 @@ class AgentCommands(CliTopCommand):
                     help="List available profiles from deerflow.yaml and exit",
                 ),
             ] = False,
-            config: Annotated[
-                Optional[str],
-                typer.Option(
-                    "--config",
-                    "-c",
-                    help="Path to deerflow.yaml config file",
-                ),
-            ] = None,
         ) -> None:
             """Run Deer-flow agents with advanced reasoning capabilities.
 
@@ -656,27 +648,26 @@ class AgentCommands(CliTopCommand):
                 echo "What is RAG?" | cli agents deerflow -p "Research Assistant"
             """
             from genai_tk.extra.agents.deer_flow.cli_commands import (
+                _get_default_profile_name,
                 _list_profiles,
                 _run_chat_mode,
                 _run_single_shot,
             )
 
-            if config is None:
-                # Use config manager to get the proper path
-                config_dir = global_config().get_dir_path("paths.config")
-                config_path = str(config_dir / "agents" / "deerflow.yaml")
-            else:
-                config_path = config
-
             # Handle --list flag
             if list_profiles:
-                _list_profiles(config_path)
+                _list_profiles()
                 return
 
-            # Validate profile requirement
+            # Use default profile if not specified
             if not profile:
-                print("❌ Error: --profile/-p is required (or use --list to see available profiles)")
-                raise typer.Exit(1)
+                default_profile = _get_default_profile_name()
+                if default_profile:
+                    profile = default_profile
+                    print(f"Using default profile: {profile}")
+                else:
+                    print("❌ Error: --profile/-p is required (or use --list to see available profiles)")
+                    raise typer.Exit(1)
 
             # Get input from stdin if not provided
             if not input_text and not chat:
@@ -695,7 +686,6 @@ class AgentCommands(CliTopCommand):
                     asyncio.run(
                         _run_chat_mode(
                             profile_name=profile,
-                            config_path=config_path,
                             llm_override=llm,
                             extra_mcp=mcp,
                             mode_override=mode,
@@ -708,7 +698,6 @@ class AgentCommands(CliTopCommand):
                         _run_single_shot(
                             profile_name=profile,
                             user_input=input_text,
-                            config_path=config_path,
                             llm_override=llm,
                             extra_mcp=mcp,
                             mode_override=mode,
