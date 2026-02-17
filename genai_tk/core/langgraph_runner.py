@@ -35,6 +35,7 @@ session.set_graph(custom_agent)
 from typing import AsyncIterator, Iterator, cast
 
 from langchain.agents import create_agent
+from langchain_core.language_models.base import LanguageModelInput, LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig

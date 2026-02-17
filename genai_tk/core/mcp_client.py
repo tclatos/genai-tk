@@ -33,6 +33,7 @@ from itertools import chain
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
 from langchain.agents import create_agent
+from langchain_core.language_models.base import LanguageModelInput, LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
