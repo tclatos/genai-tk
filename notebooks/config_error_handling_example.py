@@ -55,7 +55,7 @@ def example_safe_config_access():
     # Example 4: Handling list configurations
     print("\n4. Safe list access:")
     try:
-        providers = global_config().get_list("llm.providers", value_type=str)
+        providers = global_config().get_list("llm", value_type=dict)
         print(f"✓ Found {len(providers)} providers")
     except ConfigTypeError as e:
         print(f"⚠ Configuration error: {e.message}")
@@ -85,7 +85,7 @@ def example_critical_config_check():
     print("Critical Configuration Check Example")
     print("=" * 60)
 
-    required_keys = ["paths.config", "llm.providers", "embeddings.providers"]
+    required_keys = ["paths.config", "llm", "embeddings"]
 
     try:
         print("\nChecking required configuration...")

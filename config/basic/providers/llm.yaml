@@ -30,74 +30,62 @@
 #cSpell: disable
 
 llm:
-  providers:
-    - model:
-        id: deepseek_v32
+  registry:
+    - model_id: deepseek_v32
       providers:
         - deepseek: deepseek-chat
         - openrouter: deepseek/deepseek-chat-v3.2
         - edenai: deepseek/deepseek-chat
       capabilities: ['structured_outputs']
 
-    - model:  # fake model for tests
-        id: parrot_local
+    - model_id: parrot_local  # fake model for tests
       providers:
         - fake: parrot
 
-    - model:
-        id: gpt_oss120
+    - model_id: gpt_oss120
       providers:
         - openrouter: openai/gpt-oss-120b:exacto
       capabilities: ['structured_outputs']
 
-    - model:
-        id: gpt_41mini
+    - model_id: gpt_41mini
       providers:
         - openrouter: openai/gpt-4.1-mini
         - edenai: gpt-4.1-mini-2025-04-14
         - openai: gpt-4.1-mini-2025-04-14
       capabilities: ['structured_outputs']
 
-    - model:
-        id: qwen3_maxtinking
+    - model_id: qwen3_maxtinking
       providers:
         - openrouter: qwen/qwen3-max-thinking
       capabilities: ['thinking', 'structured_outputs']
 
-
-    - model:
-        id: mistral_7b
+    - model_id: mistral_7b
       providers:
         - custom:  # ChatOpenAI class parameters - see https://python.langchain.com/api_reference/openai/chat_models/langchain_openai.chat_models.base.ChatOpenAI.html
             model: mistralai/Mistral-7B-Instruct-v0.3
             base_url: https://gateway.cp4sc.platform.codex-platform.com/mistral/v1
             default_headers:
               X-Gravitee-Api-Key: ${oc.env:GRAVITEE_KEY, null } 
-
       capabilities: ['structured_outputs']
 
-    - model:
-        id: ministral_8b
+    - model_id: ministral_8b
       providers:
         - openrouter: mistralai/ministral-8b-latest
       capabilities: ['structured_outputs']
 
-    - model:
-        id: gpt_4o_mini
+    - model_id: gpt_4o_mini
       providers:
         - litellm: openai/gpt-4o-mini
         - openai: gpt-4o-mini
       capabilities: ['structured_outputs']
 
-    - model:
-        id: claude_haiku
+    - model_id: claude_haiku
       providers:
         - litellm: anthropic/claude-haiku
         - openrouter: anthropic/claude-haiku
       capabilities: ['structured_outputs']
 
-    - model:
-        id: google_gemini3flash
+    - model_id: google_gemini3flash
       providers:
         - litellm: google/gemini-3-flash
         - openrouter: google/gemini-3-flash

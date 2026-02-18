@@ -137,30 +137,29 @@ class OmegaConfig(BaseModel):
 
         # Check for LLM configuration
         try:
-            llm_providers = self.get("llm.providers", default=None)
-            if llm_providers is None:
-                warnings.append("No LLM providers found (llm.providers). Ensure provider files are in the :merge list.")
-            elif not isinstance(llm_providers, (list, ListConfig)):
-                errors.append(f"llm.providers should be a list, got {type(llm_providers).__name__}")
-            elif len(llm_providers) == 0:
-                warnings.append("llm.providers is empty - no LLM models configured")
+            llm_entries = self.get("llm.registry", default=None)
+            if llm_entries is None:
+                warnings.append("No LLM providers found (llm.registry). Ensure provider files are in the :merge list.")
+            elif not isinstance(llm_entries, (list, ListConfig)):
+                errors.append(f"llm.registry should be a list, got {type(llm_entries).__name__}")
+            elif len(llm_entries) == 0:
+                warnings.append("llm.registry is empty - no LLM models configured")
         except Exception as e:
-            logger.debug(f"Could not validate llm.providers: {e}")
+            logger.debug(f"Could not validate llm: {e}")
 
         # Check for embeddings configuration
         try:
-            emb_providers = self.get("embeddings.providers", default=None)
-            if emb_providers is None:
+            emb_entries = self.get("embeddings.registry", default=None)
+            if emb_entries is None:
                 warnings.append(
-                    "No embeddings providers found (embeddings.providers). "
-                    "Ensure provider files are in the :merge list."
+                    "No embeddings providers found (embeddings.registry). Ensure provider files are in the :merge list."
                 )
-            elif not isinstance(emb_providers, (list, ListConfig)):
-                errors.append(f"embeddings.providers should be a list, got {type(emb_providers).__name__}")
-            elif len(emb_providers) == 0:
-                warnings.append("embeddings.providers is empty - no embeddings models configured")
+            elif not isinstance(emb_entries, (list, ListConfig)):
+                errors.append(f"embeddings.registry should be a list, got {type(emb_entries).__name__}")
+            elif len(emb_entries) == 0:
+                warnings.append("embeddings.registry is empty - no embeddings models configured")
         except Exception as e:
-            logger.debug(f"Could not validate embeddings.providers: {e}")
+            logger.debug(f"Could not validate embeddings: {e}")
 
         # Check for default models
         try:

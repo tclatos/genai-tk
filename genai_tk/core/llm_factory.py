@@ -127,25 +127,25 @@ def _read_llm_list_file() -> list[LlmInfo]:
     """Read LLM providers from merged configuration.
 
     The providers are now merged into the main config via :merge in app_conf.yaml,
-    so we read from llm.providers instead of loading a separate file.
+    so we read from llm instead of loading a separate file.
     """
     from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError, ConfigTypeError
 
     try:
-        providers_data = global_config().get("llm.providers")
+        providers_data = global_config().get("llm.registry")
     except Exception as e:
         logger.error(
             "Failed to load LLM providers from config. "
             "Ensure 'config/providers/llm.yaml' is in the :merge list in app_conf.yaml"
         )
         raise ConfigKeyNotFoundError(
-            "llm.providers",
+            "llm.registry",
             available_keys=[],
         ) from e
 
     if not isinstance(providers_data, (list, ListConfig)):
         raise ConfigTypeError(
-            "llm.providers", expected_type=list, actual_type=type(providers_data), actual_value=providers_data
+            "llm.registry", expected_type=list, actual_type=type(providers_data), actual_value=providers_data
         )
 
     llms = []
@@ -155,22 +155,12 @@ def _read_llm_list_file() -> list[LlmInfo]:
             continue
 
         # The model entry has this structure:
-        # - model:
-        #     id: xxx
+        # - model_id: xxx
         #   providers: [...]
-        model_info = model_entry.get("model")
-        if not model_info:
-            logger.warning(f"Skipping model entry without 'model' key at index {idx}: {model_entry}")
-            continue
-
-        # Get model ID from model_info (can be dict with 'id' or just the id string)
-        if isinstance(model_info, (dict, DictConfig)):
-            model_id = model_info.get("id")
-        else:
-            model_id = str(model_info)
+        model_id = model_entry.get("model_id")
 
         if not model_id:
-            logger.warning(f"Skipping model entry without id at index {idx}: {model_entry}")
+            logger.warning(f"Skipping model entry without model_id at index {idx}: {model_entry}")
             continue
 
         providers_list = model_entry.get("providers", [])

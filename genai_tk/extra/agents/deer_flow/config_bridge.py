@@ -93,10 +93,11 @@ def generate_deer_flow_models(llm_config_path: str = "config/providers/llm.yaml"
     if config_path.exists():
         with open(config_path) as f:
             raw = yaml.safe_load(f)
-            llm_entries = raw.get("llm", [])
+            llm_section = raw.get("llm", {})
+            llm_entries = llm_section.get("registry", []) if isinstance(llm_section, dict) else []
             for entry in llm_entries:
-                if entry and entry.get("id"):
-                    capabilities_map[entry["id"]] = entry.get("capabilities", [])
+                if entry and entry.get("model_id"):
+                    capabilities_map[entry["model_id"]] = entry.get("capabilities", [])
 
     models = []
 
@@ -176,8 +177,11 @@ def generate_extensions_config(
         logger.warning(f"Could not load MCP servers: {e}")
         return {"mcpServers": {}, "skills": {}}
 
+    logger.info(f"[generate_extensions_config] servers_dict: {servers_dict}")
+
     mcp_servers = {}
     for name, config in servers_dict.items():
+        logger.info(f"[generate_extensions_config] Adding MCP server: {name} config: {config}")
         server_config: dict[str, Any] = {
             "enabled": True,
             "type": config.get("transport", "stdio"),

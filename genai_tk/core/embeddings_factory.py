@@ -107,32 +107,32 @@ def _read_embeddings_list_file() -> list[EmbeddingsInfo]:
     """Read embeddings providers from merged configuration.
 
     The providers are now merged into the main config via :merge in app_conf.yaml,
-    so we read from embeddings.providers instead of loading a separate file.
+    so we read from embeddings instead of loading a separate file.
 
     Returns:
         List of configured embeddings models
 
     Raises:
-        ConfigKeyNotFoundError: If embeddings.providers is not found in config
-        ConfigTypeError: If embeddings.providers is not a list
+        ConfigKeyNotFoundError: If embeddings is not found in config
+        ConfigTypeError: If embeddings is not a list
     """
     from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError, ConfigTypeError
 
     try:
-        providers_data = global_config().get("embeddings.providers")
+        providers_data = global_config().get("embeddings.registry")
     except Exception as e:
         logger.error(
             "Failed to load embeddings providers from config. "
             "Ensure 'config/providers/embeddings.yaml' is in the :merge list in app_conf.yaml"
         )
         raise ConfigKeyNotFoundError(
-            "embeddings.providers",
+            "embeddings.registry",
             available_keys=[],
         ) from e
 
     if not isinstance(providers_data, (list, ListConfig)):
         raise ConfigTypeError(
-            "embeddings.providers", expected_type=list, actual_type=type(providers_data), actual_value=providers_data
+            "embeddings.registry", expected_type=list, actual_type=type(providers_data), actual_value=providers_data
         )
 
     embeddings = []
@@ -142,23 +142,13 @@ def _read_embeddings_list_file() -> list[EmbeddingsInfo]:
             continue
 
         # The model entry has this structure:
-        # - model:
-        #     id: xxx
+        # - model_id: xxx
         #   providers: [...]
         #   dimension: xxx
-        model_info = model_entry.get("model")
-        if not model_info:
-            logger.warning(f"Skipping embeddings entry without 'model' key at index {idx}: {model_entry}")
-            continue
-
-        # Get model ID from model_info (can be dict with 'id' or just the id string)
-        if isinstance(model_info, (dict, DictConfig)):
-            model_id = model_info.get("id")
-        else:
-            model_id = str(model_info)
+        model_id = model_entry.get("model_id")
 
         if not model_id:
-            logger.warning(f"Skipping embeddings entry without id at index {idx}: {model_entry}")
+            logger.warning(f"Skipping embeddings entry without model_id at index {idx}: {model_entry}")
             continue
 
         dimension = model_entry.get("dimension")

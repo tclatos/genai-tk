@@ -99,12 +99,21 @@ def load_deer_flow_profiles(
         FileNotFoundError: If config file doesn't exist
         ValueError: If config file is invalid or empty
     """
+
+    import os
+
     from genai_tk.utils.config_mngr import global_config
+
+    logger.info(f"[load_deer_flow_profiles] CWD: {os.getcwd()}")
+    logger.info(
+        f"[load_deer_flow_profiles] APPLICATION_CONFIG_FILE: {getattr(global_config, 'APPLICATION_CONFIG_FILE', 'N/A')}"
+    )
 
     if config_path is None:
         # Use config manager to get the proper path
         config_dir = global_config().get_dir_path("paths.config")
         config_path = str(config_dir / "agents" / "deerflow.yaml")
+    logger.info(f"[load_deer_flow_profiles] Using deerflow config path: {config_path}")
 
     path = Path(config_path)
     if not path.exists():
@@ -230,9 +239,12 @@ def validate_mcp_servers(server_names: list[str]) -> list[str]:
         return []
 
     available = get_available_mcp_servers()
+    logger.info(f"[validate_mcp_servers] Available MCP servers: {available}")
+    logger.info(f"[validate_mcp_servers] Requested MCP servers: {server_names}")
     invalid = [name for name in server_names if name not in available]
 
     if invalid:
+        logger.warning(f"[validate_mcp_servers] Invalid MCP servers: {invalid}")
         raise MCPServerNotFoundError(invalid, available)
 
     return server_names
