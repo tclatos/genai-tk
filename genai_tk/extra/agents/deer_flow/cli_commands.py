@@ -195,8 +195,21 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                     help="List available profiles from deerflow.yaml and exit",
                 ),
             ] = False,
+            verbose: Annotated[
+                bool,
+                typer.Option(
+                    "--verbose",
+                    "-v",
+                    help="Enable verbose logging (DEBUG level) for detailed tracing",
+                ),
+            ] = False,
         ) -> None:
             """Run Deer-flow agents with advanced reasoning capabilities.
+
+            Note: Due to CLI runtime limitations, some deer-flow middlewares are automatically disabled
+            in both modes (ThreadDataMiddleware, UploadsMiddleware, TitleMiddleware, MemoryMiddleware,
+            plus ClarificationMiddleware in single-shot). Skills requiring file operations may not work
+            as expected. For full functionality, use deer-flow natively with its web interface.
 
             Examples:
                 # List available profiles
@@ -205,7 +218,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                 # Run with a profile
                 cli deerflow -p "Research Assistant" "Explain quantum computing"
 
-                # Interactive chat mode
+                # Interactive chat mode (recommended for skills like ppt-generation)
                 cli deerflow -p "Research Assistant" --chat
 
                 # With LLM override
@@ -213,6 +226,9 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
 
                 # Stream intermediate steps
                 cli deerflow -p "Research Assistant" --stream "What are AI trends?"
+
+                # Enable verbose logging for debugging
+                cli deerflow -p "Research Assistant" --verbose "Complex query"
 
                 # Add extra MCP servers
                 cli deerflow -p "Coder" --mcp math --mcp weather "Calculate weather patterns"
@@ -266,6 +282,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                             mode_override=mode,
                             stream_enabled=stream,
                             initial_input=input_text,
+                            verbose=verbose,
                         )
                     )
                 else:
@@ -277,6 +294,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                             extra_mcp=mcp,
                             mode_override=mode,
                             stream_enabled=stream,
+                            verbose=verbose,
                         )
                     )
             except KeyboardInterrupt:
@@ -469,8 +487,13 @@ async def _run_single_shot(
     extra_mcp: list[str],
     mode_override: Optional[str],
     stream_enabled: bool,
+    verbose: bool = False,
 ) -> None:
-    """Execute a single query (non-interactive mode)."""
+    """Execute a single query (non-interactive mode).
+
+    Args:
+        verbose: Enable verbose logging for detailed tracing
+    """
     from genai_tk.extra.agents.deer_flow.agent import (
         DeerFlowError,
         create_deer_flow_agent_simple,
@@ -481,6 +504,16 @@ async def _run_single_shot(
         validate_profile_name,
     )
     from genai_tk.utils.config_mngr import global_config
+
+    # Configure verbose logging if requested
+    if verbose:
+        logger.remove()
+        logger.add(
+            sys.stderr,
+            level="DEBUG",
+            format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>",
+        )
+        logger.debug("Verbose logging enabled in _run_single_shot")
 
     # Load and validate profile
     config_dir = global_config().get_dir_path("paths.config")
@@ -559,13 +592,14 @@ async def _run_single_shot(
         console.print(f"[cyan]MCP Servers:[/cyan] {', '.join(profile_dict.mcp_servers)}")
     console.print()
 
-    # Create agent
+    # Create agent (reused across turns)
     with console.status("🦌 Setting up Deer-flow agent...", spinner="dots"):
         checkpointer = MemorySaver()
         agent = create_deer_flow_agent_simple(
             profile=profile_dict,
             llm=llm,
             checkpointer=checkpointer,
+            interactive_mode=False,  # Non-interactive mode - no ClarificationMiddleware
         )
 
     thread_id = str(uuid.uuid4())
@@ -624,11 +658,13 @@ async def _run_chat_mode(
     mode_override: Optional[str],
     stream_enabled: bool,
     initial_input: Optional[str] = None,
+    verbose: bool = False,
 ) -> None:
     """Run interactive chat REPL mode.
 
     Args:
         initial_input: Optional first message to process before entering interactive mode.
+        verbose: Enable verbose logging for detailed tracing
     """
     from genai_tk.extra.agents.deer_flow.agent import (
         DeerFlowError,
@@ -639,6 +675,16 @@ async def _run_chat_mode(
         validate_profile_name,
     )
     from genai_tk.utils.config_mngr import global_config
+
+    # Configure verbose logging if requested
+    if verbose:
+        logger.remove()
+        logger.add(
+            sys.stderr,
+            level="DEBUG",
+            format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>",
+        )
+        logger.debug("Verbose logging enabled in _run_chat_mode")
 
     # Load and validate profile
     config_dir = global_config().get_dir_path("paths.config")
@@ -728,6 +774,7 @@ async def _run_chat_mode(
             profile=profile_dict,
             llm=llm,
             checkpointer=checkpointer,
+            interactive_mode=True,  # Interactive chat mode - includes ClarificationMiddleware
         )
 
     thread_id = str(uuid.uuid4())

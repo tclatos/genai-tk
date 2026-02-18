@@ -45,7 +45,7 @@ dependencies = [
     # Agent Frameworks
     # ============================================
     "smolagents[toolkit, mcp, openai, litellm, docker]>=1.17", # Lightweight agentic framework
-    "deepagents>=0.0.5",                                       # Deep learning agent utilities
+    "deepagents>=0.4",                                         # Deep agents with planning, subagents, skills
     "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
     # ============================================

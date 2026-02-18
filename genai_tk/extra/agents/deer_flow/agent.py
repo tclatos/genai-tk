@@ -589,6 +589,8 @@ def create_deer_flow_agent_simple(
     extra_tools: list[BaseTool] | None = None,
     checkpointer: Any | None = None,
     trace_middleware: Any | None = None,
+    thread_data_middleware: Any | None = None,
+    interactive_mode: bool = True,
 ) -> DeerFlowAgent:
     """Simplified agent creation using GenAI Toolkit's LLM directly.
 
@@ -602,6 +604,8 @@ def create_deer_flow_agent_simple(
         extra_tools: Additional tools to include
         checkpointer: LangGraph checkpointer
         trace_middleware: TraceMiddleware instance for Streamlit trace display
+        thread_data_middleware: ConfigThreadDataMiddleware for file I/O without runtime.context
+        interactive_mode: If False, excludes ClarificationMiddleware (for non-interactive CLI)
 
     Returns:
         A CompiledStateGraph ready for .astream()
@@ -688,18 +692,86 @@ def create_deer_flow_agent_simple(
     if profile.system_prompt:
         system_prompt = system_prompt + "\n\n" + profile.system_prompt
 
-    # Build middleware list
+    # Build middleware list with deer-flow's standard middleware chain
+    # This includes important middlewares like ClarificationMiddleware, SandboxMiddleware, etc.
     middlewares = []
-    if trace_middleware is not None:
-        middlewares.append(trace_middleware)
+    try:
+        from src.agents.lead_agent.agent import _build_middlewares
 
-    # Create agent
+        # Build config for middleware initialization
+        middleware_config = {
+            "configurable": {
+                "thinking_enabled": profile.thinking_enabled,
+                "is_plan_mode": profile.is_plan_mode,
+                "subagent_enabled": profile.subagent_enabled,
+                "max_concurrent_subagents": 3,
+            }
+        }
+        middlewares = _build_middlewares(middleware_config)
+        logger.info(f"Built {len(middlewares)} middlewares for deer-flow agent")
+
+        # Remove middlewares that require deer-flow's full runtime infrastructure
+        # These middlewares expect runtime.context.get("thread_id") which isn't available
+        # when calling the agent through create_agent() without deer-flow's native runtime
+        # NOTE: This applies to BOTH interactive and non-interactive modes since we're
+        # using a simplified agent creation path that bypasses deer-flow's runtime setup
+        from src.agents.middlewares.clarification_middleware import ClarificationMiddleware
+        from src.agents.middlewares.memory_middleware import MemoryMiddleware
+        from src.agents.middlewares.thread_data_middleware import ThreadDataMiddleware
+        from src.agents.middlewares.title_middleware import TitleMiddleware
+        from src.agents.middlewares.uploads_middleware import UploadsMiddleware
+
+        # Only remove ClarificationMiddleware in non-interactive mode
+        # (other middlewares must be removed in both modes due to runtime.context requirement)
+        middlewares_to_remove = [
+            ThreadDataMiddleware,
+            UploadsMiddleware,
+            TitleMiddleware,
+            MemoryMiddleware,
+        ]
+        if not interactive_mode:
+            middlewares_to_remove.append(ClarificationMiddleware)
+
+        original_count = len(middlewares)
+        middlewares = [m for m in middlewares if not any(isinstance(m, cls) for cls in middlewares_to_remove)]
+
+        if len(middlewares) < original_count:
+            removed = original_count - len(middlewares)
+            removed_names = [cls.__name__ for cls in middlewares_to_remove]
+            logger.info(
+                f"Removed {removed} middleware(s) requiring runtime context: {', '.join(removed_names)} "
+                f"({original_count} -> {len(middlewares)} middlewares remaining)"
+            )
+    except Exception as e:
+        logger.warning(f"Could not build deer-flow middlewares: {e}. Using minimal middleware chain.")
+        middlewares = []
+
+    # Add trace middleware if provided (for Streamlit)
+    if trace_middleware is not None:
+        middlewares.insert(0, trace_middleware)
+
+    # Add thread_data middleware if provided (enables file I/O without runtime.context)
+    if thread_data_middleware is not None:
+        middlewares.append(thread_data_middleware)
+        logger.info("Added ConfigThreadDataMiddleware for file I/O support")
+
+    # Import ThreadState for proper state schema
+    try:
+        from src.agents.thread_state import ThreadState
+
+        state_schema = ThreadState
+    except Exception:
+        logger.warning("Could not import ThreadState, using default state schema")
+        state_schema = None
+
+    # Create agent with proper state schema for middleware compatibility
     agent = create_agent(
         model=llm,
         tools=all_tools,
         system_prompt=system_prompt,
         checkpointer=checkpointer,
         middleware=middlewares,
+        state_schema=state_schema,
     )
 
     return agent
@@ -732,33 +804,61 @@ async def run_deer_flow_agent(
         ...     print(f"Processing: {node}")
         >>> response = await run_deer_flow_agent(agent, "Hello", "thread-1", on_node=node_handler)
     """
-    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+    logger.debug(f"Starting deer-flow agent execution for thread {thread_id}")
+    logger.debug(f"User input: {user_input[:100]}...")
 
     config = {"configurable": {"thread_id": thread_id}}
     inputs = {"messages": [HumanMessage(content=user_input)]}
     response_content = ""
     final_response = None
+    step_count = 0
 
     async for step in agent.astream(inputs, config):
+        step_count += 1
+        logger.debug(f"Step {step_count}: {type(step)}")
+
         # Handle tuple steps
         if isinstance(step, tuple):
             step = step[1]
 
         if isinstance(step, dict):
             for node, update in step.items():
+                logger.debug(f"Node: {node}, Update keys: {update.keys() if isinstance(update, dict) else 'N/A'}")
+
                 # Notify caller of node transition
                 if on_node:
                     on_node(node)
 
+                # Skip if update is None
+                if update is None or not isinstance(update, dict):
+                    continue
+
                 if "messages" in update and update["messages"]:
                     latest = update["messages"][-1]
-                    if isinstance(latest, AIMessage) and latest.content:
-                        response_content = latest.content
-                        final_response = latest
+                    logger.debug(f"Latest message type: {type(latest).__name__}")
 
-                        # Notify caller of new content
-                        if on_content:
-                            on_content(node, str(latest.content))
+                    if isinstance(latest, AIMessage):
+                        if latest.content:
+                            response_content = latest.content
+                            final_response = latest
+                            logger.debug(f"AI response: {str(latest.content)[:100]}...")
+
+                            # Notify caller of new content
+                            if on_content:
+                                on_content(node, str(latest.content))
+
+                        # Log tool calls if present
+                        if hasattr(latest, "tool_calls") and latest.tool_calls:
+                            tool_names = [tc.get("name", "unknown") for tc in latest.tool_calls]
+                            logger.info(f"Agent calling tools: {', '.join(tool_names)}")
+
+                    elif isinstance(latest, ToolMessage):
+                        tool_name = getattr(latest, "name", "unknown")
+                        logger.debug(f"Tool '{tool_name}' response: {str(latest.content)[:100]}...")
+
+    logger.info(f"Deer-flow agent completed after {step_count} steps")
 
     # Return final content
     if final_response and final_response.content:
@@ -766,4 +866,5 @@ async def run_deer_flow_agent(
     elif response_content:
         return response_content
     else:
+        logger.warning("No response generated by agent")
         return "I couldn't generate a response. Please try again."

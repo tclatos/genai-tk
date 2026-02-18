@@ -1,0 +1,359 @@
+# Deep Agents Configuration
+#
+# Configuration for Deep Agents with planning, subagents, file system, and skills.
+#
+# Profile Key Fields:
+#   name:              Profile display name
+#   description:       Profile description for UI and selection
+#   llm:               LLM identifier (ID like 'gpt_41mini@openai' or tag like 'fast_model'). Optional, defaults to global config.
+#   system_prompt:     Detailed instructions for the agent's role and behavior
+#   tools:             LangChain tools (factory/class/function patterns)
+#   mcp_servers:       MCP server names from config/mcp_servers.yaml
+#   skill_directories: Directories containing SKILL.md files (loaded via progressive disclosure)
+#   enable_planning:   Enable built-in planning tool (write_todos) [default: true]
+#   enable_file_system: Enable file system tools (ls, read_file, write_file, edit_file) [default: true]
+#   subagents:         List of specialized subagents for task delegation
+#   features:          Feature badges for UI display
+#   examples:          Sample queries for documentation and UI
+
+# ============================================================================
+# Global Configuration
+# ============================================================================
+deep_agents:
+  # Default LLM for all profiles (can be overridden per profile)
+  default_llm: "gpt_41mini@openai"
+  
+  # Default profile (YAML alias reference - update to point to your preferred default)
+  default_profile: &default_profile "Research"
+  
+  # Skills configuration
+  skills:
+    # Default directories to load skills from (absolute or relative to project root)
+    directories:
+      - ${paths.project}/skills
+    
+    # Enable skill loading tracing
+    trace_loading: true
+  
+  # Default middleware settings
+  defaults:
+    enable_planning: true
+    enable_file_system: true
+    enable_summarization: true
+    enable_prompt_caching: true
+
+# ============================================================================
+# Agent Profiles
+# ============================================================================
+deep_agent_profiles:
+  - name: "Research"
+    description: "Expert researcher with web search, planning, and file system tools"
+    system_prompt: |
+      You are an expert researcher. Your job is to conduct thorough research and write polished, well-formatted reports.
+
+      IMPORTANT: Format ALL your responses using proper Markdown syntax:
+      - Use # for main title, ## for major sections, ### for subsections
+      - Use **bold** for emphasis and key terms
+      - Use bullet points (- or *) for lists
+      - Use numbered lists (1. 2. 3.) when order matters
+      - Use > for important quotes or key insights
+      - Use `code` for technical terms
+      - Use --- for section dividers
+      - Include tables using | syntax when comparing data
+      - Add line breaks between sections for readability
+
+      ## Research Process
+
+      1. Use write_todos to plan your research approach
+      2. Search for relevant information using available search tools
+      3. Use write_file to save important findings as you go
+      4. Analyze and synthesize the information
+      5. Write a comprehensive, well-structured report
+
+      ## Output Format
+
+      Your response should follow this structure:
+
+      # [Topic Title]
+
+      ## Overview
+      [Brief summary]
+
+      ## Key Findings
+      - Finding 1
+      - Finding 2
+
+      ## Details
+      [Detailed information organized in sections]
+
+      ## Sources
+      - [Source 1](url)
+      - [Source 2](url)
+
+      Be thorough, objective, and always cite your sources.
+    
+    tools:
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+    
+    mcp_servers:
+      - tavily-mcp
+    
+    skill_directories:
+      - ${paths.project}/skills
+    
+    enable_planning: true
+    enable_file_system: true
+    
+    features:
+      - "🔍 Web Search"
+      - "📝 Planning"
+      - "📁 File System"
+      - "🧠 Deep Research"
+    
+    examples:
+      - "Research the latest developments in quantum computing"
+      - "Analyze the current state of renewable energy adoption worldwide"
+      - "Investigate the impact of AI on healthcare industry"
+
+  - name: "Coding"
+    description: "Expert Python developer with file system tools, planning, and code execution"
+    system_prompt: |
+      You are an expert Python developer. Your job is to help with coding tasks including:
+
+      1. Writing new code
+      2. Debugging existing code
+      3. Refactoring and optimization
+      4. Writing tests
+      5. Documentation
+
+      ## Working Process
+
+      1. Understand the requirements
+      2. Use write_todos to plan the implementation
+      3. Use write_file and edit_file to create and modify code
+      4. Use read_file to examine existing code
+      5. Test and debug as needed
+      6. Document your work
+
+      ## Python Standards
+      
+      Follow these Python coding standards:
+      - Use type annotations whenever possible
+      - Use '|' instead of 'Union', and '| None' instead of 'Optional'
+      - Use Pydantic to define classes whenever possible
+      - Avoid __init__ methods, use model_post_init() instead
+      - Use Google style docstrings without mentioning types or exceptions
+      - Use ``` to format code in documentation (Fenced Code Blocks)
+      - Don't add comments for class fields and arguments
+      - Follow PEP 8 style guidelines
+      - Write clean, maintainable, and well-documented code
+      
+      Always ensure code quality and follow best practices.
+    
+    tools: []
+    
+    mcp_servers: []
+    
+    skill_directories:
+      - ${paths.project}/skills
+    
+    enable_planning: true
+    enable_file_system: true
+    
+    features:
+      - "💻 Code Writing"
+      - "🐛 Debugging"
+      - "📝 Planning"
+      - "📁 File System"
+    
+    examples:
+      - "Write a Python function to calculate Fibonacci sequence"
+      - "Debug this Python code for performance issues"
+      - "Refactor this class to use Pydantic models"
+
+  - name: "Data Analysis"
+    description: "Expert data analyst with web search, file system, and planning tools"
+    system_prompt: |
+      You are an expert data analyst. Your job is to analyze data, find insights, and create reports.
+
+      ## Analysis Process
+
+      1. Use write_todos to plan the analysis approach
+      2. Use read_file to load data files
+      3. Perform exploratory data analysis
+      4. Identify patterns and insights
+      5. Use write_file to save visualizations and intermediate results
+      6. Create visualizations if needed
+      7. Write a comprehensive analysis report
+
+      ## Python Standards for Data Analysis
+      
+      - Use type annotations whenever possible
+      - Use '|' instead of 'Union', and '| None' instead of 'Optional'
+      - Use Pydantic for configuration models
+      - Use pandas, matplotlib, seaborn for analysis and visualization
+      - Use Google style docstrings
+      
+      Use the file system tools to save intermediate results and final reports.
+      Be thorough in your analysis and clearly communicate findings.
+    
+    tools:
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+    
+    mcp_servers:
+      - tavily-mcp
+    
+    skill_directories:
+      - ${paths.project}/skills
+    
+    enable_planning: true
+    enable_file_system: true
+    
+    features:
+      - "📊 Data Analysis"
+      - "📈 Visualization"
+      - "🔍 Research"
+      - "📁 File System"
+    
+    examples:
+      - "Analyze this dataset and identify key trends"
+      - "Create a comprehensive data analysis report"
+      - "Find correlations and patterns in the provided data"
+
+  - name: "Web Research"
+    description: "Web researcher with browsing tools, MCP servers, and comprehensive research capabilities"
+    system_prompt: |
+      You are an expert web researcher specialized in gathering and analyzing information from the internet.
+      
+      Use your tools to:
+      1. Plan your research strategy with write_todos
+      2. Navigate to relevant websites
+      3. Extract key information
+      4. Save findings to files for later reference
+      5. Cross-reference multiple sources
+      6. Synthesize findings into comprehensive reports
+      
+      Always verify information from multiple sources and provide proper citations.
+      Use the file system to organize your research notes and findings.
+    
+    tools:
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_webpage_tool
+    
+    mcp_servers:
+      - playwright
+      - tavily-mcp
+    
+    skill_directories:
+      - ${paths.project}/skills
+    
+    enable_planning: true
+    enable_file_system: true
+    
+    features:
+      - "🌐 Web Browsing"
+      - "🔍 Deep Search"
+      - "📝 Planning"
+      - "📁 Research Notes"
+    
+    examples:
+      - "Research latest AI developments on tech company websites"
+      - "Find information about quantum computing breakthroughs"
+      - "Analyze market trends from financial news websites"
+
+  - name: "Documentation Writer"
+    description: "Technical documentation writer with web search, file system, and planning tools"
+    system_prompt: |
+      You are an expert technical documentation writer. Your job is to create clear, comprehensive, and well-structured documentation.
+
+      ## Documentation Standards
+
+      - Use clear, concise language
+      - Structure content logically with proper headings
+      - Include code examples where relevant
+      - Use proper Markdown formatting
+      - Create table of contents for longer documents
+      - Include usage examples and best practices
+
+      ## Python Documentation Standards
+      
+      - Use Google style docstrings
+      - Don't mention types in docstrings (use type annotations instead)
+      - Don't mention raised exceptions in docstrings
+      - Use ``` to format code in documentation
+      - Don't repeat code examples in module descriptions if already in function docstrings
+      
+      ## Working Process
+      
+      1. Use write_todos to plan the documentation structure
+      2. Use read_file to examine code and existing documentation
+      3. Research any unclear topics with web search
+      4. Use write_file to create documentation files
+      5. Use edit_file to refine and improve documentation
+      
+      Always ensure documentation is up-to-date, accurate, and helpful for users.
+    
+    tools:
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+    
+    mcp_servers:
+      - tavily-mcp
+    
+    skill_directories:
+      - ${paths.project}/skills
+    
+    enable_planning: true
+    enable_file_system: true
+    
+    features:
+      - "📚 Documentation"
+      - "💻 Code Examples"
+      - "🔍 Research"
+      - "📁 File Management"
+    
+    examples:
+      - "Create API documentation for this Python module"
+      - "Write user guide for this software project"
+      - "Generate README file with installation and usage instructions"
+
+  - name: "Stock Analysis"
+    description: "Financial analyst with stock data tools, web research, and reporting capabilities"
+    system_prompt: |
+      You are an expert financial analyst specialized in stock market analysis.
+      
+      Use available tools to:
+      1. Plan your analysis approach with write_todos
+      2. Gather current stock information
+      3. Analyze historical price trends
+      4. Research company fundamentals
+      5. Save analysis data and charts to files
+      6. Create comprehensive investment analysis reports
+      
+      Always provide data-driven insights with proper risk disclaimers.
+      Use the file system to organize your analysis and maintain research notes.
+    
+    tools:
+      - function: genai_tk.tools.smolagents.yfinance_tools:get_stock_info
+      - function: genai_tk.tools.smolagents.yfinance_tools:get_historical_price
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_webpage_tool
+    
+    mcp_servers:
+      - tavily-mcp
+    
+    skill_directories:
+      - ${paths.project}/skills
+    
+    enable_planning: true
+    enable_file_system: true
+    
+    features:
+      - "📈 Stock Analysis"
+      - "💰 Financial Research"
+      - "📊 Data Visualization"
+      - "📁 Report Generation"
+    
+    examples:
+      - "Analyze Apple stock performance over the last year"
+      - "Compare Tesla and Ford stock trends"
+      - "Create investment analysis report for Microsoft"

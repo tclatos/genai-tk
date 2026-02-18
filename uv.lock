@@ -1315,7 +1315,7 @@ requires-dist = [
     { name = "chonkie", specifier = ">=1.5.2" },
     { name = "chromadb", specifier = ">=1.0" },
     { name = "ddgs", specifier = ">=9.7.0" },
-    { name = "deepagents", specifier = ">=0.0.5" },
+    { name = "deepagents", specifier = ">=0.4" },
     { name = "devtools", specifier = ">=0.12.2" },
     { name = "en-core-web-lg", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" },
     { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },

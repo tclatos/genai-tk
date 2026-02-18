@@ -15,7 +15,6 @@ The commands are registered with a Typer CLI application and provide:
 
 import asyncio
 import sys
-from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
@@ -24,6 +23,329 @@ from typer import Option
 
 from genai_tk.main.cli import CliTopCommand
 from genai_tk.utils.config_mngr import global_config
+
+# ============================================================================
+# Deep Agent CLI Helper Functions
+# ============================================================================
+
+
+def _list_deep_profiles() -> None:
+    """List available deep agent profiles in a Rich table."""
+    from rich.console import Console
+    from rich.table import Table
+
+    from genai_tk.core.deep_agents import get_default_profile_name, load_deep_agent_profiles
+
+    console = Console()
+    config_dir = global_config().get_dir_path("paths.config")
+    config_path = str(config_dir / "agents" / "deepagents.yaml")
+
+    try:
+        profiles = load_deep_agent_profiles(config_path)
+    except Exception as e:
+        console.print(f"[red]Error loading profiles:[/red] {e}", style="bold")
+        raise typer.Exit(1) from e
+
+    if not profiles:
+        console.print(f"[yellow]No profiles found in {config_path}[/yellow]")
+        return
+
+    default_profile_name = get_default_profile_name()
+
+    table = Table(title=f"🧠 Deep Agent Profiles ({config_path})")
+    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Description", style="white")
+    table.add_column("Tools", style="green")
+    table.add_column("MCP Servers", style="blue")
+    table.add_column("Skills", style="yellow")
+
+    for profile in profiles:
+        tool_count = len(profile.tool_configs)
+        tools_info = f"{tool_count} tool(s)" if tool_count > 0 else "-"
+
+        mcp_servers = ", ".join(profile.mcp_servers) if profile.mcp_servers else "-"
+
+        skills_info = f"{len(profile.skill_directories)} dir(s)" if profile.skill_directories else "-"
+
+        # Mark default profile
+        profile_name = profile.name
+        if default_profile_name and profile.name == default_profile_name:
+            profile_name = f"⭐ {profile_name}"
+
+        table.add_row(
+            profile_name,
+            profile.description[:50] + "..." if len(profile.description) > 50 else profile.description,
+            tools_info,
+            mcp_servers,
+            skills_info,
+        )
+
+    console.print(table)
+    if default_profile_name:
+        console.print("\n[dim]⭐ = Default profile (used when -p is not specified)[/dim]")
+
+
+def _display_deep_agent_info(profile_name: str, mcp_servers: list[str], llm_id: str | None) -> None:
+    """Display agent configuration info in a Rich panel."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.text import Text
+
+    from genai_tk.core.deep_agents import get_deep_agent_profile
+
+    console = Console()
+
+    try:
+        profile = get_deep_agent_profile(profile_name)
+    except Exception as e:
+        console.print(f"[red]Error loading profile:[/red] {e}")
+        return
+
+    info = Text()
+    info.append("Profile: ", style="bold cyan")
+    info.append(f"{profile.name}\n", style="white")
+
+    if profile.description:
+        info.append("Description: ", style="bold cyan")
+        info.append(f"{profile.description}\n", style="white")
+
+    if llm_id:
+        info.append("LLM: ", style="bold cyan")
+        info.append(f"{llm_id}\n", style="yellow")
+    elif profile.llm:
+        info.append("LLM: ", style="bold cyan")
+        info.append(f"{profile.llm}\n", style="yellow")
+
+    tool_count = len(profile.tool_configs)
+    if tool_count > 0:
+        info.append("Tools: ", style="bold cyan")
+        info.append(f"{tool_count} configured\n", style="green")
+
+    if profile.mcp_servers or mcp_servers:
+        mcp_list = list(set(profile.mcp_servers + mcp_servers))
+        info.append("MCP Servers: ", style="bold cyan")
+        info.append(f"{', '.join(mcp_list)}\n", style="blue")
+
+    if profile.skill_directories:
+        info.append("Skill Directories: ", style="bold cyan")
+        info.append(f"{len(profile.skill_directories)} dir(s)\n", style="yellow")
+
+    info.append("Planning: ", style="bold cyan")
+    info.append(
+        f"{'enabled' if profile.enable_planning else 'disabled'}\n", style="green" if profile.enable_planning else "dim"
+    )
+
+    info.append("File System: ", style="bold cyan")
+    info.append(
+        f"{'enabled' if profile.enable_file_system else 'disabled'}",
+        style="green" if profile.enable_file_system else "dim",
+    )
+
+    panel = Panel(info, title="🧠 Deep Agent Configuration", border_style="cyan")
+    console.print(panel)
+
+
+async def _run_deep_single_shot(
+    profile_name: str,
+    input_text: str,
+    llm_override: str | None = None,
+    extra_mcp_servers: list[str] | None = None,
+    stream: bool = False,
+) -> None:
+    """Run deep agent in single-shot mode."""
+    from rich.console import Console
+    from rich.markdown import Markdown
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+
+    from genai_tk.core.deep_agents import (
+        create_deep_agent_from_profile,
+        get_deep_agent_profile,
+        run_deep_agent,
+    )
+    from genai_tk.core.llm_factory import get_llm
+
+    console = Console()
+
+    try:
+        profile = get_deep_agent_profile(profile_name)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}", style="bold")
+        raise typer.Exit(1) from e
+
+    # Resolve LLM
+    llm = None
+    if llm_override:
+        try:
+            llm = get_llm(llm_override)
+        except Exception as e:
+            console.print(f"[red]Error resolving LLM:[/red] {e}", style="bold")
+            raise typer.Exit(1) from e
+
+    # Display configuration
+    _display_deep_agent_info(profile_name, extra_mcp_servers or [], llm_override)
+
+    # Show user query
+    console.print("\n[bold magenta]👤 User Query:[/bold magenta]")
+    console.print(f"[italic white]{input_text}[/italic white]\n")
+
+    # Create and run agent
+    with Progress(
+        SpinnerColumn(spinner_name="dots", style="cyan"),
+        TextColumn("[bold cyan]{task.description}[/bold cyan]"),
+        console=console,
+    ) as progress:
+        task = progress.add_task(f"🧠 {profile_name} agent is thinking...", total=None)
+
+        try:
+            # Create agent
+            agent = await create_deep_agent_from_profile(
+                profile=profile,
+                llm=llm,
+                extra_mcp_servers=extra_mcp_servers,
+            )
+
+            # Run agent
+            result = await run_deep_agent(
+                agent=agent,
+                input_message=input_text,
+                stream=stream,
+            )
+
+            progress.update(task, description=f"✅ {profile_name} agent completed!")
+            progress.update(task, completed=True)
+
+        except Exception:
+            progress.update(task, description=f"❌ Error in {profile_name} agent")
+            progress.update(task, completed=True)
+            raise
+
+    # Display results
+    if "messages" in result and result["messages"]:
+        response_content = result["messages"][-1].content
+
+        console.print("\n[bold green]🤖 Agent Response:[/bold green]\n")
+        try:
+            md = Markdown(response_content)
+            console.print(md)
+        except Exception as e:
+            logger.warning(f"Markdown rendering failed: {e}")
+            console.print(response_content)
+
+
+async def _run_deep_chat_mode(
+    profile_name: str,
+    llm_override: str | None = None,
+    extra_mcp_servers: list[str] | None = None,
+    stream: bool = False,
+) -> None:
+    """Run deep agent in interactive chat mode."""
+    from langgraph.checkpoint.memory import MemorySaver
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.styles import Style
+    from rich.console import Console
+    from rich.markdown import Markdown
+
+    from genai_tk.core.deep_agents import (
+        create_deep_agent_from_profile,
+        get_deep_agent_profile,
+        run_deep_agent,
+    )
+    from genai_tk.core.llm_factory import get_llm
+
+    console = Console()
+
+    try:
+        profile = get_deep_agent_profile(profile_name)
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}", style="bold")
+        raise typer.Exit(1) from e
+
+    # Resolve LLM
+    llm = None
+    if llm_override:
+        try:
+            llm = get_llm(llm_override)
+        except Exception as e:
+            console.print(f"[red]Error resolving LLM:[/red] {e}", style="bold")
+            raise typer.Exit(1) from e
+
+    # Display configuration
+    _display_deep_agent_info(profile_name, extra_mcp_servers or [], llm_override)
+
+    # Create agent with checkpointer for memory
+    checkpointer = MemorySaver()
+    try:
+        agent = await create_deep_agent_from_profile(
+            profile=profile,
+            llm=llm,
+            extra_mcp_servers=extra_mcp_servers,
+            checkpointer=checkpointer,
+        )
+    except Exception as e:
+        console.print(f"\n[red]Error creating agent:[/red] {e}", style="bold")
+        logger.exception("Agent creation failed")
+        raise typer.Exit(1) from e
+
+    # Create prompt session
+    console.print("\n[bold cyan]🧠 Deep Agent Chat Mode[/bold cyan]")
+    console.print("[dim]Commands: /quit, /clear, /help[/dim]\n")
+
+    prompt_style = Style.from_dict({"prompt": "cyan bold"})
+    session = PromptSession(style=prompt_style)
+
+    thread_id = "chat-session"
+
+    while True:
+        try:
+            # Use async prompt to avoid event loop conflict
+            user_input = await session.prompt_async("You: ")
+
+            if not user_input.strip():
+                continue
+
+            # Handle commands
+            if user_input.strip() == "/quit":
+                console.print("[yellow]Exiting chat mode...[/yellow]")
+                break
+            elif user_input.strip() == "/clear":
+                console.clear()
+                continue
+            elif user_input.strip() == "/help":
+                console.print("\n[bold]Available commands:[/bold]")
+                console.print("  /quit  - Exit chat mode")
+                console.print("  /clear - Clear screen")
+                console.print("  /help  - Show this help\n")
+                continue
+
+            # Run agent
+            try:
+                result = await run_deep_agent(
+                    agent=agent,
+                    input_message=user_input,
+                    thread_id=thread_id,
+                    stream=stream,
+                )
+
+                if "messages" in result and result["messages"]:
+                    response_content = result["messages"][-1].content
+
+                    console.print("\n[bold green]Agent:[/bold green]")
+                    try:
+                        md = Markdown(response_content)
+                        console.print(md)
+                    except Exception:
+                        console.print(response_content)
+                    console.print()
+
+            except Exception as e:
+                console.print(f"\n[red]Error:[/red] {e}\n", style="bold")
+                logger.exception("Chat error")
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Use /quit to exit[/yellow]")
+            continue
+        except EOFError:
+            break
 
 
 class AgentCommands(CliTopCommand):
@@ -305,255 +627,108 @@ class AgentCommands(CliTopCommand):
 
         @cli_app.command("deep")
         def deep(
-            input: Annotated[str | None, typer.Argument(help="Input query or '-' to read from stdin")] = None,
-            config: Annotated[
+            input_text: Annotated[
                 Optional[str],
-                Option("--config", "-c", help="Configuration name from deep_agent.yaml (e.g. 'Research', 'Coding')"),
+                typer.Argument(help="User query text (positional). If omitted, reads from stdin or uses --chat mode."),
             ] = None,
-            stream: Annotated[bool, Option("--stream", "-s", help="Stream output progressively")] = False,
-            llm: Annotated[Optional[str], Option("--llm", "-m", help="LLM identifier (ID or tag)")] = None,
-            instructions: Annotated[
-                Optional[str], Option("--instructions", "-i", help="Custom instructions for the agent")
+            profile: Annotated[
+                Optional[str],
+                typer.Option(
+                    "--profile",
+                    "-p",
+                    help="Profile name from deepagents.yaml (required unless --list)",
+                ),
             ] = None,
-            tools: Annotated[Optional[list[str]], Option("--tools", "-t", help="Additional tools to include")] = None,
-            files: Annotated[
-                Optional[list[Path]], Option("--files", "-f", help="Files to include in agent context")
+            chat: Annotated[
+                bool,
+                typer.Option(
+                    "--chat",
+                    "-c",
+                    help="Interactive multi-turn chat mode (REPL). Use /quit to exit.",
+                ),
+            ] = False,
+            llm: Annotated[
+                Optional[str],
+                typer.Option("--llm", "-m", help="LLM identifier (ID or tag) to override profile default"),
             ] = None,
-            output_dir: Annotated[
-                Optional[Path], Option("--output-dir", "-o", help="Directory to save agent outputs")
+            mcp: Annotated[
+                Optional[list[str]],
+                typer.Option("--mcp", help="Additional MCP server names (merged with profile's servers)"),
             ] = None,
+            stream: Annotated[bool, typer.Option("--stream", "-s", help="Stream intermediate agent steps")] = False,
+            list_profiles: Annotated[
+                bool, typer.Option("--list", "-l", help="List available deep agent profiles and exit")
+            ] = False,
         ) -> None:
-            """
-            Run a Deep Agent for complex AI tasks.
+            """Run a Deep Agent with planning, file system, and subagent capabilities.
 
-            Deep Agents combine planning, file system access, and sub-agents for comprehensive task execution.
+            Deep Agents use deepagents v0.4+ for complex, multi-step tasks with built-in planning tools,
+            file system operations, and subagent spawning.
 
             Examples:
 
-            # Using a predefined configuration:
-            uv run cli deep-agent --config "Research" "Latest developments in quantum computing"
-            uv run cli deep-agent --config "Coding" "Write a Python function to calculate Fibonacci"
-            uv run cli deep-agent --config "Data Analysis" --files data.csv "Analyze this dataset"
+              # List available profiles
+              cli agents deep --list
 
-            # Using custom instructions:
-            uv run cli deep-agent --instructions "You are a helpful assistant" "Help me with this task"
+              # Run with a profile (single-shot)
+              cli agents deep -p Research "Latest developments in quantum computing"
 
-            # Reading from stdin:
-            echo "Debug this code" | uv run cli deep-agent --config "Coding"
+              # Interactive chat mode
+              cli agents deep -p Coding --chat
+
+              # Override LLM and add MCP servers
+              cli agents deep -p Research -m gpt_4@openai --mcp tavily-mcp "Research AI trends"
+
+              # Read from stdin
+              echo "Debug this code" | cli agents deep -p Coding
             """
             import asyncio
 
             from rich.console import Console
-            from rich.progress import Progress, SpinnerColumn, TextColumn
 
-            from genai_tk.core.deep_agents import DeepAgentConfig, deep_agent_factory, run_deep_agent
-            from genai_tk.core.llm_factory import LlmFactory
-            from genai_tk.tools.smolagents.deep_config_loader import (
-                DEEP_AGENT_CONF_YAML_FILE,
-                load_deep_agent_demo_config,
-            )
-
-            # Get input from stdin if needed
-            if not input and not sys.stdin.isatty():
-                input = sys.stdin.read()
-            if not input or len(input) < 5:
-                print("Error: Input parameter or something in stdin is required")
-                return
+            from genai_tk.core.deep_agents import get_default_profile_name
 
             console = Console()
 
-            # Handle configuration loading
-            demo_config = None
-            config_instructions = None
-            config_tools = []
-            config_mcp_servers = []
-            config_enable_file_system = True
-            config_enable_planning = True
+            # Handle --list flag
+            if list_profiles:
+                _list_deep_profiles()
+                return
 
-            if config:
-                demo_config = load_deep_agent_demo_config(config)
-                if demo_config is None:
-                    print(f"Error: Configuration '{config}' not found in {DEEP_AGENT_CONF_YAML_FILE}")
-                    return
+            # Handle stdin input
+            if not input_text and not sys.stdin.isatty():
+                input_text = sys.stdin.read().strip()
 
-                # Extract configuration parameters
-                config_instructions = demo_config.get("instructions", "")
-                config_tools = demo_config.get("tools", [])
-                config_mcp_servers = demo_config.get("mcp_servers", [])
-                config_enable_file_system = demo_config.get("enable_file_system", True)
-                config_enable_planning = demo_config.get("enable_planning", True)
+            # Get default profile if not specified
+            if not profile:
+                profile = get_default_profile_name()
+                console.print(f"[dim]Using default profile: {profile}[/dim]")
 
-                print(f"Using Deep Agent configuration '{config}':")
-                if config_tools:
-                    print(f"  Tools: {len(config_tools)} tool(s) configured")
-                if config_mcp_servers:
-                    print(f"  MCP servers: {', '.join(config_mcp_servers)}")
-
-            # Use config instructions if provided, otherwise use command line instructions
-            final_instructions = instructions or config_instructions
-
-            if not final_instructions:
-                if not config:
-                    print("Error: Either --config or --instructions must be provided")
-                    return
-                else:
-                    print(f"Error: Configuration '{config}' has no instructions defined")
-                    return
-
-            # Load files if provided
-            file_contents = {}
-            if files:
-                for file_path in files:
-                    if file_path.exists():
-                        file_contents[file_path.name] = file_path.read_text()
-                    else:
-                        console.print(f"[yellow]Warning: File {file_path} not found[/yellow]")
-
-            # Resolve LLM identifier if provided
-            llm_id = None
-            if llm:
-                try:
-                    llm_id = LlmFactory.resolve_llm_identifier(llm)
-                except ValueError as e:
-                    print(f"Error: {e}")
-                    return
-
-            async def run_agent():
-                # Set the model FIRST if specified, before creating any agents
-                if llm_id:
-                    console.print(f"[cyan]Using model: {llm_id}[/cyan]")
-                    deep_agent_factory.set_default_model(llm_id)
-
-                # Create agent configuration
-                agent_config = DeepAgentConfig(
-                    name=f"CLI {config or 'Custom'} Agent",
-                    instructions=final_instructions,
-                    enable_file_system=config_enable_file_system,
-                    enable_planning=config_enable_planning,
-                    model=llm_id,
+            # Validate input (not required for chat mode)
+            if not chat and (not input_text or len(input_text) < 3):
+                console.print(
+                    "[red]Error:[/red] Input text required (or use --chat for interactive mode)", style="bold"
                 )
+                raise typer.Exit(1)
 
-                # Process tools from configuration and convert SmolAgent tools to LangChain tools
-                agent_tools = []
-                if config_tools:
-                    try:
-                        from langchain_core.tools import tool
-                        from smolagents import Tool as SmolAgentTool
-
-                        from genai_tk.tools.smolagents.config_loader import process_tools_from_config
-
-                        # Process tools using the smolagents processor
-                        processed_tools = process_tools_from_config(config_tools)
-
-                        # Convert SmolAgent tools to LangChain tools
-                        for tool_instance in processed_tools:
-                            if isinstance(tool_instance, SmolAgentTool):
-                                # Convert SmolAgent tool to LangChain tool
-                                try:
-                                    # Create a wrapper function for the SmolAgent tool
-                                    def create_langchain_wrapper(smol_tool):
-                                        @tool
-                                        def langchain_tool_wrapper(query: str) -> str:
-                                            """Tool converted from SmolAgent."""
-                                            return smol_tool(query)
-
-                                        # Set proper metadata
-                                        langchain_tool_wrapper.name = getattr(
-                                            smol_tool, "name", type(smol_tool).__name__
-                                        )
-                                        langchain_tool_wrapper.description = getattr(
-                                            smol_tool, "description", f"Tool: {langchain_tool_wrapper.name}"
-                                        )
-
-                                        return langchain_tool_wrapper
-
-                                    langchain_tool = create_langchain_wrapper(tool_instance)
-                                    agent_tools.append(langchain_tool)
-                                except Exception as convert_ex:
-                                    console.print(
-                                        f"[yellow]Warning: Failed to convert SmolAgent tool {tool_instance}: {convert_ex}[/yellow]"
-                                    )
-                            else:
-                                # Already a LangChain tool or compatible
-                                agent_tools.append(tool_instance)
-
-                        tool_names = [getattr(t, "name", str(type(t).__name__)) for t in agent_tools]
-                        console.print(f"[cyan]Loaded {len(agent_tools)} tools: {', '.join(tool_names)}[/cyan]")
-                    except Exception as ex:
-                        console.print(f"[yellow]Warning: Failed to process some tools from config: {ex}[/yellow]")
-
-                # Create the agent
-                agent = deep_agent_factory.create_agent(config=agent_config, tools=agent_tools, async_mode=True)
-
-                # Run the agent
-                messages = [{"role": "user", "content": input}]
-
-                # Show the user's query in a nice format
-                console.print("\n[bold magenta]👤 User Query:[/bold magenta]")
-                console.print(f"[italic white]{input}[/italic white]\n")
-
-                with Progress(
-                    SpinnerColumn(spinner_name="dots", style="cyan"),
-                    TextColumn("[bold cyan]{task.description}[/bold cyan]"),
-                    console=console,
-                ) as progress:
-                    agent_name = config or "Custom"
-                    agent_emoji = {
-                        "research": "🔍",
-                        "coding": "💻",
-                        "data analysis": "📊",
-                        "web research": "🌐",
-                        "documentation writer": "📝",
-                        "stock analysis": "📈",
-                    }.get(agent_name.lower(), "🤖")
-
-                    task = progress.add_task(f"{agent_emoji} {agent_name} agent is thinking...", total=None)
-
-                    try:
-                        result = await run_deep_agent(
-                            agent=agent,
-                            messages=messages,
-                            files=file_contents or None,
-                            stream=stream,
-                        )
-
-                        progress.update(task, description=f"{agent_emoji} {agent_name} agent completed!")
-                        progress.update(task, completed=True)
-                    except Exception:
-                        progress.update(task, description=f"❌ Error in {agent_name} agent")
-                        progress.update(task, completed=True)
-                        raise
-
-                # Display results with enhanced markdown rendering
-                if "messages" in result and result["messages"]:
-                    # Get the response content
-                    response_content = result["messages"][-1].content
-
-                    # Use Rich's Markdown rendering for better display
-                    from rich.markdown import Markdown
-
-                    try:
-                        # Render as markdown for better formatting
-                        md = Markdown(response_content)
-                        # Optionally wrap in a panel for better visual separation
-                        # console.print(Panel(md, border_style="cyan", padding=(1, 2)))
-                        console.print(md)
-                    except Exception as e:
-                        # Fallback to plain text if markdown parsing fails
-                        logger.warning(f"Markdown rendering failed: {e}")
-                        console.print(response_content)
-
-                # Save files if output directory specified
-                if output_dir and "files" in result:
-                    output_dir.mkdir(parents=True, exist_ok=True)
-                    console.print("[bold yellow]📁 Saving files...[/bold yellow]")
-                    for filename, content in result["files"].items():
-                        file_path = output_dir / filename
-                        file_path.write_text(content)
-                        console.print(f"  [green]✓[/green] Saved: [cyan]{file_path}[/cyan]")
-
-            # Run the async function
-            asyncio.run(run_agent())
+            # Run the agent
+            try:
+                if chat:
+                    # Interactive chat mode
+                    asyncio.run(_run_deep_chat_mode(profile, llm, mcp, stream))
+                else:
+                    # Single-shot mode - input_text guaranteed to be valid here by validation above
+                    if not input_text:
+                        console.print("[red]Error:[/red] No input provided", style="bold")
+                        raise typer.Exit(1)
+                    asyncio.run(_run_deep_single_shot(profile, input_text, llm, mcp, stream))
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Interrupted by user[/yellow]")
+                raise typer.Exit(0) from None
+            except Exception as e:
+                console.print(f"\n[red]Error:[/red] {e}", style="bold")
+                logger.exception("Deep agent error")
+                raise typer.Exit(1) from e
 
         @cli_app.command("deerflow")
         def deerflow(
@@ -613,6 +788,14 @@ class AgentCommands(CliTopCommand):
                     help="List available profiles from deerflow.yaml and exit",
                 ),
             ] = False,
+            verbose: Annotated[
+                bool,
+                typer.Option(
+                    "--verbose",
+                    "-v",
+                    help="Enable verbose logging (DEBUG level) for detailed tracing",
+                ),
+            ] = False,
         ) -> None:
             """Run Deer-flow agents with advanced reasoning capabilities.
 
@@ -622,6 +805,15 @@ class AgentCommands(CliTopCommand):
             - Planning mode (multi-step task planning)
             - Skills system (loadable workflows)
 
+            Note: When using CLI integration, some deer-flow middlewares are automatically
+            disabled because they require deer-flow's full runtime infrastructure (which provides
+            runtime.context). This affects both single-shot and chat modes:
+            - ThreadDataMiddleware, UploadsMiddleware, TitleMiddleware, MemoryMiddleware
+            - ClarificationMiddleware (single-shot mode only)
+
+            These limitations mean skills requiring file I/O (ppt-generation, image-generation, etc.)
+            may not work properly even in chat mode. For full functionality, use deer-flow natively.
+
             Examples:
                 # List available profiles
                 cli agents deerflow --list
@@ -629,7 +821,7 @@ class AgentCommands(CliTopCommand):
                 # Run with a profile
                 cli agents deerflow -p "Research Assistant" "Explain quantum computing"
 
-                # Interactive chat mode
+                # Interactive chat mode (recommended for skills like ppt-generation)
                 cli agents deerflow -p "Research Assistant" --chat
 
                 # With LLM override
@@ -637,6 +829,9 @@ class AgentCommands(CliTopCommand):
 
                 # Stream intermediate steps
                 cli agents deerflow -p "Research Assistant" --stream "What are AI trends?"
+
+                # Enable verbose logging for debugging
+                cli agents deerflow -p "Research Assistant" --verbose "Complex query"
 
                 # Add extra MCP servers
                 cli agents deerflow -p "Coder" --mcp math --mcp weather "Calculate weather patterns"
@@ -653,6 +848,16 @@ class AgentCommands(CliTopCommand):
                 _run_chat_mode,
                 _run_single_shot,
             )
+
+            # Configure logging level based on verbose flag
+            if verbose:
+                logger.remove()  # Remove default handler
+                logger.add(
+                    sys.stderr,
+                    level="DEBUG",
+                    format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>",
+                )
+                logger.debug("Verbose logging enabled")
 
             # Handle --list flag
             if list_profiles:
@@ -691,9 +896,14 @@ class AgentCommands(CliTopCommand):
                             mode_override=mode,
                             stream_enabled=stream,
                             initial_input=input_text,
+                            verbose=verbose,
                         )
                     )
                 else:
+                    # Type guard: at this point input_text is guaranteed to be str (not None)
+                    # because the check above ensures it's either provided or read from stdin
+                    if input_text is None:
+                        raise ValueError("input_text should be non-None for non-chat mode")
                     asyncio.run(
                         _run_single_shot(
                             profile_name=profile,
@@ -702,6 +912,7 @@ class AgentCommands(CliTopCommand):
                             extra_mcp=mcp,
                             mode_override=mode,
                             stream_enabled=stream,
+                            verbose=verbose,
                         )
                     )
             except KeyboardInterrupt:
@@ -714,66 +925,3 @@ class AgentCommands(CliTopCommand):
                 print(f"\n❌ Error: {e}")
                 logger.exception("Deer-flow agent error")
                 raise typer.Exit(1) from e
-
-        # @cli_app.command("list-deep")
-        def list_deep_old() -> None:
-            """
-            List available Deep Agent configurations and created agents.
-            """
-            from rich.console import Console
-            from rich.panel import Panel
-            from rich.table import Table
-
-            from genai_tk.core.deep_agents import deep_agent_factory
-            from genai_tk.tools.smolagents.deep_config_loader import load_all_deep_agent_demos_from_config
-
-            console = Console()
-
-            # Show available configurations
-            configs = load_all_deep_agent_demos_from_config()
-            if configs:
-                config_table = Table(
-                    title="Available Deep Agent Configurations", show_header=True, header_style="bold magenta"
-                )
-                config_table.add_column("Configuration Name", style="cyan")
-                config_table.add_column("Tools", style="green")
-                config_table.add_column("MCP Servers", style="yellow")
-                config_table.add_column("Examples", style="blue", max_width=40)
-
-                for config in configs:
-                    # Show tool count if tools are configured
-                    tools_info = f"{len(config.tools)} tool(s)" if config.tools else "No tools"
-
-                    # Show MCP servers
-                    mcp_info = ", ".join(config.mcp_servers) if config.mcp_servers else "None"
-
-                    # Show first example or "None"
-                    examples_info = config.examples[0] if config.examples else "None"
-                    if len(examples_info) > 37:  # Account for "..."
-                        examples_info = examples_info[:37] + "..."
-
-                    config_table.add_row(config.name, tools_info, mcp_info, examples_info)
-
-                console.print(config_table)
-                console.print()
-
-            # Show created agents
-            agents = deep_agent_factory.list_agents()
-            if agents:
-                agent_table = Table(title="Created Deep Agents", show_header=True, header_style="bold magenta")
-                agent_table.add_column("Agent Name", style="cyan")
-                agent_table.add_column("Status", style="green")
-
-                for agent_name in agents:
-                    agent_table.add_row(agent_name, "Active")
-
-                console.print(agent_table)
-            else:
-                console.print(
-                    Panel(
-                        "[yellow]No Deep Agents have been created yet.[/yellow]\n\n"
-                        "Use [cyan]uv run cli agents deep --config <config_name> <query>[/cyan] to create and run an agent.",
-                        title="Created Deep Agents",
-                        border_style="yellow",
-                    )
-                )

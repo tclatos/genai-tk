@@ -151,3 +151,63 @@ None. The changes are backward compatible:
 - Existing commands without `--chat` work exactly as before
 - Existing commands with `--chat` but no input work as before
 - New behavior only applies when both `--chat` and input text are provided
+
+## Middleware and Skill Limitations
+
+### CLI Runtime Context Limitations
+
+When running deer-flow agents through the CLI (both single-shot and chat modes), several middlewares are automatically disabled because they require `runtime.context` which is only available with deer-flow's full native infrastructure:
+
+**Always Disabled (Both Modes):**
+- `ThreadDataMiddleware` - Manages workspace paths and thread-specific file operations
+- `UploadsMiddleware` - Handles file uploads from the web interface
+- `TitleMiddleware` - Generates conversation titles based on thread history
+- `MemoryMiddleware` - Persists conversation memory across sessions
+
+**Disabled in Single-Shot Mode Only:**
+- `ClarificationMiddleware` - Asks clarifying questions (requires interactive prompt)
+
+**Why These Are Disabled:**
+
+These middlewares expect `runtime.context.get("thread_id")` which is only available when running with deer-flow's full runtime infrastructure. When using `create_deer_flow_agent_simple()` and calling the agent directly via CLI, this context is not set up, causing AttributeError failures.
+
+**Impact:**
+- ✅ **Web search and research queries work well**
+- ✅ **Simple reasoning and Q&A work fine**
+- ⚠️ **Skills requiring file I/O may not work** even in chat mode (e.g., ppt-generation, image-generation, video-generation)
+- ⚠️ **No conversation memory** across CLI sessions, even in chat mode
+- ⚠️ **Single-shot mode cannot ask clarifying questions** (expected behavior)
+
+### Using Skills in CLI
+
+**Even chat mode has limitations for file-based skills:**
+
+```bash
+# ❌ May not work properly - no ThreadDataMiddleware for workspace paths
+cli agents deerflow --chat
+>>> generate a PowerPoint with Einstein quotes
+
+# ✅ For full skill support, use deer-flow natively
+cd /home/tcl/ext_prj/deer-flow
+# Use deer-flow's web interface for full functionality
+```
+
+**Chat mode vs single-shot:**
+- Chat mode: Multi-turn conversations, can ask clarifications
+- Single-shot: One query, one response, no clarifications
+- Both modes: Missing file I/O middlewares, no persistent memory
+
+### Verbose Logging
+
+Use the `--verbose` flag to see detailed execution traces and middleware activity:
+
+```bash
+cli agents deerflow --verbose "your query"
+```
+
+This shows:
+- Middleware initialization and filtering
+- Tool calls with names
+- Node transitions in the agent graph
+- Step-by-step execution flow
+
