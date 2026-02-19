@@ -1,3 +1,31 @@
+"""
+Module for computing cryptographic and non-cryptographic hash digests of files and byte buffers.
+
+This module provides utilities for hashing data using various algorithms including xxHash3
+(xxh3_64, xxh3_128) for high-performance hashing and standard algorithms (sha256, md5).
+It supports hashing both in-memory byte buffers and files on disk, with compatibility for
+both standard pathlib.Path and upath.UPath objects.
+
+Supported hash algorithms:
+    - xxh3_64: 64-bit xxHash3 (default, fastest)
+    - xxh3_128: 128-bit xxHash3
+    - sha256: SHA-256 cryptographic hash
+    - md5: MD5 hash (legacy, not cryptographically secure)
+
+Example:
+    >>> # Hash a file using the default algorithm
+    >>> digest = file_digest(Path("myfile.txt"))
+    >>>
+    >>> # Compute buffer hash with explicit algorithm
+    >>> data = b"Hello, World!"
+    >>> hex_hash = buffer_digest(data, algorithm="sha256")
+    >>>
+    >>> # Use with remote paths via UPath
+    >>> remote_file = UPath("s3://bucket/file.bin")
+    >>> digest = file_digest(remote_file, algorithm="xxh3_128")
+
+"""
+
 import hashlib
 from pathlib import Path
 from typing import Literal

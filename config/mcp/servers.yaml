@@ -1,0 +1,85 @@
+# MCP Server Exposure Configuration
+#
+# Each entry under ``mcp_expose_servers`` describes an MCP server that
+# genai-tk can build and serve.
+#
+# Key fields
+# ----------
+# name        : Unique identifier used with ``uv run cli mcp serve --name <name>``
+# description : Human-readable description shown in ``mcp list`` and server instructions
+# tools       : List of LangChain tool factory entries (same syntax as langchain.yaml)
+#   factory   : "module.path:factory_function"
+#   config    : kwargs forwarded to the factory (optional)
+# agent       : Optional – wraps ALL resolved tools inside a ReAct/DeepAgent
+#               and exposes it as a single MCP tool called ``agent.name``
+#   enabled   : true | false
+#   name      : MCP tool name for the agent (e.g. run_search_agent)
+#   description : Description shown to MCP clients
+#   llm       : LLM id/tag override (optional, uses global default if absent)
+#   profile   : deepagents.yaml profile name – uses full DeepAgent machinery
+#
+# Variable interpolation
+# ----------------------
+# OmegaConf variables like ``${paths.project}`` are resolved against the
+# global configuration before the definitions are loaded.
+#
+# Usage
+# -----
+#   uv run cli mcp list
+#   uv run cli mcp serve --name search
+#   uv run cli mcp generate --name chinook --output server_chinook.py
+
+mcp_expose_servers:
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Web-search server
+  # Exposes the best available search function (Tavily → Serper → DuckDuckGo)
+  # + an optional ReAct agent that wraps it.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: "search"
+    description: "Web search tools exposed as MCP"
+    tools:
+      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+        verbose: false
+    agent:
+      enabled: true
+      name: run_search_agent
+      description: "Run a full ReAct web-search agent and return the final answer"
+      # llm: gpt_41mini@openai   # uncomment to override
+      # profile: Research        # uncomment to use a deepagents.yaml profile
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Chinook SQL server
+  # Exposes an NL→SQL tool over the bundled Chinook SQLite database.
+  # No agent wrapper – raw tool only.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: "chinook"
+    description: "Natural-language SQL queries over the Chinook music database"
+    tools:
+      - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_tool_from_config
+        config:
+          database_uri: "sqlite:///${paths.project}/tests/data/Chinook.db"
+          tool_name: "query_chinook"
+          tool_description: "Query the Chinook music database for artists, albums, tracks, customers and invoices"
+          examples:
+            - input: "List all artists"
+              query: "SELECT * FROM Artist LIMIT 10;"
+            - input: "Which country spent the most?"
+              query: "SELECT BillingCountry, SUM(Total) AS Total FROM Invoice GROUP BY BillingCountry ORDER BY Total DESC LIMIT 1;"
+          top_k: 15
+    # No agent: section → only raw tools are exposed
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Research deep-agent server
+  # Exposes the Research DeepAgent profile directly as an MCP tool.
+  # The agent handles planning, file-system access and web search internally.
+  # ──────────────────────────────────────────────────────────────────────────
+  - name: "research-agent"
+    description: "Research deep-agent exposed as a single MCP tool"
+    tools: []   # tools come from the DeepAgent profile
+    agent:
+      enabled: true
+      name: run_research_agent
+      description: "Run the Research deep-agent: web search, planning, and file-system tools"
+      profile: Research
+      # llm: gpt_41mini@openai
