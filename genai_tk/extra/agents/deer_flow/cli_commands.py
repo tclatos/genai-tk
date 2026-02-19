@@ -32,6 +32,72 @@ from genai_tk.main.cli import CliTopCommand
 console = Console()
 
 
+def _display_agent_tools_and_skills(profile: Any, console: Console) -> None:
+    """Display loaded tools and skills information.
+
+    Args:
+        profile: Agent profile configuration
+        console: Rich console for output
+    """
+    from omegaconf import OmegaConf
+    from rich.panel import Panel
+    from rich.text import Text
+
+    from genai_tk.extra.agents.deer_flow.config_bridge import load_skills_from_directories
+    from genai_tk.utils.config_mngr import global_config
+
+    info = Text()
+
+    # Display sandbox mode
+    config = global_config().root
+    sandbox_provider = OmegaConf.select(config, "deerflow.sandbox.provider", default="local")
+    if sandbox_provider == "docker":
+        info.append("🐳 Sandbox: ", style="bold cyan")
+        info.append("Docker (full file I/O, bash, code execution)\n", style="bold green")
+    else:
+        info.append("💻 Sandbox: ", style="bold cyan")
+        info.append("Local (limited file I/O — set sandbox.provider: docker for full support)\n", style="yellow")
+    info.append("\n")
+
+    # Display tools information
+    if profile.tool_groups:
+        info.append("🔧 Tool Groups: ", style="bold cyan")
+        info.append(f"{', '.join(profile.tool_groups)}\n", style="white")
+        info.append("   Note: Actual tools loaded depend on available dependencies\n\n", style="dim")
+
+    if profile.tool_configs:
+        info.append("📦 Extra Tools: ", style="bold cyan")
+        info.append(f"{len(profile.tool_configs)} configured\n\n", style="white")
+
+    # Display skills information
+    if profile.skill_directories:
+        try:
+            skills = load_skills_from_directories(profile.skill_directories)
+            if skills:
+                info.append("🎯 Available Skills: ", style="bold cyan")
+                info.append(f"{len(skills)}\n", style="white")
+                # Show all skills, grouped by lines of ~80 chars
+                skill_names = [s.split("/")[-1] for s in skills]
+                line = "   "
+                for i, name in enumerate(skill_names):
+                    if len(line) + len(name) + 2 > 80:  # Wrap at ~80 chars
+                        info.append(line, style="green")
+                        info.append("\n", style="white")
+                        line = "   " + name
+                    else:
+                        line += name
+                    if i < len(skill_names) - 1:
+                        line += ", "
+                if line.strip():
+                    info.append(line, style="green")
+                info.append("\n   Note: Skills add sub-workflows for complex tasks\n", style="dim")
+        except Exception as e:
+            logger.debug(f"Could not load skills info: {e}")
+
+    if info.plain:
+        console.print(Panel(info, title="[bold cyan]Agent Configuration[/bold cyan]", border_style="cyan"))
+
+
 def _get_llm_display_name(llm: Any, llm_id: str | None = None) -> str:
     """Get display name for LLM in format model_id@provider.
 
@@ -61,12 +127,57 @@ def _get_llm_display_name(llm: Any, llm_id: str | None = None) -> str:
     return model_name
 
 
+def _display_output_files(thread_id: str, thread_data_middleware: Any, console: Console) -> None:
+    """Display output files created by the agent with their real disk paths.
+
+    Args:
+        thread_id: The conversation thread ID
+        thread_data_middleware: ConfigThreadDataMiddleware instance (or None)
+        console: Rich console for output
+    """
+    if thread_data_middleware is None:
+        return
+
+    from genai_tk.extra.agents.deer_flow.config_thread_data_middleware import ConfigThreadDataMiddleware
+
+    if not isinstance(thread_data_middleware, ConfigThreadDataMiddleware):
+        return
+
+    paths = thread_data_middleware._get_thread_paths(thread_id)
+    from pathlib import Path
+
+    from rich.panel import Panel
+    from rich.text import Text
+
+    output_files = []
+    for dir_key in ("outputs_path", "workspace_path"):
+        dir_path = Path(paths[dir_key])
+        if dir_path.exists():
+            for f in dir_path.rglob("*"):
+                if f.is_file():
+                    output_files.append(f)
+
+    if not output_files:
+        return
+
+    info = Text()
+    for f in sorted(output_files, key=lambda p: p.stat().st_mtime, reverse=True):
+        size_kb = f.stat().st_size / 1024
+        info.append(f"  📄 {f.name}", style="bold green")
+        info.append(f"  ({size_kb:.1f} KB)\n", style="dim")
+        info.append(f"     {f}\n", style="dim cyan")
+
+    console.print(Panel(info, title="[bold green]📁 Output Files[/bold green]", border_style="green"))
+
+
 async def _process_message(
     user_input: str,
     agent: Any,
     thread_id: str,
     stream_enabled: bool,
     console: Console,
+    trace_enabled: bool = True,
+    thread_data_middleware: Any = None,
 ) -> None:
     """Process a single message through the agent and display the response.
 
@@ -76,11 +187,14 @@ async def _process_message(
         thread_id: The conversation thread ID
         stream_enabled: Whether to stream intermediate steps
         console: Rich console for output
+        trace_enabled: Whether Rich trace middleware is active (disables duplicate display)
+        thread_data_middleware: Optional middleware for resolving output file paths
     """
     from genai_tk.extra.agents.deer_flow.agent import run_deer_flow_agent
 
-    # Display user input
-    console.print(Panel(user_input, title="[bold blue]User[/bold blue]", border_style="blue"))
+    # Only display user input if trace middleware is not active (to avoid duplication)
+    if not trace_enabled:
+        console.print(Panel(user_input, title="[bold blue]User[/bold blue]", border_style="blue"))
 
     # Execute agent
     if stream_enabled:
@@ -113,15 +227,19 @@ async def _process_message(
                 thread_id=thread_id,
             )
 
-    # Display response
-    console.print()
-    console.print(
-        Panel(
-            Markdown(response),
-            title="[bold white on royal_blue1] Assistant [/bold white on royal_blue1]",
-            border_style="royal_blue1",
+    # Only display response if trace middleware is not active (to avoid duplication)
+    if not trace_enabled:
+        console.print()
+        console.print(
+            Panel(
+                Markdown(response),
+                title="[bold white on royal_blue1] Assistant [/bold white on royal_blue1]",
+                border_style="royal_blue1",
+            )
         )
-    )
+
+    # Show output files created by the agent (resolve virtual paths to real disk paths)
+    _display_output_files(thread_id, thread_data_middleware, console)
 
 
 class DeerFlowCommands(CliTopCommand, BaseModel):
@@ -594,11 +712,15 @@ async def _run_single_shot(
 
     # Create agent (reused across turns)
     with console.status("🦌 Setting up Deer-flow agent...", spinner="dots"):
+        from genai_tk.extra.agents.deer_flow.config_thread_data_middleware import ConfigThreadDataMiddleware
+
         checkpointer = MemorySaver()
+        thread_data_mw = ConfigThreadDataMiddleware()
         agent = create_deer_flow_agent_simple(
             profile=profile_dict,
             llm=llm,
             checkpointer=checkpointer,
+            thread_data_middleware=thread_data_mw,
             interactive_mode=False,  # Non-interactive mode - no ClarificationMiddleware
         )
 
@@ -649,6 +771,9 @@ async def _run_single_shot(
         padding=(1, 2),
     )
     console.print(panel)
+
+    # Show output files with real disk paths
+    _display_output_files(thread_id, thread_data_mw, console)
 
 
 async def _run_chat_mode(
@@ -768,14 +893,33 @@ async def _run_chat_mode(
     console.print()
 
     # Create agent (reused across turns)
+    # Import Rich trace middleware for message display
+    from genai_tk.extra.agents.deer_flow.config_thread_data_middleware import ConfigThreadDataMiddleware
+    from genai_tk.extra.agents.deer_flow.rich_middleware import DeerFlowRichTraceMiddleware
+
     with console.status("🦌 Setting up Deer-flow agent...", spinner="dots"):
         checkpointer = MemorySaver()
+
+        # Always create Rich trace middleware - it's needed for clean tool call display
+        # In verbose mode, it still shows tool calls cleanly while DEBUG logs show internals
+        trace_middleware = DeerFlowRichTraceMiddleware(console=console)
+
+        # Create thread_data middleware for file I/O support
+        # This provides workspace paths AND pre-initializes the local sandbox,
+        # enabling tools like write_file, read_file, bash without runtime.context
+        thread_data_mw = ConfigThreadDataMiddleware()
+
         agent = create_deer_flow_agent_simple(
             profile=profile_dict,
             llm=llm,
             checkpointer=checkpointer,
+            trace_middleware=trace_middleware,
+            thread_data_middleware=thread_data_mw,
             interactive_mode=True,  # Interactive chat mode - includes ClarificationMiddleware
         )
+
+    # Display loaded tools and skills
+    _display_agent_tools_and_skills(profile_dict, console)
 
     thread_id = str(uuid.uuid4())
 
@@ -791,6 +935,8 @@ async def _run_chat_mode(
             thread_id=thread_id,
             stream_enabled=stream_enabled,
             console=console,
+            trace_enabled=True,
+            thread_data_middleware=thread_data_mw,
         )
         console.print()  # Add spacing
 
@@ -848,6 +994,8 @@ async def _run_chat_mode(
                     thread_id=thread_id,
                     stream_enabled=stream_enabled,
                     console=console,
+                    trace_enabled=True,
+                    thread_data_middleware=thread_data_mw,
                 )
                 console.print()  # Add spacing
 

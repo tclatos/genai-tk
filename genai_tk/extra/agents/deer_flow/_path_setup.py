@@ -55,7 +55,7 @@ def get_deer_flow_backend_path() -> Path:
         )
 
     _deer_flow_backend_path = backend_path.resolve()
-    logger.info(f"Deer-flow backend found at: {_deer_flow_backend_path}")
+    logger.debug(f"Deer-flow backend found at: {_deer_flow_backend_path}")
     return _deer_flow_backend_path
 
 

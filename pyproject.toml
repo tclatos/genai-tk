@@ -143,6 +143,12 @@ autogen = [
 # This is intentionally left empty since uv doesn't support ${VAR} in file:// URLs
 deer-flow = []
 
+# Docker sandbox support for deer-flow (enables file creation, bash, code execution in container)
+# Requires Docker to be installed and running
+deer-flow-docker = [
+    "agent-sandbox>=0.0.19", # HTTP client for deer-flow's Docker sandbox container
+]
+
 # ============================================
 # Development Tools
 # ============================================

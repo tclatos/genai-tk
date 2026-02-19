@@ -33,14 +33,18 @@ deerflow:
   
   # Sandbox configuration
   sandbox:
-    # Use local sandbox by default (simpler, no Docker required)
-    provider: local
+    # Sandbox provider: 'local' or 'docker'
+    # - local: No Docker required, but limited file I/O (web search, chat, skills work)
+    # - docker: Full file operations, bash, code execution in container (requires Docker)
+    #   Uses deer-flow's all-in-one-sandbox Docker image
+    provider: docker
     
-    # Docker sandbox configuration (uncomment to enable)
-    # provider: docker
+    # Docker sandbox options (only used when provider: docker)
+    # image: enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest
     # port: 8080
     # auto_start: true
     # container_prefix: deer-flow-sandbox
+    # idle_timeout: 600
 
   # Default profile 
   # This is a YAML alias reference - update to point to your preferred default
@@ -53,7 +57,8 @@ deerflow_agents:
   - name: "Research Assistant"
     description: "Web research with deep reasoning, visualizations, and skill execution"
     mode: "pro"  # thinking + plan mode
-    llm: "gpt_oss120@openrouter"  # Can use LLM ID or tag like 'fast_model'
+    #llm: "deepseek_v32@openrouter"  # Can use LLM ID or tag like 'fast_model'
+    llm: gpt_oss120@openrouter
     tool_groups:
       - web
       - file

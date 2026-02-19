@@ -20,6 +20,24 @@ from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.extra.agents.deer_flow._path_setup import get_deer_flow_backend_path
 
 
+def _ensure_no_proxy_for_localhost() -> None:
+    """Ensure localhost and 127.0.0.1 are excluded from HTTP proxy.
+
+    When HTTP_PROXY is set without NO_PROXY, requests to localhost (used by the
+    Docker sandbox API) are incorrectly routed through the external proxy and fail.
+    This function adds localhost/127.0.0.1 to NO_PROXY if they are not already present.
+    """
+    no_proxy = os.environ.get("NO_PROXY", os.environ.get("no_proxy", ""))
+    entries = {e.strip() for e in no_proxy.split(",") if e.strip()}
+    additions = {"localhost", "127.0.0.1"}
+    missing = additions - entries
+    if missing:
+        updated = ",".join(sorted(entries | additions))
+        os.environ["NO_PROXY"] = updated
+        os.environ["no_proxy"] = updated
+        logger.debug(f"Added {missing} to NO_PROXY for Docker sandbox localhost access")
+
+
 def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
     """Load all skills from specified directories recursively.
 
@@ -67,7 +85,7 @@ def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
     # Log discovered skills
     trace_loading = OmegaConf.select(config, "deerflow.skills.trace_loading", default=True)
     if trace_loading and skills:
-        logger.info(f"Discovered {len(skills)} skills from directories: {', '.join(skills)}")
+        logger.debug(f"Discovered {len(skills)} skills from directories")
 
     return skills
 
@@ -76,28 +94,18 @@ def generate_deer_flow_models(llm_config_path: str = "config/providers/llm.yaml"
     """Generate Deer-flow model configs from GenAI Toolkit's llm.yaml.
 
     Uses LlmFactory to get model information and provider configuration.
+    Model capabilities, max_tokens, context_window, and when_thinking_enabled
+    are read directly from the LlmInfo registry (populated from llm.yaml).
     Only includes models whose provider API keys are available in the environment.
 
     Args:
-        llm_config_path: Path to the LLM config YAML file (kept for backward compatibility)
+        llm_config_path: Kept for backward compatibility; no longer used directly.
 
     Returns:
         List of Deer-flow model config dicts
     """
     # Get all known models from LlmFactory
     all_models = LlmFactory.known_list()
-
-    # Also load capabilities from YAML since LlmInfo doesn't expose them
-    config_path = Path(llm_config_path)
-    capabilities_map = {}
-    if config_path.exists():
-        with open(config_path) as f:
-            raw = yaml.safe_load(f)
-            llm_section = raw.get("llm", {})
-            llm_entries = llm_section.get("registry", []) if isinstance(llm_section, dict) else []
-            for entry in llm_entries:
-                if entry and entry.get("model_id"):
-                    capabilities_map[entry["model_id"]] = entry.get("capabilities", [])
 
     models = []
 
@@ -118,23 +126,20 @@ def generate_deer_flow_models(llm_config_path: str = "config/providers/llm.yaml"
         if api_key_env_var and not os.environ.get(api_key_env_var):
             continue
 
-        # Extract capabilities from YAML
-        capabilities = capabilities_map.get(model_id, [])
-        supports_vision = "vision" in capabilities
-        supports_thinking = "thinking" in capabilities
-
-        # Build model config using provider info
+        # Build model config using provider info and LlmInfo metadata
         model_config: dict[str, Any] = {
             "name": model_id,
             "display_name": model_id.replace("_", " ").title(),
             "use": provider_info.get_use_string(),
             "model": model_name,
-            "max_tokens": 4096,
-            "supports_vision": supports_vision,
+            "max_tokens": model_info.max_tokens or 4096,
+            "supports_vision": model_info.supports_vision,
         }
 
-        if supports_thinking:
+        if model_info.supports_thinking:
             model_config["supports_thinking"] = True
+            # Standard deer-flow thinking activation config — generated for all thinking-capable models
+            model_config["when_thinking_enabled"] = {"extra_body": {"thinking": {"type": "enabled"}}}
 
         if api_key_env_var:
             model_config["api_key"] = f"${api_key_env_var}"
@@ -152,7 +157,7 @@ def generate_deer_flow_models(llm_config_path: str = "config/providers/llm.yaml"
 
         models.append(model_config)
 
-    logger.info(f"Generated {len(models)} Deer-flow model configs using LlmFactory")
+    logger.debug(f"Generated {len(models)} Deer-flow model configs using LlmFactory")
     return models
 
 
@@ -177,11 +182,11 @@ def generate_extensions_config(
         logger.warning(f"Could not load MCP servers: {e}")
         return {"mcpServers": {}, "skills": {}}
 
-    logger.info(f"[generate_extensions_config] servers_dict: {servers_dict}")
+    # logger.debug(f"[generate_extensions_config] servers_dict: {servers_dict}")
 
     mcp_servers = {}
     for name, config in servers_dict.items():
-        logger.info(f"[generate_extensions_config] Adding MCP server: {name} config: {config}")
+        #   logger.debug(f"[generate_extensions_config] Adding MCP server: {name} config: {config}")
         server_config: dict[str, Any] = {
             "enabled": True,
             "type": config.get("transport", "stdio"),
@@ -201,7 +206,7 @@ def generate_extensions_config(
         mcp_servers[name] = server_config
 
     result = {"mcpServers": mcp_servers, "skills": {}}
-    logger.info(f"Generated extensions_config with {len(mcp_servers)} MCP servers")
+    logger.debug(f"Generated extensions_config with {len(mcp_servers)} MCP servers")
     return result
 
 
@@ -252,21 +257,59 @@ def write_deer_flow_config(
     skills_path = Path(skills_path).expanduser().resolve()
 
     if trace_loading:
-        logger.info(f"Deer-flow skills path: {skills_path}")
+        logger.debug(f"Deer-flow skills path: {skills_path}")
         if skills_path.exists():
             public_skills = skills_path / "public"
             custom_skills = skills_path / "custom"
             if public_skills.exists():
                 public_skill_names = [d.name for d in public_skills.iterdir() if d.is_dir()]
-                logger.info(
+                logger.debug(
                     f"Available public skills: {', '.join(sorted(public_skill_names)[:5])}{'...' if len(public_skill_names) > 5 else ''}"
                 )
             if custom_skills.exists():
                 custom_skill_names = [d.name for d in custom_skills.iterdir() if d.is_dir()]
                 if custom_skill_names:
-                    logger.info(f"Available custom skills: {', '.join(custom_skill_names)}")
+                    logger.debug(f"Available custom skills: {', '.join(custom_skill_names)}")
         else:
             logger.warning(f"Skills directory not found: {skills_path}")
+
+    # Build sandbox configuration from genai-tk config
+    sandbox_provider = OmegaConf.select(config, "deerflow.sandbox.provider", default="local")
+    sandbox_config: dict[str, Any] = {}
+
+    if sandbox_provider == "docker":
+        sandbox_config["use"] = "src.community.aio_sandbox:AioSandboxProvider"
+        # Pass through optional Docker sandbox settings
+        for key in ("image", "port", "auto_start", "container_prefix", "idle_timeout"):
+            value = OmegaConf.select(config, f"deerflow.sandbox.{key}")
+            if value is not None:
+                sandbox_config[key] = value
+        # Ensure Docker container localhost URL is not routed through any HTTP proxy.
+        # The sandbox API runs on localhost:{port}, but if HTTP_PROXY is set without
+        # NO_PROXY, requests will fail because localhost goes through the external proxy.
+        _ensure_no_proxy_for_localhost()
+        logger.info("Sandbox mode: docker (full file I/O, bash, code execution in container)")
+    else:
+        sandbox_config["use"] = "src.sandbox.local:LocalSandboxProvider"
+        logger.debug("Sandbox mode: local (limited file I/O)")
+
+    # When using Docker sandbox, skills in the skills directory may be symlinks
+    # pointing outside the mounted directory (e.g., to the deer-flow source tree).
+    # Docker cannot follow symlinks that point outside a bind-mount.
+    # Solution: also mount the symlink target directories at their original host paths
+    # so the container can resolve them transparently.
+    if sandbox_provider == "docker":
+        backend_path = get_deer_flow_backend_path()
+        deer_flow_skills = Path(backend_path).parent / "skills"
+        if deer_flow_skills.exists() and deer_flow_skills.resolve() != skills_path.resolve():
+            sandbox_config.setdefault("mounts", []).append(
+                {
+                    "host_path": str(deer_flow_skills.resolve()),
+                    "container_path": str(deer_flow_skills.resolve()),
+                    "read_only": True,
+                }
+            )
+            logger.debug(f"Added deer-flow skills symlink-target mount: {deer_flow_skills}")
 
     # Build the config dict
     config = {
@@ -286,7 +329,7 @@ def write_deer_flow_config(
                 "timeout": 10,
             },
         ],
-        "sandbox": {"use": "src.sandbox.local:LocalSandboxProvider"},
+        "sandbox": sandbox_config,
         "skills": {
             "path": str(skills_path),
             "container_path": skills_container_path,
@@ -304,7 +347,7 @@ def write_deer_flow_config(
     with open(config_path, "w") as f:
         yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
-    logger.info(f"Wrote Deer-flow config to {config_path}")
+    logger.debug(f"Wrote Deer-flow config to {config_path}")
     return config_path
 
 
@@ -333,7 +376,7 @@ def write_extensions_config(
     with open(ext_path, "w") as f:
         json.dump(extensions, f, indent=2)
 
-    logger.info(f"Wrote Deer-flow extensions_config to {ext_path}")
+    logger.debug(f"Wrote Deer-flow extensions_config to {ext_path}")
     return ext_path
 
 
@@ -386,7 +429,7 @@ def setup_deer_flow_config(
         config = global_config().root
         trace_loading = OmegaConf.select(config, "deerflow.skills.trace_loading", default=True)
         if trace_loading:
-            logger.info(f"Enabling {len(skills_to_enable)} skills")
+            logger.debug(f"Enabling {len(skills_to_enable)} skills")
 
         skills_state = {}
         for skill_spec in skills_to_enable:
@@ -409,5 +452,5 @@ def setup_deer_flow_config(
     os.environ["DEER_FLOW_CONFIG_PATH"] = str(config_path)
     os.environ["DEER_FLOW_EXTENSIONS_CONFIG_PATH"] = str(ext_path)
 
-    logger.info(f"Deer-flow config ready: {config_path}, {ext_path}")
+    logger.debug(f"Deer-flow config ready: {config_path}, {ext_path}")
     return config_path, ext_path

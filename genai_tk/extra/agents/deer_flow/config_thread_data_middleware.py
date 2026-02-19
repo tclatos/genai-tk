@@ -1,12 +1,14 @@
-"""Config-based Thread Data Middleware - provides workspace paths without runtime.context.
+"""Config-based Thread Data Middleware - provides workspace paths and sandbox initialization.
 
-This middleware replicates deer-flow's ThreadDataMiddleware functionality but works
-in any context by getting thread_id from LangGraph's config instead of runtime.context.
+This middleware replicates deer-flow's ThreadDataMiddleware functionality,
+getting thread_id from ``runtime.context`` (a dict passed to ``agent.astream()``).
 
 Enables Python-based file I/O skills (ppt-generation, chart-visualization, etc.)
-in CLI, Streamlit, FastAPI, or any other LangGraph application.
+and sandbox tools (read_file, write_file, bash, ls) in CLI, Streamlit, FastAPI,
+or any other LangGraph application.
 
-Does NOT enable sandbox-based tools (bash, docker) which require container infrastructure.
+Also pre-initializes the local sandbox so that sandbox-based tools (read_file, write_file,
+bash, ls) work without needing runtime.context for lazy acquisition.
 
 Usage:
     ```python
@@ -33,18 +35,16 @@ from loguru import logger
 
 
 class ConfigThreadDataMiddleware:
-    """Provides workspace paths for file I/O skills without runtime.context dependency.
+    """Provides workspace paths AND sandbox initialization for file I/O tools.
 
-    Unlike deer-flow's native ThreadDataMiddleware, this doesn't require runtime.context.
-    Instead, it gets thread_id from LangGraph's config which is always available in
-    CLI, web UI, API, or any other context.
+    Gets thread_id from ``runtime.context`` (a dict passed via
+    ``agent.astream(inputs, config, context={"thread_id": ...})``).
 
-    Example usage in skills:
-        ```python
-        workspace = state["thread_data"]["workspace_path"]
-        output_file = os.path.join(workspace, "presentation.pptx")
-        prs.save(output_file)
-        ```
+    This middleware does TWO things:
+    1. Sets ``thread_data`` in state with workspace/uploads/outputs paths
+    2. Pre-initializes the local sandbox in state (``sandbox: {"sandbox_id": "local"}``)
+       so that sandbox tools (read_file, write_file, bash, ls) find a ready sandbox
+       and never call ``runtime.context.get("thread_id")`` (which would fail).
 
     Directory structure created:
         {base_dir}/threads/{thread_id}/user-data/
@@ -73,7 +73,7 @@ class ConfigThreadDataMiddleware:
 
         # Create base directory
         self._base_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"ConfigThreadDataMiddleware initialized with base_dir: {self._base_dir}")
+        logger.debug(f"ConfigThreadDataMiddleware initialized with base_dir: {self._base_dir}")
 
     def _get_thread_paths(self, thread_id: str) -> dict[str, str]:
         """Compute paths for a thread's workspace directories.
@@ -111,40 +111,33 @@ class ConfigThreadDataMiddleware:
         return paths
 
     def before_agent(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
-        """Provide workspace paths to the agent before execution.
+        """Provide workspace paths and sandbox initialization to the agent.
 
-        Gets thread_id from LangGraph's config instead of runtime.context.
-        This makes it work in CLI, Streamlit, FastAPI, or any other context.
+        Gets thread_id from runtime.context (populated via ``agent.astream(inputs, config, context=...)``)
+        or falls back to a default.
 
         Args:
             state: Current agent state
-            runtime: LangGraph runtime (context may be None, but config is available)
+            runtime: LangGraph Runtime (context is a dict with thread_id when properly configured)
 
         Returns:
-            Update dict with thread_data paths
+            Update dict with thread_data paths and sandbox state
         """
-        # Try to get thread_id from multiple sources
+        # Try to get thread_id from runtime.context (dict passed to astream/invoke/stream)
         thread_id = None
 
-        # 1. Try LangGraph's configurable (most reliable, works everywhere)
-        if hasattr(runtime, "config") and runtime.config:
-            configurable = runtime.config.get("configurable", {})
-            thread_id = configurable.get("thread_id")
-
-        # 2. Fallback: try runtime.context if available (deer-flow native)
-        if not thread_id and hasattr(runtime, "context") and runtime.context:
+        if hasattr(runtime, "context") and runtime.context:
             try:
                 thread_id = runtime.context.get("thread_id")
             except (AttributeError, TypeError):
                 pass
 
-        # 3. Final fallback: use a default thread_id
+        # Fallback: use a default thread_id
         if not thread_id:
             thread_id = "default"
             logger.warning(
-                f"Could not determine thread_id from runtime, using default: {thread_id}. "
-                "Files from different sessions may mix. "
-                "Ensure thread_id is in runtime.config['configurable']['thread_id']."
+                f"Could not determine thread_id from runtime.context, using '{thread_id}'. "
+                "Ensure context={{'thread_id': ...}} is passed to agent.astream()/invoke()."
             )
 
         # Create or compute paths
@@ -155,8 +148,24 @@ class ConfigThreadDataMiddleware:
             paths = self._create_thread_directories(thread_id)
             logger.debug(f"Created workspace directories for thread {thread_id}")
 
-        # Add to state (compatible with deer-flow's ThreadDataMiddleware)
-        return {"thread_data": paths}
+        # Build state update with thread_data
+        update: dict[str, Any] = {"thread_data": paths}
+
+        # Pre-initialize the local sandbox so tools don't call runtime.context.get("thread_id")
+        # This is the key fix: sandbox tools check state["sandbox"]["sandbox_id"] first,
+        # and only fall back to runtime.context if sandbox is not in state.
+        if "sandbox" not in state or state.get("sandbox") is None:
+            try:
+                from src.sandbox import get_sandbox_provider
+
+                provider = get_sandbox_provider()
+                sandbox_id = provider.acquire(thread_id)
+                update["sandbox"] = {"sandbox_id": sandbox_id}
+                logger.debug(f"Pre-initialized sandbox '{sandbox_id}' for thread {thread_id}")
+            except Exception as e:
+                logger.warning(f"Could not pre-initialize sandbox: {e}. File tools may not work.")
+
+        return update
 
     def get_workspace_dir(self, thread_id: str) -> Path:
         """Get the workspace directory path for a thread.

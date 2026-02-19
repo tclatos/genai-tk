@@ -80,8 +80,11 @@ class LlmInfo(BaseModel):
         id: Unique identifier in format model_id@provider (e.g. gpt_4o@openai)
         provider: name of the provider
         model: Model identifier used by the provider
-        api_key_env_var: API key environment variable name (computed from cls)
-        config: Additional configuration for the provider
+        llm_args: Additional kwargs forwarded to the LLM constructor
+        capabilities: List of capability flags (e.g. 'thinking', 'vision', 'structured_outputs')
+        max_tokens: Maximum output tokens for this model
+        context_window: Maximum input context window size in tokens
+        when_thinking_enabled: Extra kwargs to pass when thinking mode is activated
     """
 
     # an ID for the LLM; should follow Python variables constraints
@@ -89,6 +92,19 @@ class LlmInfo(BaseModel):
     provider: str
     model: str  # Name of the model for the constructor
     llm_args: dict[str, Any] = {}
+    capabilities: list[str] = []
+    max_tokens: int | None = None
+    context_window: int | None = None
+
+    @property
+    def supports_thinking(self) -> bool:
+        """True if the model supports explicit thinking/reasoning mode."""
+        return "thinking" in self.capabilities
+
+    @property
+    def supports_vision(self) -> bool:
+        """True if the model supports image/vision inputs."""
+        return "vision" in self.capabilities
 
     @field_validator("id")
     @classmethod
@@ -168,6 +184,11 @@ def _read_llm_list_file() -> list[LlmInfo]:
             logger.debug(f"Model {model_id} has no providers")
             continue
 
+        # Extract model-level metadata (shared across all providers for this model)
+        capabilities = list(model_entry.get("capabilities", []) or [])
+        max_tokens = model_entry.get("max_tokens", None)
+        context_window = model_entry.get("context_window", None)
+
         for provider_info in providers_list:
             if isinstance(provider_info, (dict, DictConfig)):
                 # provider can be a dict with configuration
@@ -180,6 +201,9 @@ def _read_llm_list_file() -> list[LlmInfo]:
                             "provider": provider,
                             "model": model_name,
                             "llm_args": config,
+                            "capabilities": capabilities,
+                            "max_tokens": max_tokens,
+                            "context_window": context_window,
                         }
                     else:
                         # Simple string configuration
@@ -188,6 +212,9 @@ def _read_llm_list_file() -> list[LlmInfo]:
                             "provider": provider,
                             "model": str(config),
                             "llm_args": {},
+                            "capabilities": capabilities,
+                            "max_tokens": max_tokens,
+                            "context_window": context_window,
                         }
                     llms.append(LlmInfo(**llm_info))
             else:

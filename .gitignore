@@ -167,3 +167,5 @@ knowledge_graphs/
 
 skills/public/*
 
+.deer-flow/threads/*
+

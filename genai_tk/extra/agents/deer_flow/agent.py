@@ -104,8 +104,8 @@ def load_deer_flow_profiles(
 
     from genai_tk.utils.config_mngr import global_config
 
-    logger.info(f"[load_deer_flow_profiles] CWD: {os.getcwd()}")
-    logger.info(
+    logger.debug(f"[load_deer_flow_profiles] CWD: {os.getcwd()}")
+    logger.debug(
         f"[load_deer_flow_profiles] APPLICATION_CONFIG_FILE: {getattr(global_config, 'APPLICATION_CONFIG_FILE', 'N/A')}"
     )
 
@@ -113,7 +113,7 @@ def load_deer_flow_profiles(
         # Use config manager to get the proper path
         config_dir = global_config().get_dir_path("paths.config")
         config_path = str(config_dir / "agents" / "deerflow.yaml")
-    logger.info(f"[load_deer_flow_profiles] Using deerflow config path: {config_path}")
+        logger.debug(f"[load_deer_flow_profiles] Using deerflow config path: {config_path}")
 
     path = Path(config_path)
     if not path.exists():
@@ -153,7 +153,7 @@ def load_deer_flow_profiles(
         )
         profiles.append(profile)
 
-    logger.info(f"Loaded {len(profiles)} Deer-flow profiles from {config_path}")
+    logger.debug(f"Loaded {len(profiles)} Deer-flow profiles from {config_path}")
     return profiles
 
 
@@ -408,8 +408,11 @@ def _create_agent_internal(
     from src.config import get_app_config
     from src.config.app_config import reload_app_config
 
-    # Reload config to pick up our generated files
+    # Reload config to pick up our generated files and reset sandbox provider singleton
     reload_app_config()
+    from src.sandbox.sandbox_provider import reset_sandbox_provider
+
+    reset_sandbox_provider()
 
     # Determine model name
     if model_name is None:
@@ -635,6 +638,9 @@ def create_deer_flow_agent_simple(
     from src.tools import get_available_tools
 
     reload_app_config()
+    from src.sandbox.sandbox_provider import reset_sandbox_provider
+
+    reset_sandbox_provider()
 
     # Get LLM
     if llm is None:
@@ -656,13 +662,12 @@ def create_deer_flow_agent_simple(
     except ImportError as e:
         # Handle missing dependencies gracefully
         error_msg = str(e)
-        logger.warning(f"Some deer-flow tools could not be loaded: {error_msg}")
-
-        if "readabilipy" in error_msg:
-            logger.info("To enable web_fetch tool with jina_ai, install: pip install readabilipy")
+        # Suppress jina_ai warning - already handled by fallback
+        if "jina_ai" not in error_msg:
+            logger.warning(f"Some deer-flow tools could not be loaded: {error_msg}")
 
         # Retry without any tool groups to get at least the basic tools that work
-        logger.info("Retrying with fallback tool loading...")
+        logger.debug("Retrying with fallback tool loading...")
         try:
             # Try to get tools without group filtering - deer-flow will load what it can
             deer_flow_tools = []
@@ -679,18 +684,38 @@ def create_deer_flow_agent_simple(
                         resolved_tool = resolve_variable(tool.use, BaseTool)
                         deer_flow_tools.append(resolved_tool)
                     except ImportError as tool_err:
-                        logger.warning(f"Skipping tool {tool.name} ({tool.group}): {tool_err}")
+                        # Only log non-jina_ai errors
+                        if "jina_ai" not in str(tool_err):
+                            logger.warning(f"Skipping tool {tool.name} ({tool.group}): {tool_err}")
                         continue
 
-            logger.info(f"Loaded {len(deer_flow_tools)} deer-flow tools (some skipped due to missing dependencies)")
+            logger.debug(f"Loaded {len(deer_flow_tools)} deer-flow tools (some skipped due to missing dependencies)")
         except Exception as retry_err:
             logger.error(f"Could not load deer-flow tools: {retry_err}")
             deer_flow_tools = []
 
     all_tools = deer_flow_tools + all_extra_tools
-    logger.info(f"Deer-flow agent tools: {len(deer_flow_tools)} built-in + {len(all_extra_tools)} extra")
 
-    # Build system prompt
+    # Add sandbox tools (bash, read_file, write_file, ls, str_replace)
+    # These require ToolRuntime and are separate from get_available_tools()
+    if thread_data_middleware is not None:
+        try:
+            from src.sandbox.tools import bash_tool, ls_tool, read_file_tool, str_replace_tool, write_file_tool
+
+            sandbox_tools = [bash_tool, read_file_tool, write_file_tool, ls_tool, str_replace_tool]
+            all_tools = all_tools + sandbox_tools
+            logger.debug(f"Added {len(sandbox_tools)} sandbox tools (file I/O enabled)")
+        except ImportError as e:
+            logger.warning(f"Could not load sandbox tools: {e}")
+
+    logger.debug(f"Deer-flow agent tools: {len(deer_flow_tools)} built-in + {len(all_extra_tools)} extra")
+
+    # Log available tool names for debugging
+    if all_tools:
+        tool_names = [getattr(t, "name", str(type(t).__name__)) for t in all_tools]
+        logger.debug(f"Available tools: {', '.join(tool_names)}")
+
+    # Build system prompt with tool awareness
     try:
         from src.agents.lead_agent.prompt import apply_prompt_template
 
@@ -701,16 +726,23 @@ def create_deer_flow_agent_simple(
     except Exception:
         system_prompt = "You are a helpful AI assistant. Use available tools to answer questions."
 
+    # Add tool list to system prompt to prevent hallucination
+    if all_tools:
+        tool_names = [getattr(t, "name", str(type(t).__name__)) for t in all_tools]
+        tools_list = ", ".join(tool_names)
+        system_prompt += f"\n\nIMPORTANT: You have access to the following tools: {tools_list}"
+        system_prompt += (
+            "\nOnly use tools that are explicitly listed above. Do not assume you have tools that are not listed."
+        )
+
     if profile.system_prompt:
         system_prompt = system_prompt + "\n\n" + profile.system_prompt
 
-    # Build middleware list with deer-flow's standard middleware chain
-    # This includes important middlewares like ClarificationMiddleware, SandboxMiddleware, etc.
+    # Build deer-flow middleware chain (ClarificationMiddleware, SandboxMiddleware, etc.)
     middlewares = []
     try:
         from src.agents.lead_agent.agent import _build_middlewares
 
-        # Build config for middleware initialization
         middleware_config = {
             "configurable": {
                 "thinking_enabled": profile.thinking_enabled,
@@ -720,21 +752,15 @@ def create_deer_flow_agent_simple(
             }
         }
         middlewares = _build_middlewares(middleware_config)
-        logger.info(f"Built {len(middlewares)} middlewares for deer-flow agent")
+        logger.debug(f"Built {len(middlewares)} middlewares for deer-flow agent")
 
-        # Remove middlewares that require deer-flow's full runtime infrastructure
-        # These middlewares expect runtime.context.get("thread_id") which isn't available
-        # when calling the agent through create_agent() without deer-flow's native runtime
-        # NOTE: This applies to BOTH interactive and non-interactive modes since we're
-        # using a simplified agent creation path that bypasses deer-flow's runtime setup
+        # Remove middlewares that need deer-flow's full runtime (replaced by ConfigThreadDataMiddleware)
         from src.agents.middlewares.clarification_middleware import ClarificationMiddleware
         from src.agents.middlewares.memory_middleware import MemoryMiddleware
         from src.agents.middlewares.thread_data_middleware import ThreadDataMiddleware
         from src.agents.middlewares.title_middleware import TitleMiddleware
         from src.agents.middlewares.uploads_middleware import UploadsMiddleware
 
-        # Only remove ClarificationMiddleware in non-interactive mode
-        # (other middlewares must be removed in both modes due to runtime.context requirement)
         middlewares_to_remove = [
             ThreadDataMiddleware,
             UploadsMiddleware,
@@ -750,7 +776,7 @@ def create_deer_flow_agent_simple(
         if len(middlewares) < original_count:
             removed = original_count - len(middlewares)
             removed_names = [cls.__name__ for cls in middlewares_to_remove]
-            logger.info(
+            logger.debug(
                 f"Removed {removed} middleware(s) requiring runtime context: {', '.join(removed_names)} "
                 f"({original_count} -> {len(middlewares)} middlewares remaining)"
             )
@@ -758,16 +784,67 @@ def create_deer_flow_agent_simple(
         logger.warning(f"Could not build deer-flow middlewares: {e}. Using minimal middleware chain.")
         middlewares = []
 
-    # Add trace middleware if provided (for Streamlit)
+    from langchain.agents import AgentState
+    from langchain.agents.middleware import AgentMiddleware
+    from langgraph.runtime import Runtime
+
+    # Add Rich trace middleware if provided
     if trace_middleware is not None:
-        middlewares.insert(0, trace_middleware)
+        from genai_tk.extra.agents.deer_flow.rich_middleware import DeerFlowRichTraceMiddleware
 
-    # Add thread_data middleware if provided (enables file I/O without runtime.context)
+        # If it's our Rich middleware, insert at the beginning for message display
+        if isinstance(trace_middleware, DeerFlowRichTraceMiddleware):
+            # Convert to deer-flow middleware wrapper
+            class RichMiddlewareWrapper(AgentMiddleware[AgentState]):
+                """Wrapper to adapt Rich middleware to deer-flow's middleware interface."""
+
+                def __init__(self, rich_middleware: DeerFlowRichTraceMiddleware):
+                    super().__init__()
+                    self._rich = rich_middleware
+
+                def before_agent(self, state: AgentState, runtime: Runtime) -> dict | None:
+                    self._rich.before_agent(state)
+                    return None
+
+                def before_model(self, state: AgentState, runtime: Runtime) -> dict | None:
+                    self._rich.before_model(state)
+                    return None
+
+                def after_model(self, state: AgentState, runtime: Runtime) -> dict | None:
+                    self._rich.after_model(state)
+                    return None
+
+                def after_tools(self, state: AgentState, runtime: Runtime) -> dict | None:
+                    self._rich.after_tools(state)
+                    return None
+
+            middlewares.insert(0, RichMiddlewareWrapper(trace_middleware))
+            logger.debug("Added RichTraceMiddleware for message display")
+        else:
+            # Other trace middleware (e.g., Streamlit)
+            middlewares.insert(0, trace_middleware)
+
+    # Add thread_data middleware (provides workspace paths + sandbox initialization)
     if thread_data_middleware is not None:
-        middlewares.append(thread_data_middleware)
-        logger.info("Added ConfigThreadDataMiddleware for file I/O support")
+        from genai_tk.extra.agents.deer_flow.config_thread_data_middleware import ConfigThreadDataMiddleware
 
-    # Import ThreadState for proper state schema
+        if isinstance(thread_data_middleware, ConfigThreadDataMiddleware):
+
+            class ThreadDataMiddlewareWrapper(AgentMiddleware[AgentState]):
+                """Wraps ConfigThreadDataMiddleware for deer-flow's middleware system."""
+
+                def __init__(self, inner: ConfigThreadDataMiddleware) -> None:
+                    super().__init__()
+                    self._inner = inner
+
+                def before_agent(self, state: AgentState, runtime: Runtime) -> dict | None:
+                    return self._inner.before_agent(state, runtime)
+
+            middlewares.append(ThreadDataMiddlewareWrapper(thread_data_middleware))
+        else:
+            middlewares.append(thread_data_middleware)
+        logger.debug("Added ConfigThreadDataMiddleware for file I/O support")
+
     try:
         from src.agents.thread_state import ThreadState
 
@@ -784,6 +861,7 @@ def create_deer_flow_agent_simple(
         checkpointer=checkpointer,
         middleware=middlewares,
         state_schema=state_schema,
+        context_schema=dict,
     )
 
     return agent
@@ -816,20 +894,26 @@ async def run_deer_flow_agent(
         ...     print(f"Processing: {node}")
         >>> response = await run_deer_flow_agent(agent, "Hello", "thread-1", on_node=node_handler)
     """
+    import warnings
+
     from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+    # Suppress Pydantic serialization warning for context dict
+    # (context_schema=dict triggers a harmless serializer warning)
+    warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
 
     logger.debug(f"Starting deer-flow agent execution for thread {thread_id}")
     logger.debug(f"User input: {user_input[:100]}...")
 
     config = {"configurable": {"thread_id": thread_id}}
+    context = {"thread_id": thread_id}
     inputs = {"messages": [HumanMessage(content=user_input)]}
     response_content = ""
     final_response = None
     step_count = 0
 
-    async for step in agent.astream(inputs, config):
+    async for step in agent.astream(inputs, config, context=context):
         step_count += 1
-        logger.debug(f"Step {step_count}: {type(step)}")
 
         # Handle tuple steps
         if isinstance(step, tuple):
@@ -837,7 +921,8 @@ async def run_deer_flow_agent(
 
         if isinstance(step, dict):
             for node, update in step.items():
-                logger.debug(f"Node: {node}, Update keys: {update.keys() if isinstance(update, dict) else 'N/A'}")
+                # Only log nodes and keys at DEBUG level
+                logger.debug(f"Node: {node}")
 
                 # Notify caller of node transition
                 if on_node:
@@ -849,34 +934,34 @@ async def run_deer_flow_agent(
 
                 if "messages" in update and update["messages"]:
                     latest = update["messages"][-1]
-                    logger.debug(f"Latest message type: {type(latest).__name__}")
 
                     if isinstance(latest, AIMessage):
                         if latest.content:
                             response_content = latest.content
                             final_response = latest
-                            logger.debug(f"AI response: {str(latest.content)[:100]}...")
 
                             # Notify caller of new content
                             if on_content:
                                 on_content(node, str(latest.content))
 
-                        # Log tool calls if present
-                        if hasattr(latest, "tool_calls") and latest.tool_calls:
-                            tool_names = [tc.get("name", "unknown") for tc in latest.tool_calls]
-                            logger.info(f"Agent calling tools: {', '.join(tool_names)}")
+                        # Tool calls are handled by Rich middleware - no need to log here
 
                     elif isinstance(latest, ToolMessage):
                         tool_name = getattr(latest, "name", "unknown")
-                        logger.debug(f"Tool '{tool_name}' response: {str(latest.content)[:100]}...")
+                        logger.debug(f"Tool '{tool_name}' completed")
+                        # Capture tool result as fallback response (e.g., present_file output)
+                        if latest.content and not response_content:
+                            response_content = str(latest.content)
 
-    logger.info(f"Deer-flow agent completed after {step_count} steps")
+    logger.debug(f"Deer-flow agent completed after {step_count} steps")
 
-    # Return final content
+    # Return final content, stripping any reasoning/thinking sections
+    from genai_tk.extra.agents.deer_flow.rich_middleware import _clean_ai_content
+
     if final_response and final_response.content:
-        return str(final_response.content)
+        return _clean_ai_content(str(final_response.content))
     elif response_content:
-        return response_content
+        return _clean_ai_content(response_content)
     else:
         logger.warning("No response generated by agent")
         return "I couldn't generate a response. Please try again."
