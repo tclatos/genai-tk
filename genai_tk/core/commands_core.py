@@ -253,6 +253,104 @@ class CoreCommands(CliTopCommand):
 
             console.print(table)
 
+        @cli_app.command(name="mcp-call")
+        def mcp_call(
+            server: Annotated[str, typer.Argument(help="MCP server name from config (mcpServers)")],
+            server_args: Annotated[
+                list[str] | None,
+                typer.Argument(
+                    help="Extra args appended to the server command args (e.g. an extra path for the MCP server)"
+                ),
+            ] = None,
+            tool: Annotated[Optional[str], typer.Option("--tool", "-t", help="Tool name to call")] = None,
+            tool_args: Annotated[
+                Optional[str],
+                typer.Option("--tool-args", help='JSON dict of arguments for the tool, e.g. \'{"path": "/tmp"}\''),
+            ] = None,
+        ) -> None:
+            """Connect to an MCP server and list its tools, or call a specific tool.
+
+            When called without ``--tool``, connects to the server and prints a table of
+            all available tools with their descriptions.  With ``--tool``, calls that
+            tool with the optional ``--tool-args`` JSON payload and prints the result.
+
+            If ``server_args`` are provided they are *appended* to the ``args``
+            list in the server config – useful to add extra allowed paths to the
+            MCP server.
+
+            Examples:
+                cli core mcp-call filesystem
+                cli core mcp-call filesystem /home/tcl/prj
+                cli core mcp-call filesystem /home/tcl/prj --tool list_directory --tool-args '{"path": "."}'
+                cli core mcp-call tavily-mcp --tool tavily-search --tool-args '{"query": "LangChain news"}'
+            """
+            import asyncio
+            import json
+
+            from rich.console import Console
+            from rich.table import Table
+
+            console = Console()
+
+            async def _run() -> None:
+                from mcp import ClientSession, StdioServerParameters
+                from mcp.client.stdio import stdio_client
+
+                from genai_tk.core.mcp_client import get_mcp_servers_dict
+
+                try:
+                    servers = get_mcp_servers_dict(filter=[server])
+                except ValueError as exc:
+                    console.print(f"[red]{exc}[/red]")
+                    raise typer.Exit(1) from exc
+
+                server_params_dict = servers[server]
+
+                if server_args:
+                    server_params_dict = dict(server_params_dict)
+                    server_params_dict["args"] = list(server_params_dict.get("args", [])) + list(server_args)
+
+                params = StdioServerParameters(**server_params_dict)
+
+                async with stdio_client(params) as (read, write):
+                    async with ClientSession(read, write) as session:
+                        await session.initialize()
+
+                        if tool is None:
+                            tools_response = await session.list_tools()
+                            tbl = Table(
+                                title=f"Tools – [bold cyan]{server}[/bold cyan]",
+                                show_header=True,
+                                header_style="bold magenta",
+                            )
+                            tbl.add_column("Tool", style="cyan", no_wrap=True)
+                            tbl.add_column("Description")
+                            for t in tools_response.tools:
+                                tbl.add_row(t.name, t.description or "")
+                            console.print(tbl)
+                        else:
+                            kwargs: dict = {}
+                            if tool_args:
+                                try:
+                                    kwargs = json.loads(tool_args)
+                                except json.JSONDecodeError as exc:
+                                    console.print(f"[red]--tool-args is not valid JSON: {exc}[/red]")
+                                    raise typer.Exit(1) from exc
+
+                            console.print(
+                                f"Calling [bold cyan]{server}[/bold cyan] → [bold yellow]{tool}[/bold yellow]"
+                                + (f" with {kwargs}" if kwargs else "")
+                                + " …"
+                            )
+                            result = await session.call_tool(tool, kwargs)
+                            for content in result.content:
+                                if hasattr(content, "text"):
+                                    console.print(content.text)  # pyright: ignore[reportAttributeAccessIssue]
+                                else:
+                                    console.print(content)
+
+            asyncio.run(_run())
+
         @cli_app.command()
         def similarity(
             sentences: Annotated[list[str], typer.Argument(help="List of sentences to compare (first is reference)")],

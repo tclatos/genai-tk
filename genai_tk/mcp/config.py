@@ -116,7 +116,7 @@ def load_mcp_server_definitions(config_path: Path | str | None = None) -> list[M
 
     # Merge with global config so ${paths.project} etc. resolve
     try:
-        merged = OmegaConf.merge(global_config().cfg, raw_cfg)
+        merged = OmegaConf.merge(global_config().root, raw_cfg)
     except Exception as e:
         logger.warning(f"Could not merge with global config for interpolation: {e}")
         merged = raw_cfg

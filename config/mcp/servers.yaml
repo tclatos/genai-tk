@@ -54,13 +54,13 @@ mcp_expose_servers:
   # No agent wrapper – raw tool only.
   # ──────────────────────────────────────────────────────────────────────────
   - name: "chinook"
-    description: "Natural-language SQL queries over the Chinook music database"
+    description: "Natural-language SQL queries over the Chinook music datastore database"
     tools:
       - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_tool_from_config
         config:
-          database_uri: "sqlite:///${paths.project}/tests/data/Chinook.db"
+          database_uri: "sqlite:///${paths.project}/../genai-tk/tests/data/Chinook.sqlite"
           tool_name: "query_chinook"
-          tool_description: "Query the Chinook music database for artists, albums, tracks, customers and invoices"
+          tool_description: "Query the Chinook digital media store database, including tables for artists, albums, tracks, customers and invoices"
           examples:
             - input: "List all artists"
               query: "SELECT * FROM Artist LIMIT 10;"
@@ -73,6 +73,7 @@ mcp_expose_servers:
   # Research deep-agent server
   # Exposes the Research DeepAgent profile directly as an MCP tool.
   # The agent handles planning, file-system access and web search internally.
+  # !!!!UNTESTED !!!!!  
   # ──────────────────────────────────────────────────────────────────────────
   - name: "research-agent"
     description: "Research deep-agent exposed as a single MCP tool"

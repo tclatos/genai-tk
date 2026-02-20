@@ -796,6 +796,17 @@ class AgentCommands(CliTopCommand):
                     help="Enable verbose logging (DEBUG level) for detailed tracing",
                 ),
             ] = False,
+            web: Annotated[
+                bool,
+                typer.Option(
+                    "--web",
+                    help=(
+                        "Start the native deer-flow Next.js web client. "
+                        "Launches pnpm dev in DEER_FLOW_PATH/frontend with the profile's backend URLs "
+                        "and opens the browser. Requires DEER_FLOW_PATH."
+                    ),
+                ),
+            ] = False,
         ) -> None:
             """Run Deer-flow agents with advanced reasoning capabilities.
 
@@ -841,10 +852,14 @@ class AgentCommands(CliTopCommand):
 
                 # Read from stdin
                 echo "What is RAG?" | cli agents deerflow -p "Research Assistant"
+
+                # Open native web client
+                cli agents deerflow -p "Research Assistant" --web
             """
             from genai_tk.extra.agents.deer_flow.cli_commands import (
                 _get_default_profile_name,
                 _list_profiles,
+                _open_web_client,
                 _run_chat_mode,
                 _run_single_shot,
             )
@@ -873,6 +888,29 @@ class AgentCommands(CliTopCommand):
                 else:
                     print("❌ Error: --profile/-p is required (or use --list to see available profiles)")
                     raise typer.Exit(1)
+
+            # Handle --web: start Next.js frontend and open browser
+            if web:
+                try:
+                    asyncio.run(
+                        _open_web_client(
+                            profile_name=profile,
+                            llm_override=llm,
+                            extra_mcp=list(mcp),
+                            mode_override=mode,
+                            verbose=verbose,
+                        )
+                    )
+                except KeyboardInterrupt:
+                    print("\n⚠️  Web client stopped")
+                    raise typer.Exit(0) from None
+                except typer.Exit:
+                    raise
+                except Exception as e:
+                    print(f"\n❌ Error: {e}")
+                    logger.exception("Deer-flow web client error")
+                    raise typer.Exit(1) from e
+                return
 
             # Get input from stdin if not provided
             if not input_text and not chat:

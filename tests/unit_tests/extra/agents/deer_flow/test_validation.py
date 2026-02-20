@@ -1,9 +1,9 @@
-"""Tests for Deer-flow validation functions."""
+"""Tests for Deer-flow profile validation functions."""
 
 import pytest
 
-from genai_tk.extra.agents.deer_flow.agent import (
-    DeerFlowAgentConfig,
+from genai_tk.extra.agents.deer_flow.profile import (
+    DeerFlowProfile,
     InvalidModeError,
     MCPServerNotFoundError,
     ProfileNotFoundError,
@@ -18,8 +18,8 @@ from genai_tk.extra.agents.deer_flow.agent import (
 def test_get_available_profile_names():
     """Test getting profile names from list."""
     profiles = [
-        DeerFlowAgentConfig(name="Profile 1", description="Test 1"),
-        DeerFlowAgentConfig(name="Profile 2", description="Test 2"),
+        DeerFlowProfile(name="Profile 1", description="Test 1"),
+        DeerFlowProfile(name="Profile 2", description="Test 2"),
     ]
     names = get_available_profile_names(profiles)
     assert names == ["Profile 1", "Profile 2"]
@@ -34,8 +34,8 @@ def test_get_available_modes():
 def test_validate_profile_name_success():
     """Test successful profile validation."""
     profiles = [
-        DeerFlowAgentConfig(name="Research Assistant", description="Researcher"),
-        DeerFlowAgentConfig(name="Coder", description="Coding helper"),
+        DeerFlowProfile(name="Research Assistant", description="Researcher"),
+        DeerFlowProfile(name="Coder", description="Coding helper"),
     ]
 
     # Exact match
@@ -50,8 +50,8 @@ def test_validate_profile_name_success():
 def test_validate_profile_name_not_found():
     """Test profile validation with invalid name."""
     profiles = [
-        DeerFlowAgentConfig(name="Research Assistant", description="Researcher"),
-        DeerFlowAgentConfig(name="Coder", description="Coding helper"),
+        DeerFlowProfile(name="Research Assistant", description="Researcher"),
+        DeerFlowProfile(name="Coder", description="Coding helper"),
     ]
 
     with pytest.raises(ProfileNotFoundError) as exc_info:

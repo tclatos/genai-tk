@@ -11,17 +11,14 @@ This document describes the skills management system implemented for deer-flow a
 
 ## Directory Structure
 
-Both `genai-tk` and `genai-blueprint` now have identical skill directory structures:
+Both `genai-tk` and `genai-blueprint` have the same skill directory structure:
 
 ```
 project-root/
 ├── skills/
 │   ├── public/       # Symlinks to deer-flow public skills
-│   │   ├── chart-visualization -> /home/tcl/ext_prj/deer-flow/skills/public/chart-visualization
-│   │   ├── data-analysis -> /home/tcl/ext_prj/deer-flow/skills/public/data-analysis
-│   │   ├── deep-research -> /home/tcl/ext_prj/deer-flow/skills/public/deep-research
-│   │   ├── github-deep-research -> ...
-│   │   ├── skill-creator -> ...
+│   │   ├── chart-visualization -> $DEER_FLOW_PATH/skills/public/chart-visualization
+│   │   ├── data-analysis       -> $DEER_FLOW_PATH/skills/public/data-analysis
 │   │   └── ... (15 total public skills)
 │   └── custom/       # Your custom skills
 │       └── README.md # Guide for creating custom skills
@@ -31,14 +28,15 @@ project-root/
 
 ### Configuration Files
 
-**genai-tk: `config/basic/agents/deerflow_config.yaml`**
-**genai-blueprint: `config/agents/deerflow_config.yaml`**
+**genai-tk: `config/basic/agents/deerflow.yaml`**
+**genai-blueprint: `config/agents/deerflow.yaml`**
 
 ```yaml
 deerflow:
   skills:
-    # Path to skills directory (absolute or relative to project root)
-    path: ${paths.project}/skills
+    # Directories to discover skills from (absolute or relative to project root)
+    directories:
+      - ${paths.project}/skills
     
     # Container mount path (for Docker sandbox)
     container_path: /mnt/skills
@@ -54,17 +52,14 @@ These config files are automatically merged into `app_conf.yaml`.
 
 ### Skills Path Resolution
 
-The system resolves skills paths in this order:
-1. `deerflow.skills.path` from configuration
-2. Expands `~` and environment variables
-3. Resolves to absolute path
-4. Falls back to `${project_root}/skills` if not configured
+The system reads `deerflow.skills.directories` from configuration,
+expands `~` and OmegaConf interpolations, and falls back to `${paths.project}/skills` if not set.
 
 ## Available Skills
 
 ### Public Skills (from deer-flow)
 
-All symlinked from `/home/tcl/ext_prj/deer-flow/skills/public/`:
+All symlinked from `$DEER_FLOW_PATH/skills/public/` (set `DEER_FLOW_PATH` to your deer-flow clone):
 
 - **chart-visualization** - Create charts and visualizations  
 - **consulting-analysis** - Business consulting workflows
@@ -129,16 +124,16 @@ See `skills/custom/README.md` for detailed instructions.
 When creating an agent, you'll see logs like:
 
 ```
-INFO - Deer-flow skills path: /home/tcl/prj/genai-tk/skills
+INFO - Deer-flow skills directories: /path/to/project/skills
 INFO - Available public skills (15): chart-visualization, consulting-analysis, data-analysis, deep-research, find-skills...
 INFO - Available custom skills: my-skill
 INFO - Enabling skills: deep-research, data-analysis, chart-visualization
-INFO - Wrote Deer-flow config to /home/tcl/ext_prj/deer-flow/config.yaml
+INFO - Wrote Deer-flow config to $DEER_FLOW_PATH/backend/config.yaml
 ```
 
 ### Controlling Tracing
 
-Set `trace_loading: false` in `deerflow_config.yaml` to disable skill loading logs.
+Set `trace_loading: false` in `deerflow.yaml` to disable skill loading logs.
 
 ## Profile Configuration
 
@@ -172,73 +167,48 @@ deerflow_agents:
 - `custom/skill-name` → `custom/skill-name` (custom skills)
 - `category/skill-name` → `category/skill-name` (any category)
 
+> **Server-side filtering:** When skill directories are scanned, the CLI fetches
+> the list of skills actually registered on the running server.  Any local skill
+> name not present on the server is silently skipped (logged at DEBUG level).
+> This prevents 404 warnings when local symlinks and server skills differ by name.
+
 ## Technical Implementation
 
 ### File Locations
 
 **genai-tk:**
-- Configuration: `config/basic/agents/deerflow_config.yaml`
-- Skills directory: `skills/` (created by setup)
+- Configuration: `config/basic/agents/deerflow.yaml`
+- Skills directory: `skills/`
 - Config bridge: `genai_tk/extra/agents/deer_flow/config_bridge.py`
-- Agent creation: `genai_tk/extra/agents/deer_flow/agent.py`
+- CLI commands: `genai_tk/extra/agents/deer_flow/cli_commands.py`
 
 **genai-blueprint:**
-- Configuration: `config/agents/deerflow_config.yaml`
-- Skills directory: `skills/` (created by setup)
+- Configuration: `config/agents/deerflow.yaml`
+- Skills directory: `skills/`
 - Streamlit UI: `genai_blueprint/webapp/pages/demos/deer_flow_agent.py`
 
 ### Key Changes
 
 **1. Config Bridge (`config_bridge.py`)**
 
-```python
-# Reads skills configuration from OmegaConf
-config = global_config().root
-skills_path = OmegaConf.select(config, "deerflow.skills.path", default=str(Path.cwd() / "skills"))
-trace_loading = OmegaConf.select(config, "deerflow.skills.trace_loading", default=True)
-
-# Logs available skills
-if trace_loading:
-    logger.info(f"Deer-flow skills path: {skills_path}")
-    # Lists public and custom skills found
-
-# Writes config with skills path
-config = {
-    "skills": {
-        "path": str(skills_path),
-        "container_path": skills_container_path,
-    },
-    # ... other config
-}
-
-# Enables specific skills in extensions_config.json
-extensions_config["skills_state"] = {
-    "public": {
-        "deep-research": True,
-        "data-analysis": True,
-    },
-    "custom": {
-        "my-skill": True,
-    }
-}
-```
+`setup_deer_flow_config()` reads `deerflow.skills.directories`, discovers skills under `public/` and `custom/` sub-directories, then writes both `config.yaml` and `extensions_config.json` into the deer-flow backend directory.
 
 **2. Skills Configuration Merging**
 
-`app_conf.yaml` now includes:
+`app_conf.yaml` includes:
 ```yaml
 :merge:
-  - ${paths.config}/agents/deerflow_config.yaml
+  - ${paths.config}/agents/deerflow.yaml
 ```
 
 This makes `deerflow.skills.*` available throughout the application.
 
 **3. Symbolic Links**
 
-Created automatically during setup:
+Create them once:
 ```bash
-cd genai-tk/skills/public
-ln -sf /home/tcl/ext_prj/deer-flow/skills/public/* .
+cd skills/public
+ln -sf $DEER_FLOW_PATH/skills/public/* .
 ```
 
 This gives access to all deer-flow skills without copying files.
@@ -260,39 +230,6 @@ uv run cli agents deerflow -p "Visual Explainer" --chat
 # Then: "I want to create a skill for analyzing Python code"
 ```
 
-### Python API Usage
-
-```python
-from genai_tk.extra.agents.deer_flow import (
-    load_deer_flow_profiles,
-    create_deer_flow_agent_simple,
-)
-from genai_tk.core import get_llm
-
-# Load profiles (includes skills configuration)
-profiles = load_deer_flow_profiles()
-
-# Find a profile
-research_profile = next(p for p in profiles if p.name == "Research Assistant")
-
-# Check configured skills
-print(f"Skills: {research_profile.skills}")
-# Output: Skills: ['deep-research', 'data-analysis', 'chart-visualization']
-
-# Create agent (skills are automatically enabled)
-llm = get_llm()
-agent = create_deer_flow_agent_simple(
-    profile=research_profile,
-    llm=llm,
-)
-
-# Use the agent
-response = await agent.ainvoke(
-    {"messages": [HumanMessage(content="Research quantum computing")]},
-    config={"configurable": {"thread_id": "123"}}
-)
-```
-
 ## Testing
 
 ### Verify Skills Setup
@@ -310,7 +247,7 @@ uv run python -c "
 from genai_tk.utils.config_mngr import global_config
 from omegaconf import OmegaConf
 config = global_config().root
-print('Skills path:', OmegaConf.select(config, 'deerflow.skills.path'))
+print('Skills directories:', OmegaConf.select(config, 'deerflow.skills.directories'))
 print('Trace loading:', OmegaConf.select(config, 'deerflow.skills.trace_loading'))
 "
 ```
@@ -322,7 +259,6 @@ print('Trace loading:', OmegaConf.select(config, 'deerflow.skills.trace_loading'
 uv run cli agents deerflow -p "Research Assistant" "hello" 2>&1 | grep -E "(skills|Enabling|Available)"
 
 # Expected output:
-# INFO - Deer-flow skills path: /home/tcl/prj/genai-tk/skills
 # INFO - Available public skills (15): chart-visualization, consulting-analysis, data-analysis...
 # INFO - Enabling skills: deep-research, data-analysis, chart-visualization
 ```
@@ -366,7 +302,7 @@ uv run cli agents deerflow -p "Research Assistant" "hello" 2>&1 | grep -E "(skil
 **Solution:**
 - Check `skills/` directory exists in project root
 - Verify symbolic links: `ls -la skills/public/`
-- Check configuration: `deerflow.skills.path` in config
+- Check `deerflow.skills.directories` in `deerflow.yaml`
 
 ### Skills Not Loading
 
@@ -389,7 +325,7 @@ cd skills/public
 find . -type l ! -exec test -e {} \; -delete
 
 # Recreate links
-ln -sf /home/tcl/ext_prj/deer-flow/skills/public/* .
+ln -sf $DEER_FLOW_PATH/skills/public/* .
 ```
 
 ### Skill Not Being Used
@@ -411,15 +347,6 @@ ln -sf /home/tcl/ext_prj/deer-flow/skills/public/* .
 5. **Use trace_loading** - Keep enabled during development to see what's happening
 6. **Organize custom skills** - Use clear, descriptive names
 
-## Future Enhancements
-
-Potential improvements:
-- **Skill validation** - Check SKILL.md format before loading
-- **Skill search** - CLI command to search for skills by description
-- **Skill templates** - Pre-made templates for common skill patterns
-- **Skill dependencies** - Skills that depend on other skills
-- **Skill versioning** - Track skill versions and updates
-
 ## References
 
 - [Deer-flow Documentation](https://github.com/bytedance/deer-flow)
@@ -431,11 +358,9 @@ Potential improvements:
 
 The skills management system provides:
 
-✅ **Configurable skill directories** - Skills in your project, not just deer-flow  
-✅ **Symbolic links to deer-flow skills** - All 15 public skills available
-✅ **Custom skill support** - Create your own skills easily  
-✅ **Skill loading tracing** - Clear logs showing what's available and enabled
-✅ **Per-profile configuration** - Different skills for different use cases
-✅ **skill-creator integration** - Agent can guide you through skill creation
-
-Skills are now properly integrated, traced, and ready to use! 🎉
+- **Configurable skill directories** — skills in your project, not just deer-flow
+- **Symbolic links to deer-flow skills** — all public skills available via `$DEER_FLOW_PATH`
+- **Custom skill support** — create your own skills in `skills/custom/`
+- **Skill loading tracing** — clear logs showing what is available and enabled
+- **Per-profile configuration** — different skills for different use cases
+- **Server-side filtering** — local skills absent from the server are silently skipped

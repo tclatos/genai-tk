@@ -48,6 +48,7 @@ dependencies = [
     "deepagents>=0.4",                                         # Deep agents with planning, subagents, skills
     "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
+    "httpx>=0.28.0",                                           # Async HTTP client (Deer-flow API)
     # ============================================
     # Vector Stores & Embeddings
     # ============================================
@@ -63,8 +64,8 @@ dependencies = [
     # ============================================
     # NLP & Text Processing
     # ============================================
-    "tokenizers>=0.21.0",                                                                                                                     # Hugging Face tokenizers (for chonkie)
-    "spacy>=3.7.4",                                                                                                                           # Industrial-strength NLP library
+    "tokenizers>=0.21.0",                                                                                                                     #                                                                                                                    # Hugging Face tokenizers (for chonkie)
+    "spacy>=3.7.4",                                                                                                                           # Powerful NLP library                                                                                                                          # Industrial-strength NLP library
     "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", # Small English model
     "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl", # Large English model with word vectors
     "abbreviations>=0.2.5",                                                                                                                   # Abbreviation detection and expansion
@@ -72,7 +73,6 @@ dependencies = [
     # ============================================
     # Search & Retrieval
     # ============================================
-    "rank-bm25>=0.2.2",      # BM25 ranking algorithm implementation
     "bm25s>=0.2.13",         # Fast BM25 search with NumPy
     "fuzzysearch>=0.8.0",    # Autonomous web research agent
     "tavily-python>=0.7.12", # Tavily search API client
@@ -83,11 +83,11 @@ dependencies = [
     # ============================================
     "markitdown[pdf, docx, pptx]>=0.1.3", # Convert documents to markdown
     "openpyxl>=3.1.5",                    # Excel file reading and writing
+    "chonkie>=1.5.2",                     # Text chunking and splitting library 
     # ============================================
     # Workflow Orchestration
     # ============================================
     "prefect>=3.6.7", # Modern workflow orchestration
-    "chonkie>=1.5.2",
     "jinaai>=0.2.10",
 ]
 

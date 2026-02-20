@@ -1,49 +1,57 @@
-"""Deer-flow integration for GenAI Toolkit.
+"""Deer-flow integration for GenAI Toolkit (HTTP client mode).
 
-This package provides a bridge between GenAI Toolkit and ByteDance's Deer-flow
-agent system, enabling Deer-flow's advanced agent capabilities (subagents, sandboxing,
-memory, skills) within the GenAI Toolkit ecosystem.
+Connects to a running Deer-flow server via its HTTP API.
+No in-process import of deer-flow is required.
 
 Architecture:
-    - config_bridge: Generates Deer-flow config from GenAI Toolkit YAML configs
-    - agent: Wrapper to create and run Deer-flow agents with GenAI Toolkit tools
-    - cli_commands: CLI interface for running Deer-flow agents
-    - The Streamlit UI lives in genai-blueprint/webapp/pages/demos/deer_flow_agent.py
+    - profile:        DeerFlowProfile Pydantic model, profile loading
+    - client:         Async HTTP client (LangGraph + Gateway APIs)
+    - server_manager: Auto-start / stop of Deer-flow subprocesses
+    - config_bridge:  Generate deer-flow config.yaml and extensions_config.json
+    - cli_commands:   CLI interface (``cli deerflow``)
+    - Streamlit UI:   genai-blueprint/webapp/pages/demos/deer_flow_agent.py
 
-Setup:
-    1. make deer-flow-install   (clones deer-flow + installs deps)
-    2. Or manually: git clone https://github.com/bytedance/deer-flow ext/deer-flow
-       then: uv sync --group deerflow
+Quickstart:
+    1. Set DEER_FLOW_PATH=/path/to/deer-flow
+    2. ``cli deerflow --list``
+    3. ``cli deerflow -p "Research Assistant" --chat``
 """
 
-from genai_tk.extra.agents.deer_flow._path_setup import get_deer_flow_backend_path, setup_deer_flow_path
-from genai_tk.extra.agents.deer_flow.agent import (
-    DeerFlowAgentConfig,
+from genai_tk.extra.agents.deer_flow.client import DeerFlowClient, ErrorEvent, NodeEvent, TokenEvent
+from genai_tk.extra.agents.deer_flow.config_bridge import setup_deer_flow_config
+from genai_tk.extra.agents.deer_flow.profile import (
     DeerFlowError,
+    DeerFlowProfile,
     InvalidModeError,
     MCPServerNotFoundError,
     ProfileNotFoundError,
-    create_deer_flow_agent_simple,
+    get_available_modes,
+    get_available_profile_names,
     load_deer_flow_profiles,
-    validate_llm_identifier,
     validate_mcp_servers,
     validate_mode,
     validate_profile_name,
 )
+from genai_tk.extra.agents.deer_flow.server_manager import DeerFlowServerManager
 
 __all__ = [
-    # Path setup
-    "get_deer_flow_backend_path",
-    "setup_deer_flow_path",
-    # Agent creation
-    "DeerFlowAgentConfig",
+    # Profile
+    "DeerFlowProfile",
     "load_deer_flow_profiles",
-    "create_deer_flow_agent_simple",
-    # Validation functions
+    "get_available_modes",
+    "get_available_profile_names",
     "validate_profile_name",
     "validate_mode",
     "validate_mcp_servers",
-    "validate_llm_identifier",
+    # HTTP client
+    "DeerFlowClient",
+    "TokenEvent",
+    "NodeEvent",
+    "ErrorEvent",
+    # Server lifecycle
+    "DeerFlowServerManager",
+    # Config generation
+    "setup_deer_flow_config",
     # Exceptions
     "DeerFlowError",
     "ProfileNotFoundError",

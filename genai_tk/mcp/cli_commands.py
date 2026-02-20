@@ -34,11 +34,11 @@ class McpCommands(CliTopCommand):
     description: str = "Expose tools and agents as MCP servers"
 
     def get_description(self) -> tuple[str, str]:
-        return "mcp", self.description
+        return "mcpserver", self.description
 
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
         @cli_app.command()
-        def serve(
+        def start(
             name: Annotated[str, typer.Option("--name", "-n", help="Server name from config/mcp/servers.yaml")],
             config: Annotated[
                 Optional[Path],
@@ -55,8 +55,8 @@ class McpCommands(CliTopCommand):
             It exposes LangChain tools and, optionally, an agent-as-a-tool.
 
             Examples:
-                uv run cli mcp serve --name search
-                uv run cli mcp serve --name chinook --transport sse
+                uv run cli mcpserver serve --name search
+                uv run cli mcpserver  serve --name chinook --transport sse
             """
             from genai_tk.mcp.server_builder import serve as _serve
 
@@ -82,7 +82,7 @@ class McpCommands(CliTopCommand):
             whether an agent wrapper is configured.
 
             Example:
-                uv run cli mcp list
+                uv run cli mcpserver list
             """
             from rich.console import Console
             from rich.table import Table
@@ -132,9 +132,9 @@ class McpCommands(CliTopCommand):
             ``[project.scripts]`` entry in ``pyproject.toml`` for ``uvx`` use.
 
             Examples:
-                uv run cli mcp generate --name search
-                uv run cli mcp generate --name search --output scripts/mcp_search.py
-                uv run cli mcp generate --name search --config /abs/path/servers.yaml
+                uv run cli mcpserver generate --name search
+                uv run cli mcpserver generate --name search --output scripts/mcp_search.py
+                uv run cli mcpserver generate --name search --config /abs/path/servers.yaml
             """
             from rich.console import Console
 

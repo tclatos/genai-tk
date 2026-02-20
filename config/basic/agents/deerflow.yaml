@@ -32,19 +32,8 @@ deerflow:
     trace_loading: true
   
   # Sandbox configuration
-  sandbox:
-    # Sandbox provider: 'local' or 'docker'
-    # - local: No Docker required, but limited file I/O (web search, chat, skills work)
-    # - docker: Full file operations, bash, code execution in container (requires Docker)
-    #   Uses deer-flow's all-in-one-sandbox Docker image
-    provider: docker
-    
-    # Docker sandbox options (only used when provider: docker)
-    # image: enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest
-    # port: 8080
-    # auto_start: true
-    # container_prefix: deer-flow-sandbox
-    # idle_timeout: 600
+  # Per-profile sandbox is configured via the 'sandbox' field on each profile.
+  # Values: 'local' (default, no Docker) or 'docker' (full file/bash/code in container)
 
   # Default profile 
   # This is a YAML alias reference - update to point to your preferred default
@@ -59,6 +48,7 @@ deerflow_agents:
     mode: "pro"  # thinking + plan mode
     #llm: "deepseek_v32@openrouter"  # Can use LLM ID or tag like 'fast_model'
     llm: gpt_oss120@openrouter
+    sandbox: local
     tool_groups:
       - web
       - file
@@ -80,6 +70,7 @@ deerflow_agents:
   - name: "Web Browser"
     description: "Fast web browsing and content extraction"
     mode: "flash"  # quick responses
+    sandbox: local
     tool_groups:
       - web
     mcp_servers:
@@ -95,6 +86,7 @@ deerflow_agents:
   - name: "Coder"
     description: "Code execution with subagents"
     mode: "ultra"  # all features enabled
+    sandbox: docker  # Docker required for full code execution
     tool_groups:
       - web
       - file
@@ -113,6 +105,7 @@ deerflow_agents:
   - name: "Chinook DB + Research"
     description: "SQL database with web research"
     mode: "thinking"  # reasoning mode
+    sandbox: local
     tool_groups:
       - web
     mcp_servers:
@@ -136,6 +129,7 @@ deerflow_agents:
   - name: "Weather & Files"
     description: "Weather queries with file operations"
     mode: "flash"
+    sandbox: local
     tool_groups:
       - web
       - file
@@ -155,6 +149,7 @@ deerflow_agents:
   - name: "Visual Explainer"
     description: "Direct explanations with diagrams and visualizations (minimal questions)"
     mode: "thinking"  # reasoning but not full planning
+    sandbox: local
     tool_groups:
       - web
       - file

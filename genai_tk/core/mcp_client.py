@@ -143,8 +143,13 @@ async def get_mcp_prompts(filter: list[str] | None = None) -> dict:
 def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
     """Retrieve configured MCP servers from application configuration.
 
-    Processes the MCP server configurations from the global config file, handling
-    command aliases and environment variables. Validates server parameters.
+    Combines servers from two config sections:
+    - ``mcpServers``: external MCP servers (npm, uvx, …)
+    - ``mcpProjectServers``: project-defined servers exposed via
+      ``cli mcpserver start --name <name>`` (declared in ``config/mcp/servers.yaml``).
+
+    Processes each entry, handling command aliases and environment variables,
+    then validates server parameters.
 
     Args:
         filter: List of server names to include. If None, all servers are returned.
@@ -152,16 +157,30 @@ def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
     Returns:
         Dictionary of server names to their configuration parameters
 
-    Raises:
-        ValueError: If any server in the filter is not found in the configuration
-
     Example:
     ```python
-    servers = get_mcp_servers_from_config()
-    # {'pubmed': {'command': 'uv', 'args': ['tool', 'run', 'pubmedmcp@0.1.3'], ...}}
+    servers = get_mcp_servers_dict()
+    # {'chinook': {'command': 'uv', 'args': ['--project', '...', 'run', 'cli', 'mcpserver', 'start', '--name', 'chinook'], ...}}
+
+    servers = get_mcp_servers_dict(filter=["chinook"])
     ```
     """
     servers = global_config().get_dict("mcpServers")
+
+    # Merge in project-defined servers declared under ``mcpProjectServers``.
+    # Each entry is served via ``uv --project <root> run cli mcp serve --name <name>``.
+    try:
+        project_servers_cfg: dict = global_config().get_dict("mcpProjectServers")
+        project_root = str(global_config().get_dir_path("paths.project"))
+        for pname, pcfg in project_servers_cfg.items():
+            if not (pcfg or {}).get("disabled", False):
+                servers[pname] = {
+                    "command": "uv",
+                    "args": ["--project", project_root, "run", "cli", "mcpserver", "start", "--name", pname],
+                }
+    except Exception:
+        pass  # mcpProjectServers is optional
+
     # Filter out servers that are explicitly disabled
     servers = {name: config for name, config in servers.items() if not config.get("disabled", False)}
     if filter is not None:

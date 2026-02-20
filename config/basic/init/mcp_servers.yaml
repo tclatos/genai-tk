@@ -36,3 +36,11 @@ mcpServers:
       description: Provides access to PubMed medical research database
       example : "Find relevant studies on alcohol hangover and treatment."
       disabled: true
+
+# Project-defined MCP servers (served via `cli mcp serve --name <name>`).
+# Each key is the server name declared in config/mcp/servers.yaml.
+# Set disabled: true to exclude a server without removing it from this list.
+mcpProjectServers:
+  chinook: {}
+  search:
+    disabled: false
