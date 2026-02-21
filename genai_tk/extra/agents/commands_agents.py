@@ -14,6 +14,7 @@ The commands are registered with a Typer CLI application and provide:
 """
 
 import asyncio
+import os
 import sys
 from typing import Annotated, Optional
 
@@ -801,9 +802,8 @@ class AgentCommands(CliTopCommand):
                 typer.Option(
                     "--web",
                     help=(
-                        "Start the native deer-flow Next.js web client. "
-                        "Launches pnpm dev in DEER_FLOW_PATH/frontend with the profile's backend URLs "
-                        "and opens the browser. Requires DEER_FLOW_PATH."
+                        "Write deer-flow config.yaml and extensions_config.json, "
+                        "then print the 'make dev' command to start the web interface."
                     ),
                 ),
             ] = False,
@@ -853,13 +853,12 @@ class AgentCommands(CliTopCommand):
                 # Read from stdin
                 echo "What is RAG?" | cli agents deerflow -p "Research Assistant"
 
-                # Open native web client
+                # Write config files and print make dev instruction
                 cli agents deerflow -p "Research Assistant" --web
             """
             from genai_tk.extra.agents.deer_flow.cli_commands import (
                 _get_default_profile_name,
                 _list_profiles,
-                _open_web_client,
                 _run_chat_mode,
                 _run_single_shot,
             )
@@ -889,27 +888,79 @@ class AgentCommands(CliTopCommand):
                     print("❌ Error: --profile/-p is required (or use --list to see available profiles)")
                     raise typer.Exit(1)
 
-            # Handle --web: start Next.js frontend and open browser
+            # Handle --web: write config files and instruct user to start the web interface
             if web:
+                from rich.console import Console as _Console
+
+                from genai_tk.extra.agents.deer_flow.config_bridge import setup_deer_flow_config
+                from genai_tk.extra.agents.deer_flow.profile import (
+                    DeerFlowError,
+                    load_deer_flow_profiles,
+                    validate_mcp_servers,
+                    validate_mode,
+                    validate_profile_name,
+                )
+                from genai_tk.utils.config_mngr import global_config
+
+                console = _Console()
+                config_dir = global_config().get_dir_path("paths.config")
+                config_path_str = str(config_dir / "agents" / "deerflow.yaml")
+
                 try:
-                    asyncio.run(
-                        _open_web_client(
-                            profile_name=profile,
-                            llm_override=llm,
-                            extra_mcp=list(mcp),
-                            mode_override=mode,
-                            verbose=verbose,
-                        )
-                    )
-                except KeyboardInterrupt:
-                    print("\n⚠️  Web client stopped")
-                    raise typer.Exit(0) from None
-                except typer.Exit:
-                    raise
-                except Exception as e:
-                    print(f"\n❌ Error: {e}")
-                    logger.exception("Deer-flow web client error")
+                    profiles = load_deer_flow_profiles(config_path_str)
+                    df_profile = validate_profile_name(profile, profiles)
+                except DeerFlowError as e:
+                    console.print(f"[red]Error:[/red] {e}")
                     raise typer.Exit(1) from e
+
+                try:
+                    if mode:
+                        df_profile.mode = validate_mode(mode)
+                    if mcp:
+                        validated = validate_mcp_servers(list(mcp))
+                        df_profile.mcp_servers = list(set(df_profile.mcp_servers + validated))
+                except DeerFlowError as e:
+                    console.print(f"[red]Error:[/red] {e}")
+                    raise typer.Exit(1) from e
+
+                from genai_tk.extra.agents.deer_flow.cli_commands import _resolve_model_name
+
+                raw_llm = llm or df_profile.llm
+                selected_llm_id = _resolve_model_name(raw_llm) if raw_llm else None
+
+                with console.status("Writing Deer-flow config files...", spinner="dots"):
+                    yaml_path, ext_path = setup_deer_flow_config(
+                        mcp_server_names=df_profile.mcp_servers,
+                        skill_directories=df_profile.skill_directories,
+                        sandbox=df_profile.sandbox,
+                        selected_llm=selected_llm_id,
+                    )
+
+                console.print(f"[green]✔[/green] Config written:     [cyan]{yaml_path}[/cyan]")
+                df_path = df_profile.deer_flow_path or os.environ.get("DEER_FLOW_PATH", "")
+                if df_path:
+                    import pathlib
+
+                    root_copy = pathlib.Path(df_path) / "config.yaml"
+                    console.print(
+                        f"[green]✔[/green] Config copied to:   [cyan]{root_copy}[/cyan] [dim](project root — preferred location)[/dim]"
+                    )
+                console.print(f"[green]✔[/green] Extensions written: [cyan]{ext_path}[/cyan]")
+                console.print()
+                if df_path:
+                    console.print(
+                        "[yellow]⚠[/yellow]  If deer-flow is already running, [bold]stop it first[/bold] — "
+                        "the backend caches the config at startup and won't pick up changes automatically."
+                    )
+                    console.print()
+                    console.print(
+                        f"Then run [bold cyan]make dev[/bold cyan] in [dim]{df_path}[/dim] to start the web interface."
+                    )
+                else:
+                    console.print(
+                        "[yellow]⚠[/yellow]  Stop any running deer-flow instance first, then run "
+                        "[bold cyan]make dev[/bold cyan] in your deer-flow directory."
+                    )
                 return
 
             # Get input from stdin if not provided

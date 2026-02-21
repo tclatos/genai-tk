@@ -454,6 +454,7 @@ async def _run_single_shot(
             mcp_server_names=profile.mcp_servers,
             skill_directories=profile.skill_directories,
             sandbox=profile.sandbox,
+            selected_llm=model_name,
         )
 
     await _ensure_server(profile.auto_start, profile.deer_flow_path, profile.langgraph_url, profile.gateway_url)
@@ -559,6 +560,7 @@ async def _run_chat_mode(
             mcp_server_names=profile.mcp_servers,
             skill_directories=profile.skill_directories,
             sandbox=profile.sandbox,
+            selected_llm=model_name,
         )
 
     await _ensure_server(profile.auto_start, profile.deer_flow_path, profile.langgraph_url, profile.gateway_url)
@@ -740,11 +742,18 @@ async def _open_web_client(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
+    model_name: str | None = None
+    if llm_override:
+        model_name = _resolve_model_name(llm_override)
+    elif profile.llm:
+        model_name = _resolve_model_name(profile.llm)
+
     with console.status("Preparing Deer-flow config...", spinner="dots"):
         setup_deer_flow_config(
             mcp_server_names=profile.mcp_servers,
             skill_directories=profile.skill_directories,
             sandbox=profile.sandbox,
+            selected_llm=model_name,
         )
 
     await _ensure_server(profile.auto_start, profile.deer_flow_path, profile.langgraph_url, profile.gateway_url)
@@ -766,14 +775,26 @@ async def _open_web_client(
     web_url = f"http://localhost:{web_port}"
 
     # Pass backend URLs via environment variables.
-    # Also redirect PNPM_HOME into the frontend directory so pnpm can write its
-    # toolchain files without hitting system-wide permission restrictions.
-    pnpm_home = str(frontend_dir / ".pnpm-home")
-    Path(pnpm_home).mkdir(parents=True, exist_ok=True)
+    # Redirect PNPM_HOME, XDG_DATA_HOME, and COREPACK_HOME into the frontend
+    # directory so that pnpm (and Corepack, which downloads the exact version
+    # declared via "packageManager" in package.json) never writes to system-wide
+    # or root-owned directories.  This avoids EACCES errors when
+    # ~/.local/share/pnpm or the Corepack cache is owned by root.
+    local_data = frontend_dir / ".local_pnpm"
+    pnpm_home = str(local_data / "pnpm-home")
+    corepack_home = str(local_data / "corepack")
+    xdg_data_home = str(local_data / "xdg_data")
+    for _d in (pnpm_home, corepack_home, xdg_data_home):
+        Path(_d).mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["NEXT_PUBLIC_BACKEND_BASE_URL"] = profile.gateway_url
     env["NEXT_PUBLIC_LANGGRAPH_BASE_URL"] = profile.langgraph_url
     env["PNPM_HOME"] = pnpm_home
+    env["COREPACK_HOME"] = corepack_home
+    env["XDG_DATA_HOME"] = xdg_data_home
+    # Ensure pnpm-home bin dir is on PATH so any installed shims are reachable
+    existing_path = env.get("PATH", "")
+    env["PATH"] = f"{pnpm_home}:{existing_path}"
 
     console.print(f"[cyan]Profile:[/cyan] {profile.name}  [cyan]Mode:[/cyan] {profile.mode}")
     console.print(f"[cyan]Backend:[/cyan] {profile.gateway_url}  [cyan]LangGraph:[/cyan] {profile.langgraph_url}")

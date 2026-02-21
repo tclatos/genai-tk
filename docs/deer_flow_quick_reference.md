@@ -33,7 +33,7 @@ echo "Summarise this text: ..." | cli agents deerflow
 # Verbose / debug logging
 cli agents deerflow --verbose --chat
 
-# Open native web client (starts Next.js frontend + backend, opens browser)
+# Write config files and print make dev instruction
 cli agents deerflow -p "Research Assistant" --web
 ```
 
@@ -48,7 +48,7 @@ cli agents deerflow -p "Research Assistant" --web
 | `--mode MODE` | | Override mode: `flash` `thinking` `pro` `ultra` |
 | `--trace` | | Show graph node names as the agent works |
 | `--list` | | Print profile table and exit |
-| `--web` | | Start native Next.js web client and open browser |
+| `--web` | | Write config files then print `make dev` command to start the web interface |
 | `--verbose` | `-v` | Enable DEBUG logging |
 
 

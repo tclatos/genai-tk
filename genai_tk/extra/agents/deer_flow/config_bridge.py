@@ -18,6 +18,7 @@ config_path, ext_path = setup_deer_flow_config(
 
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -72,18 +73,25 @@ def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
     return skills
 
 
-def generate_deer_flow_models(llm_config_path: str = "config/providers/llm.yaml") -> list[dict[str, Any]]:
+def generate_deer_flow_models(
+    llm_config_path: str = "config/providers/llm.yaml",
+    selected_llm_id: str | None = None,
+) -> list[dict[str, Any]]:
     """Build Deer-flow model config list from GenAI Toolkit's LlmFactory.
 
     Only includes models whose provider API keys are available in the environment.
+    When ``selected_llm_id`` is provided only that one model is returned.
 
     Args:
         llm_config_path: Kept for backward compatibility; no longer used directly.
+        selected_llm_id: Resolved GenAI-tk model ID to include (None → all available).
 
     Returns:
         List of Deer-flow model config dicts.
     """
     all_models = LlmFactory.known_list()
+    if selected_llm_id:
+        all_models = [m for m in all_models if m.id == selected_llm_id]
     models = []
 
     for model_info in all_models:
@@ -181,15 +189,17 @@ def write_deer_flow_config(
     tool_groups: list[str] | None = None,
     config_dir: str | None = None,
     sandbox: str = "local",
+    selected_llm: str | None = None,
 ) -> Path:
     """Write a complete Deer-flow config.yaml.
 
     Args:
         models: Model configs (auto-generated from LlmFactory if None).
-        tool_groups: Tool groups to enable (default: ``["web"]``).
+        tool_groups: Tool groups to enable (default: all standard groups).
         config_dir: Directory for output. Defaults to a temp directory if None.
         sandbox: Sandbox provider: ``"local"`` (no Docker) or ``"docker"``
             (requires AioSandboxProvider image).
+        selected_llm: Resolved GenAI-tk model ID; when set only that model is written.
 
     Returns:
         Path to the written config.yaml.
@@ -197,7 +207,7 @@ def write_deer_flow_config(
     from genai_tk.utils.config_mngr import global_config
 
     if models is None:
-        models = generate_deer_flow_models()
+        models = generate_deer_flow_models(selected_llm_id=selected_llm)
 
     if not models:
         logger.warning("No models available for Deer-flow config — using placeholder.")
@@ -214,7 +224,7 @@ def write_deer_flow_config(
         ]
 
     if tool_groups is None:
-        tool_groups = ["web"]
+        tool_groups = ["web", "file:read", "file:write", "bash"]
 
     config = global_config().root
     # Read skills directories from config (deerflow.skills.directories list)
@@ -270,16 +280,57 @@ def write_deer_flow_config(
                 "use": "src.community.jina_ai.tools:web_fetch_tool",
                 "timeout": 10,
             },
+            {
+                "name": "image_search",
+                "group": "web",
+                "use": "src.community.image_search.tools:image_search_tool",
+                "max_results": 5,
+            },
+            {
+                "name": "ls",
+                "group": "file:read",
+                "use": "src.sandbox.tools:ls_tool",
+            },
+            {
+                "name": "read_file",
+                "group": "file:read",
+                "use": "src.sandbox.tools:read_file_tool",
+            },
+            {
+                "name": "write_file",
+                "group": "file:write",
+                "use": "src.sandbox.tools:write_file_tool",
+            },
+            {
+                "name": "str_replace",
+                "group": "file:write",
+                "use": "src.sandbox.tools:str_replace_tool",
+            },
+            {
+                "name": "bash",
+                "group": "bash",
+                "use": "src.sandbox.tools:bash_tool",
+            },
         ],
         "sandbox": sandbox_cfg,
         "skills": {
             "path": str(skills_path),
             "container_path": skills_container_path,
         },
-        "title": {"enabled": False},
-        "summarization": {"enabled": False},
-        "memory": {"enabled": False},
     }
+
+    # Merge title / summarization / memory from deerflow.general in config
+    general = OmegaConf.select(config, "deerflow.general")
+    if general:
+        general_dict = OmegaConf.to_container(general, resolve=True)
+        for key in ("title", "summarization", "memory"):
+            if key in general_dict:
+                cfg[key] = general_dict[key]
+    else:
+        # Sensible fallbacks when general section is absent
+        cfg["title"] = {"enabled": True, "max_words": 6, "max_chars": 60, "model_name": None}
+        cfg["summarization"] = {"enabled": False}
+        cfg["memory"] = {"enabled": False}
 
     if config_dir is None:
         config_dir = tempfile.mkdtemp(prefix="deer_flow_")
@@ -327,12 +378,14 @@ def setup_deer_flow_config(
     skill_directories: list[str] | None = None,
     config_dir: str | None = None,
     sandbox: str = "local",
+    selected_llm: str | None = None,
 ) -> tuple[Path, Path]:
     """Generate both Deer-flow config files in one call.
 
     Call this **before** starting the server so it reads the generated files on
-    launch.  The files are written to ``<deer_flow_path>/backend`` by default
-    (resolved from the ``DEER_FLOW_PATH`` environment variable).
+    launch.  ``config.yaml`` is written to both ``<deer_flow_path>`` (root) and
+    ``<deer_flow_path>/backend``; ``extensions_config.json`` is written to
+    ``<deer_flow_path>/backend`` only.
 
     Args:
         mcp_server_names: MCP servers to enable (None → all enabled).
@@ -340,16 +393,19 @@ def setup_deer_flow_config(
         skill_directories: Directories to auto-discover skills from recursively.
         config_dir: Override output directory. Defaults to ``$DEER_FLOW_PATH/backend``.
         sandbox: Sandbox provider: ``"local"`` or ``"docker"``.
+        selected_llm: Resolved GenAI-tk model ID; when set only that model is written.
 
     Returns:
-        Tuple of (config.yaml path, extensions_config.json path).
+        Tuple of (config.yaml path in backend, extensions_config.json path).
     """
     from genai_tk.utils.config_mngr import global_config
 
+    deer_flow_root: Path | None = None
     if config_dir is None:
         deer_flow_path = os.environ.get("DEER_FLOW_PATH", "")
         if deer_flow_path:
-            config_dir = str(Path(deer_flow_path).expanduser().resolve() / "backend")
+            deer_flow_root = Path(deer_flow_path).expanduser().resolve()
+            config_dir = str(deer_flow_root / "backend")
         else:
             config_dir = tempfile.mkdtemp(prefix="deer_flow_")
             logger.warning(
@@ -358,7 +414,13 @@ def setup_deer_flow_config(
                 config_dir,
             )
 
-    config_path = write_deer_flow_config(config_dir=config_dir, sandbox=sandbox)
+    config_path = write_deer_flow_config(config_dir=config_dir, sandbox=sandbox, selected_llm=selected_llm)
+
+    # Also copy config.yaml to the deer-flow root directory (required by deer-flow docs)
+    if deer_flow_root is not None:
+        root_config_path = deer_flow_root / "config.yaml"
+        shutil.copy2(config_path, root_config_path)
+        logger.debug("Copied config.yaml to deer-flow root: %s", root_config_path)
 
     extensions_config = generate_extensions_config(mcp_server_names)
 

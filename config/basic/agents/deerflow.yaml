@@ -7,7 +7,7 @@
 #   description:       Profile description
 #   mode:              Agent mode: flash (fast), thinking (reasoning), pro (planning), ultra (all features)
 #   llm:               LLM identifier (ID like 'gpt_41mini@openai' or tag like 'fast_model'). Optional, defaults to global config.
-#   tool_groups:       Deer-flow tool groups to enable (web, file, bash, image)
+#   tool_groups:       Deer-flow tool groups to enable (web, file:read, file:write, bash)
 #   skill_directories: Directories to load skills from (loaded recursively)
 #   mcp_servers:       MCP server names from config/mcp_servers.yaml
 #   tools:             Additional GenAI Blueprint tools (factory/class/function patterns)
@@ -20,24 +20,44 @@
 deerflow:
   # Skills configuration
   skills:
-    # Default directories to load skills from (absolute or relative to project root)
-    # Skills are discovered recursively in 'public/' and 'custom/' subdirectories
     directories:
       - ${paths.project}/skills
-    
-    # Container mount path for skills (used in Docker sandbox)
     container_path: /mnt/skills
-    
-    # Enable skill loading tracing
     trace_loading: true
   
-  # Sandbox configuration
-  # Per-profile sandbox is configured via the 'sandbox' field on each profile.
-  # Values: 'local' (default, no Docker) or 'docker' (full file/bash/code in container)
-
-  # Default profile 
-  # This is a YAML alias reference - update to point to your preferred default
   default_profile: &default_profile "Research Assistant"
+
+  # ============================================================================
+  # General deer-flow config settings (copied verbatim into generated config.yaml)
+  # ============================================================================
+  general:
+    title:
+      enabled: true
+      max_words: 6
+      max_chars: 60
+      model_name: null
+
+    summarization:
+      enabled: true
+      model_name: null
+      trigger:
+        - type: tokens
+          value: 15564
+      keep:
+        type: messages
+        value: 10
+      trim_tokens_to_summarize: 15564
+      summary_prompt: null
+
+    memory:
+      enabled: true
+      storage_path: .deer-flow/memory.json
+      debounce_seconds: 30
+      model_name: null
+      max_facts: 100
+      fact_confidence_threshold: 0.7
+      injection_enabled: true
+      max_injection_tokens: 2000
 
 # ============================================================================
 # Agent Profiles
@@ -83,25 +103,7 @@ deerflow_agents:
       - "Go to atos.net, find the blog section and list recent articles"
       - "Navigate to github.com/bytedance/deer-flow and summarize the project"
 
-  - name: "Coder"
-    description: "Code execution with subagents"
-    mode: "ultra"  # all features enabled
-    sandbox: docker  # Docker required for full code execution
-    tool_groups:
-      - web
-      - file
-      - bash
-    skill_directories:
-      - ${paths.project}/skills  # Load all skills recursively
-    features:
-      - "💻 Code Execution"
-      - "📁 File Operations"
-      - "🔧 Bash Commands"
-      - "🤖 Sub-Agents"
-    examples:
-      - "Write a Python script that fetches weather data and creates a visualization"
-      - "Analyze the codebase structure and suggest improvements"
-
+ 
   - name: "Chinook DB + Research"
     description: "SQL database with web research"
     mode: "thinking"  # reasoning mode
@@ -125,46 +127,3 @@ deerflow_agents:
       - "📊 Data Visualization"
     examples:
       - "Find the top 5 genres by number of tracks, then research each genre's history"
-
-  - name: "Weather & Files"
-    description: "Weather queries with file operations"
-    mode: "flash"
-    sandbox: local
-    tool_groups:
-      - web
-      - file
-    mcp_servers:
-      - weather
-      - ppt
-    skill_directories:
-      - ${paths.project}/skills  # Load all skills recursively
-    features:
-      - "📁 File Operations"
-      - "🌤️ Weather Info"
-      - "📊 Presentations"
-    examples:
-      - "Get the weather in Toulouse and create a PowerPoint about it"
-      - "What is the weather in New York, London, and Tokyo? Save a comparison report"
-
-  - name: "Visual Explainer"
-    description: "Direct explanations with diagrams and visualizations (minimal questions)"
-    mode: "thinking"  # reasoning but not full planning
-    sandbox: local
-    tool_groups:
-      - web
-      - file
-      - bash
-    mcp_servers:
-      - tavily-mcp
-    skill_directories:
-      - ${paths.project}/skills  # Load all skills recursively
-    features:
-      - "📊 Diagram Generation"
-      - "🎨 Visualizations"
-      - "🧠 Clear Explanations"
-      - "⚡ Direct Answers"
-    examples:
-      - "Explain what MOE is to a 12-year-old boy"
-      - "Explain transformer architecture with a diagram"
-      - "Visualize how attention mechanism works"
-      - "Create a flowchart of the RAG pipeline"
