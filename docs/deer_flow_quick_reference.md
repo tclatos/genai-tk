@@ -152,5 +152,6 @@ To use a server you started manually, set `auto_start: false`.
 ## Related Docs
 
 - [Deer_Flow_Integration.md](Deer_Flow_Integration.md) — architecture, setup, HTTP client API
+- [Deer_Flow_Integration.md#troubleshooting](Deer_Flow_Integration.md#troubleshooting) — fixes for `.deer-flow/threads` permission errors, Ubuntu `externally-managed-environment` pip failures, and `GraphRecursionError` loops during PPT/package tasks
 - [deer_flow_skills_management.md](deer_flow_skills_management.md) — skills directory, custom skills
 - [mcp-servers.md](mcp-servers.md) — MCP server configuration

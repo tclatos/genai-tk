@@ -27,6 +27,10 @@ deerflow:
   
   default_profile: &default_profile "Research Assistant"
 
+  # Max LangGraph recursion steps per run.
+  # Native Deer-flow frontend uses 1000 to support complex multi-tool workflows.
+  recursion_limit: 1000
+
   # ============================================================================
   # General deer-flow config settings (copied verbatim into generated config.yaml)
   # ============================================================================

@@ -251,6 +251,54 @@ Skills not found on the server are silently skipped (logged at DEBUG level).
 - Verify the backend venv exists: `ls $DEER_FLOW_PATH/backend/.venv`
 - Look at stdout/stderr from the server subprocess (enable `--verbose`)
 
+### PowerPoint / package-install tasks fail with `PermissionError` on `.deer-flow/threads`
+
+If agent tool calls fail with errors like:
+- `PermissionError: [Errno 13] Permission denied: .../backend/.deer-flow/threads`
+
+the issue is usually filesystem ownership of Deer-flow runtime state, not the package itself.
+
+**Rationale:** sandbox tools (`bash`, `ls`, `read_file`, etc.) use per-thread directories under:
+- `$DEER_FLOW_PATH/backend/.deer-flow/threads/{thread_id}/user-data/...`
+
+If `.deer-flow` was created by `root` (for example after running setup/start with `sudo`), normal user runs cannot create thread working directories, and many unrelated tasks (including PPT generation) fail.
+
+Fix permissions:
+
+```bash
+sudo chown -R $USER:$USER $DEER_FLOW_PATH/backend/.deer-flow
+mkdir -p $DEER_FLOW_PATH/backend/.deer-flow/threads
+chmod -R u+rwX $DEER_FLOW_PATH/backend/.deer-flow
+```
+
+Then restart Deer-flow.
+
+### `pip install` in sandbox fails on Ubuntu (`externally-managed-environment`)
+
+On Ubuntu, system Python follows PEP 668 and blocks direct installs into the OS-managed environment.
+
+Typical error:
+- `error: externally-managed-environment`
+
+**Rationale:** project environments created by `uv` can have the package installed, while agent `bash` tool commands may still run against system Python unless a venv is explicitly used in-command.
+
+Preferred approach inside agent/sandbox commands:
+
+```bash
+python3 -m venv /mnt/user-data/workspace/.venv
+/mnt/user-data/workspace/.venv/bin/python -m ensurepip --upgrade
+/mnt/user-data/workspace/.venv/bin/python -m pip install python-pptx
+```
+
+Then run Python scripts with `/mnt/user-data/workspace/.venv/bin/python ...`.
+
+### PPT tasks looping into `GraphRecursionError`
+
+If the model repeatedly retries install/debug commands, the run may hit:
+- `GraphRecursionError: Recursion limit of 25 reached ...`
+
+This is usually a downstream symptom of one of the two issues above (directory permissions or system-Python pip restrictions). Fix those first, then rerun the task.
+
 ### Corporate proxy timeouts
 
 The client explicitly uses `httpx.AsyncHTTPTransport()` and the subprocess has `NO_PROXY` set, so localhost traffic never goes through a proxy.  If you still see timeouts, confirm `HTTP_PROXY` is not overriding per-request settings.

@@ -142,6 +142,31 @@ class DeerFlowClient:
         self._timeout = timeout
         self._assistant_id = assistant_id
 
+    @staticmethod
+    def _resolve_recursion_limit(recursion_limit: int | None) -> int:
+        """Resolve recursion limit from explicit arg or config.
+
+        Resolution order:
+        1. Explicit ``recursion_limit`` argument
+        2. ``deerflow.recursion_limit`` from application config
+        3. Safe default of ``1000`` (matches native Deer-flow frontend behavior)
+        """
+        if recursion_limit is not None:
+            return recursion_limit
+        try:
+            from genai_tk.utils.config_mngr import global_config
+
+            value = global_config().get("deerflow.recursion_limit")
+            if isinstance(value, int) and value > 0:
+                return value
+            if isinstance(value, str) and value.isdigit():
+                parsed = int(value)
+                if parsed > 0:
+                    return parsed
+        except Exception:
+            pass
+        return 1000
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -200,6 +225,7 @@ class DeerFlowClient:
         model_name: str | None = None,
         thinking_enabled: bool = False,
         is_plan_mode: bool = False,
+        recursion_limit: int | None = None,
     ) -> AsyncIterator[StreamEvent]:
         """Stream a run on the given thread.
 
@@ -214,6 +240,8 @@ class DeerFlowClient:
             model_name: Override model for this run.
             thinking_enabled: Enable extended thinking (for supported models).
             is_plan_mode: Enable TodoList planning mode.
+            recursion_limit: Max graph recursion steps. If omitted, reads
+                ``deerflow.recursion_limit`` from config, then defaults to 1000.
         """
         # LangGraph 0.6+ uses a top-level ``context`` dict instead of
         # ``config.configurable``.  The thread_id must be in context so that
@@ -231,6 +259,7 @@ class DeerFlowClient:
             "input": {"messages": [{"role": "user", "content": user_input}]},
             "stream_mode": ["updates", "messages"],
             "context": context,
+            "config": {"recursion_limit": self._resolve_recursion_limit(recursion_limit)},
         }
 
         url = self._lg(f"/threads/{thread_id}/runs/stream")
