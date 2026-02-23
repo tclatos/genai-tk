@@ -72,6 +72,11 @@ Edit `config/agents/deerflow.yaml` (see [Profiles](#profiles) below).
 cli agents deerflow --chat
 # or single-shot:
 cli agents deerflow "What is the weather in Toulouse?"
+
+# Start the Deer-flow Next.js web UI
+cli agents deerflow -p "Research Assistant" --web
+# UI: http://localhost:3000
+# Logs: $DEER_FLOW_PATH/logs/frontend.log
 ```
 
 The servers are auto-started if not already running (requires `DEER_FLOW_PATH`).

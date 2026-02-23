@@ -1,21 +1,22 @@
 """Deer-flow server lifecycle management.
 
-Starts and stops the LangGraph server and Gateway API as subprocesses.
-Detects if they are already running and skips launch if so.
+Starts, stops, and restarts the LangGraph server and Gateway API as subprocesses.
 
-The LangGraph server must be started from inside the deer-flow backend
-directory (``<deer_flow_path>/backend``) so it can find its ``langgraph.json``.
+``restart()`` is the primary entry point for ``cli agents deerflow``: it performs
+the same sequence as ``make clean && make dev`` — kill processes, stop sandbox
+containers, clear logs, then start fresh.  This guarantees a freshly-written
+``config.yaml`` is always loaded into a clean server.
+
+Logs are written to ``<deer_flow_path>/logs/`` (same location as ``make dev``)
+so they can be inspected with standard tools after launch.
 
 Usage:
 ```python
 from genai_tk.extra.agents.deer_flow.server_manager import DeerFlowServerManager
 
 mgr = DeerFlowServerManager(deer_flow_path="/path/to/deer-flow")
-await mgr.start()             # no-op if already running
-await mgr.stop()
-
-async with DeerFlowServerManager(...) as mgr:
-    ...                       # servers are up inside the block
+await mgr.restart()           # stop everything, clean, start fresh
+await mgr.stop()              # stop if we own the processes
 ```
 """
 
@@ -25,7 +26,6 @@ import asyncio
 import os
 import signal
 import subprocess
-import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -36,16 +36,23 @@ from loguru import logger
 # Poll interval when waiting for readiness (seconds)
 _POLL_INTERVAL = 2.0
 # Default startup timeout — langgraph dev can be slow on first run
-_DEFAULT_TIMEOUT = 60.0
+_DEFAULT_TIMEOUT = 90.0
 # Hosts that must bypass any HTTP proxy (corporate proxies break localhost).
 _NO_PROXY_HOSTS = "localhost,127.0.0.1,::1,0.0.0.0"
+# Sandbox container name prefix (must match deer-flow Makefile)
+_SANDBOX_PREFIX = "deer-flow-sandbox"
 
 
 class DeerFlowServerManager:
-    """Start, poll, and stop the LangGraph + Gateway servers.
+    """Start, stop, and restart the LangGraph + Gateway servers.
 
-    If both servers are already reachable when ``start()`` is called, no
-    subprocesses are launched and ``stop()`` is a no-op.
+    ``restart()`` mirrors ``make clean && make dev``:
+    - kills any running LangGraph / uvicorn / nginx processes
+    - stops all sandbox Docker containers
+    - clears log files
+    - starts LangGraph and Gateway fresh from the backend directory
+
+    Logs go to ``<deer_flow_path>/logs/`` so they are easy to tail.
     """
 
     def __init__(
@@ -73,70 +80,76 @@ class DeerFlowServerManager:
         """Return True if both servers are already reachable."""
         return await self._check_url(self._lg_url + "/info") and await self._check_url(self._gw_url + "/api/models")
 
-    async def start(self) -> None:
-        """Ensure both servers are running.
+    async def restart(self) -> None:
+        """Full clean restart — equivalent to ``make clean && make dev``.
 
-        Checks LangGraph and Gateway independently — only launches whichever
-        is not yet reachable.  If both are already up, nothing happens.
+        Steps:
+        1. Kill all LangGraph / uvicorn processes (any owner, like ``make stop``)
+        2. Stop all sandbox Docker containers with the deer-flow prefix
+        3. Delete log files
+        4. Start LangGraph and Gateway fresh
         """
-        lg_ok = await self._check_url(self._lg_url + "/info")
-        gw_ok = await self._check_url(self._gw_url + "/api/models")
-
-        if lg_ok and gw_ok:
-            logger.info("Deer-flow servers already running — skipping launch")
-            return
-
         backend_path = self._resolve_backend_path()
-        logger.info(f"Starting Deer-flow servers from {backend_path}")
+        df_root = backend_path.parent
 
-        env = {**os.environ}  # inherit full environment
-        # Ensure localhost traffic is never routed through a corporate proxy.
-        existing_no_proxy = env.get("no_proxy", env.get("NO_PROXY", ""))
-        merged = ",".join(filter(None, [existing_no_proxy, _NO_PROXY_HOSTS]))
-        env["no_proxy"] = merged
-        env["NO_PROXY"] = merged
+        # 1 — kill server processes (same targets as make stop)
+        logger.info("Stopping server processes...")
+        for pattern in ("langgraph dev", "uvicorn src.gateway.app:app"):
+            subprocess.run(["pkill", "-f", pattern], capture_output=True)
+        await asyncio.sleep(1)
+        # force-kill any stragglers
+        for pattern in ("langgraph dev", "uvicorn src.gateway.app:app"):
+            subprocess.run(["pkill", "-9", "-f", pattern], capture_output=True)
+        await asyncio.sleep(0.5)
 
-        log_dir = Path(tempfile.gettempdir())
-        self._lg_log = log_dir / "deer_flow_langgraph.log"
-        self._gw_log = log_dir / "deer_flow_gateway.log"
-
-        # --- LangGraph server (only if not already up) ---
-        if not lg_ok:
-            lg_out = open(self._lg_log, "w")  # noqa: WPS515
-            logger.info(f"LangGraph log: {self._lg_log}")
-            self._lg_proc = subprocess.Popen(
-                ["uv", "run", "langgraph", "dev", "--no-browser", "--allow-blocking", "--no-reload", "--port", "2024"],
-                cwd=str(backend_path),
-                env=env,
-                stdout=lg_out,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
+        # 2 — stop sandbox Docker containers
+        cleanup_script = df_root / "scripts" / "cleanup-containers.sh"
+        if cleanup_script.exists():
+            logger.info("Stopping sandbox containers...")
+            subprocess.run(
+                ["bash", str(cleanup_script), _SANDBOX_PREFIX],
+                capture_output=True,
+                cwd=str(df_root),
             )
-            logger.debug(f"LangGraph server PID: {self._lg_proc.pid}")
         else:
-            logger.info("LangGraph already running — skipping")
+            # Fallback: direct docker stop
+            try:
+                result = subprocess.run(
+                    ["docker", "ps", "-q", "--filter", f"name={_SANDBOX_PREFIX}"],
+                    capture_output=True,
+                    text=True,
+                )
+                for cid in result.stdout.strip().splitlines():
+                    subprocess.run(["docker", "stop", cid], capture_output=True)
+            except Exception as e:
+                logger.warning(f"Could not stop sandbox containers: {e}")
 
-        # --- Gateway server (only if not already up) ---
-        if not gw_ok:
-            gw_out = open(self._gw_log, "w")  # noqa: WPS515
-            logger.info(f"Gateway log: {self._gw_log}")
-            self._gw_proc = subprocess.Popen(
-                ["uv", "run", "uvicorn", "src.gateway.app:app", "--host", "0.0.0.0", "--port", "8001"],
-                cwd=str(backend_path),
-                env=env,
-                stdout=gw_out,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
-            logger.debug(f"Gateway server PID: {self._gw_proc.pid}")
-        else:
-            logger.info("Gateway already running — skipping")
+        # 3 — clean up log files (same as make clean)
+        log_dir = df_root / "logs"
+        log_dir.mkdir(exist_ok=True)
+        for log_file in log_dir.glob("*.log"):
+            try:
+                log_file.unlink()
+            except OSError:
+                pass
+        logger.info(f"Logs cleared: {log_dir}")
 
-        if self._lg_proc is not None or self._gw_proc is not None:
-            self._owns_servers = True
-            await self._wait_for_ready()
+        # 4 — start fresh
+        await self._start_servers(backend_path, log_dir)
 
-        logger.info("Deer-flow servers are ready")
+    async def start(self) -> None:
+        """Start servers if not already running (no cleanup).
+
+        Prefer ``restart()`` to guarantee a clean state with fresh config.
+        """
+        if await self.is_running():
+            logger.info("Deer-flow servers already running")
+            return
+        backend_path = self._resolve_backend_path()
+        df_root = backend_path.parent
+        log_dir = df_root / "logs"
+        log_dir.mkdir(exist_ok=True)
+        await self._start_servers(backend_path, log_dir)
 
     async def stop(self) -> None:
         """Terminate managed subprocesses if we started them."""
@@ -165,7 +178,7 @@ class DeerFlowServerManager:
     # ------------------------------------------------------------------
 
     async def __aenter__(self) -> DeerFlowServerManager:
-        await self.start()
+        await self.restart()
         return self
 
     async def __aexit__(self, *_: Any) -> None:
@@ -175,17 +188,66 @@ class DeerFlowServerManager:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _resolve_backend_path(self) -> Path:
-        """Return the resolved backend/ path inside deer-flow."""
+    def _resolve_root_path(self) -> Path:
+        """Return the resolved deer-flow root directory."""
         if not self._deer_flow_path:
             raise RuntimeError(
                 "DEER_FLOW_PATH is not set and deer_flow_path was not provided. "
                 "Set the DEER_FLOW_PATH environment variable to the deer-flow clone directory."
             )
-        path = Path(self._deer_flow_path).expanduser().resolve() / "backend"
+        path = Path(self._deer_flow_path).expanduser().resolve()
         if not path.exists():
-            raise FileNotFoundError(f"Deer-flow backend not found at {path}")
+            raise FileNotFoundError(f"Deer-flow root not found at {path}")
         return path
+
+    def _resolve_backend_path(self) -> Path:
+        """Return the resolved deer-flow backend directory."""
+        root = self._resolve_root_path()
+        backend = (root / "backend").resolve()
+        if not backend.exists():
+            raise FileNotFoundError(f"Deer-flow backend not found at {backend}")
+        return backend
+
+    async def _start_servers(self, backend_path: Path, log_dir: Path) -> None:
+        """Launch LangGraph and Gateway processes and wait for readiness."""
+        logger.info(f"Starting Deer-flow servers from {backend_path}")
+
+        env = {**os.environ}
+        existing_no_proxy = env.get("no_proxy", env.get("NO_PROXY", ""))
+        merged = ",".join(filter(None, [existing_no_proxy, _NO_PROXY_HOSTS]))
+        env["no_proxy"] = merged
+        env["NO_PROXY"] = merged
+
+        self._lg_log = log_dir / "langgraph.log"
+        self._gw_log = log_dir / "gateway.log"
+
+        lg_out = open(self._lg_log, "w")  # noqa: WPS515
+        logger.info(f"LangGraph log: {self._lg_log}")
+        self._lg_proc = subprocess.Popen(
+            ["uv", "run", "langgraph", "dev", "--no-browser", "--allow-blocking", "--no-reload", "--port", "2024"],
+            cwd=str(backend_path),
+            env=env,
+            stdout=lg_out,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        logger.debug(f"LangGraph server PID: {self._lg_proc.pid}")
+
+        gw_out = open(self._gw_log, "w")  # noqa: WPS515
+        logger.info(f"Gateway log: {self._gw_log}")
+        self._gw_proc = subprocess.Popen(
+            ["uv", "run", "uvicorn", "src.gateway.app:app", "--host", "0.0.0.0", "--port", "8001"],
+            cwd=str(backend_path),
+            env=env,
+            stdout=gw_out,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        logger.debug(f"Gateway server PID: {self._gw_proc.pid}")
+
+        self._owns_servers = True
+        await self._wait_for_ready()
+        logger.info("Deer-flow servers are ready")
 
     async def _check_url(self, url: str) -> bool:
         """Return True if the URL responds with a non-5xx status."""
@@ -213,18 +275,15 @@ class DeerFlowServerManager:
                 log_text = log.read_text(errors="replace") if (log and log.exists()) else ""
 
                 if "address already in use" in log_text:
-                    # Port taken by an existing instance — use it if healthy
                     if await self._check_url(health_url):
                         logger.info(f"{name} port already in use — using existing instance")
                         if name == "LangGraph":
                             self._lg_proc = None
                         else:
                             self._gw_proc = None
-                        break  # re-evaluate outer condition
-                    # Port taken but not responding yet — keep waiting
+                        break
                     break
 
-                # Genuine failure
                 raise RuntimeError(
                     f"{name} server exited with code {proc.returncode}.\n"
                     f"Log ({log}):\n{log_text[-3000:]}\n\n"
@@ -245,6 +304,5 @@ class DeerFlowServerManager:
 
         raise TimeoutError(
             f"Deer-flow servers did not become ready within {self._start_timeout:.0f}s.\n"
-            f"Check logs:\n  LangGraph: {self._lg_log}\n  Gateway:   {self._gw_log}\n"
-            "Or run `make dev` and `make gateway` in the deer-flow backend directory."
+            f"Check logs:\n  LangGraph: {self._lg_log}\n  Gateway:   {self._gw_log}"
         )

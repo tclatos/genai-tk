@@ -33,7 +33,7 @@ echo "Summarise this text: ..." | cli agents deerflow
 # Verbose / debug logging
 cli agents deerflow --verbose --chat
 
-# Write config files and print make dev instruction
+# Start Deer-flow backend + Next.js web UI
 cli agents deerflow -p "Research Assistant" --web
 ```
 
@@ -48,7 +48,7 @@ cli agents deerflow -p "Research Assistant" --web
 | `--mode MODE` | | Override mode: `flash` `thinking` `pro` `ultra` |
 | `--trace` | | Show graph node names as the agent works |
 | `--list` | | Print profile table and exit |
-| `--web` | | Write config files then print `make dev` command to start the web interface |
+| `--web` | | Start Deer-flow backend and the native Next.js web UI (localhost:3000) |
 | `--verbose` | `-v` | Enable DEBUG logging |
 
 
@@ -131,6 +131,15 @@ When `auto_start: true` and the server is not running, the CLI:
 2. Writes `config.yaml` + `extensions_config.json` into `$DEER_FLOW_PATH/backend/`
 3. Launches `langgraph dev` and the Gateway API as background processes
 4. Waits up to 60 s for both to become healthy
+
+## Web UI
+
+`cli agents deerflow --web` also launches the Deer-flow Next.js dev server on `http://localhost:3000`.
+
+Troubleshooting:
+- Frontend logs are written to `$DEER_FLOW_PATH/logs/frontend.log`.
+- First start can be slow (pnpm / Next.js / Turbopack warm-up).
+- If you see pnpm `EACCES` errors related to `~/.local/share/pnpm`, fix directory ownership/permissions (or rerun via `--web`, which redirects pnpm/corepack caches into the deer-flow `frontend/` directory).
 
 Set the environment variable:
 ```bash

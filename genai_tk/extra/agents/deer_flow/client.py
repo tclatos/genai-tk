@@ -91,22 +91,33 @@ class ErrorEvent:
 # Union type alias
 StreamEvent = TokenEvent | NodeEvent | ToolCallEvent | ToolResultEvent | ErrorEvent
 
-# Nodes that are internal plumbing — suppress from trace display
+# Top-level orchestration nodes — not meaningful for the user to see.
 _INTERNAL_NODES = frozenset(
     {
         "__start__",
         "__end__",
         "background_investigation_team",
         "lead_agent",
-        # ThreadDataMiddleware / lifecycle hooks
-        "ThreadDataMiddleware.before_agent",
-        "UploadsMiddleware.before_agent",
-        "SandboxMiddleware.before_agent",
-        "DanglingToolCallMiddleware.before_model",
-        "MemoryMiddleware.after_agent",
-        "TitleMiddleware.after_agent",
     }
 )
+
+
+def _is_internal_node(node_name: str) -> bool:
+    """Return True for nodes that are internal plumbing and should not be surfaced.
+
+    This covers the static set above plus any lifecycle middleware node emitted by
+    LangGraph (e.g. ``SummarizationMiddleware.before_model``,
+    ``TodoListMiddleware.after_model``).  Any node whose name contains
+    ``Middleware`` is treated as internal — new middleware added to deer-flow is
+    automatically suppressed without needing a code change here.
+
+    Args:
+        node_name: Raw node name from the SSE stream.
+
+    Returns:
+        True if the node should be hidden from the caller.
+    """
+    return node_name in _INTERNAL_NODES or "Middleware" in node_name
 
 
 class DeerFlowClient:
@@ -261,7 +272,7 @@ class DeerFlowClient:
                         # Format: {node_name: state_diff, ...}
                         if event_type == "updates" and isinstance(data, dict):
                             for node_name, state_diff in data.items():
-                                if node_name in _INTERNAL_NODES:
+                                if _is_internal_node(node_name):
                                     continue
 
                                 # Always emit node event (callers filter by show_trace)

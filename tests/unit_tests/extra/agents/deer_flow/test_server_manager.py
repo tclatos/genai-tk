@@ -266,16 +266,16 @@ async def test_wait_for_ready_raises_on_early_exit(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_async_context_manager_calls_start_stop(tmp_path: Path) -> None:
-    """Async context manager calls start on enter and stop on exit."""
+async def test_async_context_manager_calls_restart_stop(tmp_path: Path) -> None:
+    """Async context manager calls restart on enter and stop on exit."""
     mgr = _manager(tmp_path)
 
     with (
-        patch.object(mgr, "start", new_callable=AsyncMock) as mock_start,
+        patch.object(mgr, "restart", new_callable=AsyncMock) as mock_restart,
         patch.object(mgr, "stop", new_callable=AsyncMock) as mock_stop,
     ):
         async with mgr:
             pass
 
-        mock_start.assert_awaited_once()
+        mock_restart.assert_awaited_once()
         mock_stop.assert_awaited_once()

@@ -68,7 +68,7 @@ deerflow_agents:
     mode: "pro"  # thinking + plan mode
     #llm: "deepseek_v32@openrouter"  # Can use LLM ID or tag like 'fast_model'
     llm: gpt_oss120@openrouter
-    sandbox: local
+    sandbox: docker
     tool_groups:
       - web
       - file

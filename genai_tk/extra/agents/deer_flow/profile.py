@@ -194,24 +194,7 @@ def load_deer_flow_profiles(config_path: str | None = None) -> list[DeerFlowProf
 
     profiles = []
     for entry in raw.get("deerflow_agents", []):
-        profile = DeerFlowProfile(
-            name=entry.get("name", "Unnamed"),
-            description=entry.get("description", ""),
-            mode=entry.get("mode", "flash"),
-            llm=entry.get("llm"),
-            tool_groups=entry.get("tool_groups", ["web"]),
-            mcp_servers=entry.get("mcp_servers", []),
-            skills=entry.get("skills", []),
-            skill_directories=entry.get("skill_directories", []),
-            features=entry.get("features", []),
-            examples=entry.get("examples", []),
-            system_prompt=entry.get("system_prompt"),
-            base_url=entry.get("base_url", "http://localhost:2026"),
-            langgraph_url=entry.get("langgraph_url", "http://localhost:2024"),
-            gateway_url=entry.get("gateway_url", "http://localhost:8001"),
-            auto_start=entry.get("auto_start", True),
-            deer_flow_path=entry.get("deer_flow_path"),
-        )
+        profile = DeerFlowProfile.model_validate(entry)
         profiles.append(profile)
 
     logger.debug(f"Loaded {len(profiles)} Deer-flow profiles from {config_path}")
