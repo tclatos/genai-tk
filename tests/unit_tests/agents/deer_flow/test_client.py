@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from genai_tk.extra.agents.deer_flow.client import (
+from genai_tk.agents.deer_flow.client import (
     DeerFlowClient,
     ErrorEvent,
     NodeEvent,
@@ -44,7 +44,7 @@ async def test_health_check_ok() -> None:
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=mock_response)
 
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         client = DeerFlowClient()
@@ -56,7 +56,7 @@ async def test_health_check_ok() -> None:
 @pytest.mark.asyncio
 async def test_health_check_connection_error() -> None:
     """health_check returns False on connection error."""
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
         mock_cls.return_value.__aenter__ = AsyncMock(side_effect=Exception("connection refused"))
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         client = DeerFlowClient()
@@ -101,7 +101,7 @@ async def test_stream_run_yields_tokens() -> None:
         ("messages", '[{"type": "AIMessageChunk", "content": "world"}]'),
         ("end", "{}"),
     )
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
         client = DeerFlowClient()
         events = [e async for e in client.stream_run("thread1", "hi")]
 
@@ -120,7 +120,7 @@ async def test_stream_run_yields_node_events() -> None:
         ("updates", '{"reporter": {"messages": []}}'),
         ("end", "{}"),
     )
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
         client = DeerFlowClient()
         events = [e async for e in client.stream_run("thread1", "hi")]
 
@@ -138,7 +138,7 @@ async def test_stream_run_emits_node_events_per_update() -> None:
         ("updates", '{"researcher": {}}'),  # same node again — both should be emitted
         ("end", "{}"),
     )
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
         client = DeerFlowClient()
         events = [e async for e in client.stream_run("thread1", "hi")]
 
@@ -152,7 +152,7 @@ async def test_stream_run_yields_error_event() -> None:
     lines = _sse_lines(
         ("error", '{"error": "something went wrong"}'),
     )
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
         client = DeerFlowClient()
         events = [e async for e in client.stream_run("thread1", "hi")]
 
@@ -178,7 +178,7 @@ async def test_stream_run_http_error() -> None:
     mock_outer.__aenter__ = AsyncMock(return_value=mock_client)
     mock_outer.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient", return_value=mock_outer):
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=mock_outer):
         client = DeerFlowClient()
         events = [e async for e in client.stream_run("thread1", "hi")]
 
@@ -194,7 +194,7 @@ async def test_stream_run_content_list_blocks() -> None:
         ("messages", '[{"type": "AIMessageChunk", "content": [{"type": "text", "text": "Block text"}]}]'),
         ("end", "{}"),
     )
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
         client = DeerFlowClient()
         events = [e async for e in client.stream_run("thread1", "hi")]
 
@@ -219,7 +219,7 @@ async def test_create_thread_returns_thread_id() -> None:
     mock_client = AsyncMock()
     mock_client.post = AsyncMock(return_value=mock_response)
 
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         client = DeerFlowClient()
@@ -272,7 +272,7 @@ async def test_stream_run_yields_tool_call_event() -> None:
         ("updates", '{"model": ' + ai_msg + "}"),
         ("end", "{}"),
     )
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
         client = DeerFlowClient()
         events = [e async for e in client.stream_run("thread1", "hi")]
 
@@ -304,7 +304,7 @@ async def test_stream_run_yields_tool_result_event() -> None:
         ("updates", '{"tools": ' + tool_msg + "}"),
         ("end", "{}"),
     )
-    with patch("genai_tk.extra.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
         client = DeerFlowClient()
         events = [e async for e in client.stream_run("thread1", "hi")]
 

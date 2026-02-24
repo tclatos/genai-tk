@@ -6,10 +6,10 @@ when invalid configurations are provided.
 
 from rich.console import Console
 
-from genai_tk.extra.agents.deer_flow.profile import (
+from genai_tk.agents.deer_flow.profile import (
     DeerFlowProfile as DeerFlowAgentConfig,
 )
-from genai_tk.extra.agents.deer_flow.profile import (
+from genai_tk.agents.deer_flow.profile import (
     InvalidModeError,
     MCPServerNotFoundError,
     ProfileNotFoundError,

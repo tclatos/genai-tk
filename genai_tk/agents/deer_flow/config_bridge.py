@@ -8,7 +8,7 @@ server so it picks them up on launch.
 
 Example:
 ```python
-from genai_tk.extra.agents.deer_flow.config_bridge import setup_deer_flow_config
+from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
 config_path, ext_path = setup_deer_flow_config(
     mcp_server_names=["tavily-mcp"],
     config_dir="/path/to/deer-flow/backend",

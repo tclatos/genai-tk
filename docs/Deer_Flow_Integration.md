@@ -167,7 +167,7 @@ models:
 `DeerFlowClient` wraps the LangGraph HTTP API (`/threads`, `/runs/stream`) and the Gateway REST API (`/api/skills`).
 
 ```python
-from genai_tk.extra.agents.deer_flow.client import DeerFlowClient, TokenEvent
+from genai_tk.agents.deer_flow.client import DeerFlowClient, TokenEvent
 
 client = DeerFlowClient()
 thread_id = await client.create_thread()
@@ -207,7 +207,7 @@ async for event in client.stream_run(thread_id, "Explain transformer attention")
 `DeerFlowServerManager` starts/stops the LangGraph and Gateway servers as subprocesses:
 
 ```python
-from genai_tk.extra.agents.deer_flow.server_manager import DeerFlowServerManager
+from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 
 async with DeerFlowServerManager(deer_flow_path="/path/to/deer-flow") as mgr:
     # both servers are up here

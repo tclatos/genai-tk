@@ -215,8 +215,8 @@ async def _prepare_profile(
     Returns:
         Tuple of (prepared DeerFlowProfile, resolved model_name or None).
     """
-    from genai_tk.extra.agents.deer_flow.config_bridge import setup_deer_flow_config
-    from genai_tk.extra.agents.deer_flow.profile import (
+    from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
+    from genai_tk.agents.deer_flow.profile import (
         DeerFlowError,
         load_deer_flow_profiles,
         validate_mcp_servers,
@@ -302,8 +302,8 @@ async def _ensure_server(
         langgraph_url: LangGraph server base URL.
         gateway_url: Gateway API base URL.
     """
-    from genai_tk.extra.agents.deer_flow.client import DeerFlowClient
-    from genai_tk.extra.agents.deer_flow.server_manager import DeerFlowServerManager
+    from genai_tk.agents.deer_flow.client import DeerFlowClient
+    from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 
     if not profile_auto_start:
         client = DeerFlowClient(langgraph_url=langgraph_url, gateway_url=gateway_url)
@@ -356,8 +356,8 @@ async def _apply_profile_skills(
         skill_directories: Directories to auto-discover skills from.
         gateway_url: Gateway API base URL.
     """
-    from genai_tk.extra.agents.deer_flow.client import DeerFlowClient
-    from genai_tk.extra.agents.deer_flow.config_bridge import load_skills_from_directories
+    from genai_tk.agents.deer_flow.client import DeerFlowClient
+    from genai_tk.agents.deer_flow.config_bridge import load_skills_from_directories
 
     skills: list[str] = list(profile_skills)
     if skill_directories:
@@ -419,7 +419,7 @@ async def _stream_message(
     Returns:
         Accumulated full response text.
     """
-    from genai_tk.extra.agents.deer_flow.client import (
+    from genai_tk.agents.deer_flow.client import (
         DeerFlowClient,
         ErrorEvent,
         NodeEvent,
@@ -497,7 +497,7 @@ async def _stream_message(
 def _get_default_profile_name() -> str | None:
     """Return the name of the first available profile, or None."""
     try:
-        from genai_tk.extra.agents.deer_flow.profile import load_deer_flow_profiles
+        from genai_tk.agents.deer_flow.profile import load_deer_flow_profiles
         from genai_tk.utils.config_mngr import global_config
 
         config_dir = global_config().get_dir_path("paths.config")
@@ -510,7 +510,7 @@ def _get_default_profile_name() -> str | None:
 
 def _list_profiles() -> None:
     """Print a Rich table of all profiles."""
-    from genai_tk.extra.agents.deer_flow.profile import load_deer_flow_profiles
+    from genai_tk.agents.deer_flow.profile import load_deer_flow_profiles
     from genai_tk.utils.config_mngr import global_config
 
     config_dir = global_config().get_dir_path("paths.config")
@@ -579,7 +579,7 @@ async def _run_single_shot(
         show_trace: Show node-level trace lines.
         verbose: Enable DEBUG logging.
     """
-    from genai_tk.extra.agents.deer_flow.client import DeerFlowClient
+    from genai_tk.agents.deer_flow.client import DeerFlowClient
 
     profile, model_name = await _prepare_profile(profile_name, llm_override, extra_mcp, mode_override, verbose)
 
@@ -633,7 +633,7 @@ async def _run_chat_mode(
         initial_input: Optional first message before entering the REPL loop.
         verbose: Enable DEBUG logging.
     """
-    from genai_tk.extra.agents.deer_flow.client import DeerFlowClient
+    from genai_tk.agents.deer_flow.client import DeerFlowClient
 
     profile, model_name = await _prepare_profile(profile_name, llm_override, extra_mcp, mode_override, verbose)
 

@@ -17,9 +17,9 @@ Quickstart:
     3. ``cli deerflow -p "Research Assistant" --chat``
 """
 
-from genai_tk.extra.agents.deer_flow.client import DeerFlowClient, ErrorEvent, NodeEvent, TokenEvent
-from genai_tk.extra.agents.deer_flow.config_bridge import setup_deer_flow_config
-from genai_tk.extra.agents.deer_flow.profile import (
+from genai_tk.agents.deer_flow.client import DeerFlowClient, ErrorEvent, NodeEvent, TokenEvent
+from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
+from genai_tk.agents.deer_flow.profile import (
     DeerFlowError,
     DeerFlowProfile,
     InvalidModeError,
@@ -32,7 +32,7 @@ from genai_tk.extra.agents.deer_flow.profile import (
     validate_mode,
     validate_profile_name,
 )
-from genai_tk.extra.agents.deer_flow.server_manager import DeerFlowServerManager
+from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 
 __all__ = [
     # Profile

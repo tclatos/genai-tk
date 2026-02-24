@@ -283,4 +283,4 @@ if __name__ == "__main__":
     ]
     # This module is now primarily focused on low-level MCP client utilities.
     # Interactive and rich-agent helpers live in
-    # `genai_tk.extra.agents.langchain_agent_rich`.
+    # `genai_tk.agents.langchain_agent_rich`.

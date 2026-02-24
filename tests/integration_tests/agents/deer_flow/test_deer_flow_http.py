@@ -15,8 +15,8 @@ import os
 import pytest
 import pytest_asyncio
 
-from genai_tk.extra.agents.deer_flow.client import DeerFlowClient, TokenEvent
-from genai_tk.extra.agents.deer_flow.server_manager import DeerFlowServerManager
+from genai_tk.agents.deer_flow.client import DeerFlowClient, TokenEvent
+from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 
 DEER_FLOW_PATH = os.getenv("DEER_FLOW_PATH", "")
 SKIP_REASON = "DEER_FLOW_PATH is not set — skipping integration tests"

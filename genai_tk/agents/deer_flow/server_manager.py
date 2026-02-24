@@ -12,7 +12,7 @@ so they can be inspected with standard tools after launch.
 
 Usage:
 ```python
-from genai_tk.extra.agents.deer_flow.server_manager import DeerFlowServerManager
+from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 
 mgr = DeerFlowServerManager(deer_flow_path="/path/to/deer-flow")
 await mgr.restart()           # stop everything, clean, start fresh

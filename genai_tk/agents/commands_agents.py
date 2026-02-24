@@ -397,7 +397,7 @@ class AgentCommands(CliTopCommand):
                 run_langchain_agent_shell,
             )
             from genai_tk.core.llm_factory import LlmFactory
-            from genai_tk.extra.agents.langchain_setup import setup_langchain
+            from genai_tk.agents.langchain_setup import setup_langchain
 
             # Handle configuration loading using shared loader
             config_tools = []
@@ -530,7 +530,7 @@ class AgentCommands(CliTopCommand):
             from smolagents.default_tools import TOOL_MAPPING
 
             from genai_tk.core.llm_factory import LlmFactory
-            from genai_tk.extra.agents.langchain_setup import setup_langchain
+            from genai_tk.agents.langchain_setup import setup_langchain
             from genai_tk.tools.smolagents.config_loader import (
                 CONF_YAML_FILE,
                 convert_langchain_tools,
@@ -852,7 +852,7 @@ class AgentCommands(CliTopCommand):
                 # Write config files and print make dev instruction
                 cli agents deerflow -p "Research Assistant" --web
             """
-            from genai_tk.extra.agents.deer_flow.cli_commands import (
+            from genai_tk.agents.deer_flow.cli_commands import (
                 _get_default_profile_name,
                 _list_profiles,
                 _run_chat_mode,
@@ -888,7 +888,7 @@ class AgentCommands(CliTopCommand):
             if web:
                 import asyncio as _asyncio
 
-                from genai_tk.extra.agents.deer_flow.cli_commands import _open_web_client
+                from genai_tk.agents.deer_flow.cli_commands import _open_web_client
 
                 _asyncio.run(
                     _open_web_client(

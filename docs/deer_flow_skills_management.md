@@ -179,8 +179,8 @@ deerflow_agents:
 **genai-tk:**
 - Configuration: `config/basic/agents/deerflow.yaml`
 - Skills directory: `skills/`
-- Config bridge: `genai_tk/extra/agents/deer_flow/config_bridge.py`
-- CLI commands: `genai_tk/extra/agents/deer_flow/cli_commands.py`
+- Config bridge: `genai_tk/agents/deer_flow/config_bridge.py`
+- CLI commands: `genai_tk/agents/deer_flow/cli_commands.py`
 
 **genai-blueprint:**
 - Configuration: `config/agents/deerflow.yaml`
