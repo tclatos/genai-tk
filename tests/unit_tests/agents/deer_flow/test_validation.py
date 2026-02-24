@@ -2,7 +2,7 @@
 
 import pytest
 
-from genai_tk.extra.agents.deer_flow.profile import (
+from genai_tk.agents.deer_flow.profile import (
     DeerFlowProfile,
     InvalidModeError,
     MCPServerNotFoundError,

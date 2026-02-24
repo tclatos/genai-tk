@@ -71,10 +71,7 @@ class CoreCommands(CliTopCommand):
             from rich import print as pprint
 
             from genai_tk.core.llm_factory import LlmFactory
-            from genai_tk.extra.agents.langchain_setup import setup_langchain
-
-            # Resolve the llm to get llm_id for setup_langchain
-            llm_id = None
+             from genai_tk.agents.langchain_setup import setup_langchain
             if llm:
                 try:
                     llm_id = LlmFactory.resolve_llm_identifier(llm)
@@ -158,9 +155,7 @@ class CoreCommands(CliTopCommand):
 
             from genai_tk.core.chain_registry import ChainRegistry
             from genai_tk.core.llm_factory import LlmFactory
-            from genai_tk.extra.agents.langchain_setup import setup_langchain
-
-            # For compatibility with setup_langchain, resolve the llm to an llm_id if provided
+             from genai_tk.agents.langchain_setup import setup_langchain
             llm_id = None
             if llm:
                 resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)

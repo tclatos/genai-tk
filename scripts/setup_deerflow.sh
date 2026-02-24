@@ -107,7 +107,7 @@ export DEER_FLOW_PATH="$DEER_FLOW_ROOT"
 # Test installation
 echo
 echo "🧪 Testing installation..."
-if python -c "from genai_tk.extra.agents.deer_flow._path_setup import get_deer_flow_backend_path; get_deer_flow_backend_path()" 2>/dev/null; then
+if python -c "from genai_tk.agents.deer_flow._path_setup import get_deer_flow_backend_path; get_deer_flow_backend_path()" 2>/dev/null; then
     echo "✅ Installation test passed!"
 else
     echo "❌ Installation test failed"
