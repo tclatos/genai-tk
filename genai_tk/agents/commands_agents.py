@@ -392,12 +392,12 @@ class AgentCommands(CliTopCommand):
             Use --chat to start an interactive shell where you can send multiple prompts to the agent.
             """
 
+            from genai_tk.agents.langchain_setup import setup_langchain
             from genai_tk.cli.langchain_agent import (
                 run_langchain_agent_direct,
                 run_langchain_agent_shell,
             )
             from genai_tk.core.llm_factory import LlmFactory
-            from genai_tk.agents.langchain_setup import setup_langchain
 
             # Handle configuration loading using shared loader
             config_tools = []
@@ -529,8 +529,8 @@ class AgentCommands(CliTopCommand):
             from smolagents import CodeAgent, Tool
             from smolagents.default_tools import TOOL_MAPPING
 
-            from genai_tk.core.llm_factory import LlmFactory
             from genai_tk.agents.langchain_setup import setup_langchain
+            from genai_tk.core.llm_factory import LlmFactory
             from genai_tk.tools.smolagents.config_loader import (
                 CONF_YAML_FILE,
                 convert_langchain_tools,

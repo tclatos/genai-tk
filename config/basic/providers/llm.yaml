@@ -108,3 +108,24 @@ llm:
       capabilities: ['vision', 'structured_outputs']
       max_tokens: 8192
       context_window: 1000000
+
+    - model_id: minimax_m21
+      providers:
+        - openrouter: minimax/minimax-m2.1
+      capabilities: ['thinking', 'structured_outputs']
+      max_tokens: 8192
+      context_window: 200000
+
+    - model_id: kimi_k25
+      providers:
+        - openrouter: moonshotai/kimi-k2.5
+      capabilities: ['thinking', 'structured_outputs']
+      max_tokens: 8192
+      context_window: 128000
+
+    - model_id: glm_5
+      providers:
+        - openrouter: z-ai/glm-5
+      capabilities: ['thinking', 'structured_outputs']
+      max_tokens: 8192
+      context_window: 128000
