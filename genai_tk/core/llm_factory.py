@@ -503,6 +503,7 @@ class LlmFactory(BaseModel):
             "google",
             "azure",
             "openrouter",
+            "github",
             "huggingface",
             "litellm",
             "custom",
@@ -586,6 +587,14 @@ class LlmFactory(BaseModel):
                 model=self.info.model,
                 api_key=api_key,
                 extra_body=extra_body,
+                **llm_params,
+            )
+        elif self.info.provider == "github":
+            # GitHub Models API - See https://github.com/marketplace/models
+            llm = ChatOpenAI(
+                base_url="https://models.github.ai/inference",
+                model=self.info.model,
+                api_key=api_key,
                 **llm_params,
             )
         elif self.info.provider == "huggingface":

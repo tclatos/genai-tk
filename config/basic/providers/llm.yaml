@@ -89,9 +89,17 @@ llm:
       providers:
         - litellm: openai/gpt-4o-mini
         - openai: gpt-4o-mini
+        - github: gpt-4o-mini
       capabilities: ['structured_outputs', 'vision']
       max_tokens: 16384
       context_window: 128000
+
+    - model_id: gpt_o3mini
+      providers:
+        - github: openai/o3-mini
+      capabilities: ['thinking', 'structured_outputs']
+      max_tokens: 100000
+      context_window: 200000
 
     - model_id: claude_haiku
       providers:

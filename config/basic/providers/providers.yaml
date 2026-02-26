@@ -58,6 +58,12 @@ providers:
     api_key_env_var: MISTRAL_API_KEY
     api_base: https://api.mistral.ai/v1
     
+  github:
+    use: langchain_openai:ChatOpenAI
+    api_key_env_var: GITHUB_PRO_PAM
+   # api_key_env_var: GITHUB_PERSONAL_ACCESS_TOKEN
+    api_base: https://models.github.ai/inference
+    
   litellm:
     use: litellm:ChatLiteLLM
     api_key_env_var: ""
