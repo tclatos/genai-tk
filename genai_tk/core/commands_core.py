@@ -98,23 +98,65 @@ class CoreCommands(CliTopCommand):
                 cache=cache,
                 llm_params={"temperature": temperature},
             )
-            llm_model = llm_factory.get()
-            if raw:
-                if stream:
-                    for chunk in llm_model.stream(input):
-                        pprint(chunk)
+            try:
+                llm_model = llm_factory.get()
+            except Exception as e:
+                from rich.console import Console
+                from rich.panel import Panel
+
+                Console().print(
+                    Panel(
+                        f"[bold]{type(e).__name__}[/bold]\n{e}\n\n"
+                        f"[dim]Model: [cyan]{llm_factory.info.model}[/cyan]   "
+                        f"Provider: [cyan]{llm_factory.info.provider}[/cyan][/dim]",
+                        title="[red]Model Init Error[/red]",
+                        border_style="red",
+                        expand=False,
+                    )
+                )
+                return
+
+            try:
+                if raw:
+                    if stream:
+                        for chunk in llm_model.stream(input):
+                            pprint(chunk)
+                    else:
+                        result = llm_model.invoke(input)
+                        pprint(result)
                 else:
-                    result = llm_model.invoke(input)
-                    pprint(result)
-            else:
-                chain = llm_model | StrOutputParser()
-                if stream:
-                    for s in chain.stream(input):
-                        print(s, end="", flush=True)
-                    print("\n")
-                else:
-                    result = chain.invoke(input)
-                    pprint(result)
+                    chain = llm_model | StrOutputParser()
+                    if stream:
+                        for s in chain.stream(input):
+                            print(s, end="", flush=True)
+                        print("\n")
+                    else:
+                        result = chain.invoke(input)
+                        pprint(result)
+            except Exception as e:
+                from rich.console import Console
+                from rich.panel import Panel
+
+                err_type = type(e).__name__
+                msg = str(e)
+                # Extract the most useful line from httpx/openai errors
+                for line in reversed(msg.splitlines()):
+                    line = line.strip()
+                    if line and not line.startswith("openai.") and "Error" not in line[:6]:
+                        msg = line
+                        break
+                model_used = llm_factory.info.model if hasattr(llm_factory, "info") else (llm or "default")
+                provider_used = llm_factory.info.provider if hasattr(llm_factory, "info") else ""
+                Console().print(
+                    Panel(
+                        f"[bold]{err_type}[/bold]\n{msg}\n\n"
+                        f"[dim]Model: [cyan]{model_used}[/cyan]   Provider: [cyan]{provider_used}[/cyan][/dim]\n"
+                        f"[dim]Tip: run [bold]uv run cli info llm-profile {llm or 'MODEL_ID'}[/bold] to inspect the model[/dim]",
+                        title="[red]API Error[/red]",
+                        border_style="red",
+                        expand=False,
+                    )
+                )
 
         @cli_app.command()
         def run(

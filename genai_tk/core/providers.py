@@ -24,11 +24,15 @@ class ProviderInfo(BaseModel):
         use: Combined module:ClassName string (e.g., 'langchain_openai:ChatOpenAI')
         api_key_env_var: Environment variable name for API key
         api_base: Optional API base URL for OpenAI-compatible providers
+        litellm_prefix: LiteLLM provider prefix; null means no prefix (openai-style)
+        gateway: True for providers that accept vendor-prefixed model names
     """
 
     use: str = Field(..., description="Module and class in format 'module.path:ClassName'")
     api_key_env_var: str
     api_base: str | None = None
+    litellm_prefix: str | None = None
+    gateway: bool = False
 
     model_config = {"frozen": True}
 
@@ -73,6 +77,8 @@ def _load_provider_info_from_yaml() -> dict[str, ProviderInfo]:
             use=info["use"],
             api_key_env_var=info.get("api_key_env_var", ""),
             api_base=info.get("api_base"),
+            litellm_prefix=info.get("litellm_prefix"),
+            gateway=info.get("gateway", False),
         )
 
     return providers

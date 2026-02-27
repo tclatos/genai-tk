@@ -9,7 +9,9 @@
 # model_name is provider specific.  It can contains several fields decoded in the factory.
 
 # Capabilities can be : 'thinking', 'structured_outputs', 'pdf', 'vision'
-# !!! THE ONE HERE ARE INCOMPLETE, AND POSSIBLY INCORRECT !!!! 
+# Capabilities, max_tokens, and context_window are automatically derived from the models.dev
+# database (data/models_dev.json) when not explicitly set here.
+# Override them only when the profile data is absent or incorrect for your use case.
 
 # Provider documentation links:
 # OpenAI: https://platform.openai.com/docs/models
@@ -29,43 +31,18 @@
 
 #cSpell: disable
 
+
+
 llm:
-  registry:
-    - model_id: deepseek_v32
-      providers:
-        - deepseek: deepseek-chat
-        - openrouter: deepseek/deepseek-v3.2
-        - edenai: deepseek/deepseek-chat
-      capabilities: ['structured_outputs', 'thinking']
-      max_tokens: 8000
-      context_window: 65536
+  exceptions:
 
     - model_id: parrot_local  # fake model for tests
       providers:
         - fake: parrot
 
-    - model_id: gpt_oss120
+    - model_id: gpt41mini
       providers:
-        - openrouter: openai/gpt-oss-120b:exacto
-      capabilities: ['structured_outputs', 'thinking']
-      max_tokens: 16384
-      context_window: 200000
-
-    - model_id: gpt_41mini
-      providers:
-        - openrouter: openai/gpt-4.1-mini
         - edenai: gpt-4.1-mini-2025-04-14
-        - openai: gpt-4.1-mini-2025-04-14
-      capabilities: ['structured_outputs', 'vision']
-      max_tokens: 16384
-      context_window: 1047576
-
-    - model_id: qwen3_maxtinking
-      providers:
-        - openrouter: qwen/qwen3-max-thinking
-      capabilities: ['thinking', 'structured_outputs']
-      max_tokens: 16000
-      context_window: 32768
 
     - model_id: mistral_7b
       providers:
@@ -81,59 +58,9 @@ llm:
     - model_id: ministral_8b
       providers:
         - openrouter: mistralai/ministral-8b-latest
-      capabilities: ['structured_outputs']
-      max_tokens: 4096
-      context_window: 131072
+      capabilities: ['structured_outputs']  # not in models.dev; keep as explicit override
 
-    - model_id: gpt_4o_mini
+    - model_id: mistral-nemo  # models.dev name; Mistral API uses 'open-mistral-nemo'
       providers:
-        - litellm: openai/gpt-4o-mini
-        - openai: gpt-4o-mini
-        - github: gpt-4o-mini
-      capabilities: ['structured_outputs', 'vision']
-      max_tokens: 16384
-      context_window: 128000
+        - mistral: open-mistral-nemo
 
-    - model_id: gpt_o3mini
-      providers:
-        - github: openai/o3-mini
-      capabilities: ['thinking', 'structured_outputs']
-      max_tokens: 100000
-      context_window: 200000
-
-    - model_id: claude_haiku
-      providers:
-        - litellm: anthropic/claude-haiku
-        - openrouter: anthropic/claude-haiku
-      capabilities: ['structured_outputs']
-      max_tokens: 4096
-      context_window: 200000
-
-    - model_id: google_gemini3flash
-      providers:
-        - litellm: google/gemini-3-flash
-        - openrouter: google/gemini-3-flash
-      capabilities: ['vision', 'structured_outputs']
-      max_tokens: 8192
-      context_window: 1000000
-
-    - model_id: minimax_m21
-      providers:
-        - openrouter: minimax/minimax-m2.1
-      capabilities: ['thinking', 'structured_outputs']
-      max_tokens: 8192
-      context_window: 200000
-
-    - model_id: kimi_k25
-      providers:
-        - openrouter: moonshotai/kimi-k2.5
-      capabilities: ['thinking', 'structured_outputs']
-      max_tokens: 8192
-      context_window: 128000
-
-    - model_id: glm_5
-      providers:
-        - openrouter: z-ai/glm-5
-      capabilities: ['thinking', 'structured_outputs']
-      max_tokens: 8192
-      context_window: 128000

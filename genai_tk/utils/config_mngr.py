@@ -135,15 +135,19 @@ class OmegaConfig(BaseModel):
         errors = []
         warnings = []
 
-        # Check for LLM configuration
+        # Check for LLM configuration (try new 'exceptions' key, fall back to legacy 'registry')
         try:
-            llm_entries = self.get("llm.registry", default=None)
+            llm_entries = self.get("llm.exceptions", default=None)
             if llm_entries is None:
-                warnings.append("No LLM providers found (llm.registry). Ensure provider files are in the :merge list.")
+                llm_entries = self.get("llm.registry", default=None)
+            if llm_entries is None:
+                warnings.append(
+                    "No LLM providers found (llm.exceptions). Ensure provider files are in the :merge list."
+                )
             elif not isinstance(llm_entries, (list, ListConfig)):
-                errors.append(f"llm.registry should be a list, got {type(llm_entries).__name__}")
+                errors.append(f"llm.exceptions should be a list, got {type(llm_entries).__name__}")
             elif len(llm_entries) == 0:
-                warnings.append("llm.registry is empty - no LLM models configured")
+                warnings.append("llm.exceptions is empty - no LLM exception models configured")
         except Exception as e:
             logger.debug(f"Could not validate llm: {e}")
 

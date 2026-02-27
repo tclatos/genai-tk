@@ -39,15 +39,16 @@ def setup_langchain(
         LlmCache.set_method(cache)
 
     if llm is not None:
-        if llm not in LlmFactory.known_items():
+        try:
+            resolved = LlmFactory.resolve_llm_identifier(llm)
+        except (ValueError, NotImplementedError) as e:
             console.print(
                 Panel(
-                    f"[red]Error:[/red] '{llm}' is not a valid model ID.\n"
-                    f"Valid options are: {', '.join(LlmFactory.known_items())}",
+                    f"[red]Error:[/red] {e}",
                     title="Error",
                     style="red",
                 )
             )
             return False
-        global_config().set("llm.models.default", llm)
+        global_config().set("llm.models.default", resolved)
     return True

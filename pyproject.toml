@@ -83,12 +83,14 @@ dependencies = [
     # ============================================
     "markitdown[pdf, docx, pptx]>=0.1.3", # Convert documents to markdown
     "openpyxl>=3.1.5",                    # Excel file reading and writing
-    "chonkie>=1.5.2",                     # Text chunking and splitting library 
+    "chonkie>=1.5.2",                     # Text chunking and splitting library
     # ============================================
     # Workflow Orchestration
     # ============================================
     "prefect>=3.6.7", # Modern workflow orchestration
     "jinaai>=0.2.10",
+    "langchain-anthropic>=1.3.4",
+    "langchain-google-genai>=4.2.1",
 ]
 
 [project.urls]
