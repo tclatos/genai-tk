@@ -73,6 +73,7 @@ class CoreCommands(CliTopCommand):
             from genai_tk.agents.langchain_setup import setup_langchain
             from genai_tk.core.llm_factory import LlmFactory
 
+            llm_id: str | None = None
             if llm:
                 try:
                     llm_id = LlmFactory.resolve_llm_identifier(llm)
@@ -91,7 +92,7 @@ class CoreCommands(CliTopCommand):
                 return
 
             llm_factory = LlmFactory(
-                llm=llm,
+                llm=llm_id,  # use already-resolved ID to avoid duplicate resolution warnings
                 json_mode=False,
                 streaming=stream,
                 reasoning=reasoning,

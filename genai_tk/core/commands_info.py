@@ -358,6 +358,13 @@ class InfoCommands(CliTopCommand):
 
                         canon, _fp, fuzzy_alternatives = resolve_model(compact, provider_id)
                         resolved_canonical = canon
+                        best_score = fuzzy_alternatives[0][1] if fuzzy_alternatives else 0.0
+                        if best_score < 0.6:
+                            top3 = [name for name, _ in fuzzy_alternatives[:3]]
+                            console.print(
+                                f"[yellow]⚠ Low-confidence resolution: '{model_id}' → '{canon}@{provider_id}' "
+                                f"(score {best_score:.2f}). Did you mean one of: {top3}?[/yellow]"
+                            )
                         llm_info = LlmFactory.known_items_dict().get(f"{canon}@{provider_id}")
                         if llm_info is None:
                             llm_info = LlmInfo(id=model_id, provider=provider_id, model=canon)

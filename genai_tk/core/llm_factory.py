@@ -57,6 +57,7 @@ from genai_tk.core.models_db import ModelEntry, get_models_db
 from genai_tk.core.providers import (
     OPENROUTER_API_BASE,
     PROVIDER_INFO,
+    ProviderInfo,
     get_provider_api_env_var,
     get_provider_api_key,
     get_provider_info,
@@ -417,37 +418,38 @@ class LlmFactory(BaseModel):
 
     def model_post_init(self, __context: dict) -> None:
         """Post-initialization validation and ID resolution."""
-        if self.llm is not None:
-            # Step 1 & 2: exact exception/known match or config tag
-            if self.llm in LlmFactory.known_items():
-                object.__setattr__(self, "llm_id", self.llm)
-            else:
-                try:
-                    resolved_id = LlmFactory.resolve_llm_identifier(self.llm)
-                    object.__setattr__(self, "llm_id", resolved_id)
-                    # If the resolved ID is not a registered known item (e.g. a fuzzy gateway
-                    # model like openai/gpt-oss-120b@openrouter), build an LlmInfo on-the-fly
-                    if resolved_id not in LlmFactory.known_items():
-                        compact, _, provider_id = resolved_id.rpartition("@")
-                        llm_info = LlmInfo(id=resolved_id, provider=provider_id, model=compact)
-                        object.__setattr__(self, "_resolved_llm_info", llm_info)
-                except ValueError:
-                    # Step 3: compact@provider fuzzy resolution (fallback when resolve fails)
-                    if "@" in self.llm:
-                        compact, _, provider_id = self.llm.rpartition("@")
-                        canon, _profile, _alts = resolve_model(compact, provider_id)
-                        llm_info = LlmInfo(id=self.llm, provider=provider_id, model=canon)
-                        object.__setattr__(self, "_resolved_llm_info", llm_info)
-                        object.__setattr__(self, "llm_id", self.llm)
-                    else:
-                        raise
+        # Seed llm_id from the 'llm' parameter if provided
+        if self.llm is not None and self.llm_id is None:
+            # "standard Pydantic pattern for setting fields internally during model_post_init when you want to mutate state without re-triggering validation.""
+            object.__setattr__(self, "llm_id", self.llm)
 
-        # Set default if llm not provided
+        # Set default llm_id from config if still unset
         if self.llm_id is None:
             default_id = global_config().get_str("llm.models.default")
             object.__setattr__(self, "llm_id", default_id)
 
-        # Final validation
+        # Resolve llm_id to a canonical form if not already a known item.
+        # This handles compact aliases like 'gpt_41mini@openai', config tags,
+        # and default config values that may use compact notation.
+        if self.llm_id not in LlmFactory.known_items():
+            assert self.llm_id is not None  # for type checker
+            try:
+                resolved_id = LlmFactory.resolve_llm_identifier(self.llm_id)
+                object.__setattr__(self, "llm_id", resolved_id)
+                # If still not in known_items (e.g. no API key / module), build LlmInfo on-the-fly
+                if resolved_id not in LlmFactory.known_items():
+                    compact, _, provider_id = resolved_id.rpartition("@")
+                    self._resolved_llm_info = LlmInfo(id=resolved_id, provider=provider_id, model=compact)
+            except ValueError:
+                # Fallback: direct fuzzy resolve for compact@provider aliases
+                if "@" in self.llm_id:
+                    compact, _, provider_id = self.llm_id.rpartition("@")
+                    canon, _profile, _alts = resolve_model(compact, provider_id)
+                    self._resolved_llm_info = LlmInfo(id=self.llm_id, provider=provider_id, model=canon)
+                else:
+                    raise
+
+        # Final validation: reject only if we have no resolved info and no known item
         if self._resolved_llm_info is None and self.llm_id not in LlmFactory.known_items():
             raise ValueError(
                 f"Unknown LLM: {self.llm_id}; Check API key and module imports. Should be in {LlmFactory.known_items()}"
@@ -496,38 +498,46 @@ class LlmFactory(BaseModel):
         Items from llm.yaml (exceptions) take precedence over registry entries with the same ID.
         Only providers whose API key is set and whose Python module is importable are included.
         """
-        known_items: dict[str, LlmInfo] = {}
 
-        # Exceptions from llm.yaml
+        def _provider_available(provider_info: ProviderInfo) -> bool:
+            has_key = not provider_info.api_key_env_var or provider_info.api_key_env_var in os.environ
+            has_module = importlib.util.find_spec(provider_info.module) is not None
+            return has_key and has_module
+
+        # llm.yaml entries (exceptions / overrides)
+        yaml_items: dict[str, LlmInfo] = {}
         for item in LlmFactory.known_list():
             provider_info = PROVIDER_INFO.get(item.provider)
             if not provider_info:
                 if explain:
                     logger.debug(f"No PROVIDER_INFO for LLM provider {item.provider}")
                 continue
-
-            module_name = provider_info.module
-            api_key_env_var = provider_info.api_key_env_var
-
-            if api_key_env_var in os.environ or api_key_env_var == "":
-                spec = importlib.util.find_spec(module_name)
-                if spec is not None:
-                    known_items[item.id] = item
-                elif explain:
-                    logger.debug(f"Module {module_name} for {item.provider} could not be imported.")
+            if _provider_available(provider_info):
+                yaml_items[item.id] = item
             elif explain:
-                logger.debug(f"No API key {api_key_env_var} for {item.provider}")
+                logger.debug(f"Skipping {item.id}: missing key or module for {item.provider}")
 
-        # Merge models.dev registry entries (exceptions take precedence)
-        for item_id, item in LlmFactory.registry_items_dict().items():
-            if item_id not in known_items:
-                known_items[item_id] = item
-
-        return known_items
+        # models.dev registry entries (yaml takes precedence)
+        registry_items = {k: v for k, v in LlmFactory.registry_items_dict().items() if k not in yaml_items}
+        return yaml_items | registry_items
 
     @staticmethod
     def known_items() -> list[str]:
-        """Return id of known LLM in the registry whose API key is available and Python module installed."""
+        """Return canonical IDs of all usable LLMs (API key set + Python module installed).
+
+        Each ID has the form ``canonical-model-name@provider``, e.g. ``gpt-4.1-mini@openai``.
+        Sources (in priority order): llm.yaml exceptions, then the models.dev registry.
+
+        LLM identifiers accepted anywhere in the codebase
+        ---------------------------------------------------
+        1. Canonical ID        – exact entry from this list, e.g. ``gpt-4.1-mini@openai``.
+        2. llm.yaml model_id   – underscore alias defined in llm.yaml, e.g. ``gpt_4o_openai``.
+        3. Config tag          – logical role from config, e.g. ``fast_model``, ``smart_model``.
+        4. Compact alias       – ``<alias>@<provider>`` fuzzy-resolved via models.dev,
+                                 e.g. ``gpt41mini@openai`` or ``haiku45@anthropic``.
+
+        Resolution is performed by ``resolve_llm_identifier()`` in that order.
+        """
         return sorted(LlmFactory.known_items_dict().keys())
 
     @staticmethod
@@ -583,8 +593,15 @@ class LlmFactory(BaseModel):
 
             # Fuzzy resolve via models.dev and return canonical model_id@provider
             try:
-                canon, _entry, _alts = resolve_model(compact, provider_id)
+                canon, _entry, alts = resolve_model(compact, provider_id)
                 canonical_id = f"{canon}@{provider_id}"
+                best_score = alts[0][1] if alts else 0.0
+                if best_score < 0.6:
+                    logger.warning(
+                        f"Low-confidence LLM resolution: '{llm}' → '{canonical_id}' "
+                        f"(score {best_score:.2f}). Did you mean one of: "
+                        f"{[name for name, _ in alts[:3]]}?"
+                    )
                 if canonical_id in LlmFactory.known_items():
                     return canonical_id
                 # Model resolved but not in known_items (no API key / module): still usable
@@ -592,9 +609,20 @@ class LlmFactory(BaseModel):
             except ValueError:
                 pass
 
+        # Build a helpful error: show fuzzy matches from known_items + available config tags
+        close_ids = [m for m, _ in _fuzzy_match(llm, LlmFactory.known_items(), n=5, cutoff=0.3)]
+        try:
+            models_cfg = global_config().get("llm.models") or {}
+            tags = {k: v for k, v in models_cfg.items() if k != "default"}
+            tags_hint = f"\n  Config tags : {dict(tags)}" if tags else ""
+        except Exception:
+            tags_hint = ""
+        suggestions = f"\n  Closest IDs : {close_ids}" if close_ids else ""
         raise ValueError(
-            f"Unknown LLM identifier '{llm}'. It is neither a valid LLM ID nor a valid LLM tag. "
-            f"Valid LLM IDs: {LlmFactory.known_items()}"
+            f"Unknown LLM: '{llm}'."
+            f"{suggestions}"
+            f"{tags_hint}"
+            f"\n  Tip: use 'cli info models' to list all IDs, 'cli info config' for tags."
         )
 
     @staticmethod
@@ -1072,13 +1100,12 @@ def llm_config(llm_id: str) -> RunnableConfig:
         r = chain.with_config(llm_config("claude_haiku45_openrouter")).invoke({})
         # or:
         r = graph.invoke({}, config=llm_config("gpt_35_openai") | {"recursion_limit": 6}) )
+        # or with compact alias:
+        r = chain.with_config(llm_config("gpt_41mini@openai")).invoke({})
     ```
     """
-    if llm_id not in LlmFactory.known_items():
-        raise ValueError(
-            f"Unknown LLM: {llm_id}; Check API key and module imports. Should be in {LlmFactory.known_items()}"
-        )
-    return configurable({"llm_id": llm_id})
+    resolved_id = LlmFactory.resolve_llm_identifier(llm_id)
+    return configurable({"llm_id": resolved_id})
 
 
 def configurable(conf: dict) -> RunnableConfig:
