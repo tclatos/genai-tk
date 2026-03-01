@@ -28,6 +28,7 @@ from loguru import logger
 from omegaconf import OmegaConf
 
 from genai_tk.core.llm_factory import LlmFactory
+from genai_tk.core.providers import PROVIDER_INFO
 
 
 def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
@@ -73,13 +74,56 @@ def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
     return skills
 
 
+def _build_dynamic_model_entry(canonical_llm_id: str) -> dict[str, Any] | None:
+    """Build a minimal DeerFlow model config dict for a canonically-resolved LLM ID.
+
+    Used when the ID is not in llm.yaml but has been resolved via models.dev
+    (e.g. ``openai/gpt-oss-120b@openrouter``).
+
+    Args:
+        canonical_llm_id: Canonical LLM ID in ``model@provider`` format.
+
+    Returns:
+        DeerFlow model config dict, or ``None`` if the provider is unknown or
+        its API key is missing from the environment.
+    """
+    model_part, _, provider_name = canonical_llm_id.rpartition("@")
+    if not provider_name:
+        return None
+    provider_info = PROVIDER_INFO.get(provider_name)
+    if not provider_info:
+        return None
+    api_key_env_var = provider_info.api_key_env_var
+    if api_key_env_var and not os.environ.get(api_key_env_var):
+        logger.debug(f"Skipping dynamic model '{canonical_llm_id}': {api_key_env_var} not set")
+        return None
+
+    entry: dict[str, Any] = {
+        "name": canonical_llm_id,
+        "display_name": model_part,
+        "use": provider_info.get_use_string(),
+        "model": model_part,
+        "max_tokens": 4096,
+        "supports_vision": False,
+    }
+    if api_key_env_var:
+        entry["api_key"] = f"${api_key_env_var}"
+    if provider_info.api_base:
+        entry["openai_api_base"] = provider_info.api_base
+    return entry
+
+
 def generate_deer_flow_models(
     llm_config_path: str = "config/providers/llm.yaml",
     selected_llm_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Build Deer-flow model config list from GenAI Toolkit's LlmFactory.
 
-    Only includes models whose provider API keys are available in the environment.
+    Uses ``known_items_dict()`` which merges llm.yaml exceptions with models.dev
+    registry entries.  For gateway providers (openrouter, github, etc.) whose
+    models aren't enumerated in the registry, a dynamic entry is built from
+    ``PROVIDER_INFO`` and the resolved canonical ID.
+
     When ``selected_llm_id`` is provided only that one model is returned.
 
     Args:
@@ -89,12 +133,21 @@ def generate_deer_flow_models(
     Returns:
         List of Deer-flow model config dicts.
     """
-    all_models = LlmFactory.known_list()
+    all_items = LlmFactory.known_items_dict()
     if selected_llm_id:
-        all_models = [m for m in all_models if m.id == selected_llm_id]
+        if selected_llm_id in all_items:
+            all_items = {selected_llm_id: all_items[selected_llm_id]}
+        else:
+            # Gateway models (openrouter etc.) aren't enumerated in known_items_dict.
+            # Build a dynamic entry from PROVIDER_INFO + the resolved canonical ID.
+            dynamic = _build_dynamic_model_entry(selected_llm_id)
+            if dynamic:
+                return [dynamic]
+            logger.warning(f"Model '{selected_llm_id}' not found in known models and cannot be built dynamically")
+            return []
     models = []
 
-    for model_info in all_models:
+    for model_info in all_items.values():
         model_id = model_info.id
         provider_name = model_info.provider
         model_name = model_info.model

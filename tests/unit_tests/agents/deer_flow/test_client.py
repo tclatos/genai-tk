@@ -1,315 +1,507 @@
-"""Unit tests for DeerFlowClient (HTTP client for deer-flow)."""
+"""Unit tests for the embedded DeerFlow client event translation."""
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+import inspect
+import os
+import sys
+from types import ModuleType
+from unittest.mock import MagicMock
 
 import pytest
 
-from genai_tk.agents.deer_flow.client import (
-    DeerFlowClient,
+from genai_tk.agents.deer_flow.embedded_client import (
     ErrorEvent,
     NodeEvent,
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
+    _mode_flags,
+    _translate_event,
 )
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Shared fixtures
+# ---------------------------------------------------------------------------
+
+# Reusable fake StreamEvent class — avoids importing the real src.client
+_FakeStreamEvent = type("StreamEvent", (), {})
+
+
+@pytest.fixture(autouse=True)
+def _fake_src_client_module():
+    """Ensure a fake ``src.client`` module with ``StreamEvent`` is always available.
+
+    This prevents tests from accidentally importing the real DeerFlow module
+    (which would require DEER_FLOW_PATH on sys.path) and keeps test isolation.
+    """
+    fake_src = sys.modules.get("src") or ModuleType("src")
+    fake_src_client = ModuleType("src.client")
+    fake_src_client.StreamEvent = _FakeStreamEvent  # type: ignore[attr-defined]
+    prev_src = sys.modules.get("src")
+    prev_client = sys.modules.get("src.client")
+    sys.modules["src"] = fake_src
+    sys.modules["src.client"] = fake_src_client
+
+    # Reset the cached class so each test starts clean
+    import genai_tk.agents.deer_flow.embedded_client as _ec
+
+    old_cached = _ec._DFStreamEvent
+    _ec._DFStreamEvent = None
+
+    yield _FakeStreamEvent
+
+    # Restore
+    _ec._DFStreamEvent = old_cached
+    if prev_client is not None:
+        sys.modules["src.client"] = prev_client
+    else:
+        sys.modules.pop("src.client", None)
+    if prev_src is not None:
+        sys.modules["src"] = prev_src
+    else:
+        sys.modules.pop("src", None)
+
+
+def _make_event(type_: str, data: dict):
+    """Create a fake DeerFlow StreamEvent with given type and data."""
+    ev = _FakeStreamEvent()
+    ev.type = type_  # type: ignore[attr-defined]
+    ev.data = data  # type: ignore[attr-defined]
+    return ev
+
+
+@pytest.fixture()
+def fake_deer_flow_env(monkeypatch, tmp_path):
+    """Set up DEER_FLOW_PATH, backend dir, fake src.client with a mock DeerFlowClient."""
+    monkeypatch.setenv("DEER_FLOW_PATH", str(tmp_path))
+    (tmp_path / "backend").mkdir(exist_ok=True)
+
+    fake_config = tmp_path / "config.yaml"
+    fake_config.write_text("models: {}")
+
+    mock_df_client_cls = MagicMock()
+    fake_src_client = sys.modules["src.client"]
+    fake_src_client.DeerFlowClient = mock_df_client_cls  # type: ignore[attr-defined]
+
+    return {"config_path": fake_config, "mock_cls": mock_df_client_cls}
+
+# ---------------------------------------------------------------------------
+# _translate_event
 # ---------------------------------------------------------------------------
 
 
-def _sse_lines(*events: tuple[str, str]) -> list[str]:
-    """Build a list of SSE lines from (event_type, json_data) tuples."""
-    lines = []
-    for event_type, json_data in events:
-        lines.append(f"event: {event_type}")
-        lines.append(f"data: {json_data}")
-        lines.append("")  # blank line separator
-    return lines
+def test_translate_ai_text_yields_token_event() -> None:
+    """AI message with text content translates to TokenEvent."""
+    ev = _make_event("messages-tuple", {"type": "ai", "content": "Hello!", "tool_calls": []})
+    result = _translate_event(ev)
+    assert len(result) == 1
+    assert isinstance(result[0], TokenEvent)
+    assert result[0].data == "Hello!"
 
 
-# ---------------------------------------------------------------------------
-# health_check
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_health_check_ok() -> None:
-    """health_check returns True when server responds with 2xx."""
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-
-    mock_client = AsyncMock()
-    mock_client.get = AsyncMock(return_value=mock_response)
-
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-        client = DeerFlowClient()
-        result = await client.health_check()
-
-    assert result is True
-
-
-@pytest.mark.asyncio
-async def test_health_check_connection_error() -> None:
-    """health_check returns False on connection error."""
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
-        mock_cls.return_value.__aenter__ = AsyncMock(side_effect=Exception("connection refused"))
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-        client = DeerFlowClient()
-        result = await client.health_check()
-
-    assert result is False
-
-
-# ---------------------------------------------------------------------------
-# stream_run — SSE parsing
-# ---------------------------------------------------------------------------
-
-
-def _make_streaming_mock(lines: list[str]):
-    """Build an async context manager that yields SSE lines via aiter_lines()."""
-    mock_resp = AsyncMock()
-    mock_resp.status_code = 200
-
-    async def _aiter_lines():
-        for line in lines:
-            yield line
-
-    mock_resp.aiter_lines = _aiter_lines
-
-    mock_client = AsyncMock()
-    mock_stream_ctx = AsyncMock()
-    mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
-    mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
-    mock_client.stream = MagicMock(return_value=mock_stream_ctx)
-
-    mock_outer = AsyncMock()
-    mock_outer.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_outer.__aexit__ = AsyncMock(return_value=False)
-    return mock_outer
-
-
-@pytest.mark.asyncio
-async def test_stream_run_yields_tokens() -> None:
-    """stream_run yields TokenEvents for messages SSE events."""
-    lines = _sse_lines(
-        ("messages", '[{"type": "AIMessageChunk", "content": "Hello "}]'),
-        ("messages", '[{"type": "AIMessageChunk", "content": "world"}]'),
-        ("end", "{}"),
-    )
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
-        client = DeerFlowClient()
-        events = [e async for e in client.stream_run("thread1", "hi")]
-
-    tokens = [e for e in events if isinstance(e, TokenEvent)]
-    assert len(tokens) == 2
-    assert tokens[0].data == "Hello "
-    assert tokens[1].data == "world"
-
-
-@pytest.mark.asyncio
-async def test_stream_run_yields_node_events() -> None:
-    """stream_run yields NodeEvents for updates SSE events (excluding internal nodes)."""
-    lines = _sse_lines(
-        ("updates", '{"researcher": {"messages": []}}'),
-        ("updates", '{"__start__": {}}'),  # should be filtered out
-        ("updates", '{"reporter": {"messages": []}}'),
-        ("end", "{}"),
-    )
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
-        client = DeerFlowClient()
-        events = [e async for e in client.stream_run("thread1", "hi")]
-
-    node_events = [e for e in events if isinstance(e, NodeEvent)]
-    assert len(node_events) == 2
-    assert node_events[0].node == "researcher"
-    assert node_events[1].node == "reporter"
-
-
-@pytest.mark.asyncio
-async def test_stream_run_emits_node_events_per_update() -> None:
-    """Each updates batch emits a NodeEvent even when the same node appears again (needed for tool-call tracking)."""
-    lines = _sse_lines(
-        ("updates", '{"researcher": {}}'),
-        ("updates", '{"researcher": {}}'),  # same node again — both should be emitted
-        ("end", "{}"),
-    )
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
-        client = DeerFlowClient()
-        events = [e async for e in client.stream_run("thread1", "hi")]
-
-    node_events = [e for e in events if isinstance(e, NodeEvent)]
-    assert len(node_events) == 2
-
-
-@pytest.mark.asyncio
-async def test_stream_run_yields_error_event() -> None:
-    """stream_run yields ErrorEvent on error SSE event."""
-    lines = _sse_lines(
-        ("error", '{"error": "something went wrong"}'),
-    )
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
-        client = DeerFlowClient()
-        events = [e async for e in client.stream_run("thread1", "hi")]
-
-    errors = [e for e in events if isinstance(e, ErrorEvent)]
-    assert len(errors) == 1
-    assert "something went wrong" in errors[0].message
-
-
-@pytest.mark.asyncio
-async def test_stream_run_http_error() -> None:
-    """stream_run yields ErrorEvent when server returns HTTP 4xx/5xx."""
-    mock_resp = AsyncMock()
-    mock_resp.status_code = 500
-    mock_resp.aread = AsyncMock(return_value=b"Internal Server Error")
-
-    mock_client = AsyncMock()
-    mock_stream_ctx = AsyncMock()
-    mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_resp)
-    mock_stream_ctx.__aexit__ = AsyncMock(return_value=False)
-    mock_client.stream = MagicMock(return_value=mock_stream_ctx)
-
-    mock_outer = AsyncMock()
-    mock_outer.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_outer.__aexit__ = AsyncMock(return_value=False)
-
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=mock_outer):
-        client = DeerFlowClient()
-        events = [e async for e in client.stream_run("thread1", "hi")]
-
-    errors = [e for e in events if isinstance(e, ErrorEvent)]
-    assert len(errors) == 1
-    assert "500" in errors[0].message
-
-
-@pytest.mark.asyncio
-async def test_stream_run_content_list_blocks() -> None:
-    """stream_run also extracts text from content-list block format."""
-    lines = _sse_lines(
-        ("messages", '[{"type": "AIMessageChunk", "content": [{"type": "text", "text": "Block text"}]}]'),
-        ("end", "{}"),
-    )
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
-        client = DeerFlowClient()
-        events = [e async for e in client.stream_run("thread1", "hi")]
-
-    tokens = [e for e in events if isinstance(e, TokenEvent)]
-    assert len(tokens) == 1
-    assert tokens[0].data == "Block text"
-
-
-# ---------------------------------------------------------------------------
-# create_thread
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_create_thread_returns_thread_id() -> None:
-    """create_thread returns the thread_id from the response."""
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.raise_for_status = MagicMock()
-    mock_response.json = MagicMock(return_value={"thread_id": "abc123", "metadata": {}})
-
-    mock_client = AsyncMock()
-    mock_client.post = AsyncMock(return_value=mock_response)
-
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
-        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
-        client = DeerFlowClient()
-        thread_id = await client.create_thread()
-
-    assert thread_id == "abc123"
-
-
-# ---------------------------------------------------------------------------
-# URL construction
-# ---------------------------------------------------------------------------
-
-
-def test_url_construction() -> None:
-    """Client constructs correct LangGraph and Gateway URLs."""
-    client = DeerFlowClient(langgraph_url="http://myhost:2024", gateway_url="http://myhost:8001")
-    assert client._lg("/threads") == "http://myhost:2024/threads"
-    assert client._gw("/api/models") == "http://myhost:8001/api/models"
-
-
-def test_url_strips_trailing_slash() -> None:
-    """Trailing slash on base URL is stripped."""
-    client = DeerFlowClient(langgraph_url="http://localhost:2024/", gateway_url="http://localhost:8001/")
-    assert not client._lg_url.endswith("/")
-    assert not client._gw_url.endswith("/")
-
-
-# ---------------------------------------------------------------------------
-# ToolCallEvent / ToolResultEvent extraction
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_stream_run_yields_tool_call_event() -> None:
-    """Tool calls in AIMessage are yielded as ToolCallEvent."""
-    import json
-
-    ai_msg = json.dumps(
+def test_translate_ai_tool_call_yields_tool_call_event() -> None:
+    """AI message with tool_calls translates to ToolCallEvent(s)."""
+    ev = _make_event(
+        "messages-tuple",
         {
-            "messages": [
-                {
-                    "type": "ai",
-                    "content": "",
-                    "tool_calls": [{"name": "web_search", "args": {"query": "test"}, "id": "tc1"}],
-                }
-            ]
-        }
+            "type": "ai",
+            "content": "",
+            "tool_calls": [{"name": "web_search", "args": {"query": "AI"}, "id": "tc1"}],
+        },
     )
-    lines = _sse_lines(
-        ("updates", '{"model": ' + ai_msg + "}"),
-        ("end", "{}"),
-    )
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
-        client = DeerFlowClient()
-        events = [e async for e in client.stream_run("thread1", "hi")]
-
-    tool_calls = [e for e in events if isinstance(e, ToolCallEvent)]
+    result = _translate_event(ev)
+    tool_calls = [e for e in result if isinstance(e, ToolCallEvent)]
     assert len(tool_calls) == 1
     assert tool_calls[0].tool_name == "web_search"
-    assert tool_calls[0].args == {"query": "test"}
+    assert tool_calls[0].args == {"query": "AI"}
     assert tool_calls[0].call_id == "tc1"
 
 
-@pytest.mark.asyncio
-async def test_stream_run_yields_tool_result_event() -> None:
-    """ToolMessages in state_diff are yielded as ToolResultEvent."""
-    import json
-
-    tool_msg = json.dumps(
-        {
-            "messages": [
-                {
-                    "type": "tool",
-                    "name": "web_search",
-                    "content": "Search results here",
-                    "tool_call_id": "tc1",
-                }
-            ]
-        }
+def test_translate_tool_result_event() -> None:
+    """Tool message translates to ToolResultEvent."""
+    ev = _make_event(
+        "messages-tuple",
+        {"type": "tool", "name": "web_search", "content": "Results here", "tool_call_id": "tc1"},
     )
-    lines = _sse_lines(
-        ("updates", '{"tools": ' + tool_msg + "}"),
-        ("end", "{}"),
-    )
-    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient", return_value=_make_streaming_mock(lines)):
-        client = DeerFlowClient()
-        events = [e async for e in client.stream_run("thread1", "hi")]
+    result = _translate_event(ev)
+    assert len(result) == 1
+    assert isinstance(result[0], ToolResultEvent)
+    assert result[0].tool_name == "web_search"
+    assert result[0].content == "Results here"
+    assert result[0].call_id == "tc1"
 
-    results = [e for e in events if isinstance(e, ToolResultEvent)]
-    assert len(results) == 1
-    assert results[0].tool_name == "web_search"
-    assert results[0].content == "Search results here"
-    assert results[0].call_id == "tc1"
+
+def test_translate_values_event_returns_empty() -> None:
+    """'values' events are silently consumed (return empty list)."""
+    ev = _make_event("values", {"messages": [], "title": None, "artifacts": []})
+    assert _translate_event(ev) == []
+
+
+def test_translate_end_event_returns_empty() -> None:
+    """'end' events are silently consumed."""
+    ev = _make_event("end", {})
+    assert _translate_event(ev) == []
+
+
+# ---------------------------------------------------------------------------
+# _mode_flags
+# ---------------------------------------------------------------------------
+
+
+def test_mode_flags_flash() -> None:
+    flags = _mode_flags("flash")
+    assert flags["thinking_enabled"] is False
+    assert flags["is_plan_mode"] is False
+    assert flags["subagent_enabled"] is False
+
+
+def test_mode_flags_thinking() -> None:
+    flags = _mode_flags("thinking")
+    assert flags["thinking_enabled"] is True
+    assert flags["is_plan_mode"] is False
+
+
+def test_mode_flags_pro() -> None:
+    flags = _mode_flags("pro")
+    assert flags["thinking_enabled"] is True
+    assert flags["is_plan_mode"] is True
+    assert flags["subagent_enabled"] is False
+
+
+def test_mode_flags_ultra() -> None:
+    flags = _mode_flags("ultra")
+    assert flags["thinking_enabled"] is True
+    assert flags["is_plan_mode"] is True
+    assert flags["subagent_enabled"] is True
+
+
+def test_mode_flags_unknown_defaults_to_flash() -> None:
+    flags = _mode_flags("unknown_mode")
+    assert flags == _mode_flags("flash")
+
+
+# ---------------------------------------------------------------------------
+# Event dataclass defaults
+# ---------------------------------------------------------------------------
+
+
+def test_token_event_defaults() -> None:
+    ev = TokenEvent()
+    assert ev.kind == "token"
+    assert ev.data == ""
+
+
+def test_node_event_state_default() -> None:
+    ev = NodeEvent()
+    assert ev.state == {}
+
+
+def test_tool_call_event_args_default() -> None:
+    ev = ToolCallEvent()
+    assert ev.args == {}
+
+
+def test_error_event() -> None:
+    ev = ErrorEvent(message="boom")
+    assert ev.kind == "error"
+    assert ev.message == "boom"
+
+
+# ---------------------------------------------------------------------------
+# Signature regression tests — guard against re-introducing removed params
+# ---------------------------------------------------------------------------
+
+
+def test_run_single_shot_no_stream_enabled() -> None:
+    """_run_single_shot must not accept stream_enabled (removed in embedded refactor)."""
+    from genai_tk.agents.deer_flow.cli_commands import _run_single_shot
+
+    params = inspect.signature(_run_single_shot).parameters
+    assert "stream_enabled" not in params, (
+        "_run_single_shot still has 'stream_enabled' — it was removed when switching to embedded mode"
+    )
+
+
+def test_run_chat_mode_no_stream_enabled() -> None:
+    """_run_chat_mode must not accept stream_enabled (removed in embedded refactor)."""
+    from genai_tk.agents.deer_flow.cli_commands import _run_chat_mode
+
+    params = inspect.signature(_run_chat_mode).parameters
+    assert "stream_enabled" not in params, (
+        "_run_chat_mode still has 'stream_enabled' — it was removed when switching to embedded mode"
+    )
+
+
+def test_run_single_shot_has_expected_params() -> None:
+    """_run_single_shot has all expected parameters."""
+    from genai_tk.agents.deer_flow.cli_commands import _run_single_shot
+
+    params = inspect.signature(_run_single_shot).parameters
+    for expected in ("profile_name", "user_input", "llm_override", "extra_mcp", "mode_override", "verbose",
+                     "show_trace", "subagent_enabled", "plan_mode"):
+        assert expected in params, f"_run_single_shot is missing expected param '{expected}'"
+
+
+def test_run_chat_mode_has_expected_params() -> None:
+    """_run_chat_mode has all expected parameters."""
+    from genai_tk.agents.deer_flow.cli_commands import _run_chat_mode
+
+    params = inspect.signature(_run_chat_mode).parameters
+    for expected in ("profile_name", "llm_override", "extra_mcp", "mode_override", "verbose",
+                     "show_trace", "initial_input", "subagent_enabled", "plan_mode"):
+        assert expected in params, f"_run_chat_mode is missing expected param '{expected}'"
+
+
+def test_commands_agents_deerflow_no_stream_kwarg() -> None:
+    """commands_agents deerflow callback must not pass stream_enabled to cli functions."""
+    import ast
+    from pathlib import Path
+
+    src = (Path(__file__).parents[4] / "genai_tk" / "agents" / "commands_agents.py").read_text()
+    tree = ast.parse(src)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            for kw in node.keywords:
+                assert kw.arg != "stream_enabled", (
+                    f"commands_agents.py line {node.lineno}: call passes 'stream_enabled' — "
+                    "this kwarg was removed in the embedded client refactor"
+                )
+
+
+def test_stream_message_signature() -> None:
+    """EmbeddedDeerFlowClient.stream_message has expected keyword parameters."""
+    from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+
+    params = inspect.signature(EmbeddedDeerFlowClient.stream_message).parameters
+    for expected in ("thread_id", "user_input", "model_name", "mode", "subagent_enabled", "plan_mode"):
+        assert expected in params, f"stream_message is missing expected param '{expected}'"
+
+
+# ---------------------------------------------------------------------------
+# Checkpointer availability
+# ---------------------------------------------------------------------------
+
+
+def test_sqlite_checkpointer_importable() -> None:
+    """langgraph-checkpoint-sqlite package must be installed (added to pyproject.toml)."""
+    from langgraph.checkpoint.sqlite import SqliteSaver  # noqa: F401
+
+
+def test_memory_saver_importable() -> None:
+    """MemorySaver fallback must always be importable from core langgraph."""
+    from langgraph.checkpoint.memory import MemorySaver  # noqa: F401
+
+
+def test_embedded_client_falls_back_to_memory_saver(fake_deer_flow_env) -> None:
+    """EmbeddedDeerFlowClient uses MemorySaver when SqliteSaver is unavailable."""
+    from unittest.mock import patch
+
+    from langgraph.checkpoint.memory import MemorySaver
+
+    from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+
+    with patch.dict(sys.modules, {"langgraph.checkpoint.sqlite": None}):
+        client = EmbeddedDeerFlowClient(config_path=fake_deer_flow_env["config_path"])
+        assert isinstance(client._checkpointer, MemorySaver)
+
+
+def test_embedded_client_init_signature() -> None:
+    """EmbeddedDeerFlowClient.__init__ accepts config_path and model_name."""
+    from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+
+    params = inspect.signature(EmbeddedDeerFlowClient.__init__).parameters
+    assert "config_path" in params
+    assert "model_name" in params
+
+
+# ---------------------------------------------------------------------------
+# _resolve_model_name — delegates to resolve_llm_identifier_safe
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_model_name_delegates_to_resolve_llm_identifier() -> None:
+    """_resolve_model_name delegates to LlmFactory.resolve_llm_identifier_safe."""
+    from unittest.mock import patch
+
+    from genai_tk.agents.deer_flow.cli_commands import _resolve_model_name
+
+    with patch(
+        "genai_tk.core.llm_factory.LlmFactory.resolve_llm_identifier_safe",
+        return_value=("openai/gpt-oss-120b@openrouter", None),
+    ):
+        assert _resolve_model_name("gpt_oss120@openrouter") == "openai/gpt-oss-120b@openrouter"
+
+
+def test_resolve_model_name_error_raises_exit() -> None:
+    """Exits with an error when resolution fails."""
+    from unittest.mock import patch
+
+    import typer
+
+    from genai_tk.agents.deer_flow.cli_commands import _resolve_model_name
+
+    with patch(
+        "genai_tk.core.llm_factory.LlmFactory.resolve_llm_identifier_safe",
+        return_value=(None, "Unknown LLM: 'ghost@nowhere'"),
+    ):
+        with pytest.raises(typer.Exit):
+            _resolve_model_name("ghost@nowhere")
+
+
+# ---------------------------------------------------------------------------
+# config_bridge — generate_deer_flow_models + _build_dynamic_model_entry
+# ---------------------------------------------------------------------------
+
+
+def test_build_dynamic_model_entry_openrouter() -> None:
+    """_build_dynamic_model_entry builds a valid entry for a gateway model."""
+    from unittest.mock import patch
+
+    from genai_tk.agents.deer_flow.config_bridge import _build_dynamic_model_entry
+
+    with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test-key"}):
+        entry = _build_dynamic_model_entry("openai/gpt-oss-120b@openrouter")
+
+    assert entry is not None
+    assert entry["name"] == "openai/gpt-oss-120b@openrouter"
+    assert entry["model"] == "openai/gpt-oss-120b"
+    assert "openai_api_base" in entry
+    assert entry["api_key"] == "$OPENROUTER_API_KEY"
+
+
+def test_build_dynamic_model_entry_unknown_provider() -> None:
+    """Returns None for an unknown provider."""
+    from genai_tk.agents.deer_flow.config_bridge import _build_dynamic_model_entry
+
+    assert _build_dynamic_model_entry("some-model@unknown_provider") is None
+
+
+def test_build_dynamic_model_entry_missing_api_key() -> None:
+    """Returns None when the required API key is not set."""
+    from unittest.mock import patch
+
+    from genai_tk.agents.deer_flow.config_bridge import _build_dynamic_model_entry
+
+    with patch.dict(os.environ, {}, clear=False):
+        os.environ.pop("OPENROUTER_API_KEY", None)
+        entry = _build_dynamic_model_entry("openai/gpt-oss-120b@openrouter")
+
+    assert entry is None
+
+
+def test_generate_deer_flow_models_uses_known_items_dict() -> None:
+    """generate_deer_flow_models uses known_items_dict, not just known_list."""
+    from unittest.mock import MagicMock, patch
+
+    from genai_tk.agents.deer_flow.config_bridge import generate_deer_flow_models
+
+    mock_info = MagicMock()
+    mock_info.id = "gpt-4.1-mini@openai"
+    mock_info.provider = "openai"
+    mock_info.model = "gpt-4.1-mini"
+    mock_info.max_tokens = 16384
+    mock_info.supports_vision = True
+    mock_info.supports_thinking = False
+    prov = MagicMock()
+    prov.api_key_env_var = "OPENAI_API_KEY"
+    prov.api_base = None
+    prov.get_use_string.return_value = "langchain_openai:ChatOpenAI"
+    mock_info.get_provider_info.return_value = prov
+
+    with (
+        patch("genai_tk.agents.deer_flow.config_bridge.LlmFactory.known_items_dict", return_value={"gpt-4.1-mini@openai": mock_info}),
+        patch.dict(os.environ, {"OPENAI_API_KEY": "test"}),
+    ):
+        models = generate_deer_flow_models(selected_llm_id="gpt-4.1-mini@openai")
+
+    assert len(models) == 1
+    assert models[0]["name"] == "gpt-4.1-mini@openai"
+
+
+# ---------------------------------------------------------------------------
+# End-to-end integration-style tests
+# ---------------------------------------------------------------------------
+
+
+def test_readabilipy_importable() -> None:
+    """readabilipy must be installed — required by DeerFlow's jina_ai web_fetch tool."""
+    from readabilipy import simple_json_from_html_string  # noqa: F401
+
+
+def test_sqlite_checkpointer_is_base_saver() -> None:
+    """SqliteSaver constructed with a direct connection is a valid BaseCheckpointSaver."""
+    import sqlite3
+    import tempfile
+
+    from langgraph.checkpoint.base import BaseCheckpointSaver
+    from langgraph.checkpoint.sqlite import SqliteSaver
+
+    db_path = os.path.join(tempfile.mkdtemp(), "test_e2e.db")
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    saver = SqliteSaver(conn)
+    assert isinstance(saver, BaseCheckpointSaver), (
+        f"Expected BaseCheckpointSaver, got {type(saver).__name__}"
+    )
+    conn.close()
+
+
+def test_embedded_client_creates_valid_checkpointer(fake_deer_flow_env) -> None:
+    """EmbeddedDeerFlowClient.__init__ creates a checkpointer that passes DeerFlow validation."""
+    from langgraph.checkpoint.base import BaseCheckpointSaver
+
+    from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+
+    client = EmbeddedDeerFlowClient(config_path=fake_deer_flow_env["config_path"])
+    assert isinstance(client._checkpointer, BaseCheckpointSaver), (
+        f"Checkpointer must be BaseCheckpointSaver, got {type(client._checkpointer).__name__}"
+    )
+
+
+def test_sqlite_connection_survives_after_init(fake_deer_flow_env) -> None:
+    """Regression: sqlite connection must remain open after __init__ returns.
+
+    The old ``from_conn_string().__enter__()`` approach caused the database
+    to close when the generator context manager was garbage-collected.
+    """
+    import gc
+
+    from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+
+    client = EmbeddedDeerFlowClient(config_path=fake_deer_flow_env["config_path"])
+    gc.collect()  # Force GC to trigger any generator finalization
+    client._checkpointer.conn.execute("SELECT 1")  # Connection must still be usable
+
+
+def test_config_bridge_to_embedded_client_name_consistency() -> None:
+    """The model name from _resolve_model_name matches config_bridge output names."""
+    from unittest.mock import patch
+
+    from genai_tk.agents.deer_flow.cli_commands import _resolve_model_name
+    from genai_tk.agents.deer_flow.config_bridge import generate_deer_flow_models
+
+    # Simulate a model resolved via models.dev (gateway model not in llm.yaml)
+    with patch(
+        "genai_tk.core.llm_factory.LlmFactory.resolve_llm_identifier_safe",
+        return_value=("openai/gpt-oss-120b@openrouter", None),
+    ):
+        resolved = _resolve_model_name("gpt_oss120@openrouter")
+
+    with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test"}):
+        models = generate_deer_flow_models(selected_llm_id=resolved)
+
+    assert len(models) == 1
+    assert models[0]["name"] == resolved, (
+        f"config_bridge name '{models[0]['name']}' must match resolved '{resolved}'"
+    )
+
+
+def test_full_init_chain_no_deer_flow_path(monkeypatch) -> None:
+    """EmbeddedDeerFlowClient raises RuntimeError when DEER_FLOW_PATH is unset."""
+    monkeypatch.delenv("DEER_FLOW_PATH", raising=False)
+
+    from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+
+    with pytest.raises(RuntimeError, match="DEER_FLOW_PATH"):
+        EmbeddedDeerFlowClient(config_path="/nonexistent/config.yaml")

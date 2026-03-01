@@ -774,13 +774,6 @@ class AgentCommands(CliTopCommand):
                     help="Override agent mode: flash|thinking|pro|ultra",
                 ),
             ] = None,
-            stream: Annotated[
-                bool,
-                typer.Option(
-                    "--stream",
-                    help="Stream intermediate agent steps in real-time",
-                ),
-            ] = False,
             list_profiles: Annotated[
                 bool,
                 typer.Option(
@@ -921,7 +914,6 @@ class AgentCommands(CliTopCommand):
                             llm_override=llm,
                             extra_mcp=mcp,
                             mode_override=mode,
-                            stream_enabled=stream,
                             initial_input=input_text,
                             verbose=verbose,
                         )
@@ -938,7 +930,6 @@ class AgentCommands(CliTopCommand):
                             llm_override=llm,
                             extra_mcp=mcp,
                             mode_override=mode,
-                            stream_enabled=stream,
                             verbose=verbose,
                         )
                     )

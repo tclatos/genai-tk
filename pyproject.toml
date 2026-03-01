@@ -51,7 +51,6 @@ dependencies = [
     "deepagents>=0.4",                                         # Deep agents with planning, subagents, skills
     "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
-
     # ============================================
     # Vector Stores & Embeddings
     # ============================================
@@ -92,7 +91,8 @@ dependencies = [
     # ============================================
     "prefect>=3.6.7", # Modern workflow orchestration
     "jinaai>=0.2.10",
-
+    "langgraph-checkpoint-sqlite>=3.0.3",
+    "readabilipy>=0.3.0",
 ]
 
 [project.urls]
@@ -145,7 +145,9 @@ autogen = [
 #   export DEER_FLOW_PATH=/path/to/deer-flow
 #   uv pip install -e $DEER_FLOW_PATH/backend
 # This is intentionally left empty since uv doesn't support ${VAR} in file:// URLs
-deer-flow = []
+deer-flow = [
+    # readabilipy is in main dependencies (required by deer-flow's Jina AI web_fetch tool)
+]
 
 # Docker sandbox support for deer-flow (enables file creation, bash, code execution in container)
 # Requires Docker to be installed and running

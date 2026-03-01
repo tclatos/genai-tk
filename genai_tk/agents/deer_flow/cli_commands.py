@@ -1,9 +1,7 @@
-"""CLI commands for Deer-flow agents (HTTP client mode).
+"""CLI commands for Deer-flow agents (embedded client mode).
 
-Connects to a running Deer-flow server via its HTTP API
-instead of importing the library in-process.
-
-The server is auto-started if it is not already running (requires DEER_FLOW_PATH).
+Loads DeerFlow in-process via DEER_FLOW_PATH/backend — no HTTP servers needed.
+The --web option still starts the backend servers for the Next.js frontend.
 
 Usage examples:
     cli deerflow --list
@@ -11,6 +9,7 @@ Usage examples:
     cli deerflow -p "Coder" --chat
     cli deerflow -p "Research Assistant" --mode ultra --trace "Analyse AI trends"
     cli deerflow -p "Web Browser" --llm gpt_41mini@openai "Go to atos.net"
+    cli deerflow -p "Research Assistant" --subagent --plan-mode "Build a report"
 """
 
 from __future__ import annotations
@@ -67,32 +66,6 @@ _NODE_LABELS: dict[str, str] = {
 
 
 # ---------------------------------------------------------------------------
-# Mode -> configurable flags
-# ---------------------------------------------------------------------------
-
-
-def _mode_to_configurable(mode: str) -> dict:
-    """Map a mode name to deer-flow configurable flags.
-
-    Args:
-        mode: One of flash, thinking, pro, ultra.
-
-    Returns:
-        Dict with thinking_enabled, is_plan_mode, subagent_enabled.
-    """
-    m = mode.lower()
-    if m == "flash":
-        return {"thinking_enabled": False, "is_plan_mode": False, "subagent_enabled": False}
-    if m == "thinking":
-        return {"thinking_enabled": True, "is_plan_mode": False, "subagent_enabled": False}
-    if m == "pro":
-        return {"thinking_enabled": True, "is_plan_mode": True, "subagent_enabled": False}
-    if m == "ultra":
-        return {"thinking_enabled": True, "is_plan_mode": True, "subagent_enabled": True}
-    return {"thinking_enabled": False, "is_plan_mode": False, "subagent_enabled": False}
-
-
-# ---------------------------------------------------------------------------
 # LLM identifier -> deer-flow model_name
 # ---------------------------------------------------------------------------
 
@@ -100,21 +73,25 @@ def _mode_to_configurable(mode: str) -> dict:
 def _resolve_model_name(llm_identifier: str) -> str:
     """Resolve a GenAI Toolkit LLM identifier to a deer-flow model name.
 
-    Deer-flow model names are the GenAI Toolkit model IDs
-    (set during config generation in config_bridge.py).  Tags like
-    fast_model are resolved to their ID first.
+    Delegates to ``LlmFactory.resolve_llm_identifier_safe`` which handles
+    exact IDs, config tags, hyphen/underscore normalisation, and fuzzy
+    models.dev resolution in a single call.
+
+    The returned ID is used both as the ``model_name`` parameter for the
+    embedded client and as the ``selected_llm`` filter in
+    ``config_bridge.generate_deer_flow_models``.
 
     Args:
-        llm_identifier: LLM ID or tag, e.g. gpt_41mini@openai or fast_model.
+        llm_identifier: LLM ID, tag, or compact alias (e.g. ``gpt_oss120@openrouter``).
 
     Returns:
-        Deer-flow model name string.
+        Resolved LLM ID string.
     """
     from genai_tk.core.llm_factory import LlmFactory
 
     llm_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm_identifier)
     if error_msg:
-        console.print(error_msg)
+        console.print(f"[red]{error_msg}[/red]")
         raise typer.Exit(1)
     return llm_id
 
@@ -193,17 +170,15 @@ async def _prepare_profile(
     extra_mcp: list[str],
     mode_override: str | None,
     verbose: bool,
-) -> tuple["DeerFlowProfile", str | None]:  # noqa: F821  (forward ref, imported inside)
-    """Load, validate and prepare a profile, write deer-flow config, and restart the server.
+    *,
+    start_servers: bool = False,
+) -> tuple["DeerFlowProfile", str | None, "Path"]:  # noqa: F821
+    """Load, validate and prepare a profile, then write the deer-flow config.
 
-    This is the single shared setup block used by all three run modes
-    (single-shot, chat, web).  It:
-    - configures verbose logging if requested
-    - loads the profile from deerflow.yaml and applies overrides
-    - resolves the LLM identifier
-    - writes config.yaml + extensions_config.json via setup_deer_flow_config
-    - restarts the deer-flow servers (clean restart, so fresh config is loaded)
-    - activates skills
+    For embedded (terminal) mode ``start_servers=False`` (default): only writes
+    ``config.yaml`` + ``extensions_config.json`` — no server restart is done.
+    For ``--web`` mode pass ``start_servers=True`` to also restart the backend
+    servers so the Next.js frontend has live processes to connect to.
 
     Args:
         profile_name: Profile name from deerflow.yaml.
@@ -211,9 +186,10 @@ async def _prepare_profile(
         extra_mcp: Additional MCP server names.
         mode_override: Mode override string.
         verbose: Enable DEBUG-level logging.
+        start_servers: When True, restart deer-flow backend servers after config write.
 
     Returns:
-        Tuple of (prepared DeerFlowProfile, resolved model_name or None).
+        Tuple of (prepared DeerFlowProfile, resolved model_name or None, config_path).
     """
     from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
     from genai_tk.agents.deer_flow.profile import (
@@ -275,10 +251,10 @@ async def _prepare_profile(
             "Sandboxed code execution may fail."
         )
 
-    await _ensure_server(profile.auto_start, profile.deer_flow_path, profile.langgraph_url, profile.gateway_url)
-    await _apply_profile_skills(profile.skills, profile.skill_directories, profile.gateway_url)
+    if start_servers:
+        await _ensure_server(profile.auto_start, profile.deer_flow_path, profile.langgraph_url, profile.gateway_url)
 
-    return profile, model_name
+    return profile, model_name, config_path
 
 
 async def _ensure_server(
@@ -302,12 +278,14 @@ async def _ensure_server(
         langgraph_url: LangGraph server base URL.
         gateway_url: Gateway API base URL.
     """
-    from genai_tk.agents.deer_flow.client import DeerFlowClient
     from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 
     if not profile_auto_start:
-        client = DeerFlowClient(langgraph_url=langgraph_url, gateway_url=gateway_url)
-        if not await client.health_check():
+        mgr = DeerFlowServerManager(
+            langgraph_url=langgraph_url,
+            gateway_url=gateway_url,
+        )
+        if not await mgr.is_running():
             console.print(
                 "[red]Deer-flow server is not running.[/red] Start it manually or set auto_start: true in the profile."
             )
@@ -344,92 +322,48 @@ async def _ensure_server(
 # ---------------------------------------------------------------------------
 
 
-async def _apply_profile_skills(
-    profile_skills: list[str],
-    skill_directories: list[str],
-    gateway_url: str,
-) -> None:
-    """Activate skills on the running server according to a profile.
-
-    Args:
-        profile_skills: Explicit skill list from profile (category/name format).
-        skill_directories: Directories to auto-discover skills from.
-        gateway_url: Gateway API base URL.
-    """
-    from genai_tk.agents.deer_flow.client import DeerFlowClient
-    from genai_tk.agents.deer_flow.config_bridge import load_skills_from_directories
-
-    skills: list[str] = list(profile_skills)
-    if skill_directories:
-        skills = load_skills_from_directories(skill_directories)
-    if not skills:
-        return
-
-    client = DeerFlowClient(gateway_url=gateway_url)
-
-    # Fetch the set of skill names the server actually knows about, so we
-    # can silently skip any local skills that don't exist on this server
-    # version (e.g. "vercel-deploy-claimable" vs "vercel-deploy").
-    try:
-        server_skills = {s["name"] for s in await client.list_skills()}
-    except Exception:
-        server_skills = None  # can't fetch — try enabling anyway
-
-    for skill in skills:
-        # API expects bare name (e.g. "consulting-analysis"), not "category/name"
-        skill_name = skill.split("/")[-1]
-        if server_skills is not None and skill_name not in server_skills:
-            logger.debug(f"Skill '{skill_name}' not available on this server — skipping")
-            continue
-        try:
-            await client.set_skill(skill_name, enabled=True)
-            logger.debug(f"Enabled skill: {skill_name}")
-        except Exception as e:
-            logger.warning(f"Could not enable skill '{skill_name}': {e}")
-
-
 # ---------------------------------------------------------------------------
 # Core streaming function (single turn)
 # ---------------------------------------------------------------------------
 
 
 async def _stream_message(
-    langgraph_url: str,
-    gateway_url: str,
+    client: "EmbeddedDeerFlowClient",  # noqa: F821
     thread_id: str,
     user_input: str,
     model_name: str | None,
     mode: str,
     show_trace: bool,
+    *,
+    subagent_enabled: bool | None = None,
+    plan_mode: bool | None = None,
 ) -> str:
     """Send a message and stream the response to the terminal.
 
-    Tokens are printed as they arrive via Rich Live.
-    If show_trace is True, node names are printed between token sections.
+    Displays a spinner while the agent thinks, then renders the full AI
+    response (embedded mode delivers complete messages, not char-by-char tokens).
+    Tool calls and results are shown as they arrive.
 
     Args:
-        langgraph_url: LangGraph server URL.
-        gateway_url: Gateway API URL.
+        client: Embedded deer-flow client instance.
         thread_id: Conversation thread ID.
         user_input: User message.
-        model_name: Deer-flow model name override (None = server default).
+        model_name: Deer-flow model name override (None = client default).
         mode: Agent mode string.
         show_trace: Show node-level execution trace.
+        subagent_enabled: Override subagent flag for this turn.
+        plan_mode: Override plan_mode flag for this turn.
 
     Returns:
         Accumulated full response text.
     """
-    from genai_tk.agents.deer_flow.client import (
-        DeerFlowClient,
+    from genai_tk.agents.deer_flow.embedded_client import (
         ErrorEvent,
         NodeEvent,
         TokenEvent,
         ToolCallEvent,
         ToolResultEvent,
     )
-
-    flags = _mode_to_configurable(mode)
-    client = DeerFlowClient(langgraph_url=langgraph_url, gateway_url=gateway_url)
 
     full_text = ""
     current_node = ""
@@ -443,12 +377,13 @@ async def _stream_message(
         return Panel(Markdown(text), title=_PANEL_TITLE, border_style="royal_blue1", padding=(1, 2))
 
     with Live(Spinner("dots", text=" Thinking..."), console=console, refresh_per_second=10) as live:
-        async for event in client.stream_run(
+        async for event in client.stream_message(
             thread_id=thread_id,
             user_input=user_input,
             model_name=model_name,
-            thinking_enabled=flags["thinking_enabled"],
-            is_plan_mode=flags["is_plan_mode"],
+            mode=mode,
+            subagent_enabled=subagent_enabled,
+            plan_mode=plan_mode,
         ):
             if isinstance(event, NodeEvent):
                 node_label = _NODE_LABELS.get(event.node)
@@ -566,7 +501,8 @@ async def _run_single_shot(
     mode_override: str | None,
     verbose: bool,
     show_trace: bool = False,
-    stream_enabled: bool = True,  # always streams; kept for call-site compat
+    subagent_enabled: bool | None = None,
+    plan_mode: bool | None = None,
 ) -> None:
     """Execute one query and exit.
 
@@ -578,12 +514,18 @@ async def _run_single_shot(
         mode_override: Mode override string.
         show_trace: Show node-level trace lines.
         verbose: Enable DEBUG logging.
+        subagent_enabled: Override subagent flag (None = use profile setting).
+        plan_mode: Override plan_mode flag (None = use profile setting).
     """
-    from genai_tk.agents.deer_flow.client import DeerFlowClient
+    import uuid
 
-    profile, model_name = await _prepare_profile(profile_name, llm_override, extra_mcp, mode_override, verbose)
+    from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
 
-    llm_display = model_name or "(server default)"
+    profile, model_name, config_path = await _prepare_profile(
+        profile_name, llm_override, extra_mcp, mode_override, verbose
+    )
+
+    llm_display = model_name or "(profile default)"
     tools_display = ", ".join(profile.tool_groups) if profile.tool_groups else "(none)"
     console.print(
         f"[cyan]Profile:[/cyan] {profile.name}  [cyan]Mode:[/cyan] {profile.mode}  [cyan]LLM:[/cyan] {llm_display}"
@@ -593,17 +535,19 @@ async def _run_single_shot(
         console.print(f"[cyan]MCP:[/cyan] {', '.join(profile.mcp_servers)}")
     console.print()
 
-    client = DeerFlowClient(langgraph_url=profile.langgraph_url, gateway_url=profile.gateway_url)
-    thread_id = await client.create_thread()
+    with console.status("Loading deer-flow agent...", spinner="dots"):
+        client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
+    thread_id = str(uuid.uuid4())
 
     await _stream_message(
-        langgraph_url=profile.langgraph_url,
-        gateway_url=profile.gateway_url,
+        client=client,
         thread_id=thread_id,
         user_input=user_input,
         model_name=model_name,
         mode=profile.mode,
         show_trace=show_trace,
+        subagent_enabled=subagent_enabled if subagent_enabled is not None else profile.subagent_enabled,
+        plan_mode=plan_mode if plan_mode is not None else profile.plan_mode,
     )
 
 
@@ -620,9 +564,15 @@ async def _run_chat_mode(
     initial_input: str | None,
     verbose: bool,
     show_trace: bool = False,
-    stream_enabled: bool = True,  # always streams; kept for call-site compat
+    subagent_enabled: bool | None = None,
+    plan_mode: bool | None = None,
 ) -> None:
     """Interactive multi-turn chat REPL.
+
+    A fresh thread ID is generated at session start; the SqliteSaver
+    checkpointer in EmbeddedDeerFlowClient persists multi-turn state for
+    the life of the session.  /clear starts a new thread within the same
+    session.
 
     Args:
         profile_name: Profile to load.
@@ -632,12 +582,18 @@ async def _run_chat_mode(
         show_trace: Show node-level trace.
         initial_input: Optional first message before entering the REPL loop.
         verbose: Enable DEBUG logging.
+        subagent_enabled: Override subagent flag (None = use profile setting).
+        plan_mode: Override plan_mode flag (None = use profile setting).
     """
-    from genai_tk.agents.deer_flow.client import DeerFlowClient
+    import uuid
 
-    profile, model_name = await _prepare_profile(profile_name, llm_override, extra_mcp, mode_override, verbose)
+    from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
 
-    llm_display = model_name or "(server default)"
+    profile, model_name, config_path = await _prepare_profile(
+        profile_name, llm_override, extra_mcp, mode_override, verbose
+    )
+
+    llm_display = model_name or "(profile default)"
     tools_display = ", ".join(profile.tool_groups) if profile.tool_groups else "(none)"
     console.print(Panel.fit("Deer-flow Interactive Chat", style="bold cyan"))
     console.print(
@@ -652,8 +608,12 @@ async def _run_chat_mode(
     console.print()
 
     current_mode = profile.mode
-    client = DeerFlowClient(langgraph_url=profile.langgraph_url, gateway_url=profile.gateway_url)
-    thread_id = await client.create_thread()
+    effective_subagent = subagent_enabled if subagent_enabled is not None else profile.subagent_enabled
+    effective_plan_mode = plan_mode if plan_mode is not None else profile.plan_mode
+
+    with console.status("Loading deer-flow agent...", spinner="dots"):
+        client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
+    thread_id = str(uuid.uuid4())
     session: PromptSession = PromptSession(history=FileHistory(str(Path(".deerflow.input.history"))))
     prompt_style = Style.from_dict({"prompt": "bold green"})
 
@@ -663,7 +623,14 @@ async def _run_chat_mode(
     if initial_input:
         console.print(Panel(initial_input, title="[bold blue]You[/bold blue]", border_style="blue"))
         await _stream_message(
-            profile.langgraph_url, profile.gateway_url, thread_id, initial_input, model_name, current_mode, show_trace
+            client,
+            thread_id,
+            initial_input,
+            model_name,
+            current_mode,
+            show_trace,
+            subagent_enabled=effective_subagent,
+            plan_mode=effective_plan_mode,
         )
         console.print()
 
@@ -686,7 +653,9 @@ async def _run_chat_mode(
             console.print("[bold yellow]Goodbye![/bold yellow]")
             break
         elif cmd == "/clear":
-            thread_id = await client.create_thread()
+            import uuid
+
+            thread_id = str(uuid.uuid4())
             console.print("[yellow]New conversation thread started.[/yellow]")
             continue
         elif cmd == "/help":
@@ -715,9 +684,9 @@ async def _run_chat_mode(
                     f"Skills    : {skills_display}\n"
                     f"MCP       : {', '.join(profile.mcp_servers) or 'none'}\n"
                     f"Thread    : {thread_id}\n"
-                    f"Trace     : {'ON' if show_trace else 'OFF'}\n"
-                    f"LangGraph : {profile.langgraph_url}\n"
-                    f"Gateway   : {profile.gateway_url}",
+                    f"Subagent  : {effective_subagent}\n"
+                    f"Plan mode : {effective_plan_mode}\n"
+                    f"Trace     : {'ON' if show_trace else 'OFF'}",
                     title="[bold cyan]Agent Configuration[/bold cyan]",
                     border_style="cyan",
                 )
@@ -746,7 +715,14 @@ async def _run_chat_mode(
         try:
             console.print(Panel(user_input, title="[bold blue]You[/bold blue]", border_style="blue"))
             await _stream_message(
-                profile.langgraph_url, profile.gateway_url, thread_id, user_input, model_name, current_mode, show_trace
+                client,
+                thread_id,
+                user_input,
+                model_name,
+                current_mode,
+                show_trace,
+                subagent_enabled=effective_subagent,
+                plan_mode=effective_plan_mode,
             )
             console.print()
         except KeyboardInterrupt:
@@ -797,7 +773,9 @@ async def _open_web_client(
     import asyncio as _aio
     import webbrowser
 
-    profile, model_name = await _prepare_profile(profile_name, llm_override, extra_mcp, mode_override, verbose)
+    profile, model_name, _config_path = await _prepare_profile(
+        profile_name, llm_override, extra_mcp, mode_override, verbose, start_servers=True
+    )
 
     # Locate frontend directory
     df_path = profile.deer_flow_path or os.environ.get("DEER_FLOW_PATH", "")
@@ -936,7 +914,7 @@ async def _open_web_client(
 
 
 class DeerFlowCommands(CliTopCommand, BaseModel):
-    """CLI commands for Deer-flow agents (HTTP client mode)."""
+    """CLI commands for Deer-flow agents (embedded client mode)."""
 
     description: str = "Deer-flow agent commands for interactive AI with advanced reasoning"
 
@@ -997,11 +975,20 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                     ),
                 ),
             ] = False,
+            subagent: Annotated[
+                bool,
+                typer.Option("--subagent", "-A", help="Enable subagent delegation. Overrides profile setting."),
+            ] = False,
+            plan_mode: Annotated[
+                bool,
+                typer.Option("--plan-mode", "-P", help="Enable TodoList planning mode. Overrides profile setting."),
+            ] = False,
         ) -> None:
-            """Run Deer-flow agents via HTTP API.
+            """Run Deer-flow agents in-process (embedded mode).
 
-            The Deer-flow server is auto-started when not already running
-            (requires DEER_FLOW_PATH to point to the deer-flow clone).
+            DeerFlow is loaded directly via DEER_FLOW_PATH/backend. No server
+            processes are required for terminal usage. The --web option still
+            starts the backend servers for the Next.js frontend.
 
             Examples:
                 cli deerflow --list
@@ -1009,6 +996,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                 cli deerflow -p "Coder" --chat
                 cli deerflow -p "Research Assistant" --trace "Analyse AI trends"
                 cli deerflow -p "Coder" --llm gpt_41mini@openai --mode pro "Refactor my code"
+                cli deerflow -p "Research Assistant" --subagent --plan-mode "Study AI trends"
                 echo "What is RAG?" | cli deerflow -p "Research Assistant"
                 cli deerflow -p "Research Assistant" --web
             """
@@ -1073,6 +1061,8 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                             show_trace=trace,
                             initial_input=input_text,
                             verbose=verbose,
+                            subagent_enabled=subagent or None,
+                            plan_mode=plan_mode or None,
                         )
                     )
                 else:
@@ -1085,6 +1075,8 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                             mode_override=mode,
                             show_trace=trace,
                             verbose=verbose,
+                            subagent_enabled=subagent or None,
+                            plan_mode=plan_mode or None,
                         )
                     )
             except KeyboardInterrupt:

@@ -1,15 +1,16 @@
-"""Deer-flow integration for GenAI Toolkit (HTTP client mode).
+"""Deer-flow integration for GenAI Toolkit (embedded client mode).
 
-Connects to a running Deer-flow server via its HTTP API.
-No in-process import of deer-flow is required.
+Loads DeerFlow in-process via ``DEER_FLOW_PATH/backend`` — no LangGraph Server
+or Gateway API processes are required for terminal usage (single-shot + chat).
+The ``--web`` option still starts the backend servers for the Next.js frontend.
 
 Architecture:
-    - profile:        DeerFlowProfile Pydantic model, profile loading
-    - client:         Async HTTP client (LangGraph + Gateway APIs)
-    - server_manager: Auto-start / stop of Deer-flow subprocesses
-    - config_bridge:  Generate deer-flow config.yaml and extensions_config.json
-    - cli_commands:   CLI interface (``cli deerflow``)
-    - Streamlit UI:   genai-blueprint/webapp/pages/demos/deer_flow_agent.py
+    - profile:         DeerFlowProfile Pydantic model, profile loading
+    - embedded_client: In-process DeerFlow adapter + typed streaming events
+    - server_manager:  Subprocess lifecycle (used only for ``--web``)
+    - config_bridge:   Generate deer-flow config.yaml and extensions_config.json
+    - cli_commands:    CLI interface (``cli deerflow``)
+    - Streamlit UI:    genai-blueprint/webapp/pages/demos/deer_flow_agent.py
 
 Quickstart:
     1. Set DEER_FLOW_PATH=/path/to/deer-flow
@@ -17,8 +18,15 @@ Quickstart:
     3. ``cli deerflow -p "Research Assistant" --chat``
 """
 
-from genai_tk.agents.deer_flow.client import DeerFlowClient, ErrorEvent, NodeEvent, TokenEvent
 from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
+from genai_tk.agents.deer_flow.embedded_client import (
+    EmbeddedDeerFlowClient,
+    ErrorEvent,
+    NodeEvent,
+    TokenEvent,
+    ToolCallEvent,
+    ToolResultEvent,
+)
 from genai_tk.agents.deer_flow.profile import (
     DeerFlowError,
     DeerFlowProfile,
@@ -43,12 +51,14 @@ __all__ = [
     "validate_profile_name",
     "validate_mode",
     "validate_mcp_servers",
-    # HTTP client
-    "DeerFlowClient",
+    # Embedded client + events
+    "EmbeddedDeerFlowClient",
     "TokenEvent",
     "NodeEvent",
+    "ToolCallEvent",
+    "ToolResultEvent",
     "ErrorEvent",
-    # Server lifecycle
+    # Server lifecycle (--web only)
     "DeerFlowServerManager",
     # Config generation
     "setup_deer_flow_config",

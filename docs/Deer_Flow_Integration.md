@@ -2,42 +2,43 @@
 
 ## Overview
 
-[Deer-flow](https://github.com/bytedance/deer-flow) (ByteDance) is a LangGraph-based multi-agent system with advanced reasoning, planning, and search capabilities.  The GenAI Toolkit integrates with it via an **HTTP client** that talks to a running Deer-flow server, keeping the two projects completely independent.
+[Deer-flow](https://github.com/bytedance/deer-flow) (ByteDance) is a LangGraph-based multi-agent system with advanced reasoning, planning, and search capabilities. The GenAI Toolkit integrates with it via an **embedded in-process client** that loads Deer-flow directly from `DEER_FLOW_PATH/backend`.
 
 **Key design principles:**
-- Deer-flow runs as a separate server process (LangGraph Server + Gateway API)
-- GenAI Toolkit never imports deer-flow Python code at runtime
-- Config bridge translates genai-tk YAML configs into deer-flow format before the server starts
+- Deer-flow Python code runs in-process (no separate server needed for terminal usage)
+- Configuration is generated on-demand before each run via `config_bridge`
 - Profiles in `config/agents/deerflow.yaml` control mode, LLM, MCP servers and skills
+- The `--web` option starts the backend servers for the Next.js frontend at `http://localhost:3000`
 
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  genai-tk  (this process)                               │
-│                                                         │
-│  CLI / Streamlit                                        │
-│       │                                                 │
-│  cli_commands.py  ──► config_bridge.py                  │
-│       │               (writes deer-flow config.yaml     │
-│       │                and extensions_config.json)      │
-│       │                                                 │
-│  DeerFlowClient  ──► HTTP ──► LangGraph Server :2024    │
-│  (client.py)          │       (lead_agent graph)        │
-│                       └─────► Gateway API       :8001   │
-│                               (skills, MCP proxy)       │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  genai-tk (this process)                                     │
+│                                                              │
+│  CLI / Streamlit                                             │
+│       │                                                      │
+│  cli_commands.py                                             │
+│       │                                                      │
+│  EmbeddedDeerFlowClient      ← sys.path injection           │
+│  (embedded_client.py)         (DEER_FLOW_PATH/backend)      │
+│       │                                                      │
+│  DeerFlowClient              ← imported from src.client      │
+│  (in-process, no HTTP)                                       │
+│       │                                                      │
+│  config_bridge.py            ← generates config.yaml         │
+│  (writes to DEER_FLOW_PATH/backend)                         │
+│       └──► SqliteSaver (checkpointer at data/kv_store/...)  │
+│           (multi-turn memory stays in genai-tk session)      │
+│                                                              │
+│  [--web flag only]: starts servers for frontend             │
+│       │                                                      │
+│       ├─► LangGraph Server :2024                            │
+│       └─► Gateway API :8001                                 │
+│           ↑ Next.js frontend @ http://localhost:3000        │
+└──────────────────────────────────────────────────────────────┘
 ```
-
-### Ports
-
-| Service | Default port | Purpose |
-|---------|-------------|---------|
-| LangGraph Server | 2024 | Run/stream the `lead_agent` graph |
-| Gateway API | 8001 | Skills management, MCP proxying |
-| nginx (optional) | 2026 | Unified proxy for both services |
-
 
 ## Setup
 
@@ -53,7 +54,7 @@ git clone https://github.com/bytedance/deer-flow /path/to/deer-flow
 export DEER_FLOW_PATH=/path/to/deer-flow
 ```
 
-Add to your `.env` or shell profile. The server manager uses this to locate the backend directory and to start the servers.
+Add to your `.env` or shell profile. The embedded client uses this to find the backend Python code.
 
 ### 3. Install deer-flow dependencies
 
@@ -66,20 +67,26 @@ uv sync          # or: pip install -r requirements.txt
 
 Edit `config/agents/deerflow.yaml` (see [Profiles](#profiles) below).
 
-### 5. Run
+### 5. Run (terminal mode — no servers needed)
 
 ```bash
-cli agents deerflow --chat
-# or single-shot:
+# Single-shot query
 cli agents deerflow "What is the weather in Toulouse?"
 
-# Start the Deer-flow Next.js web UI
-cli agents deerflow -p "Research Assistant" --web
-# UI: http://localhost:3000
-# Logs: $DEER_FLOW_PATH/logs/frontend.log
+# Interactive chat
+cli agents deerflow -p "Research Assistant" --chat
 ```
 
-The servers are auto-started if not already running (requires `DEER_FLOW_PATH`).
+The embedded client handles everything in-process. No servers are required.
+
+### 6. (Optional) Run with the web UI
+
+```bash
+cli agents deerflow -p "Research Assistant" --web
+# Opens http://localhost:3000
+# Backend servers auto-start (if `auto_start: true`)
+```
+
 
 
 ## Profiles
@@ -133,12 +140,14 @@ deerflow:
 | `ultra` | ✓ | ✓ | ✓ | Complex multi-step research |
 
 
-## Config Bridge
+## Config Bridge & Checkpointer
 
-Before the server starts, `config_bridge.setup_deer_flow_config()` generates:
+Before each run, `config_bridge.setup_deer_flow_config()` generates:
 
 - `<deer-flow>/backend/config.yaml` — model definitions from `config/providers/llm.yaml`
 - `<deer-flow>/extensions_config.json` — MCP server wiring from `config/mcp_servers.yaml`
+
+The embedded client also creates a `SqliteSaver` checkpointer at `data/kv_store/deerflow_checkpoints.db` for persistent multi-turn conversation state.
 
 **LLM translation example:**
 
@@ -162,17 +171,21 @@ models:
 ```
 
 
-## HTTP Client
+## Embedded Client
 
-`DeerFlowClient` wraps the LangGraph HTTP API (`/threads`, `/runs/stream`) and the Gateway REST API (`/api/skills`).
+`EmbeddedDeerFlowClient` runs Deer-flow in-process by:
+1. Injecting `DEER_FLOW_PATH/backend` into Python's `sys.path`
+2. Importing `DeerFlowClient` from `src.client` directly
+3. Creating a `SqliteSaver` checkpointer at `data/kv_store/deerflow_checkpoints.db` for multi-turn memory
+4. Translating Deer-flow `StreamEvent` objects into typed genai-tk events
 
 ```python
-from genai_tk.agents.deer_flow.client import DeerFlowClient, TokenEvent
+from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
 
-client = DeerFlowClient()
-thread_id = await client.create_thread()
+client = EmbeddedDeerFlowClient(config_path="/path/to/config.yaml")
+thread_id = "session-1"
 
-async for event in client.stream_run(thread_id, "Explain transformer attention"):
+async for event in client.stream_message(thread_id, "Explain transformer attention"):
     if isinstance(event, TokenEvent):
         print(event.data, end="", flush=True)
 ```
@@ -182,42 +195,61 @@ async for event in client.stream_run(thread_id, "Explain transformer attention")
 | Event class | When emitted |
 |------------|-------------|
 | `TokenEvent(data=str)` | New text from the AI message |
-| `NodeEvent(node=str)` | A graph node became active (filtered to meaningful nodes) |
-| `ErrorEvent(message=str)` | Server reported an error |
+| `NodeEvent(node=str)` | A graph node became active (Planner, Researcher, Coder, Reporter) |
+| `ToolCallEvent(tool_name, args, call_id)` | The agent called a tool |
+| `ToolResultEvent(tool_name, content, call_id)` | A tool returned a result |
+| `ErrorEvent(message=str)` | An error occurred |
 
-`stream_run` parameters:
+`stream_message()` parameters:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `thread_id` | required | Thread from `create_thread()` |
+| `thread_id` | required | Conversation thread ID (scopes checkpointer memory) |
 | `user_input` | required | User message |
 | `model_name` | `None` | Deer-flow model name override |
-| `thinking_enabled` | `False` | Enable chain-of-thought |
-| `is_plan_mode` | `False` | Enable planning step |
+| `mode` | `"flash"` | Agent mode (`flash`, `thinking`, `pro`, `ultra`) |
+| `subagent_enabled` | `None` | Enable sub-agent delegation (overrides mode default) |
+| `plan_mode` | `None` | Enable planning mode (overrides mode default) |
 
-> **LangGraph 0.6+ notes:**
-> - `assistant_id: "lead_agent"` is required in every run body
-> - Thread context is sent as a top-level `"context"` dict (not inside `config.configurable`)
-> - SSE uses `event: messages/partial` with *accumulated* content (not incremental deltas);
->   the client tracks per-message content length and emits only new characters
+**Multi-turn conversations:**
+
+Create a new `thread_id` per session, reuse it for subsequent turns:
+
+```python
+thread_id = "user-123"
+
+# Turn 1
+await client.stream_message(thread_id, "What is RAG?")
+
+# Turn 2 — the agent remembers context from turn 1
+await client.stream_message(thread_id, "How does it compare to fine-tuning?")
+```
+
+Checkpointer state persists for the lifetime of the process. Restarting genai-tk loses the session memory.
 
 
-## Server Manager
 
-`DeerFlowServerManager` starts/stops the LangGraph and Gateway servers as subprocesses:
+## Server Manager (for --web only)
+
+When using `--web` to launch the Next.js frontend, `DeerFlowServerManager` auto-starts the LangGraph and Gateway servers as subprocesses if not already running:
 
 ```python
 from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 
-async with DeerFlowServerManager(deer_flow_path="/path/to/deer-flow") as mgr:
-    # both servers are up here
-    ...
+mgr = DeerFlowServerManager(deer_flow_path="/path/to/deer-flow")
+await mgr.restart()  # stop everything, clean, start fresh
+
+# Both services are now available:
+# - LangGraph :2024
+# - Gateway :8001
+# - nginx (optional) :2026 (unified proxy)
 ```
 
-- If both servers are already reachable, `start()` is a no-op
-- Uses `httpx.AsyncHTTPTransport()` for health checks to bypass corporate HTTP proxies
+- If both services are already reachable, `is_running()` returns `True` and startup is skipped
+- Uses `httpx.AsyncHTTPTransport()` for health checks (bypasses corporate proxies)
 - Injects `NO_PROXY=localhost,127.0.0.1,::1,0.0.0.0` into subprocess environment
-- Startup timeout: 60 s (first `langgraph dev` run may take longer due to package download)
+- Startup timeout: 90 seconds (first `langgraph dev` run may take longer due to package downloads)
+
 
 
 ## Skills
@@ -245,68 +277,82 @@ Skills not found on the server are silently skipped (logged at DEBUG level).
 
 ## Troubleshooting
 
-### Server won't start
+### Embedded client won't start
 
-- Check `DEER_FLOW_PATH` points to the deer-flow clone root
-- Verify the backend venv exists: `ls $DEER_FLOW_PATH/backend/.venv`
-- Look at stdout/stderr from the server subprocess (enable `--verbose`)
+**Error: `ImportError: cannot import name 'DeerFlowClient' from 'src.client'`**
 
-### PowerPoint / package-install tasks fail with `PermissionError` on `.deer-flow/threads`
+- Ensure `DEER_FLOW_PATH` is set: `echo $DEER_FLOW_PATH`
+- Verify backend directory exists: `ls $DEER_FLOW_PATH/backend`
+- Check that `src/client.py` exists: `ls $DEER_FLOW_PATH/backend/src/client.py`
 
-If agent tool calls fail with errors like:
-- `PermissionError: [Errno 13] Permission denied: .../backend/.deer-flow/threads`
+**Error: `ModuleNotFoundError: No module named 'readabilipy'`**
 
-the issue is usually filesystem ownership of Deer-flow runtime state, not the package itself.
+- Install missing dependency: `uv add readabilipy`
+- This is required by Deer-flow's `src.community.jina_ai.tools` (web_fetch)
 
-**Rationale:** sandbox tools (`bash`, `ls`, `read_file`, etc.) use per-thread directories under:
-- `$DEER_FLOW_PATH/backend/.deer-flow/threads/{thread_id}/user-data/...`
+**Error: `Cannot operate on a closed database`**
 
-If `.deer-flow` was created by `root` (for example after running setup/start with `sudo`), normal user runs cannot create thread working directories, and many unrelated tasks (including PPT generation) fail.
+- The sqlite checkpointer connection was garbage-collected
+- Ensure genai-tk is using the latest embedded_client.py (uses direct `sqlite3.connect()`, not context manager)
+- Update with: `git pull`
 
-Fix permissions:
+### Web mode (--web) server issues
 
-```bash
-sudo chown -R $USER:$USER $DEER_FLOW_PATH/backend/.deer-flow
-mkdir -p $DEER_FLOW_PATH/backend/.deer-flow/threads
-chmod -R u+rwX $DEER_FLOW_PATH/backend/.deer-flow
-```
+For `cli agents deerflow --web`, the backend servers must be running.
 
-Then restart Deer-flow.
+**Error: `Deer-flow server is not running`**
 
-### `pip install` in sandbox fails on Ubuntu (`externally-managed-environment`)
+- If `auto_start: false` in the profile, start servers manually:
+  ```bash
+  cd $DEER_FLOW_PATH/backend
+  make dev
+  ```
+- Or set `auto_start: true` in the profile and try again
 
-On Ubuntu, system Python follows PEP 668 and blocks direct installs into the OS-managed environment.
-
-Typical error:
-- `error: externally-managed-environment`
-
-**Rationale:** project environments created by `uv` can have the package installed, while agent `bash` tool commands may still run against system Python unless a venv is explicitly used in-command.
-
-Preferred approach inside agent/sandbox commands:
+**Checking server status:**
 
 ```bash
-python3 -m venv /mnt/user-data/workspace/.venv
-/mnt/user-data/workspace/.venv/bin/python -m ensurepip --upgrade
-/mnt/user-data/workspace/.venv/bin/python -m pip install python-pptx
+# LangGraph Server
+curl http://localhost:2024/info
+
+# Gateway API
+curl http://localhost:8001/api/models
+
+# Logs
+tail -f $DEER_FLOW_PATH/logs/langgraph.log
+tail -f $DEER_FLOW_PATH/logs/gateway.log
 ```
 
-Then run Python scripts with `/mnt/user-data/workspace/.venv/bin/python ...`.
+### Checkpointer state issues
 
-### PPT tasks looping into `GraphRecursionError`
+**Multi-turn memory lost after restart**
 
-If the model repeatedly retries install/debug commands, the run may hit:
-- `GraphRecursionError: Recursion limit of 25 reached ...`
+- SqliteSaver state is in-process; restarting genai-tk starts a fresh session
+- To persist across restarts, implement a session loader (not yet supported)
+- For now, use `--chat` and keep the process running for long conversations
 
-This is usually a downstream symptom of one of the two issues above (directory permissions or system-Python pip restrictions). Fix those first, then rerun the task.
+**Large checkpoints slow down `stream_message`**
 
-### Corporate proxy timeouts
+- LangGraph saves the full conversation state on each turn
+- On very long conversations (100+ turns), consider starting a new thread periodic
 
-The client explicitly uses `httpx.AsyncHTTPTransport()` and the subprocess has `NO_PROXY` set, so localhost traffic never goes through a proxy.  If you still see timeouts, confirm `HTTP_PROXY` is not overriding per-request settings.
+### Mode and flag issues
 
-### Empty response / no tokens
+**Error: `Unknown mode: 'foo'`**
 
-If you see an empty assistant panel, ensure the deer-flow server version uses LangGraph ≥ 0.6 (check `$DEER_FLOW_PATH/backend/pyproject.toml`).  Older versions use `event: messages` (delta); 0.6+ uses `event: messages/partial` (accumulated) — both are handled by the client.
+Valid modes: `flash`, `thinking`, `pro`, `ultra`
 
-### HTTP 422 errors
+Compare to profile:
 
-Ensure `assistant_id: "lead_agent"` is accepted by the server.  If the graph was renamed, update `DeerFlowClient.__init__` parameter `assistant_id`.
+```bash
+cli agents deerflow --list
+```
+
+**Subagent / plan-mode not taking effect**
+
+- CLI flags `--subagent` and `--plan-mode` override profile settings
+- Check profile defaults:
+  ```bash
+  grep -A 5 "name: Research Assistant" config/agents/deerflow.yaml
+  ```
+

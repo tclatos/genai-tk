@@ -33,17 +33,19 @@ class DeerFlowProfile(BaseModel):
     examples: list[str] = Field(default_factory=list)
     system_prompt: str | None = None
 
-    # HTTP client settings (can be overridden per-profile)
-    base_url: str = "http://localhost:2026"
-    langgraph_url: str = "http://localhost:2024"
-    gateway_url: str = "http://localhost:8001"
+    # Embedded-client behaviour flags (can be set per-profile)
+    subagent_enabled: bool = False
+    plan_mode: bool = False
 
     # Sandbox provider for code/file execution: "local" (no Docker) or "docker"
     sandbox: str = "local"
 
-    # Server lifecycle
+    # --web mode: server lifecycle settings
     auto_start: bool = True
     deer_flow_path: str | None = None
+    base_url: str = "http://localhost:2026"
+    langgraph_url: str = "http://localhost:2024"
+    gateway_url: str = "http://localhost:8001"
 
 
 # ---------------------------------------------------------------------------

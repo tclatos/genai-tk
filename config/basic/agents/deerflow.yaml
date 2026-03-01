@@ -72,6 +72,8 @@ deerflow_agents:
     mode: "pro"  # thinking + plan mode
     #llm: "deepseek_v32@openrouter"  # Can use LLM ID or tag like 'fast_model'
     llm: gpt_oss120@openrouter
+    subagent_enabled: false
+    plan_mode: true
     sandbox: docker
     tool_groups:
       - web
@@ -94,6 +96,8 @@ deerflow_agents:
   - name: "Web Browser"
     description: "Fast web browsing and content extraction"
     mode: "flash"  # quick responses
+    subagent_enabled: false
+    plan_mode: false
     sandbox: local
     tool_groups:
       - web
@@ -111,6 +115,8 @@ deerflow_agents:
   - name: "Chinook DB + Research"
     description: "SQL database with web research"
     mode: "thinking"  # reasoning mode
+    subagent_enabled: false
+    plan_mode: false
     sandbox: local
     tool_groups:
       - web
