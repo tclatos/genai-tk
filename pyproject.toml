@@ -18,6 +18,7 @@ dependencies = [
     "beartype>=0.21.0",         # Runtime type validation
     "devtools>=0.12.2",         # Debug printing and development utilities
     "xxhash>=3.6.0",            # Fast non-cryptographic hash functions
+    "httpx>=0.28.0",            # Async HTTP client
     # ============================================
     # LangChain Core Framework
     # ============================================
@@ -32,15 +33,17 @@ dependencies = [
     # ============================================
     # LLM Provider Integrations
     # ============================================
-    "langchain-openai>=1.0",    # OpenAI models (GPT-4, GPT-3.5, etc.)
-    "langchain-ollama>=1.0",    # Local Ollama models integration
-    "langchain-deepseek>=1.0",  # DeepSeek models integration
-    "langchain-mistralai>=1.0", # Mistral AI models integration
-    "langchain-groq>=1.0",      # Groq inference engine integration
-    "langchain-litellm>=0.3.2", # LiteLLM unified interface
-    "openai>=1.80.0",           # Official OpenAI Python client
-    "litellm>=1.74,<2",         # Unified LLM API (100+ models)
-    "mistralai>=1.7.0",         # Official Mistral AI client
+    "langchain-openai>=1.0",         # OpenAI models (GPT-4, GPT-3.5, etc.)
+    "langchain-ollama>=1.0",         # Local Ollama models integration
+    "langchain-deepseek>=1.0",       # DeepSeek models integration
+    "langchain-mistralai>=1.0",      # Mistral AI models integration
+    "langchain-groq>=1.0",           # Groq inference engine integration
+    "langchain-litellm>=0.3.2",      # LiteLLM unified interface
+    "langchain-anthropic>=1.3.4",
+    "langchain-google-genai>=4.2.1",
+    "openai>=1.80.0",                # Official OpenAI Python client
+    "litellm>=1.74,<2",              # Unified LLM API (100+ models)
+    "mistralai>=1.7.0",              # Official Mistral AI client
     # ============================================
     # Agent Frameworks
     # ============================================
@@ -48,7 +51,7 @@ dependencies = [
     "deepagents>=0.4",                                         # Deep agents with planning, subagents, skills
     "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
-    "httpx>=0.28.0",                                           # Async HTTP client (Deer-flow API)
+
     # ============================================
     # Vector Stores & Embeddings
     # ============================================
@@ -89,8 +92,7 @@ dependencies = [
     # ============================================
     "prefect>=3.6.7", # Modern workflow orchestration
     "jinaai>=0.2.10",
-    "langchain-anthropic>=1.3.4",
-    "langchain-google-genai>=4.2.1",
+
 ]
 
 [project.urls]

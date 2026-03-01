@@ -15,8 +15,10 @@ import os
 import pytest
 import pytest_asyncio
 
- from genai_tk.agents.deer_flow.client import DeerFlowClient, TokenEvent
- from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
+from genai_tk.agents.deer_flow.client import DeerFlowClient, TokenEvent
+from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
+
+DEER_FLOW_PATH = os.environ.get("DEER_FLOW_PATH")
 SKIP_REASON = "DEER_FLOW_PATH is not set — skipping integration tests"
 
 pytestmark = pytest.mark.integration
@@ -98,5 +100,5 @@ async def test_stream_run_yields_at_least_one_token(client: DeerFlowClient) -> N
 async def test_stream_run_full_response_nonempty(client: DeerFlowClient) -> None:
     """Full concatenated token response must be non-empty."""
     thread_id = await client.create_thread()
-    text = "".join(e.data async for e in client.stream_run(thread_id, "Say hi.") if isinstance(e, TokenEvent))
+    text = "".join([e.data async for e in client.stream_run(thread_id, "Say hi.") if isinstance(e, TokenEvent)])
     assert len(text.strip()) > 0

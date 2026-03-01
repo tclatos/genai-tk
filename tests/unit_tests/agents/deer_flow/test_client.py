@@ -56,7 +56,7 @@ async def test_health_check_ok() -> None:
 @pytest.mark.asyncio
 async def test_health_check_connection_error() -> None:
     """health_check returns False on connection error."""
-     with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
+    with patch("genai_tk.agents.deer_flow.client.httpx.AsyncClient") as mock_cls:
         mock_cls.return_value.__aenter__ = AsyncMock(side_effect=Exception("connection refused"))
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         client = DeerFlowClient()

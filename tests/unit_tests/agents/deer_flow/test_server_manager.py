@@ -8,7 +8,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
- from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
+from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
+
 # Fixtures
 # ---------------------------------------------------------------------------
 
@@ -71,7 +72,7 @@ async def test_start_skips_popen_when_already_running(tmp_path: Path) -> None:
     mgr = _manager(tmp_path)
     with (
         patch.object(mgr, "_check_url", new_callable=AsyncMock, return_value=True),
-         patch("genai_tk.agents.deer_flow.server_manager.subprocess.Popen") as mock_popen,
+        patch("genai_tk.agents.deer_flow.server_manager.subprocess.Popen") as mock_popen,
     ):
         await mgr.start()
         mock_popen.assert_not_called()
@@ -92,7 +93,7 @@ async def test_start_launches_subprocesses(tmp_path: Path) -> None:
 
     with (
         patch.object(mgr, "_check_url", new_callable=AsyncMock, return_value=False),
-         patch("genai_tk.agents.deer_flow.server_manager.subprocess.Popen", return_value=mock_proc) as mock_popen,
+        patch("genai_tk.agents.deer_flow.server_manager.subprocess.Popen", return_value=mock_proc) as mock_popen,
         patch.object(mgr, "_wait_for_ready", new_callable=AsyncMock),
     ):
         await mgr.start()
@@ -116,7 +117,7 @@ async def test_start_langgraph_command_contains_dev(tmp_path: Path) -> None:
 
     with (
         patch.object(mgr, "_check_url", new_callable=AsyncMock, return_value=False),
-         patch("genai_tk.agents.deer_flow.server_manager.subprocess.Popen", side_effect=_popen),
+        patch("genai_tk.agents.deer_flow.server_manager.subprocess.Popen", side_effect=_popen),
         patch.object(mgr, "_wait_for_ready", new_callable=AsyncMock),
     ):
         await mgr.start()

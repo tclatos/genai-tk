@@ -471,6 +471,7 @@ class EmbeddingsFactory(BaseModel):
             document_embedding_cache=kv_store,
             namespace=base,
             key_encoder="sha256",
+            query_embedding_cache=True,
         )
         return cached_embedder
 

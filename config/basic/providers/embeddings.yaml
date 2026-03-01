@@ -20,6 +20,7 @@ embeddings:
         - openai: text-embedding-ada-002
         - edenai: openai/text-embedding-ada-002
         - azure: text-embedding-ada-002/2023-05-15
+        - openrouter : openai/text-embedding-ada-002
       dimension: 1536
 
     - model_id: text_3_small
