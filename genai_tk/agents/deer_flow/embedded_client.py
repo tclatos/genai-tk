@@ -22,16 +22,39 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import builtins
 import os
 import queue
+import re
 import sys
 import threading
+import warnings
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
+
+# Suppress Pydantic serialization warnings emitted by LangGraph's checkpointer
+# when it serialises RunnableConfig.context (which is always a dict, not None).
+# NOTE: warnings.filterwarnings uses re.match() (not re.search), so the pattern
+# MUST match from the start of the (possibly multi-line) warning text.
+warnings.filterwarnings(
+    "ignore",
+    message="Pydantic serializer warnings",
+    category=UserWarning,
+)
+
+# Ensure localhost/127.0.0.1 bypass any corporate HTTP proxy (e.g. Zscaler).
+# DeerFlow's sandbox health-check uses ``requests.get("http://localhost:<port>/…")``,
+# which honours ``HTTP_PROXY`` — a proxy will intercept the request and the
+# sandbox appears unreachable even though the container is healthy.
+_NO_PROXY_HOSTS = "localhost,127.0.0.1"
+for _var in ("no_proxy", "NO_PROXY"):
+    existing = os.environ.get(_var, "")
+    if _NO_PROXY_HOSTS not in existing:
+        os.environ[_var] = f"{existing},{_NO_PROXY_HOSTS}" if existing else _NO_PROXY_HOSTS
 
 # ---------------------------------------------------------------------------
 # Typed events yielded by stream_message()
@@ -132,7 +155,54 @@ def _ensure_deer_flow_on_path() -> Path:
     if backend_str not in sys.path:
         sys.path.insert(0, backend_str)
         logger.debug(f"Added {backend_str} to sys.path")
+    _patch_deer_flow_print()
+    _suppress_deer_flow_logging()
     return backend_path
+
+
+def _suppress_deer_flow_logging() -> None:
+    """Raise DeerFlow's standard-library loggers to CRITICAL.
+
+    DeerFlow modules use ``logging.getLogger(__name__)`` under the ``src``
+    namespace. Their INFO/ERROR messages (e.g. sandbox file-not-found 404s,
+    agent internals) are not actionable for CLI users and clutter the output.
+    Tool errors are already surfaced via ``ToolResultEvent``.
+    """
+    import logging as _std_logging
+
+    _std_logging.getLogger("src").setLevel(_std_logging.CRITICAL)
+
+
+_DEER_FLOW_SUPPRESS_PREFIXES = (
+    "Lazy acquiring sandbox",
+    "Acquiring sandbox",
+    "Memory update timer",
+    "Memory update queued",
+    "Generated thread title",
+    "Failed to read file",
+    "Failed to list directory",
+)
+
+
+def _patch_deer_flow_print() -> None:
+    """Redirect noisy DeerFlow print messages to :func:`logger.trace`.
+
+    Called once; subsequent calls are no-ops (guarded by ``builtins._deer_flow_print_patched``).
+    """
+    if getattr(builtins, "_deer_flow_print_patched", False):
+        return
+    _orig_print = builtins.print
+
+    def _filtered_print(*args: object, **kwargs: object) -> None:
+        text = " ".join(str(a) for a in args)
+        if any(text.startswith(p) for p in _DEER_FLOW_SUPPRESS_PREFIXES):
+            logger.trace(f"[DeerFlow] {text}")
+        else:
+            _orig_print(*args, **kwargs)
+
+    builtins.print = _filtered_print  # type: ignore[assignment]
+    builtins._deer_flow_print_patched = True  # type: ignore[attr-defined]
+    logger.debug("DeerFlow print suppression patch applied")
 
 
 def _get_checkpointer_db_path() -> Path:
@@ -207,6 +277,25 @@ class EmbeddedDeerFlowClient:
             model_name=model_name,
         )
         logger.debug(f"EmbeddedDeerFlowClient ready — config={config_path}")
+
+    def clear_thread(self, thread_id: str) -> None:
+        """Delete all checkpointer data for a thread so the next run starts fresh.
+
+        Useful in single-shot mode where a stable ``thread_id`` is reused for
+        Docker sandbox container reuse, but conversation state should not carry
+        over between separate CLI invocations.
+        """
+        try:
+            from langgraph.checkpoint.sqlite import SqliteSaver  # type: ignore[import]
+
+            if isinstance(self._checkpointer, SqliteSaver):
+                conn = self._checkpointer.conn
+                conn.execute("DELETE FROM checkpoints WHERE thread_id = ?", (thread_id,))
+                conn.execute("DELETE FROM writes WHERE thread_id = ?", (thread_id,))
+                conn.commit()
+                logger.debug(f"Cleared checkpointer state for thread {thread_id}")
+        except Exception as e:
+            logger.debug(f"Could not clear checkpointer thread (non-critical): {e}")
 
     # ------------------------------------------------------------------
     # Streaming
@@ -358,3 +447,29 @@ def _translate_event(ev: Any) -> list[StreamEvent]:
 
     # "values" and "end" events carry no displayable incremental info
     return []
+
+
+# ---------------------------------------------------------------------------
+# Response text cleanup
+# ---------------------------------------------------------------------------
+
+# Regex that matches model-generated reasoning/commentary markers.
+# Some models (e.g. gpt-oss-120b) embed chain-of-thought tags like
+# ``assistantanalysis``, ``assistantcommentary to=functions.X code{ … }``,
+# ``assistantfinal`` directly in their text output.  Only the text after
+# the last ``assistantfinal`` marker is the user-facing response.
+
+_FINAL_MARKER_RE = re.compile(r"assistantfinal", re.IGNORECASE)
+
+
+def strip_reasoning_markers(text: str) -> str:
+    """Extract the user-facing response from model output that contains reasoning markers.
+
+    If the text contains ``assistantfinal`` markers, returns only the text that
+    follows the *last* such marker.  Otherwise returns the original text unchanged.
+    """
+    matches = list(_FINAL_MARKER_RE.finditer(text))
+    if matches:
+        last_match = matches[-1]
+        return text[last_match.end() :].strip()
+    return text

@@ -5,6 +5,18 @@ All notable changes to genai-tk will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **DeerFlow CLI Output Cleanup**
+  - Fixed duplicate response text in CLI output caused by DeerFlow's `stream_mode="values"` yielding full-text per AIMessage
+  - Suppressed internal print noise from DeerFlow modules (sandbox acquisition, memory updates, thread titling)
+  - Suppressed DeerFlow standard-library logger noise (error messages from non-critical operations like file-not-found in sandbox)
+  - Fixed `%s` format string bugs in config bridge logging (now uses f-strings for loguru compatibility)
+  - Improved error detection to catch both "Error:" and "Error invoking tool" error formats
+  - Strip model chain-of-thought reasoning markers (`assistantanalysis`, `assistantcommentary`, `assistantfinal`) from final response
+  - Display host-side output file paths at end of single-shot DeerFlow runs
+
 ## [0.1.0] - 2025-09-30
 
 ### Added

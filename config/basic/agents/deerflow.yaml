@@ -3,15 +3,15 @@
 # Unified configuration for Deer-flow agents including profiles, skills, and sandbox settings.
 #
 # SANDBOX MODES:
-#   docker:  Full Docker sandbox with mounted volumes. Requires running with --web flag.
-#            Files written to /mnt/user-data/outputs/ are accessible on the host.
-#   local:   Lightweight local sandbox. No Docker containers. Tool outputs may not
-#            persist to the host filesystem in embedded mode. Recommended for stateless
-#            queries (web searches, analysis) rather than file generation.
+#   docker:  Full Docker sandbox — code runs in an isolated container.
+#            Requires Docker running + 'agent-sandbox' package installed.
+#            Files are written to /mnt/user-data/outputs/ inside the container
+#            and volume-mounted back to the host at ~/.deer-flow/threads/{id}/user-data/outputs/.
+#   local:   Lightweight local sandbox. No Docker containers. Commands run directly
+#            on the host via subprocess. Simpler but less isolated.
 #
-# When generating files (PowerPoint, documents, etc.), use one of:
-#   1. --web mode: Enable Docker sandbox by running with --web flag
-#   2. Direct output: Use ~/outputs/ or ./data/outputs/ paths that are always accessible
+# When generating files (PowerPoint, documents, etc.), prefer 'sandbox: docker'
+# for proper isolation and predictable output paths.
 #
 # Profile Key Fields:
 #   name:              Profile display name
@@ -87,9 +87,6 @@ deerflow_agents:
     subagent_enabled: false
     plan_mode: true
     sandbox: docker
-    # NOTE: Docker sandbox requires --web flag to start the actual servers.
-    #       Without --web, runs in fallback local sandbox which may not persist
-    #       file outputs. For file generation, use: cli agents deerflow -p "Research Assistant" --web
     tool_groups:
       - web
       - file

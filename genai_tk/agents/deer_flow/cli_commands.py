@@ -18,6 +18,7 @@ import asyncio
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -135,6 +136,35 @@ def _check_docker_available() -> bool:
         return False
 
 
+def _check_agent_sandbox_importable() -> bool:
+    """Return True if the ``agent-sandbox`` package is importable."""
+    try:
+        import agent_sandbox  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+def _validate_docker_sandbox() -> None:
+    """Raise :class:`DockerSandboxError` if Docker sandbox prerequisites are unmet.
+
+    Checks two things:
+    1. The ``docker`` CLI is present and the daemon is reachable.
+    2. The ``agent-sandbox`` Python package is importable (needed by DeerFlow's
+       ``AioSandbox`` to talk to the container's HTTP API).
+    """
+    from genai_tk.agents.deer_flow.profile import DockerSandboxError
+
+    reasons: list[str] = []
+    if not _check_docker_available():
+        reasons.append("Docker is not available (docker CLI not found or daemon not running)")
+    if not _check_agent_sandbox_importable():
+        reasons.append("'agent-sandbox' package is not installed — install with: uv add agent-sandbox")
+    if reasons:
+        raise DockerSandboxError(reasons)
+
+
 def _verify_written_sandbox(config_path: Path, expected_sandbox: str) -> None:
     """Verify the generated deer-flow config.yaml matches the profile sandbox.
 
@@ -245,11 +275,12 @@ async def _prepare_profile(
         )
         _verify_written_sandbox(config_path, profile.sandbox)
 
-    if profile.sandbox == "docker" and not _check_docker_available():
-        console.print(
-            "[yellow]Warning:[/yellow] Profile sandbox is 'docker', but Docker does not look available for this user. "
-            "Sandboxed code execution may fail."
-        )
+    if profile.sandbox == "docker":
+        try:
+            _validate_docker_sandbox()
+        except DeerFlowError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1) from e
 
     if start_servers:
         await _ensure_server(profile.auto_start, profile.deer_flow_path, profile.langgraph_url, profile.gateway_url)
@@ -367,6 +398,10 @@ async def _stream_message(
 
     full_text = ""
     current_node = ""
+    consecutive_sandbox_errors = 0
+    _MAX_SANDBOX_ERRORS = 3
+    # Mutable container so the ticker coroutine can read the current start time.
+    _llm_ctx: list[float | None] = [time.time()]
 
     _PANEL_TITLE = "[bold white on royal_blue1] Assistant [/bold white on royal_blue1]"
 
@@ -376,49 +411,103 @@ async def _stream_message(
     def _md_panel(text: str) -> Panel:
         return Panel(Markdown(text), title=_PANEL_TITLE, border_style="royal_blue1", padding=(1, 2))
 
+    def _log_llm_elapsed() -> None:
+        """Log a dim 'Thought for X.Xs' line and clear the timer."""
+        start = _llm_ctx[0]
+        if start is not None:
+            elapsed = time.time() - start
+            if elapsed >= 1.0:
+                console.log(f"[dim]🤔 Thought for {elapsed:.1f}s[/dim]")
+        _llm_ctx[0] = None
+
+    async def _thinking_ticker() -> None:
+        """Update spinner text with elapsed seconds while the LLM is working."""
+        while True:
+            await asyncio.sleep(0.5)
+            start = _llm_ctx[0]
+            if start is not None:
+                elapsed = time.time() - start
+                if elapsed >= 2.0:
+                    live.update(Spinner("dots", text=f" Thinking... ({elapsed:.0f}s)"))
+
     with Live(Spinner("dots", text=" Thinking..."), console=console, refresh_per_second=10) as live:
-        async for event in client.stream_message(
-            thread_id=thread_id,
-            user_input=user_input,
-            model_name=model_name,
-            mode=mode,
-            subagent_enabled=subagent_enabled,
-            plan_mode=plan_mode,
-        ):
-            if isinstance(event, NodeEvent):
-                node_label = _NODE_LABELS.get(event.node)
-                if event.node != current_node:
-                    current_node = event.node
-                    if node_label:  # known/meaningful node
-                        if not full_text:
-                            live.update(Spinner("dots", text=f" {node_label}..."))
+        ticker = asyncio.create_task(_thinking_ticker())
+        try:
+            async for event in client.stream_message(
+                thread_id=thread_id,
+                user_input=user_input,
+                model_name=model_name,
+                mode=mode,
+                subagent_enabled=subagent_enabled,
+                plan_mode=plan_mode,
+            ):
+                if isinstance(event, NodeEvent):
+                    node_label = _NODE_LABELS.get(event.node)
+                    if event.node != current_node:
+                        current_node = event.node
+                        if node_label:  # known/meaningful node
+                            if not full_text:
+                                live.update(Spinner("dots", text=f" {node_label}..."))
+                            else:
+                                console.log(f"[dim]→ {node_label}[/dim]")
+                        elif show_trace:  # unknown node — only with --trace
+                            console.log(f"[dim italic]→ {event.node}[/dim italic]")
+                elif isinstance(event, ToolCallEvent):
+                    if event.tool_name:  # always show tool calls — useful progress indicator
+                        _log_llm_elapsed()
+                        args_preview = str(event.args)[:120].replace("\n", " ") if event.args else ""
+                        console.log(
+                            f"[dim cyan]⚙ tool:[/dim cyan] [cyan]{event.tool_name}[/cyan] [dim]{args_preview}[/dim]"
+                        )
+                elif isinstance(event, ToolResultEvent):
+                    _llm_ctx[0] = time.time()  # LLM resumes thinking after tool returns
+                    if event.tool_name:
+                        content = event.content or ""
+                        is_error = content.startswith(("Error", "error"))
+                        max_chars = 300 if show_trace else 80
+                        result_preview = event.content[:max_chars].replace("\n", " ") if event.content else ""
+                        if event.content and len(event.content) > max_chars:
+                            result_preview += "…"
+                        style = "dim red" if is_error else "dim green"
+                        icon = "✗" if is_error else "✓"
+                        console.log(
+                            f"[{style}]{icon} result:[/{style}] [dim]{event.tool_name}[/dim] [dim italic]{result_preview}[/dim italic]"
+                        )
+                        # Detect sandbox failures and abort after repeated errors
+                        if is_error and "Sandbox" in (event.content or "") and "failed" in (event.content or ""):
+                            consecutive_sandbox_errors += 1
+                            if consecutive_sandbox_errors >= _MAX_SANDBOX_ERRORS:
+                                console.print(
+                                    f"\n[bold red]Aborting:[/bold red] {consecutive_sandbox_errors} consecutive "
+                                    "sandbox errors — the Docker sandbox is unavailable. "
+                                    "Try: [cyan]docker ps[/cyan] to check containers, or run with [cyan]--sandbox local[/cyan]."
+                                )
+                                return full_text
                         else:
-                            console.log(f"[dim]→ {node_label}[/dim]")
-                    elif show_trace:  # unknown node — only with --trace
-                        console.log(f"[dim italic]→ {event.node}[/dim italic]")
-            elif isinstance(event, ToolCallEvent):
-                if event.tool_name:  # always show tool calls — useful progress indicator
-                    args_preview = str(event.args)[:120].replace("\n", " ") if event.args else ""
-                    console.log(
-                        f"[dim cyan]⚙ tool:[/dim cyan] [cyan]{event.tool_name}[/cyan] [dim]{args_preview}[/dim]"
-                    )
-            elif isinstance(event, ToolResultEvent):
-                if show_trace and event.tool_name:
-                    result_preview = event.content[:200].replace("\n", " ") if event.content else ""
-                    console.log(
-                        f"[dim green]✓ result:[/dim green] [dim]{event.tool_name}[/dim] [dim italic]{result_preview}[/dim italic]"
-                    )
-            elif isinstance(event, TokenEvent):
-                full_text += event.data
-                live.update(_text_panel(full_text))
-            elif isinstance(event, ErrorEvent):
-                live.update(Text(f"[red]Error: {event.message}[/red]"))
-                console.print(f"[red]Agent error:[/red] {event.message}")
-                return full_text
+                            consecutive_sandbox_errors = 0
+                    live.update(Spinner("dots", text=" Thinking..."))
+                elif isinstance(event, TokenEvent):
+                    if not full_text:  # first token — log how long the LLM thought
+                        _log_llm_elapsed()
+                    # DeerFlow uses stream_mode="values" — each TokenEvent carries
+                    # the FULL text of one AIMessage, not individual tokens.
+                    # Multiple AIMessages may arrive (intermediate agent +
+                    # final reporter); only the *last* one is the real response.
+                    full_text = event.data
+                    live.update(_text_panel(full_text))
+                elif isinstance(event, ErrorEvent):
+                    live.update(Text(f"[red]Error: {event.message}[/red]"))
+                    console.print(f"[red]Agent error:[/red] {event.message}")
+                    return full_text
+        finally:
+            ticker.cancel()
 
         # Switch to markdown rendering before Live exits so the final
         # persistent output is nicely formatted (no second print needed).
         if full_text:
+            from genai_tk.agents.deer_flow.embedded_client import strip_reasoning_markers
+
+            full_text = strip_reasoning_markers(full_text)
             live.update(_md_panel(full_text))
 
     return full_text
@@ -517,8 +606,6 @@ async def _run_single_shot(
         subagent_enabled: Override subagent flag (None = use profile setting).
         plan_mode: Override plan_mode flag (None = use profile setting).
     """
-    import uuid
-
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
 
     profile, model_name, config_path = await _prepare_profile(
@@ -535,9 +622,18 @@ async def _run_single_shot(
         console.print(f"[cyan]MCP:[/cyan] {', '.join(profile.mcp_servers)}")
     console.print()
 
+    if profile.sandbox == "docker":
+        _cleanup_stale_sandbox_containers()
+
     with console.status("Loading deer-flow agent...", spinner="dots"):
         client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
-    thread_id = str(uuid.uuid4())
+
+    # Deterministic thread_id so the Docker sandbox container is reused
+    # across single-shot runs (each random UUID would spin up a new container).
+    # Clear old checkpointer state so previous (possibly failed) runs don't
+    # pollute the LLM's conversation history.
+    thread_id = _stable_thread_id()
+    client.clear_thread(thread_id)
 
     await _stream_message(
         client=client,
@@ -549,6 +645,68 @@ async def _run_single_shot(
         subagent_enabled=subagent_enabled if subagent_enabled is not None else profile.subagent_enabled,
         plan_mode=plan_mode if plan_mode is not None else profile.plan_mode,
     )
+
+    # Show host-side output files (sandbox mounts to .deer-flow/threads/<id>/user-data/)
+    if profile.sandbox == "docker":
+        _show_sandbox_output_files(thread_id)
+
+
+def _stable_thread_id() -> str:
+    """Return a deterministic thread ID for sandbox container reuse."""
+    import hashlib
+
+    return hashlib.sha256(b"genai-tk-deerflow-single").hexdigest()[:16]
+
+
+def _show_sandbox_output_files(thread_id: str) -> None:
+    """Print host-side paths for any files created in the sandbox outputs directory."""
+    outputs_dir = Path(".deer-flow") / "threads" / thread_id / "user-data" / "outputs"
+    if not outputs_dir.exists():
+        return
+    files = sorted(outputs_dir.iterdir())
+    if not files:
+        return
+    console.print()
+    console.print("[cyan]Output files:[/cyan]")
+    for f in files:
+        console.print(f"  {f.resolve()}")
+
+
+def _cleanup_stale_sandbox_containers() -> None:
+    """Stop any leftover deer-flow sandbox containers from previous runs.
+
+    Prevents port exhaustion and stale container accumulation.  Runs
+    ``docker stop`` on all containers matching the ``deer-flow-sandbox``
+    prefix except the one belonging to the current stable thread_id.
+    """
+    import hashlib
+    import subprocess
+
+    keep_suffix = hashlib.sha256(b"genai-tk-deerflow-single").hexdigest()[:8]
+    keep_name = f"deer-flow-sandbox-{keep_suffix}"
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "-q", "--filter", "name=deer-flow-sandbox"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if not result.stdout.strip():
+            return
+        # Get container names to decide which to stop
+        inspect = subprocess.run(
+            ["docker", "ps", "--filter", "name=deer-flow-sandbox", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        stale = [name.strip() for name in inspect.stdout.strip().splitlines() if name.strip() != keep_name]
+        if stale:
+            logger.debug(f"Stopping {len(stale)} stale sandbox container(s): {stale}")
+            for name in stale:
+                subprocess.run(["docker", "stop", name], capture_output=True, timeout=15)
+    except Exception as e:
+        logger.debug(f"Could not clean stale sandbox containers: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -585,8 +743,6 @@ async def _run_chat_mode(
         subagent_enabled: Override subagent flag (None = use profile setting).
         plan_mode: Override plan_mode flag (None = use profile setting).
     """
-    import uuid
-
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
 
     profile, model_name, config_path = await _prepare_profile(
@@ -611,9 +767,12 @@ async def _run_chat_mode(
     effective_subagent = subagent_enabled if subagent_enabled is not None else profile.subagent_enabled
     effective_plan_mode = plan_mode if plan_mode is not None else profile.plan_mode
 
+    if profile.sandbox == "docker":
+        _cleanup_stale_sandbox_containers()
+
     with console.status("Loading deer-flow agent...", spinner="dots"):
         client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
-    thread_id = str(uuid.uuid4())
+    thread_id = _stable_thread_id()
     session: PromptSession = PromptSession(history=FileHistory(str(Path(".deerflow.input.history"))))
     prompt_style = Style.from_dict({"prompt": "bold green"})
 

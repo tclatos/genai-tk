@@ -30,6 +30,7 @@ from genai_tk.agents.deer_flow.embedded_client import (
 from genai_tk.agents.deer_flow.profile import (
     DeerFlowError,
     DeerFlowProfile,
+    DockerSandboxError,
     InvalidModeError,
     MCPServerNotFoundError,
     ProfileNotFoundError,
@@ -64,6 +65,7 @@ __all__ = [
     "setup_deer_flow_config",
     # Exceptions
     "DeerFlowError",
+    "DockerSandboxError",
     "ProfileNotFoundError",
     "InvalidModeError",
     "MCPServerNotFoundError",

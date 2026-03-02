@@ -93,6 +93,7 @@ dependencies = [
     "jinaai>=0.2.10",
     "langgraph-checkpoint-sqlite>=3.0.3",
     "readabilipy>=0.3.0",
+    "agent-sandbox>=0.0.24",
 ]
 
 [project.urls]

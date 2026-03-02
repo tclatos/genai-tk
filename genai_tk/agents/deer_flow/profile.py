@@ -87,6 +87,19 @@ class MCPServerNotFoundError(DeerFlowError):
         super().__init__(msg)
 
 
+class DockerSandboxError(DeerFlowError):
+    """Raised when Docker sandbox prerequisites are not met."""
+
+    def __init__(self, reasons: list[str]) -> None:
+        self.reasons = reasons
+        detail = "; ".join(reasons)
+        super().__init__(
+            f"Docker sandbox is not available: {detail}. "
+            "Either install the missing dependencies and ensure Docker is running, "
+            "or set 'sandbox: local' in the profile."
+        )
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

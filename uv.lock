@@ -1221,6 +1221,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "abbreviations" },
+    { name = "agent-sandbox" },
     { name = "baml-cli" },
     { name = "baml-lib" },
     { name = "beartype" },
@@ -1314,6 +1315,7 @@ transformers = [
 [package.metadata]
 requires-dist = [
     { name = "abbreviations", specifier = ">=0.2.5" },
+    { name = "agent-sandbox", specifier = ">=0.0.24" },
     { name = "baml-cli", specifier = ">=0.1.0" },
     { name = "baml-lib", specifier = ">=0.42.0" },
     { name = "beartype", specifier = ">=0.21.0" },

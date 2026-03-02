@@ -473,7 +473,7 @@ def setup_deer_flow_config(
     if deer_flow_root is not None:
         root_config_path = deer_flow_root / "config.yaml"
         shutil.copy2(config_path, root_config_path)
-        logger.debug("Copied config.yaml to deer-flow root: %s", root_config_path)
+        logger.debug(f"Copied config.yaml to deer-flow root: {root_config_path}")
 
     extensions_config = generate_extensions_config(mcp_server_names)
 
@@ -505,5 +505,5 @@ def setup_deer_flow_config(
 
     ext_path = write_extensions_config(extensions=extensions_config, config_dir=config_dir)
 
-    logger.debug("Deer-flow config ready: %s, %s", config_path, ext_path)
+    logger.debug(f"Deer-flow config ready: {config_path}, {ext_path}")
     return config_path, ext_path
