@@ -19,6 +19,8 @@ GenAI Toolkit provides reusable components, agents, and utilities for building s
 
 ## ✨ Recent Enhancements
 
+- **🤖 Unified LangChain Agents**: Single `cli agents langchain` command with YAML profiles for `react`, `deep`, and `custom` agent types
+- **📋 YAML-Driven Agent Config**: Middleware, checkpointer, LLM, tools, and MCP servers all configurable per profile with global defaults
 - **📍 Flexible Configuration Discovery**: Automatically finds config files by searching parent directories
 - **📁 Work from Anywhere**: Run commands from notebooks, subdirectories, or any project location
 - **⚙️ Dynamic Path Resolution**: Paths automatically adjust based on project structure
@@ -78,16 +80,27 @@ print(result)
 
 **CLI Usage**:
 ```bash
-# Run agents from command line
-genai-tk agents react "What's the weather like today?"
+# List all configured agent profiles
+cli agents langchain --list
 
-# Use framework-specific shells
-genai-tk shell langchain
-genai-tk shell smolagents
+# Single-shot query with default profile
+cli agents langchain "What's the weather like today?"
+
+# Select a specific profile
+cli agents langchain -p filesystem "List Python files in src/"
+
+# Interactive chat mode
+cli agents langchain -p Coding --chat
+
+# Override engine type and LLM at runtime
+cli agents langchain -p Research --type react --llm gpt_41mini@openai "Quick summary"
+
+# SmolAgents shell
+cli agents smol
 
 # RAG operations
-genai-tk rag create-index my_data/
-genai-tk rag query "What are the main features?"
+cli rag create-index my_data/
+cli rag query "What are the main features?"
 ```
 
 **Configuration Management**:
@@ -109,11 +122,19 @@ config.select_config('production')
 
 ```
 genai_tk/
+├── agents/                  # Agent implementations
+│   ├── langchain/          # Unified LangChain agent (react | deep | custom)
+│   │   ├── config.py       # Pydantic config models + loader
+│   │   ├── factory.py      # Unified agent factory
+│   │   ├── agent.py        # Shell & direct runner
+│   │   ├── commands.py     # CLI command registration
+│   │   └── rich_middleware.py # Rich console middleware
+│   └── smolagents/         # SmolAgents implementation
 ├── core/                    # Core AI components
 │   ├── llm_factory.py      # LLM creation and management
 │   ├── embeddings_factory.py # Embeddings models
 │   ├── embeddings_store.py # Vector databases
-│   ├── deep_agents.py      # LangChain-based agents
+│   ├── deep_agents.py      # Deep agent runtime helpers
 │   ├── cache.py            # Caching utilities
 │   ├── chain_registry.py   # Chain registration system
 │   ├── langgraph_runner.py # LangGraph execution engine
@@ -170,7 +191,7 @@ genai_tk/
 - **LLM Factory** - Creates Language Models from multiple providers
 - **Embeddings Factory** - Provides embeddings for semantic search
 - **Embeddings Store** - Vector database management for RAG
-- **Deep Agents** - LangChain-based reasoning agents
+- **Deep Agents** - Runtime helpers for deep agent execution
 - **MCP Client** - Model Context Protocol integration
 - **Cache** - Intelligent caching system for AI responses
 - **Chain Registry** - Centralized chain registration and discovery
@@ -219,6 +240,57 @@ genai_tk/
 - **LiteLLM** - 100+ LLM providers unified API
 
 ## Agent Frameworks
+
+### LangChain Agents (`cli agents langchain`)
+
+All LangChain-based agents are configured through a single `config/basic/agents/langchain.yaml` file and launched via one command.
+
+**Profile types:**
+- `react` — standard ReAct agent via LangChain `create_agent`
+- `deep` — advanced multi-step agent via DeepAgents `create_deep_agent` with skills, planning, and file system access
+- `custom` — functional ReAct agent built from scratch with LangGraph
+
+**CLI:**
+```bash
+# List profiles
+cli agents langchain --list
+
+# Single-shot (default profile)
+cli agents langchain "Research quantum computing trends"
+
+# Select profile + interactive chat
+cli agents langchain -p Coding --chat
+
+# Override type and LLM without editing YAML
+cli agents langchain -p Research --type react --llm gpt_41mini@openai "Quick answer"
+```
+
+**YAML profile example:**
+```yaml
+langchain_agents:
+  defaults:
+    type: react
+    middlewares:
+      - class: genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware
+    checkpointer:
+      type: none
+
+  default_profile: "Research"
+
+  profiles:
+    - name: "filesystem"
+      type: react
+      mcp_servers: [filesystem]
+
+    - name: "Research"
+      type: deep
+      llm: "gpt_41@openai"
+      mcp_servers: [tavily-mcp]
+      skill_directories: ["${paths.project}/skills"]
+      middlewares:
+        - class: deepagents.middleware.summarization:SummarizationMiddleware
+          model: "gpt-4.1@openrouter"
+```
 
 ### Deer-flow Integration
 
@@ -290,12 +362,16 @@ embeddings:
       provider: openai
       model: text-embedding-3-small
 
-# config/basic/agents/langchain.yaml - Agent configurations
-agents:
-  langchain:
-    react:
-      llm: ${llm.models.default}
-      tools: []
+# config/basic/agents/langchain.yaml - Unified agent profiles
+langchain_agents:
+  defaults:
+    type: react
+    checkpointer: {type: none}
+  default_profile: "Research"
+  profiles:
+    - name: "Research"
+      type: deep
+      llm: "gpt_41@openai"
 ```
 
 **Environment Variables** (loaded from `.env` in project root or parents):

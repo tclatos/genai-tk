@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Unified LangChain Agent System** (`cli agents langchain`)
+  - Single `langchain.yaml` config file replaces the former `langchain.yaml` + `deepagents.yaml` split
+  - New Pydantic config models: `LangchainAgentsConfig`, `AgentProfileConfig`, `AgentDefaults`, `MiddlewareConfig`, `CheckpointerConfig`
+  - `type: react | deep | custom` field per profile selects the agent engine
+  - Global `defaults` section; profiles inherit and override per-field
+  - Middleware instantiation from YAML (`class: module:ClassName` + arbitrary kwargs)
+  - Checkpointer configuration (`type: none | memory | class`)
+  - `cli agents langchain` replaces `cli agents react` and `cli agents deep`
+  - New options: `--profile/-p`, `--type/-t`, `--llm/-m`, `--chat/-c`, `--mcp`, `--stream/-s`, `--list/-l`
+  - `--list` renders a Rich table of all profiles with type, LLM, tools, MCP servers, features
+  - Console warning when deep-only fields (`skill_directories`, `subagents`) are used on non-deep profiles
+  - `genai_tk/agents/deep/` directory removed; `genai_tk/core/deep_agents.py` slimmed to runtime helpers only
+  - `genai_tk/tools/langchain/shared_config_loader.py` reduced to `process_langchain_tools_from_config` only
+  - `genai_tk/mcp/agent_tool.py` updated to use unified factory
+  - New unit tests: `tests/unit_tests/agents/langchain/test_config.py` (32 tests)
+  - Rewritten: `tests/unit_tests/tools/langchain/test_shared_config_loader_llm.py` (20 tests)
+
 ### Fixed
 - **DeerFlow CLI Output Cleanup**
   - Fixed duplicate response text in CLI output caused by DeerFlow's `stream_mode="values"` yielding full-text per AIMessage

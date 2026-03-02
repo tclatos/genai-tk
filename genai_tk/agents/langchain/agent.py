@@ -1,16 +1,11 @@
-"""LangChain ReAct agent runner utilities."""
+"""LangChain agent runner utilities (react, deep, custom)."""
 
 import webbrowser
-from collections.abc import Sequence
 from pathlib import Path
 
-from langchain.agents import create_agent
 from langchain_core.language_models.base import LanguageModelInput, LanguageModelOutput
-from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import BaseTool
-from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.checkpoint.memory import MemorySaver
 from prompt_toolkit import PromptSession
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.history import FileHistory
@@ -21,9 +16,8 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.text import Text
 
-from genai_tk.agents.langchain.rich_middleware import create_rich_agent_middlewares
-from genai_tk.core.llm_factory import get_llm
-from genai_tk.core.mcp_client import get_mcp_servers_dict
+from genai_tk.agents.langchain.config import AgentProfileConfig
+from genai_tk.agents.langchain.factory import create_langchain_agent
 from genai_tk.utils.markdown import looks_like_markdown
 
 
@@ -56,88 +50,43 @@ def _render_final_message(result: LanguageModelOutput | dict, console: Console) 
     )
 
 
-async def _prepare_rich_agent(
-    llm_id: str | None,
-    *,
-    base_tools: Sequence[BaseTool] | None = None,
-    mcp_server_names: Sequence[str] | None = None,
-    system_prompt: str | None = None,
-    console: Console | None = None,
-    use_memory: bool = False,
-    single_tool_mode: bool = False,
-) -> tuple[BaseChatModel, object, MultiServerMCPClient | None, list[BaseTool]]:
-    """Create a LangChain agent with optional MCP tools and Rich middleware.
-
-    Returns the model, agent, optional MCP client (for cleanup) and full tool list.
-    """
-    rich_console = console or Console()
-
-    model = get_llm(llm=llm_id)
-    all_tools: list[BaseTool] = list(base_tools or [])
-
-    client: MultiServerMCPClient | None = None
-    if mcp_server_names:
-        with rich_console.status("[bold green]Connecting to MCP servers..."):
-            client = MultiServerMCPClient(get_mcp_servers_dict(list(mcp_server_names)))
-            mcp_tools = await client.get_tools()
-            all_tools.extend(mcp_tools)
-            rich_console.print("[green]✓ MCP servers connected[/green]\n")
-
-    middleware = create_rich_agent_middlewares(console=rich_console, single_tool_mode=single_tool_mode)
-
-    agent_kwargs: dict = {
-        "model": model,
-        "tools": all_tools,
-        "middleware": middleware,
-    }
-
-    if use_memory:
-        agent_kwargs["checkpointer"] = MemorySaver()
-
-    if system_prompt:
-        agent_kwargs["system_prompt"] = system_prompt
-
-    agent = create_agent(**agent_kwargs)
-    return model, agent, client, all_tools
-
-
 async def run_langchain_agent_shell(
-    llm_id: str | None,
-    tools: list[BaseTool] | None = None,
-    mcp_server_names: list[str] | None = None,
-    system_prompt: str | None = None,
+    profile: AgentProfileConfig,
+    llm_override: str | None = None,
+    extra_tools: list[BaseTool] | None = None,
+    extra_mcp_servers: list[str] | None = None,
 ) -> None:
-    """Run an interactive shell for sending prompts to a LangChain ReAct agent.
+    """Run an interactive shell for sending prompts to any LangChain-based agent.
 
-    The MCP servers are started once before entering the shell loop.
-    The user can type /quit to exit the shell.
+    The agent is created once before entering the shell loop.
+    Type ``/quit`` to exit.
 
     Args:
-        llm_id: Optional ID of the language model to use
-        mcp_server_names: Optional list of MCP server names to include in the agent
-        system_prompt: Optional system prompt / pre-prompt
+        profile: Resolved agent profile (includes type, tools, middleware, etc.)
+        llm_override: LLM identifier taking precedence over profile.llm
+        extra_tools: Additional tools to pass to the agent
+        extra_mcp_servers: Additional MCP server names to connect
     """
     console = Console()
 
-    # Display welcome banner
-    welcome_text = Text("🤖 LangChain Agent", style="bold cyan")
-    if mcp_server_names:
-        welcome_text.append(f"\nConnected to MCP servers: {', '.join(mcp_server_names)}", style="green")
+    # Info banner
+    welcome_text = Text(f"🤖 {profile.name} Agent  [{profile.type}]", style="bold cyan")
+    if profile.mcp_servers or extra_mcp_servers:
+        all_servers = list(profile.mcp_servers) + list(extra_mcp_servers or [])
+        welcome_text.append(f"\nMCP servers: {', '.join(all_servers)}", style="green")
 
     console.print(Panel(welcome_text, title="Welcome", border_style="bright_blue"))
     console.print("[dim]Commands: /help, /quit, /trace\nUse up/down arrows to navigate prompt history[/dim]\n")
 
-    # Create agent with memory suitable for a chat shell
-    _, agent, client, _ = await _prepare_rich_agent(
-        llm_id,
-        base_tools=tools or [],
-        mcp_server_names=mcp_server_names or [],
-        system_prompt=system_prompt,
-        console=console,
-        use_memory=True,
-    )
+    with console.status("[bold green]Initializing agent...[/bold green]"):
+        agent = await create_langchain_agent(
+            profile,
+            llm_override=llm_override,
+            extra_tools=extra_tools,
+            extra_mcp_servers=extra_mcp_servers,
+            force_memory_checkpointer=True,
+        )
 
-    # Set up prompt history
     history_file = Path(".blueprint.input.history")
     session = PromptSession(history=FileHistory(str(history_file)))
 
@@ -174,98 +123,63 @@ async def run_langchain_agent_shell(
                 if not user_input:
                     continue
 
-                # Display user prompt with styling
                 console.print(Panel(user_input, title="[bold blue]User[/bold blue]", border_style="blue"))
 
-                # Process the response (LangGraph style: string messages)
                 with console.status("[bold green]Agent is thinking...\n[/bold green]"):
                     result = await agent.ainvoke({"messages": user_input}, {"configurable": {"thread_id": "1"}})
 
                 _render_final_message(result, console)
-                console.print()  # Add spacing between interactions
+                console.print()
 
             except KeyboardInterrupt:
                 console.print("\n[bold yellow]Received keyboard interrupt. Exiting...[/bold yellow]")
                 break
-            except Exception as e:  # pragma: no cover - defensive logging
+            except Exception as e:  # pragma: no cover
                 console.print(
                     Panel(f"[red]Error: {str(e)}[/red]", title="[bold red]Error[/bold red]", border_style="red")
                 )
     finally:
-        if client is not None and hasattr(client, "close"):
-            await client.close()
+        pass  # MCP client lifecycle is managed inside factory
 
 
 async def run_langchain_agent_direct(
     query: LanguageModelInput,
-    llm_id: str | None = None,
-    mcp_server_names: list[str] | None = None,
-    additional_tools: list[BaseTool] | None = None,
-    pre_prompt: str | None = None,
-    single_tool_mode: bool = False,
+    profile: AgentProfileConfig,
+    llm_override: str | None = None,
+    extra_tools: list[BaseTool] | None = None,
+    extra_mcp_servers: list[str] | None = None,
+    stream: bool = False,
 ) -> None:
-    """Execute a single query using MCP tools with a ReAct agent and Rich output.
-
-    This function consolidates the one-shot ReAct agent previously implemented
-    as `call_react_agent` in `genai_tk.core.mcp_client`.
+    """Execute a single query using a LangChain-based agent and render output with Rich.
 
     Args:
         query: The user query to execute
-        llm_id: Optional ID of the language model to use
-        mcp_server_names: Optional list of MCP server names to include
-        additional_tools: Optional list of additional tools to provide to the agent
-        pre_prompt: Optional system prompt
-        single_tool_mode: If True, agent will stop after calling one tool and return raw result
+        profile: Resolved agent profile
+        llm_override: LLM identifier taking precedence over profile.llm
+        extra_tools: Additional tools to pass to the agent
+        extra_mcp_servers: Additional MCP server names to connect
+        stream: If True, stream intermediate steps (deep agents only)
     """
-    from loguru import logger
-
     console = Console()
 
-    # Create agent without conversational memory for direct calls
-    model, agent, client, all_tools = await _prepare_rich_agent(
-        llm_id,
-        base_tools=additional_tools or [],
-        mcp_server_names=mcp_server_names or [],
-        system_prompt=pre_prompt,
-        console=console,
-        use_memory=False,
-        single_tool_mode=single_tool_mode,
-    )
+    with console.status("[bold green]Initializing agent...[/bold green]"):
+        agent = await create_langchain_agent(
+            profile,
+            llm_override=llm_override,
+            extra_tools=extra_tools,
+            extra_mcp_servers=extra_mcp_servers,
+            force_memory_checkpointer=False,
+        )
 
-    try:
-        tool_names = [getattr(t, "name", str(type(t).__name__)) for t in all_tools]
-        logger.info(f"ReAct agent created with {len(all_tools)} tools: {', '.join(tool_names)}")
+    system_prompt = profile.system_prompt or profile.pre_prompt
+    messages: list[HumanMessage] = []
+    if system_prompt:
+        messages.append(HumanMessage(content=system_prompt))
+    messages.append(HumanMessage(content=query))
 
-        # In single-tool mode, use direct executor (pragmatic approach)
-        if single_tool_mode and len(all_tools) == 1:
-            from genai_tk.agents.langchain.rich_middleware import (
-                RichToolCallMiddleware,
-                SingleToolExecutorMiddleware,
-            )
-
-            executor = SingleToolExecutorMiddleware()
-            rich_middleware = RichToolCallMiddleware(console=console)
-
-            # Execute tool with Rich display via middleware
-            await executor.execute_single_tool(
-                tool=all_tools[0],
-                model=model,
-                query=query,
-                pre_prompt=pre_prompt,
-                tool_wrapper=rich_middleware.awrap_tool_call,
-            )
-            return
-
-        # Normal agent flow
-        messages: list[HumanMessage] = []
-        if pre_prompt:
-            messages.append(HumanMessage(content=pre_prompt))
-        messages.append(HumanMessage(content=query))
-
-        # Invoke the agent and render the final answer with Rich
+    if stream:
+        async for chunk in agent.astream({"messages": messages}):
+            _render_final_message(chunk, console)
+    else:
         result = await agent.ainvoke({"messages": messages})
         _render_final_message(result, console)
-
-    finally:
-        if client is not None and hasattr(client, "close"):
-            await client.close()

@@ -1,53 +1,33 @@
-"""Shared configuration loader for LangChain-based agents.
+"""Shared tool configuration loader for LangChain-based agents.
 
-This module provides common functionality for loading and processing
-configurations for LangChain-based agents like react_agent and list_deep_agents,
-reducing code duplication and providing a consistent interface.
+Provides ``process_langchain_tools_from_config`` which converts raw YAML tool
+specs into ``BaseTool`` instances.  Agent-level config loading has moved to
+``genai_tk.agents.langchain.config``.
 """
 
-from typing import Any, Dict, List, Optional
+import inspect
+from typing import Any
 
 from langchain_core.tools import BaseTool
 from loguru import logger
-from pydantic import BaseModel, ConfigDict
-from upath import UPath
 
-from genai_tk.utils.config_mngr import global_config, import_from_qualified
-
-
-class LangChainAgentConfig(BaseModel):
-    """Configuration class for LangChain-based agent demonstrations.
-
-    This class defines the structure for setting up different demo scenarios
-    including available tools, MCP servers, and example prompts.
-    """
-
-    name: str
-    tools: List[BaseTool] = []
-    tool_configs: List[Dict[str, Any]] = []  # Raw tool configurations
-    mcp_servers: List[str] = []
-    examples: List[str] = []
-    system_prompt: Optional[str] = None
-    pre_prompt: Optional[str] = None
-    llm_id: str | None = None  # Resolved LLM identifier (ID or tag)
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+from genai_tk.utils.config_mngr import import_from_qualified
 
 
 def process_langchain_tools_from_config(
-    tools_config: List[Dict[str, Any]] | None, llm: Optional[str] = None
-) -> List[BaseTool]:
+    tools_config: list[dict[str, Any]] | None, llm: Any | None = None
+) -> list[BaseTool]:
     """Process tools configuration and return list of LangChain tool instances.
 
     Args:
-        tools_config: List of tool configuration dictionaries, or None
-        llm: Optional LLM instance to pass to factory functions that support it
+        tools_config: List of tool configuration dictionaries, or None.
+        llm: Optional LLM instance passed to factory functions that support it.
 
     Returns:
-        List of LangChain BaseTool instances
+        List of LangChain BaseTool instances.
     """
-    tools = []
+    tools: list[BaseTool] = []
 
-    # Handle None case (when YAML has "tools:" with no value)
     if tools_config is None:
         return tools
 
@@ -66,45 +46,32 @@ def process_langchain_tools_from_config(
                 tools.extend(_process_factory_tool(tool_config, llm=llm))
         except Exception as ex:
             raise Exception(f"Failed to process tool config {tool_config}: {ex}") from ex
-            logger.warning(f"Failed to process tool config {tool_config}: {ex}")
 
     return tools
 
 
-def _process_function_tool(tool_config: Dict[str, Any]) -> List[BaseTool]:
+def _process_function_tool(tool_config: dict[str, Any]) -> list[BaseTool]:
     """Process a function-based tool configuration."""
     func_ref = tool_config.get("function")
-    tools = []
+    tools: list[BaseTool] = []
 
     if isinstance(func_ref, str) and ":" in func_ref:
-        try:
-            tool_func = import_from_qualified(func_ref)
-            # If it's a function that returns a tool, call it
-            if callable(tool_func):
-                # Check if it's already a tool instance
-                if isinstance(tool_func, BaseTool):
-                    tools.append(tool_func)
-                else:
-                    # It's a function that might return a tool
-                    result = tool_func()
-                    if isinstance(result, BaseTool):
-                        tools.append(result)
-                    elif isinstance(result, list):
-                        tools.extend([t for t in result if isinstance(t, BaseTool)])
-            else:
-                # It's already a tool instance
-                if isinstance(tool_func, BaseTool):
-                    tools.append(tool_func)
-        except Exception as ex:
-            raise Exception(f"Failed to load  {func_ref}: {ex}") from ex
-            logger.warning(f"Failed to load function {func_ref}: {ex}")
+        tool_func = import_from_qualified(func_ref)
+        if isinstance(tool_func, BaseTool):
+            tools.append(tool_func)
+        elif callable(tool_func):
+            result = tool_func()
+            if isinstance(result, BaseTool):
+                tools.append(result)
+            elif isinstance(result, list):
+                tools.extend([t for t in result if isinstance(t, BaseTool)])
     else:
-        logger.warning(f"Unknown function reference: {func_ref}")
+        logger.warning(f"Unknown function reference: {func_ref!r}")
 
     return tools
 
 
-def _process_class_tool(tool_config: Dict[str, Any]) -> Optional[BaseTool]:
+def _process_class_tool(tool_config: dict[str, Any]) -> BaseTool | None:
     """Process a class-based tool configuration."""
     class_ref = tool_config.get("class")
     params = {k: v for k, v in tool_config.items() if k != "class"}
@@ -115,34 +82,29 @@ def _process_class_tool(tool_config: Dict[str, Any]) -> Optional[BaseTool]:
             instance = tool_class(**params)
             if isinstance(instance, BaseTool):
                 return instance
-            else:
-                logger.warning(f"Class {class_ref} does not produce a BaseTool instance")
+            logger.warning(f"Class {class_ref!r} does not produce a BaseTool instance")
         except Exception as ex:
-            logger.warning(f"Failed to load class {class_ref}: {ex}")
+            logger.warning(f"Failed to load class {class_ref!r}: {ex}")
     else:
-        logger.warning(f"Unknown tool class reference: {class_ref}")
+        logger.warning(f"Unknown tool class reference: {class_ref!r}")
 
     return None
 
 
-def _process_factory_tool(tool_config: Dict[str, Any], llm: Optional[str] = None) -> List[BaseTool]:
+def _process_factory_tool(tool_config: dict[str, Any], llm: Any | None = None) -> list[BaseTool]:
     """Process a factory-based tool configuration.
 
     Args:
-        tool_config: Tool configuration dictionary
-        llm: Optional LLM instance to pass to factory functions that support it
+        tool_config: Tool configuration dictionary.
+        llm: Optional LLM instance to pass to factory functions that support it.
     """
     factory_ref = tool_config.get("factory")
     params = {k: v for k, v in tool_config.items() if k != "factory"}
-    tools = []
+    tools: list[BaseTool] = []
 
     if isinstance(factory_ref, str) and ":" in factory_ref:
         try:
             factory_func = import_from_qualified(factory_ref)
-
-            # If LLM is provided and factory function accepts it, pass it along
-            import inspect
-
             sig = inspect.signature(factory_func)
             if llm is not None and "llm" in sig.parameters:
                 params["llm"] = llm
@@ -154,156 +116,8 @@ def _process_factory_tool(tool_config: Dict[str, Any], llm: Optional[str] = None
             elif isinstance(tool_result, BaseTool):
                 tools.append(tool_result)
         except Exception as ex:
-            logger.warning(f"Failed to load factory {factory_ref}: {ex}")
+            logger.warning(f"Failed to load factory {factory_ref!r}: {ex}")
     else:
-        logger.warning(f"Unknown factory reference: {factory_ref}")
+        logger.warning(f"Unknown factory reference: {factory_ref!r}")
 
     return tools
-
-
-def load_langchain_agent_config(config_file: UPath, config_section: str, config_name: str) -> Optional[Dict[str, Any]]:
-    """Load configuration for a specific agent from a YAML file.
-
-    Args:
-        config_file: Path to the YAML configuration file
-        config_section: Section name in the YAML file (e.g., 'langchain_agents')
-        config_name: Name of the configuration to load (e.g., 'Weather')
-
-    Returns:
-        Dictionary containing the configuration, or None if not found
-    """
-    try:
-        demos_config = global_config().merge_with(config_file).get_list(config_section)
-        for demo_config in demos_config:
-            if demo_config.get("name", "").lower() == config_name.lower():
-                return demo_config
-        return None
-    except Exception as ex:
-        logger.error(f"Failed to load agent config '{config_name}' from {config_file}: {ex}")
-        return None
-
-
-def create_langchain_agent_config(
-    config_file: UPath, config_section: str, config_name: str, llm: Optional[Any] = None
-) -> Optional[LangChainAgentConfig]:
-    """Create a LangChainAgentConfig from YAML configuration.
-
-    Args:
-        config_file: Path to the YAML configuration file
-        config_section: Section name in the YAML file
-        config_name: Name of the configuration to load
-        llm: Optional LLM instance to pass to factory functions that support it
-
-    Returns:
-        LangChainAgentConfig instance or None if not found
-    """
-    demo_config = load_langchain_agent_config(config_file, config_section, config_name)
-    if not demo_config:
-        return None
-
-    name = demo_config.get("name", "")
-    examples = demo_config.get("examples", [])
-    mcp_servers = demo_config.get("mcp_servers", [])
-    tool_configs = demo_config.get("tools", [])
-    system_prompt = demo_config.get("system_prompt")
-    pre_prompt = demo_config.get("pre_prompt")
-
-    # Handle LLM configuration from YAML
-    config_llm_identifier = demo_config.get("llm")
-    resolved_llm_id = None
-
-    if config_llm_identifier:
-        from genai_tk.core.llm_factory import LlmFactory
-
-        try:
-            resolved_llm_id = LlmFactory.resolve_llm_identifier(config_llm_identifier)
-            logger.info(f"Resolved LLM identifier '{config_llm_identifier}' to '{resolved_llm_id}'")
-        except Exception as ex:
-            logger.error(f"Failed to resolve LLM identifier '{config_llm_identifier}': {ex}")
-            # Continue without resolved LLM ID - will use default or passed LLM
-
-    # Get the actual LLM instance for tool processing
-    # Priority: resolved from config > passed LLM > default
-    if resolved_llm_id and not llm:
-        from genai_tk.core.llm_factory import get_llm
-
-        try:
-            llm = get_llm(llm=resolved_llm_id)
-        except Exception as ex:
-            logger.warning(f"Failed to get LLM instance for '{resolved_llm_id}': {ex}")
-            # Continue with whatever LLM was passed or None
-
-    # Process tools with the LLM (either resolved from config, passed, or None)
-    processed_tools = process_langchain_tools_from_config(tool_configs, llm=llm)
-
-    return LangChainAgentConfig(
-        name=name,
-        tools=processed_tools,
-        tool_configs=tool_configs,
-        mcp_servers=mcp_servers,
-        examples=examples,
-        system_prompt=system_prompt,
-        pre_prompt=pre_prompt,
-        llm_id=resolved_llm_id,
-    )
-
-
-def load_all_langchain_agent_configs(config_file: str, config_section: str) -> List[LangChainAgentConfig]:
-    """Load and configure all demonstration scenarios from a YAML file.
-
-    Args:
-        config_file: Path to the YAML configuration file
-        config_section: Section name in the YAML file
-
-    Returns:
-        List of configured LangChainAgentConfig objects
-    """
-    try:
-        demos_config = global_config().merge_with(config_file).get_list(config_section)
-        result = []
-
-        for demo_config in demos_config:
-            name = demo_config.get("name", "")
-            examples = demo_config.get("examples", [])
-            mcp_servers = demo_config.get("mcp_servers", [])
-            tool_configs = demo_config.get("tools", [])
-            system_prompt = demo_config.get("system_prompt")
-            pre_prompt = demo_config.get("pre_prompt")
-
-            # Handle LLM configuration from YAML
-            config_llm_identifier = demo_config.get("llm")
-            resolved_llm_id = None
-
-            if config_llm_identifier:
-                from genai_tk.core.llm_factory import LlmFactory
-
-                try:
-                    resolved_llm_id = LlmFactory.resolve_llm_identifier(config_llm_identifier)
-                    logger.debug(
-                        f"Resolved LLM identifier '{config_llm_identifier}' to '{resolved_llm_id}' for agent '{name}'"
-                    )
-                except Exception as ex:
-                    logger.warning(
-                        f"Failed to resolve LLM identifier '{config_llm_identifier}' for agent '{name}': {ex}"
-                    )
-                    # Continue without resolved LLM ID - will use default
-
-            # Process tools (without LLM instance for bulk loading)
-            processed_tools = process_langchain_tools_from_config(tool_configs)
-
-            config = LangChainAgentConfig(
-                name=name,
-                tools=processed_tools,
-                tool_configs=tool_configs,
-                mcp_servers=mcp_servers,
-                examples=examples,
-                system_prompt=system_prompt,
-                pre_prompt=pre_prompt,
-                llm_id=resolved_llm_id,
-            )
-            result.append(config)
-
-        return result
-    except Exception as ex:
-        logger.exception(f"Failed to load agent configurations from {config_file}: {ex}")
-        return []

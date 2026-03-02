@@ -1,4 +1,4 @@
-"""Expose a ReAct / DeepAgent as a single MCP tool named ``run_<name>``.
+"""Expose a LangChain-based agent as a single MCP tool named ``run_<name>``.
 
 The agent is built lazily (on first call) so the MCP server starts instantly
 and only incurs the LLM/MCP-server bootstrap cost when a client calls the tool.
@@ -13,7 +13,7 @@ Example:
     cfg = MCPAgentConfig(
         enabled=True,
         name="run_research_agent",
-        description="Run the Research deep-agent",
+        description="Run the Research agent",
         profile="Research",
     )
     register_agent_tool(server, cfg, extra_tools=[])
@@ -50,7 +50,7 @@ def register_agent_tool(
     """
     assert isinstance(agent_cfg, MCPAgentConfig)
 
-    _agent_cache: dict[str, Any] = {}  # mutable container – captured by closure
+    _agent_cache: dict[str, Any] = {}
 
     async def _invoke_agent(query: str) -> str:
         """Run the agent and return the final text answer."""
@@ -77,40 +77,29 @@ def register_agent_tool(
     logger.debug(f"Registered agent MCP tool: {agent_cfg.name!r}")
 
 
-# ---------------------------------------------------------------------------
-# Internal agent builder
-# ---------------------------------------------------------------------------
-
-
 async def _build_agent(agent_cfg: MCPAgentConfig, extra_tools: list[BaseTool]) -> Any:
-    """Instantiate a DeepAgent (profile-based) or a simple ReAct agent.
+    """Instantiate an agent from a profile (or a minimal react agent).
 
     Args:
         agent_cfg: Agent configuration.
-        extra_tools: Extra tools to pass in alongside profile tools.
+        extra_tools: Extra tools to pass alongside profile tools.
 
     Returns:
-        A compiled LangGraph agent (``CompiledStateGraph``).
+        A compiled LangGraph agent.
     """
     from langgraph.checkpoint.memory import MemorySaver
 
     if agent_cfg.profile:
-        # Use the full DeepAgent machinery
-        from genai_tk.core.deep_agents import create_deep_agent_from_profile, get_deep_agent_profile
+        from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+        from genai_tk.agents.langchain.factory import create_langchain_agent
 
-        profile = get_deep_agent_profile(agent_cfg.profile)
-        if agent_cfg.llm:
-            from genai_tk.core.llm_factory import get_llm
-
-            llm = get_llm(agent_cfg.llm)
-        else:
-            llm = None
-
-        return await create_deep_agent_from_profile(
-            profile=profile,
-            llm=llm,
+        cfg = load_unified_config()
+        profile = resolve_profile(cfg, agent_cfg.profile)
+        return await create_langchain_agent(
+            profile,
+            llm_override=agent_cfg.llm,
             extra_tools=extra_tools or None,
-            checkpointer=MemorySaver(),
+            force_memory_checkpointer=True,
         )
 
     # No profile: build a minimal prebuilt ReAct agent with the provided tools

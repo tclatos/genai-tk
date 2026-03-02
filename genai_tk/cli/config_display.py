@@ -2,67 +2,13 @@
 
 This module provides functions to display available configurations for different
 agent types in a user-friendly format when invalid configurations are specified.
+
+LangChain agent profile listing is handled by ``cli agents langchain --list``.
 """
 
 from pathlib import Path
 
 import yaml
-
-
-def display_react_agent_configs() -> None:
-    """Display available React Agent configurations in a formatted way."""
-    config_file = Path("config/agents/langchain.yaml")
-
-    print("📋 Available React Agent Configurations:")
-    print("=" * 50)
-
-    try:
-        with open(config_file, "r") as f:
-            config = yaml.safe_load(f)
-
-        if "langchain_agents" in config:
-            for i, demo in enumerate(config["langchain_agents"], 1):
-                name = demo.get("name", f"Demo {i}")
-                print(f'\n🎯 {i}. "{name}"')
-
-                # Show tools if available
-                if "tools" in demo:
-                    print(f"   📦 Tools: {len(demo['tools'])} configured")
-                    for tool in demo["tools"][:2]:  # Show first 2 tools
-                        if isinstance(tool, dict):
-                            if "function" in tool:
-                                func_name = tool["function"].split(":")[-1]
-                                print(f"      • {func_name} (function)")
-                            elif "factory" in tool:
-                                factory_name = tool["factory"].split(":")[-1]
-                                print(f"      • {factory_name} (factory)")
-                        else:
-                            print(f"      • {tool}")
-                    if len(demo["tools"]) > 2:
-                        print(f"      • ... and {len(demo['tools']) - 2} more")
-
-                # Show MCP servers if available
-                if "mcp_servers" in demo:
-                    servers = ", ".join(demo["mcp_servers"])
-                    print(f"   🔗 MCP Servers: {servers}")
-
-                # Show examples if available
-                if "examples" in demo:
-                    print(f"   💡 Example prompts ({len(demo['examples'])} available):")
-                    for example in demo["examples"][:2]:  # Show first 2 examples
-                        print(f'      • "{example}"')
-                    if len(demo["examples"]) > 2:
-                        print(f"      • ... and {len(demo['examples']) - 2} more")
-
-        print("\n" + "=" * 50)
-        print('💡 Usage: uv run cli agents react --config "<configuration_name>"')
-
-    except FileNotFoundError:
-        print(f"❌ Configuration file not found: {config_file}")
-    except yaml.YAMLError as e:
-        print(f"❌ Error parsing YAML file: {e}")
-    except Exception as e:
-        print(f"❌ Error: {e}")
 
 
 def display_smolagents_configs() -> None:
