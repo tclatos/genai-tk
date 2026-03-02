@@ -2,10 +2,22 @@
 # 
 # Unified configuration for Deer-flow agents including profiles, skills, and sandbox settings.
 #
+# SANDBOX MODES:
+#   docker:  Full Docker sandbox with mounted volumes. Requires running with --web flag.
+#            Files written to /mnt/user-data/outputs/ are accessible on the host.
+#   local:   Lightweight local sandbox. No Docker containers. Tool outputs may not
+#            persist to the host filesystem in embedded mode. Recommended for stateless
+#            queries (web searches, analysis) rather than file generation.
+#
+# When generating files (PowerPoint, documents, etc.), use one of:
+#   1. --web mode: Enable Docker sandbox by running with --web flag
+#   2. Direct output: Use ~/outputs/ or ./data/outputs/ paths that are always accessible
+#
 # Profile Key Fields:
 #   name:              Profile display name
 #   description:       Profile description
 #   mode:              Agent mode: flash (fast), thinking (reasoning), pro (planning), ultra (all features)
+#   sandbox:           Sandbox type: docker (requires --web) or local (light, no Docker)
 #   llm:               LLM identifier (ID like 'gpt_41mini@openai' or tag like 'fast_model'). Optional, defaults to global config.
 #   tool_groups:       Deer-flow tool groups to enable (web, file:read, file:write, bash)
 #   skill_directories: Directories to load skills from (loaded recursively)
@@ -75,6 +87,9 @@ deerflow_agents:
     subagent_enabled: false
     plan_mode: true
     sandbox: docker
+    # NOTE: Docker sandbox requires --web flag to start the actual servers.
+    #       Without --web, runs in fallback local sandbox which may not persist
+    #       file outputs. For file generation, use: cli agents deerflow -p "Research Assistant" --web
     tool_groups:
       - web
       - file

@@ -86,6 +86,7 @@ def fake_deer_flow_env(monkeypatch, tmp_path):
 
     return {"config_path": fake_config, "mock_cls": mock_df_client_cls}
 
+
 # ---------------------------------------------------------------------------
 # _translate_event
 # ---------------------------------------------------------------------------
@@ -238,8 +239,17 @@ def test_run_single_shot_has_expected_params() -> None:
     from genai_tk.agents.deer_flow.cli_commands import _run_single_shot
 
     params = inspect.signature(_run_single_shot).parameters
-    for expected in ("profile_name", "user_input", "llm_override", "extra_mcp", "mode_override", "verbose",
-                     "show_trace", "subagent_enabled", "plan_mode"):
+    for expected in (
+        "profile_name",
+        "user_input",
+        "llm_override",
+        "extra_mcp",
+        "mode_override",
+        "verbose",
+        "show_trace",
+        "subagent_enabled",
+        "plan_mode",
+    ):
         assert expected in params, f"_run_single_shot is missing expected param '{expected}'"
 
 
@@ -248,8 +258,17 @@ def test_run_chat_mode_has_expected_params() -> None:
     from genai_tk.agents.deer_flow.cli_commands import _run_chat_mode
 
     params = inspect.signature(_run_chat_mode).parameters
-    for expected in ("profile_name", "llm_override", "extra_mcp", "mode_override", "verbose",
-                     "show_trace", "initial_input", "subagent_enabled", "plan_mode"):
+    for expected in (
+        "profile_name",
+        "llm_override",
+        "extra_mcp",
+        "mode_override",
+        "verbose",
+        "show_trace",
+        "initial_input",
+        "subagent_enabled",
+        "plan_mode",
+    ):
         assert expected in params, f"_run_chat_mode is missing expected param '{expected}'"
 
 
@@ -411,7 +430,10 @@ def test_generate_deer_flow_models_uses_known_items_dict() -> None:
     mock_info.get_provider_info.return_value = prov
 
     with (
-        patch("genai_tk.agents.deer_flow.config_bridge.LlmFactory.known_items_dict", return_value={"gpt-4.1-mini@openai": mock_info}),
+        patch(
+            "genai_tk.agents.deer_flow.config_bridge.LlmFactory.known_items_dict",
+            return_value={"gpt-4.1-mini@openai": mock_info},
+        ),
         patch.dict(os.environ, {"OPENAI_API_KEY": "test"}),
     ):
         models = generate_deer_flow_models(selected_llm_id="gpt-4.1-mini@openai")
@@ -441,9 +463,7 @@ def test_sqlite_checkpointer_is_base_saver() -> None:
     db_path = os.path.join(tempfile.mkdtemp(), "test_e2e.db")
     conn = sqlite3.connect(db_path, check_same_thread=False)
     saver = SqliteSaver(conn)
-    assert isinstance(saver, BaseCheckpointSaver), (
-        f"Expected BaseCheckpointSaver, got {type(saver).__name__}"
-    )
+    assert isinstance(saver, BaseCheckpointSaver), f"Expected BaseCheckpointSaver, got {type(saver).__name__}"
     conn.close()
 
 
@@ -492,9 +512,7 @@ def test_config_bridge_to_embedded_client_name_consistency() -> None:
         models = generate_deer_flow_models(selected_llm_id=resolved)
 
     assert len(models) == 1
-    assert models[0]["name"] == resolved, (
-        f"config_bridge name '{models[0]['name']}' must match resolved '{resolved}'"
-    )
+    assert models[0]["name"] == resolved, f"config_bridge name '{models[0]['name']}' must match resolved '{resolved}'"
 
 
 def test_full_init_chain_no_deer_flow_path(monkeypatch) -> None:

@@ -89,7 +89,7 @@ dependencies = [
     # ============================================
     # Workflow Orchestration
     # ============================================
-    "prefect>=3.6.7", # Modern workflow orchestration
+    "prefect>=3.6.7",                     # Modern workflow orchestration
     "jinaai>=0.2.10",
     "langgraph-checkpoint-sqlite>=3.0.3",
     "readabilipy>=0.3.0",

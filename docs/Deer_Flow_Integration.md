@@ -336,6 +336,31 @@ tail -f $DEER_FLOW_PATH/logs/gateway.log
 - LangGraph saves the full conversation state on each turn
 - On very long conversations (100+ turns), consider starting a new thread periodic
 
+### File output not accessible
+
+**Problem: Agent generates files (e.g., PowerPoint, plots) but they don't appear in expected location**
+
+This happens because of how sandbox modes handle file access:
+
+**Docker sandbox** (`sandbox: docker`):
+- Files are created inside the Docker container at `/mnt/user-data/outputs/`
+- Without proper volume mounts, the host cannot access these files
+- **Solution: Use `--web` flag** — this starts the actual Docker sandbox with proper volume mapping
+  ```bash
+  cli agents deerflow -p "Research Assistant" --web
+  # Files now appear on host filesystem
+  ```
+
+**Local sandbox** (`sandbox: local`):
+- Lightweight sandboxing without Docker
+- File paths may be isolated from the host
+- **Solution: Modify tool configuration** to write to `~/.genai-tk/outputs/` or any shared directory
+
+**Recommended fix:**
+1. For file generation tasks, use: `cli agents deerflow -p "Research Assistant" --web`
+2. Or modify profiles to set `sandbox: local` for simpler setup (less isolated)
+3. Or configure agent to output to a shared directory (modify tool code)
+
 ### Mode and flag issues
 
 **Error: `Unknown mode: 'foo'`**
