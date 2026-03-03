@@ -94,7 +94,7 @@ langchain_agents:
       tools:
         - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_tool_from_config
           config:
-            database_uri: "sqlite:///${paths.project}/tests/data/Chinook.db"
+            database_uri: sqlite:///${paths.project}/tests/data/Chinook.sqlite
             tool_name: "query_chinook"
             tool_description: "Query the Chinook music database for information about artists, albums, tracks, customers, and invoices"
             examples:
@@ -421,6 +421,53 @@ langchain_agents:
         - "Create API documentation for this Python module"
         - "Write user guide for this software project"
         - "Generate README file with installation and usage instructions"
+
+    - name: "text2sql"
+      type: deep
+      description: "Text-to-SQL agent for querying the Chinook music store database with planning and schema-exploration skills"
+
+      # Core agent identity — always present in every LLM call.
+      # Task-specific workflows (query writing, schema exploration) are loaded
+      # dynamically from SKILL.md files via progressive disclosure.
+      system_prompt: |
+        You are a Deep Agent designed to interact with a SQL database.
+
+        Given a natural language question, you will:
+        1. Explore the available database tables
+        2. Examine relevant table schemas
+        3. Generate syntactically correct SQL queries
+        4. Execute queries and analyze results
+        5. Format answers in a clear, readable way
+
+        Always answer by querying the database — never from general knowledge.
+        Only use SELECT — never INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, CREATE.
+        Limit results to 5 rows unless the user specifies otherwise.
+        For complex questions, use write_todos to plan your approach.
+
+      tools:
+        - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_toolkit_tools
+          database_uri: sqlite:///${paths.project}/tests/data/Chinook.sqlite
+
+      skill_directories:
+        - ${paths.project}/skills/langchain example
+
+      backend:
+        type: filesystem
+        root_dir: ${paths.project}
+
+      enable_planning: true
+
+      features:
+        - "🗄️ SQL Queries"
+        - "📝 Planning"
+        - "🔍 Schema Exploration"
+
+      examples:
+        - "What are the best selling groups?"
+        - "Which customer spent the most money?"
+        - "List the top 5 genres by track count"
+        - "Which employee generated the most revenue by country?"
+        - "How many customers are from Canada?"
 
     - name: "Stock Analysis"
       type: deep

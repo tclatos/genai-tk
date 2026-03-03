@@ -10,8 +10,9 @@ from typing import Any
 
 from langchain_core.tools import BaseTool
 from loguru import logger
+from omegaconf import DictConfig, OmegaConf
 
-from genai_tk.utils.config_mngr import import_from_qualified
+from genai_tk.utils.config_mngr import global_config, import_from_qualified
 
 
 def process_langchain_tools_from_config(
@@ -48,6 +49,48 @@ def process_langchain_tools_from_config(
             raise Exception(f"Failed to process tool config {tool_config}: {ex}") from ex
 
     return tools
+
+
+def _resolve_config_vars(config: Any) -> Any:
+    """Resolve OmegaConf variables in configuration values.
+
+    Recursively processes the configuration to resolve any OmegaConf interpolations
+    (e.g., ${paths.project}) using OmegaConf's resolution mechanism merged with
+    the global application configuration.
+
+    Args:
+        config: Configuration value (can be dict, list, DictConfig, or primitive)
+
+    Returns:
+        Configuration with resolved variables
+    """
+    if isinstance(config, dict):
+        # Convert to DictConfig and merge with global config for proper variable resolution
+        try:
+            cfg_dict = OmegaConf.create(config)
+            # Merge with global config so that ${paths.project} etc. can be resolved
+            merged = OmegaConf.merge(global_config().root, cfg_dict)
+            resolved = OmegaConf.to_container(merged, resolve=True)
+            # Extract only the parts that were in the original config
+            if isinstance(resolved, dict):
+                return {k: resolved[k] for k in config.keys() if k in resolved}
+            return config
+        except Exception:
+            # If resolution fails, return config as-is
+            return config
+    elif isinstance(config, list):
+        return [_resolve_config_vars(item) for item in config]
+    elif isinstance(config, DictConfig):
+        # Resolve DictConfig values by merging with global config
+        try:
+            merged = OmegaConf.merge(global_config().root, config)
+            resolved = OmegaConf.to_container(merged, resolve=True)
+            return resolved if isinstance(resolved, dict) else config
+        except Exception:
+            return config
+    else:
+        # Return primitive values as-is
+        return config
 
 
 def _process_function_tool(tool_config: dict[str, Any]) -> list[BaseTool]:
@@ -100,6 +143,10 @@ def _process_factory_tool(tool_config: dict[str, Any], llm: Any | None = None) -
     """
     factory_ref = tool_config.get("factory")
     params = {k: v for k, v in tool_config.items() if k != "factory"}
+
+    # Resolve OmegaConf variables (e.g., ${paths.project}) in parameters
+    params = _resolve_config_vars(params)
+
     tools: list[BaseTool] = []
 
     if isinstance(factory_ref, str) and ":" in factory_ref:

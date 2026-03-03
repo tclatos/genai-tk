@@ -100,10 +100,19 @@ class MiddlewareConfig(BaseModel):
 class BackendConfig(BaseModel):
     """Configuration for a deepagents ``BackendProtocol`` implementation.
 
-    Three backend types are supported:
+    Four backend types are supported:
 
     ``none`` (default)
         No backend — deepagents uses its built-in state backend.
+
+    ``filesystem``
+        A ``FilesystemBackend`` scoped to a ``root_dir``.  Uses
+        ``virtual_mode=True`` to sandbox file operations:
+        ```yaml
+        backend:
+          type: filesystem
+          root_dir: ${paths.project}
+        ```
 
     ``aio_sandbox``
         The built-in Docker-based ``AioSandboxBackend``.  Any field from
@@ -130,7 +139,8 @@ class BackendConfig(BaseModel):
         ```
     """
 
-    type: Literal["none", "aio_sandbox", "class"] = "none"
+    type: Literal["none", "filesystem", "aio_sandbox", "class"] = "none"
+    root_dir: str | None = None
     class_path: str | None = Field(None, alias="class")
     kwargs: dict[str, Any] = {}
     model_config = ConfigDict(populate_by_name=True, extra="allow")
@@ -461,6 +471,19 @@ def instantiate_middlewares(
 # ============================================================================
 
 
+def _resolve_interpolation(value: str) -> str:
+    """Resolve OmegaConf ``${…}`` interpolations in a single string value."""
+    if "${" not in value:
+        return value
+    from omegaconf import OmegaConf
+
+    from genai_tk.utils.config_mngr import global_config
+
+    cfg = OmegaConf.create({"_v": value})
+    merged = OmegaConf.merge(global_config().root, cfg)
+    return str(OmegaConf.to_container(merged, resolve=True)["_v"])  # type: ignore[index]
+
+
 async def create_backend(config: BackendConfig | None) -> BackendProtocol | None:
     """Instantiate and start a deepagents backend from config.
 
@@ -476,6 +499,12 @@ async def create_backend(config: BackendConfig | None) -> BackendProtocol | None
     """
     if config is None or config.type == "none":
         return None
+
+    if config.type == "filesystem":
+        from deepagents.backends.filesystem import FilesystemBackend
+
+        root = _resolve_interpolation(config.root_dir) if config.root_dir else "."
+        return FilesystemBackend(root_dir=root, virtual_mode=True)
 
     if config.type == "aio_sandbox":
         from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend, AioSandboxBackendConfig

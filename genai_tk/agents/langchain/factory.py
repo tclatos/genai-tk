@@ -112,7 +112,9 @@ async def create_langchain_agent(
         return _create_react_agent(model, all_tools, middlewares, checkpointer, profile)
 
     if profile.type == "deep":
-        return await _create_deep_agent(model, all_tools, checkpointer, profile, backend=backend)
+        return await _create_deep_agent(
+            model, all_tools, checkpointer, profile, middlewares=middlewares, backend=backend
+        )
 
     if profile.type == "custom":
         return _create_custom_agent(model, all_tools, checkpointer)
@@ -147,24 +149,52 @@ async def _create_deep_agent(
     checkpointer: Any,
     profile: AgentProfileConfig,
     *,
+    middlewares: list | None = None,
     backend: Any = None,
 ) -> Any:
-    """Build a deep agent using deepagents.create_deep_agent."""
+    """Build a deep agent using deepagents.create_deep_agent.
+
+    When ``skill_directories`` are configured, skills are loaded via
+    deepagents' native ``SkillsMiddleware`` using progressive disclosure:
+    the LLM sees skill metadata and reads full content on demand via file
+    tools.  An explicit ``system_prompt`` in the YAML profile is passed
+    through unchanged.
+    """
     from deepagents import create_deep_agent
+    from deepagents.backends.filesystem import FilesystemBackend
 
     skill_dirs = _resolve_skill_dirs(profile.skill_directories)
 
+    # When skills are present, ensure we have a FilesystemBackend so the
+    # SkillsMiddleware can scan the directories and the LLM can read files.
+    if skill_dirs and backend is None:
+        from genai_tk.utils.config_mngr import global_config
+
+        project_root = global_config().paths.project
+        backend = FilesystemBackend(root_dir=project_root, virtual_mode=True)
+
+    # Convert absolute skill paths to backend-relative paths so that
+    # deepagents' SkillsMiddleware can resolve them via the backend.
+    relative_skills: list[str] | None = None
+    if skill_dirs and backend is not None:
+        backend_root = str(getattr(backend, "cwd", ""))
+        relative_skills = []
+        for d in skill_dirs:
+            rel = __import__("os").path.relpath(d, backend_root)
+            relative_skills.append(rel)
+
     logger.info(
         f"Deep agent '{profile.name}': planning={profile.enable_planning}, "
-        f"filesystem={profile.enable_file_system}, skills={len(skill_dirs)}, "
+        f"filesystem={profile.enable_file_system}, skill_dirs={len(skill_dirs)}, "
         f"backend={type(backend).__name__ if backend is not None else 'none'}"
     )
 
     agent = create_deep_agent(
         model=model,
         tools=tools,
-        system_prompt=profile.system_prompt,
-        skills=skill_dirs or None,
+        system_prompt=profile.system_prompt or None,
+        skills=relative_skills,
+        middleware=middlewares or [],
         checkpointer=checkpointer,
         backend=backend,
     )
@@ -189,21 +219,97 @@ def _create_custom_agent(model: Any, tools: list[BaseTool], checkpointer: Any) -
 # ============================================================================
 
 
+def _load_skills_as_prompt(skill_dirs: list[str]) -> str | None:
+    """Read all SKILL.md files from the given directories and return them concatenated.
+
+    Files are discovered recursively and loaded in sorted path order so the
+    result is deterministic.  The front-matter block (``---`` … ``---``) is
+    stripped before concatenation.  A Rich table is printed to the terminal
+    listing each loaded skill.
+
+    Args:
+        skill_dirs: List of resolved directory paths to search.
+
+    Returns:
+        Concatenated skill content separated by ``---``, or None if no skills
+        were found.
+
+    Example:
+    ```
+        prompt = _load_skills_as_prompt(["/skills/my-agent"])
+    ```
+    """
+    import re
+    from pathlib import Path
+
+    from rich.console import Console
+    from rich.table import Table
+
+    sections: list[str] = []
+    skill_names: list[tuple[str, str]] = []  # (name, description)
+
+    for skill_dir in skill_dirs:
+        for skill_file in sorted(Path(skill_dir).rglob("SKILL.md")):
+            try:
+                raw = skill_file.read_text().strip()
+                # Extract name/description from front-matter if present
+                fm_name = skill_file.parent.name
+                fm_desc = ""
+                fm_match = re.match(r"^---\n(.*?)\n---\n", raw, flags=re.DOTALL)
+                if fm_match:
+                    for line in fm_match.group(1).splitlines():
+                        if line.startswith("name:"):
+                            fm_name = line.split(":", 1)[1].strip()
+                        elif line.startswith("description:"):
+                            fm_desc = line.split(":", 1)[1].strip()
+                content = re.sub(r"^---\n.*?\n---\n", "", raw, flags=re.DOTALL).strip()
+                if content:
+                    sections.append(content)
+                    skill_names.append((fm_name, fm_desc))
+            except Exception as exc:
+                logger.warning(f"Could not read skill file '{skill_file}': {exc}")
+
+    if not sections:
+        return None
+
+    # Print Rich table
+    console = Console()
+    table = Table(title="Skills loaded as system prompt", show_lines=False, border_style="dim")
+    table.add_column("#", style="dim", width=3)
+    table.add_column("Skill", style="bold cyan")
+    table.add_column("Description", style="dim")
+    for i, (name, desc) in enumerate(skill_names, 1):
+        table.add_row(str(i), name, desc or "—")
+    console.print(table)
+
+    logger.info(f"Loaded {len(sections)} skill(s) as system prompt")
+    return "\n\n---\n\n".join(sections)
+
+
 def _resolve_skill_dirs(skill_directories: list[str]) -> list[str]:
-    """Resolve ``${...}`` variable interpolation in skill directory paths."""
+    """Resolve ``${...}`` variable interpolation in skill directory paths.
+
+    Uses OmegaConf so that paths like ``${paths.project}/skills/my-skill``
+    are resolved correctly even when the variable is not the entire string.
+    """
     if not skill_directories:
         return []
 
+    from omegaconf import OmegaConf
+
     from genai_tk.utils.config_mngr import global_config
 
-    resolved: list[str] = []
-    for skill_dir in skill_directories:
-        if "${" in skill_dir:
-            try:
-                key = skill_dir.strip().lstrip("${").rstrip("}")
-                resolved.append(str(global_config().get_dir_path(key)))
-            except Exception:
-                resolved.append(skill_dir)
-        else:
-            resolved.append(skill_dir)
-    return resolved
+    try:
+        cfg = OmegaConf.create({"dirs": skill_directories})
+        merged = OmegaConf.merge(global_config().root, cfg)
+        dirs = OmegaConf.to_container(merged, resolve=True)["dirs"]  # type: ignore[index]
+        resolved = [str(d) for d in dirs]
+    except Exception:
+        # Fall back to unresolved paths so the agent still starts
+        resolved = list(skill_directories)
+
+    existing = [d for d in resolved if __import__("os").path.isdir(d)]
+    missing = [d for d in resolved if d not in existing]
+    if missing:
+        logger.warning(f"Skill directories not found (will be ignored): {missing}")
+    return existing

@@ -137,11 +137,16 @@ class ToolCallLimitMiddleware(AgentMiddleware):
 
 
 class RichToolCallMiddleware(AgentMiddleware):
-    """Middleware that logs tool calls and their results using Rich."""
+    """Middleware that traces LLM calls and tool calls to the terminal using Rich."""
 
     def __init__(self, console: Console | None = None, max_result_chars: int = 4000) -> None:
         self._console = console or Console()
         self._max_result_chars = max_result_chars
+        self._call_count = 0
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
     @staticmethod
     def _extract_tool_metadata(request: Any) -> tuple[str, Any]:
@@ -150,55 +155,129 @@ class RichToolCallMiddleware(AgentMiddleware):
         tool_args = tool_call.get("args", {})
         return tool_name, tool_args
 
+    @staticmethod
+    def _model_name(request: Any) -> str:
+        model = getattr(request, "model", None)
+        if model is None:
+            return "<unknown>"
+        # Try common attribute names across providers
+        for attr in ("model", "model_name", "_model_name", "model_id"):
+            val = getattr(model, attr, None)
+            if isinstance(val, str) and val:
+                return val
+        return type(model).__name__
+
     def _print_tool_call(self, tool_name: str, tool_args: Any) -> None:
+        args_str = str(tool_args) if tool_args else "(no args)"
+        # Highlight skill reads with a special style
+        is_skill_read = tool_name == "read_file" and "SKILL.md" in args_str
+        if is_skill_read:
+            title = "[bold yellow]📖 Reading Skill[/bold yellow]"
+            border = "yellow"
+        else:
+            title = "[bold blue]⚙ Tool Call[/bold blue]"
+            border = "blue"
         self._console.print(
             Panel(
-                f"[bold cyan]Calling tool[/bold cyan] [yellow]{tool_name}[/yellow]\n\n{tool_args}",
-                title="[bold blue]Tool Call[/bold blue]",
-                border_style="cyan",
+                f"[bold yellow]{tool_name}[/bold yellow]\n\n[dim]{args_str}[/dim]",
+                title=title,
+                border_style=border,
+                padding=(0, 1),
             )
         )
 
     def _print_tool_result(self, tool_name: str, response: LanguageModelOutput | Any) -> None:
         content = getattr(response, "content", str(response))
-        if isinstance(content, list):  # e.g. structured content blocks
+        if isinstance(content, list):
             content = "\n".join(str(block) for block in content)
-
         if isinstance(content, str) and len(content) > self._max_result_chars:
-            content = content[: self._max_result_chars] + "... [truncated]"
-
-        if looks_like_markdown(str(content)):
-            body = Markdown(str(content))
-        else:
-            body = str(content)
-
+            content = content[: self._max_result_chars] + "… [truncated]"
+        body: Any = Markdown(str(content)) if looks_like_markdown(str(content)) else str(content)
         self._console.print(
             Panel(
                 body,
-                title=f"[bold green]Tool Result: {tool_name}[/bold green]",
+                title=f"[bold green]✓ {tool_name}[/bold green]",
                 border_style="green",
+                padding=(0, 1),
             )
         )
 
+    def _print_llm_call(self, request: Any) -> None:
+        model_id = self._model_name(request)
+        messages = getattr(request, "messages", [])
+        n_msgs = len(messages)
+        # Show a brief preview of the last human message if available
+        last_human = next(
+            (m for m in reversed(messages) if getattr(m, "type", "") == "human"),
+            None,
+        )
+        preview = ""
+        if last_human:
+            text = getattr(last_human, "content", "")
+            if isinstance(text, str):
+                preview = text[:120] + ("…" if len(text) > 120 else "")
+        tools = getattr(request, "tools", [])
+        tools_str = f"  [dim]{len(tools)} tool(s) available[/dim]" if tools else ""
+        body = f"[bold cyan]{model_id}[/bold cyan]  [dim]({n_msgs} messages){tools_str}[/dim]"
+        if preview:
+            body += f"\n[dim italic]{preview}[/dim italic]"
+
+        # Extract skill metadata from system message (injected by SkillsMiddleware)
+        sys_msg = getattr(request, "system_message", None)
+        sys_text = ""
+        if sys_msg:
+            content = getattr(sys_msg, "content", None) or sys_msg
+            if isinstance(content, list):
+                sys_text = " ".join(
+                    block.get("text", "") if isinstance(block, dict) else str(block) for block in content
+                )
+            elif isinstance(content, str):
+                sys_text = content
+            else:
+                sys_text = str(content)
+        if "**Available Skills:**" in sys_text:
+            import re
+
+            skills_block = re.search(r"\*\*Available Skills:\*\*\s*(.*?)(?:\*\*How to Use Skills)", sys_text, re.DOTALL)
+            if skills_block:
+                # Clean up: extract just the skill names from markdown list
+                raw = skills_block.group(1).strip()
+                names = [m.group(1) for m in re.finditer(r"\*\*([^*]+)\*\*:", raw)]
+                if names:
+                    body += f"\n[bold]Skills:[/bold] [dim]{', '.join(names)}[/dim]"
+
+        self._call_count += 1
+        self._console.print(
+            Panel(
+                body,
+                title=f"[bold magenta]🧠 LLM Call #{self._call_count}[/bold magenta]",
+                border_style="magenta",
+                padding=(0, 1),
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # AgentMiddleware hooks
+    # ------------------------------------------------------------------
+
     def wrap_tool_call(self, request: Any, handler: Callable[[Any], Any]) -> Any:  # type: ignore[override]
-        """Log tool call details before and after execution (sync)."""
         tool_name, tool_args = self._extract_tool_metadata(request)
         self._print_tool_call(tool_name, tool_args)
-
         response = handler(request)
-
         self._print_tool_result(tool_name, response)
         return response
 
     async def awrap_tool_call(self, request: Any, handler: Callable[[Any], Awaitable[Any]]) -> Any:  # type: ignore[override]
-        """Log tool call details before and after execution (async)."""
         tool_name, tool_args = self._extract_tool_metadata(request)
         self._print_tool_call(tool_name, tool_args)
-
         response = await handler(request)
-
         self._print_tool_result(tool_name, response)
         return response
+
+    async def awrap_model_call(self, request: Any, handler: Callable[[Any], Awaitable[Any]]) -> Any:  # type: ignore[override]
+        """Trace each LLM invocation before executing it."""
+        self._print_llm_call(request)
+        return await handler(request)
 
 
 def create_rich_agent_middlewares(

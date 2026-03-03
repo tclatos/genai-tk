@@ -12,6 +12,40 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
+
+def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | None = None) -> list[BaseTool]:
+    """Create individual SQL toolkit tools from SQLDatabaseToolkit.
+
+    Returns the low-level SQL tools (list_tables, get_schema, query_checker,
+    execute_query) suitable for deep agents that reason over the schema
+    themselves rather than delegating to a sub-graph.
+
+    Args:
+        database_uri: SQLAlchemy-compatible database URI.
+        llm: Language model for the query-checker tool. Uses the global default if omitted.
+
+    Returns:
+        List of SQL BaseTool instances from SQLDatabaseToolkit.
+
+    Example:
+    ```
+        tools = create_sql_toolkit_tools(
+            database_uri="sqlite:///path/to/chinook.db"
+        )
+    ```
+    """
+    from langchain_community.agent_toolkits import SQLDatabaseToolkit
+
+    if llm is None:
+        from genai_tk.core.llm_factory import get_llm
+
+        llm = get_llm()
+
+    db = SQLDatabase.from_uri(database_uri, sample_rows_in_table_info=3)
+    toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+    return toolkit.get_tools()
+
+
 from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph
 
 

@@ -394,7 +394,9 @@ class TestBackendConfig:
 
 
 class TestResolveProfileBackend:
-    def _make_config_with_backend(self, tmp_path: Path, default_backend: dict, profile_backend: dict | None) -> LangchainAgentsConfig:
+    def _make_config_with_backend(
+        self, tmp_path: Path, default_backend: dict, profile_backend: dict | None
+    ) -> LangchainAgentsConfig:
         profile_data: dict = {"name": "p", "type": "deep"}
         if profile_backend is not None:
             profile_data["backend"] = profile_backend
@@ -407,6 +409,7 @@ class TestResolveProfileBackend:
         }
         cfg_file = tmp_path / "langchain.yaml"
         import yaml
+
         cfg_file.write_text(yaml.dump(data))
         return load_unified_config(str(cfg_file))
 
@@ -444,6 +447,7 @@ class TestResolveProfileBackend:
             }
         }
         import yaml
+
         cfg_file = tmp_path / "langchain.yaml"
         cfg_file.write_text(yaml.dump(data))
         cfg = load_unified_config(str(cfg_file))

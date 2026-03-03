@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Deep Agent Text-to-SQL Example with Progressive Skill Disclosure**
+  - New `text2sql` profile: SQL agent for Chinook music database with dynamic skill loading
+  - Core identity (role, safety rules, approach) in `system_prompt` YAML field — always present in every LLM call
+  - Two dynamically-loaded `SKILL.md` files via `SkillsMiddleware`:
+    - `query-writing/SKILL.md` — SQL query workflows for simple and complex queries
+    - `schema-exploration/SKILL.md` — Database discovery and relationship mapping (Chinook schema reference)
+  - **Filesystem backend support** (`type: filesystem` in `BackendConfig`)
+    - `create_sql_toolkit_tools()` factory: low-level SQL tools (list_tables, get_schema, query_checker, sql_db_query) for agent reasoning
+    - `_resolve_interpolation()` helper in config.py: resolves OmegaConf variables (e.g., `${paths.project}`)
+  - **Rich tracing enhancements**:
+    - `RichToolCallMiddleware._print_llm_call()` shows available skills extracted from system message (skills injected by `SkillsMiddleware`)
+    - Tool Call panels highlight skill reads (📖 icon) when LLM accesses SKILL.md files
+    - LLM Call panels display `Skills: <names>` metadata alongside model name and message count
+  - Factory rewrite `_create_deep_agent()`:
+    - Passes `skills=relative_paths` parameter to `create_deep_agent()` (native deepagents support)
+    - Auto-creates `FilesystemBackend` if skills present but no backend configured
+    - Converts absolute skill paths to backend-relative paths for proper resolution via `SkillsMiddleware`
+    - Respects YAML `system_prompt` field (no longer auto-concatenates skill content)
+  - Configuration resolution: `_resolve_skill_dirs()` uses OmegaConf to handle `${paths.project}/skills/example` style paths
+  - `config/basic/agents/langchain.yaml`: new `text2sql` profile with full documentation and examples
+  - Tools: [shared_config_loader.py](genai_tk/tools/langchain/shared_config_loader.py) — `_resolve_config_vars()` helper for OmegaConf interpolation in tool parameters
+
 - **Unified LangChain Agent System** (`cli agents langchain`)
   - Single `langchain.yaml` config file replaces the former `langchain.yaml` + `deepagents.yaml` split
   - New Pydantic config models: `LangchainAgentsConfig`, `AgentProfileConfig`, `AgentDefaults`, `MiddlewareConfig`, `CheckpointerConfig`
