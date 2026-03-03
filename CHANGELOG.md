@@ -24,6 +24,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `genai_tk/mcp/agent_tool.py` updated to use unified factory
   - New unit tests: `tests/unit_tests/agents/langchain/test_config.py` (32 tests)
   - Rewritten: `tests/unit_tests/tools/langchain/test_shared_config_loader_llm.py` (20 tests)
+- **`AioSandboxBackend` — full `SandboxBackendProtocol` implementation**
+  - `AioSandboxBackend` now inherits `SandboxBackendProtocol` (extends `BackendProtocol`) from deepagents
+  - New `id` property: returns Docker container short ID when running, random hex otherwise
+  - New `aexecute(command, *, timeout)` → `ExecuteResponse`
+  - New `als_info(path)` → `list[FileInfo]`  (directory listing with metadata)
+  - New `aread(file_path, offset, limit)` → paginated file content with 1-based line numbers
+  - New `awrite(file_path, content)` → `WriteResult`  (errors if file already exists)
+  - New `aedit(file_path, old, new, replace_all)` → `EditResult`
+  - New `agrep_raw(pattern, path, glob)` → `list[GrepMatch] | str`
+  - New `aglob_info(pattern, path)` → `list[FileInfo]`
+  - New `aupload_files(files)` → `list[FileUploadResponse]`
+  - New `adownload_files(paths)` → `list[FileDownloadResponse]`
+  - 39 unit tests (no Docker required); integration test suite against real container
+- **Backend selection in `langchain.yaml`**
+  - New `BackendConfig` Pydantic model: `type: none | aio_sandbox | class`
+  - `aio_sandbox` type starts `AioSandboxBackend` (Docker sandbox) automatically; all `AioSandboxBackendConfig` fields settable as sibling YAML keys
+  - `class` type loads any deepagents `BackendProtocol` via qualified import path; constructor kwargs in `kwargs:` mapping
+  - `AgentDefaults.backend` defaults to `type: none`; profiles inherit or override
+  - `create_backend()` async factory wired into `create_langchain_agent()`
+  - Backend lifecycle managed: `start()` called in factory, `stop()` called in `run_langchain_agent_shell` / `run_langchain_agent_direct` cleanup
+  - Console warning when a non-`deep` profile sets an explicit non-none backend
+  - `config/basic/agents/langchain.yaml` updated with `backend:` docs and commented examples
+  - 20 additional unit tests in `test_config.py` (54 total): `TestBackendConfig`, `TestResolveProfileBackend`, `TestCreateBackend`
 
 ### Fixed
 - **DeerFlow CLI Output Cleanup**

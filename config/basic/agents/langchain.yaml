@@ -16,6 +16,17 @@
 #   middlewares:       List of middleware (replaces defaults). Each entry has a
 #                      'class: module:Class' key plus optional constructor kwargs.
 #   checkpointer:      Checkpointer config (type: none | memory | class)
+#   backend:           Backend config (type: none | aio_sandbox | class)
+#                        none        – no backend (default)
+#                        aio_sandbox – built-in Docker-based AioSandboxBackend.
+#                                      Any AioSandboxBackendConfig field can be
+#                                      set as a sibling key (host_port, work_dir,
+#                                      startup_timeout, env_vars, …).
+#                        class       – any deepagents BackendProtocol loaded via
+#                                      qualified 'module:Class' path.
+#                                      Pass constructor args under 'kwargs:'.
+#                      Only meaningful for type: deep agents; ignored (with a
+#                      warning) on react/custom profiles.
 # Deep-agent-specific fields (type: deep only; warn if set on react/custom):
 #   skill_directories: Directories containing SKILL.md files
 #   enable_planning:   Enable write_todos planning tool [default: true]
@@ -36,6 +47,8 @@ langchain_agents:
       - class: genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware
     checkpointer:
       type: none  # chat mode always forces memory; use 'memory' to persist across invocations
+    backend:
+      type: none  # set to 'aio_sandbox' or 'class' in deep-agent profiles that need a backend
     enable_planning: true
     enable_file_system: true
     skills:
@@ -46,7 +59,7 @@ langchain_agents:
   # --------------------------------------------------------------------------
   # Default profile (used when --profile is not specified)
   # --------------------------------------------------------------------------
-  default_profile: "Research"
+  default_profile: "simple"
 
   # --------------------------------------------------------------------------
   # Agent profiles
@@ -54,6 +67,14 @@ langchain_agents:
   profiles:
 
     # ── React agents (lightweight, no planning / file system) ──────────────
+
+    - name: "simple"
+      type: react
+      description: "Simple agents with web search"
+      pre_prompt: "Yu are an agent having access to the Web."
+      tools:
+        - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+          verbose: true
 
     - name: "filesystem"
       type: react
@@ -67,10 +88,9 @@ langchain_agents:
       examples:
         - "What are the configuration files in current directory"
 
-    - name: "Chinook DB"
+    - name: "Chinook"
       type: react
-      description: "SQL agent for querying the Chinook music database"
-      llm: deepseek_v31@openrouter
+      description: "SQL agent for querying the Chinook music store database"
       tools:
         - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_tool_from_config
           config:
@@ -113,6 +133,23 @@ langchain_agents:
     - name: "Research"
       type: deep
       description: "Expert researcher with web search, planning, and file system tools"
+      # Backend options (uncomment one to enable a persistent file-system backend):
+      #
+      # Built-in Docker sandbox — starts ghcr.io/agent-infra/sandbox automatically:
+      # backend:
+      #   type: aio_sandbox
+      #   host_port: 18091          # host port (default: 18091)
+      #   startup_timeout: 90.0    # seconds to wait for the container API
+      #   work_dir: /home/user     # default ls / grep directory
+      #   env_vars:
+      #     MY_VAR: "1"
+      #
+      # Custom deepagents BackendProtocol:
+      # backend:
+      #   type: class
+      #   class: my_package.backends:MyBackend
+      #   kwargs:
+      #     some_option: value
       system_prompt: |
         You are an expert researcher. Your job is to conduct thorough research and write polished, well-formatted reports.
 

@@ -2,7 +2,7 @@
 # A simple baseline configuration 
 llm:
   models:
-    default: gpt_41mini@openai  
+    default: gpt_oss120@openrouter
     fake: parrot_local@fake 
   cache: sqlite
   cache_path: data/llm_cache/langchain.db

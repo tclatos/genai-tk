@@ -24,7 +24,9 @@ from loguru import logger
 
 from genai_tk.agents.langchain.config import (
     AgentProfileConfig,
+    BackendConfig,
     CheckpointerConfig,
+    create_backend,
     create_checkpointer,
     instantiate_middlewares,
 )
@@ -96,12 +98,21 @@ async def create_langchain_agent(
     middleware_cfgs = profile.middlewares or []
     middlewares = instantiate_middlewares(middleware_cfgs, profile.type)
 
-    # 7. Dispatch to engine
+    # 7. Backend (deep agents only; ignored for react/custom with a warning)
+    backend_cfg = profile.backend or BackendConfig(type="none")
+    if backend_cfg.type != "none" and profile.type != "deep":
+        logger.warning(
+            f"Profile '{profile.name}' (type={profile.type}) has a backend configured "
+            "but backends are only used by deep agents — ignoring."
+        )
+    backend = await create_backend(backend_cfg) if profile.type == "deep" else None
+
+    # 8. Dispatch to engine
     if profile.type == "react":
         return _create_react_agent(model, all_tools, middlewares, checkpointer, profile)
 
     if profile.type == "deep":
-        return await _create_deep_agent(model, all_tools, checkpointer, profile)
+        return await _create_deep_agent(model, all_tools, checkpointer, profile, backend=backend)
 
     if profile.type == "custom":
         return _create_custom_agent(model, all_tools, checkpointer)
@@ -130,7 +141,14 @@ def _create_react_agent(
     return create_agent(**kwargs)
 
 
-async def _create_deep_agent(model: Any, tools: list[BaseTool], checkpointer: Any, profile: AgentProfileConfig) -> Any:
+async def _create_deep_agent(
+    model: Any,
+    tools: list[BaseTool],
+    checkpointer: Any,
+    profile: AgentProfileConfig,
+    *,
+    backend: Any = None,
+) -> Any:
     """Build a deep agent using deepagents.create_deep_agent."""
     from deepagents import create_deep_agent
 
@@ -138,16 +156,21 @@ async def _create_deep_agent(model: Any, tools: list[BaseTool], checkpointer: An
 
     logger.info(
         f"Deep agent '{profile.name}': planning={profile.enable_planning}, "
-        f"filesystem={profile.enable_file_system}, skills={len(skill_dirs)}"
+        f"filesystem={profile.enable_file_system}, skills={len(skill_dirs)}, "
+        f"backend={type(backend).__name__ if backend is not None else 'none'}"
     )
 
-    return create_deep_agent(
+    agent = create_deep_agent(
         model=model,
         tools=tools,
         system_prompt=profile.system_prompt,
         skills=skill_dirs or None,
         checkpointer=checkpointer,
+        backend=backend,
     )
+    # Attach the backend so callers can stop it during cleanup
+    agent._backend = backend  # type: ignore[attr-defined]
+    return agent
 
 
 def _create_custom_agent(model: Any, tools: list[BaseTool], checkpointer: Any) -> Any:

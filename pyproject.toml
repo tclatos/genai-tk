@@ -187,6 +187,9 @@ build-backend = "hatchling.build"
 builtins = ["ic", "debug"]
 line-length = 120
 
+[tool.ruff.format]
+docstring-code-format = true  # Formats code blocks in docstrings
+
 [tool.ruff.lint]
 select = [
     "E", # Pycodestyle errors (PEP 8 style violations)
@@ -212,6 +215,32 @@ ignore = [
     "ANN003", # Annotate **kwarg
     "ANN201", # Missing return type
     "ANN202", # Missing return info
+    "COM812",  # Trailing comma missing — conflicts with the ruff formatter
+    "ISC001",  # Implicit string concatenation on one line — conflicts with the ruff formatter
+    "PERF203", # `try`-`except` within a loop — incurs overhead only when exceptions are common
+    "SLF001",  # Access to a private member of an external class
+    "PLR0913", # Too many arguments to function definition
+    "PLC0414", # Import alias does not rename original package — conflicts with type-checker re-export conventions
+]
+unfixable = ["B028"]  # Rules that shouldn't be auto-fixed
+
+[tool.ruff.lint.per-file-ignores]
+# Tests: relax annotations, docstrings, magic values, security, and assertion style
+"tests/**" = [
+    "ANN001",  # Missing type annotation for function argument
+    "ANN201",  # Missing return type annotation for public function
+    "ANN202",  # Missing return type annotation for private function
+    "ARG002",  # Unused method argument — common for pytest fixtures
+    "D1",      # Missing docstrings
+    "PLR2004", # Magic value used in comparison — fine in test assertions
+    "PT018",   # Assertion should be broken down into multiple parts
+    "S101",    # Use of `assert` detected
+    "S311",    # Pseudo-random generator not suitable for security — fine in tests
+]
+# Scripts: allow prints, broad exceptions, and standalone modules
+"scripts/**" = [
+    "BLE001", # Blind exception catch — resilience in standalone scripts
+    "INP001", # Missing `__init__.py` — scripts are standalone
 ]
 
 [tool.ruff.lint.pycodestyle]

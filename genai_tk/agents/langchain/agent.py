@@ -139,7 +139,9 @@ async def run_langchain_agent_shell(
                     Panel(f"[red]Error: {str(e)}[/red]", title="[bold red]Error[/bold red]", border_style="red")
                 )
     finally:
-        pass  # MCP client lifecycle is managed inside factory
+        backend = getattr(agent, "_backend", None)
+        if backend is not None and hasattr(backend, "stop"):
+            await backend.stop()
 
 
 async def run_langchain_agent_direct(
@@ -183,3 +185,7 @@ async def run_langchain_agent_direct(
     else:
         result = await agent.ainvoke({"messages": messages})
         _render_final_message(result, console)
+
+    backend = getattr(agent, "_backend", None)
+    if backend is not None and hasattr(backend, "stop"):
+        await backend.stop()

@@ -2,7 +2,7 @@
 
 This module defines Pydantic models for the unified agent configuration,
 covering all agent types (react, deep, custom). It also provides factory
-functions for checkpointers and dynamic middleware instantiation.
+functions for checkpointers, backends, and dynamic middleware instantiation.
 
 Unified config structure in ``langchain.yaml``:
 ```yaml
@@ -14,6 +14,8 @@ langchain_agents:
       - class: genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware
     checkpointer:
       type: none
+    backend:
+      type: none          # none | aio_sandbox | class
     enable_planning: true
     enable_file_system: true
     skills:
@@ -26,6 +28,17 @@ langchain_agents:
     - name: "Research"
       type: deep
       llm: "gpt_41@openai"
+      # Use the built-in Docker sandbox backend:
+      backend:
+        type: aio_sandbox
+        host_port: 18091
+        startup_timeout: 90.0
+      # Or a custom deepagents-compatible backend:
+      # backend:
+      #   type: class
+      #   class: my_pkg.backends:MyBackend
+      #   kwargs:
+      #     some_option: value
       middlewares:
         - class: deepagents.middleware.summarization:SummarizationMiddleware
           model: "gpt-4.1@openrouter"
@@ -35,7 +48,7 @@ langchain_agents:
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from langchain.agents.middleware import AgentMiddleware
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -43,6 +56,9 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.utils.config_mngr import import_from_qualified
+
+if TYPE_CHECKING:
+    from deepagents.backends.protocol import BackendProtocol
 
 AgentType = Literal["react", "deep", "custom"]
 
@@ -73,6 +89,55 @@ class MiddlewareConfig(BaseModel):
 
     @property
     def extra_kwargs(self) -> dict[str, Any]:
+        return dict(self.model_extra or {})
+
+
+# ============================================================================
+# Backend
+# ============================================================================
+
+
+class BackendConfig(BaseModel):
+    """Configuration for a deepagents ``BackendProtocol`` implementation.
+
+    Three backend types are supported:
+
+    ``none`` (default)
+        No backend — deepagents uses its built-in state backend.
+
+    ``aio_sandbox``
+        The built-in Docker-based ``AioSandboxBackend``.  Any field from
+        ``AioSandboxBackendConfig`` can be set directly as a sibling key:
+        ```yaml
+        backend:
+          type: aio_sandbox
+          host_port: 18091
+          startup_timeout: 90.0
+          work_dir: /workspace
+          env_vars:
+            MY_VAR: "1"
+        ```
+
+    ``class``
+        Any deepagents-compatible ``BackendProtocol`` loaded by qualified
+        import path.  Constructor kwargs go in the ``kwargs`` mapping:
+        ```yaml
+        backend:
+          type: class
+          class: my_package.backends:MyBackend
+          kwargs:
+            some_option: value
+        ```
+    """
+
+    type: Literal["none", "aio_sandbox", "class"] = "none"
+    class_path: str | None = Field(None, alias="class")
+    kwargs: dict[str, Any] = {}
+    model_config = ConfigDict(populate_by_name=True, extra="allow")
+
+    @property
+    def extra_kwargs(self) -> dict[str, Any]:
+        """Return extra fields (used as constructor kwargs for ``aio_sandbox``)."""
         return dict(self.model_extra or {})
 
 
@@ -123,8 +188,8 @@ class AgentProfileConfig(BaseModel):
     """Unified configuration for a single agent profile.
 
     Covers all agent types (react, deep, custom).
-    Deep-only fields (``skill_directories``, ``subagents``) trigger a console
-    warning when used with ``type: react`` or ``type: custom``.
+    Deep-only fields (``skill_directories``, ``subagents``, ``backend``) trigger
+    a console warning when used with ``type: react`` or ``type: custom``.
     """
 
     name: str
@@ -137,6 +202,7 @@ class AgentProfileConfig(BaseModel):
     mcp_servers: list[str] = []
     middlewares: list[MiddlewareConfig] | None = None  # None = use inherited defaults
     checkpointer: CheckpointerConfig | None = None  # None = use inherited defaults
+    backend: BackendConfig | None = None  # None = use inherited defaults
     # Deep-agent-specific
     skill_directories: list[str] = []
     enable_planning: bool = True
@@ -161,6 +227,7 @@ class AgentDefaults(BaseModel):
     llm: str | None = None
     middlewares: list[MiddlewareConfig] = []
     checkpointer: CheckpointerConfig = CheckpointerConfig(type="none")
+    backend: BackendConfig = BackendConfig(type="none")
     enable_planning: bool = True
     enable_file_system: bool = True
     skills: SkillsConfig = SkillsConfig()
@@ -261,6 +328,7 @@ def resolve_profile(
         mcp_servers=match.mcp_servers,
         middlewares=match.middlewares if match.middlewares is not None else d.middlewares,
         checkpointer=match.checkpointer if match.checkpointer is not None else d.checkpointer,
+        backend=match.backend if match.backend is not None else d.backend,
         skill_directories=match.skill_directories or d.skills.directories,
         enable_planning=match.enable_planning if "enable_planning" in match.model_fields_set else d.enable_planning,
         enable_file_system=match.enable_file_system
@@ -279,6 +347,8 @@ def resolve_profile(
             warnings.append(f"skill_directories ({resolved.skill_directories})")
         if match.subagents:  # explicitly set, not inherited
             warnings.append("subagents")
+        if match.backend is not None and match.backend.type != "none":  # explicitly set
+            warnings.append(f"backend (type={match.backend.type})")
         if warnings:
             console.print(
                 f"[bold yellow]⚠  Profile '{resolved.name}' (type={resolved.type}) has deep-agent-only "
@@ -384,3 +454,46 @@ def instantiate_middlewares(
         middlewares.append(instance)
 
     return middlewares
+
+
+# ============================================================================
+# Backend factory
+# ============================================================================
+
+
+async def create_backend(config: BackendConfig | None) -> BackendProtocol | None:
+    """Instantiate and start a deepagents backend from config.
+
+    Backends with an async ``start()`` method (e.g. ``AioSandboxBackend``) are
+    started automatically.  Callers are responsible for calling ``stop()`` (or
+    using the backend as an async context manager) when done.
+
+    Args:
+        config: Backend configuration, or ``None`` / ``type: none`` for no backend.
+
+    Returns:
+        A started ``BackendProtocol`` instance, or ``None`` when ``type`` is ``none``.
+    """
+    if config is None or config.type == "none":
+        return None
+
+    if config.type == "aio_sandbox":
+        from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend, AioSandboxBackendConfig
+
+        # Extra YAML keys (host_port, startup_timeout, etc.) map directly onto AioSandboxBackendConfig
+        cfg_kwargs = {**config.kwargs, **config.extra_kwargs}
+        sandbox_cfg = AioSandboxBackendConfig.model_validate(cfg_kwargs) if cfg_kwargs else AioSandboxBackendConfig()
+        backend = AioSandboxBackend(config=sandbox_cfg)
+        await backend.start()
+        return backend
+
+    if config.type == "class":
+        if not config.class_path:
+            raise ValueError("backend.class is required when type is 'class'")
+        cls = import_from_qualified(config.class_path)
+        backend = cls(**config.kwargs)
+        if hasattr(backend, "start"):
+            await backend.start()
+        return backend
+
+    raise ValueError(f"Unknown backend type: {config.type!r}")

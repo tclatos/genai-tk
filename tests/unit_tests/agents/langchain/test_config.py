@@ -9,9 +9,11 @@ import yaml
 from genai_tk.agents.langchain.config import (
     AgentDefaults,
     AgentProfileConfig,
+    BackendConfig,
     CheckpointerConfig,
     LangchainAgentsConfig,
     MiddlewareConfig,
+    create_backend,
     create_checkpointer,
     instantiate_middlewares,
     load_unified_config,
@@ -347,3 +349,201 @@ class TestInstantiateMiddlewares:
         # This will fail on import since deepagents may not be installed, but
         # the compatibility warning path should be exercised first
         instantiate_middlewares([cfg], "react")
+
+
+# ---------------------------------------------------------------------------
+# BackendConfig
+# ---------------------------------------------------------------------------
+
+
+class TestBackendConfig:
+    def test_defaults(self) -> None:
+        cfg = BackendConfig()
+        assert cfg.type == "none"
+        assert cfg.class_path is None
+        assert cfg.kwargs == {}
+
+    def test_aio_sandbox_type(self) -> None:
+        cfg = BackendConfig(type="aio_sandbox")
+        assert cfg.type == "aio_sandbox"
+
+    def test_class_type_with_alias(self) -> None:
+        cfg = BackendConfig(**{"type": "class", "class": "my_pkg.backends:MyBackend", "kwargs": {"opt": 1}})
+        assert cfg.type == "class"
+        assert cfg.class_path == "my_pkg.backends:MyBackend"
+        assert cfg.kwargs == {"opt": 1}
+
+    def test_extra_kwargs_for_aio_sandbox(self) -> None:
+        """Extra YAML keys (e.g. host_port) are surfaced via extra_kwargs."""
+        cfg = BackendConfig(type="aio_sandbox", host_port=19091, startup_timeout=120.0)  # type: ignore[call-arg]
+        assert cfg.extra_kwargs["host_port"] == 19091
+        assert cfg.extra_kwargs["startup_timeout"] == 120.0
+
+    def test_agent_defaults_has_none_backend(self) -> None:
+        defaults = AgentDefaults()
+        assert defaults.backend.type == "none"
+
+    def test_profile_backend_defaults_to_none(self) -> None:
+        profile = AgentProfileConfig(name="test")
+        assert profile.backend is None  # None means "inherit from defaults"
+
+
+# ---------------------------------------------------------------------------
+# resolve_profile — backend inheritance
+# ---------------------------------------------------------------------------
+
+
+class TestResolveProfileBackend:
+    def _make_config_with_backend(self, tmp_path: Path, default_backend: dict, profile_backend: dict | None) -> LangchainAgentsConfig:
+        profile_data: dict = {"name": "p", "type": "deep"}
+        if profile_backend is not None:
+            profile_data["backend"] = profile_backend
+        data = {
+            "langchain_agents": {
+                "defaults": {"backend": default_backend},
+                "default_profile": "p",
+                "profiles": [profile_data],
+            }
+        }
+        cfg_file = tmp_path / "langchain.yaml"
+        import yaml
+        cfg_file.write_text(yaml.dump(data))
+        return load_unified_config(str(cfg_file))
+
+    def test_backend_inherited_from_defaults(self, tmp_path: Path) -> None:
+        cfg = self._make_config_with_backend(tmp_path, {"type": "aio_sandbox", "host_port": 19091}, None)
+        profile = resolve_profile(cfg, "p")
+        assert profile.backend is not None
+        assert profile.backend.type == "aio_sandbox"
+        assert profile.backend.extra_kwargs.get("host_port") == 19091
+
+    def test_profile_backend_overrides_default(self, tmp_path: Path) -> None:
+        cfg = self._make_config_with_backend(
+            tmp_path,
+            {"type": "aio_sandbox"},
+            {"type": "class", "class": "my_pkg:MyBackend"},
+        )
+        profile = resolve_profile(cfg, "p")
+        assert profile.backend is not None
+        assert profile.backend.type == "class"
+        assert profile.backend.class_path == "my_pkg:MyBackend"
+
+    def test_backend_none_in_default_and_profile(self, tmp_path: Path) -> None:
+        cfg = self._make_config_with_backend(tmp_path, {"type": "none"}, None)
+        profile = resolve_profile(cfg, "p")
+        assert profile.backend is not None
+        assert profile.backend.type == "none"
+
+    def test_non_deep_profile_with_backend_triggers_warning(self, tmp_path: Path) -> None:
+        """No exception; a Rich warning is printed but the profile is resolved."""
+        data = {
+            "langchain_agents": {
+                "defaults": {},
+                "default_profile": "p",
+                "profiles": [{"name": "p", "type": "react", "backend": {"type": "aio_sandbox"}}],
+            }
+        }
+        import yaml
+        cfg_file = tmp_path / "langchain.yaml"
+        cfg_file.write_text(yaml.dump(data))
+        cfg = load_unified_config(str(cfg_file))
+        profile = resolve_profile(cfg, "p")  # must not raise
+        assert profile.backend is not None
+        assert profile.backend.type == "aio_sandbox"
+
+
+# ---------------------------------------------------------------------------
+# create_backend
+# ---------------------------------------------------------------------------
+
+
+class TestCreateBackend:
+    @pytest.mark.asyncio
+    async def test_none_config_returns_none(self) -> None:
+        assert await create_backend(None) is None
+
+    @pytest.mark.asyncio
+    async def test_type_none_returns_none(self) -> None:
+        cfg = BackendConfig(type="none")
+        assert await create_backend(cfg) is None
+
+    @pytest.mark.asyncio
+    async def test_aio_sandbox_instantiates_and_starts(self) -> None:
+        from unittest.mock import AsyncMock, patch
+
+        cfg = BackendConfig(type="aio_sandbox", host_port=19091)  # type: ignore[call-arg]
+
+        with patch(
+            "genai_tk.agents.langchain.sandbox_backend.AioSandboxBackend.start",
+            new_callable=AsyncMock,
+        ) as mock_start:
+            from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend
+
+            backend = await create_backend(cfg)
+
+        assert isinstance(backend, AioSandboxBackend)
+        mock_start.assert_awaited_once()
+        # Extra kwargs forwarded to config
+        assert backend.config.host_port == 19091
+
+    @pytest.mark.asyncio
+    async def test_aio_sandbox_default_config(self) -> None:
+        from unittest.mock import AsyncMock, patch
+
+        cfg = BackendConfig(type="aio_sandbox")
+
+        with patch(
+            "genai_tk.agents.langchain.sandbox_backend.AioSandboxBackend.start",
+            new_callable=AsyncMock,
+        ):
+            from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend
+
+            backend = await create_backend(cfg)
+
+        assert isinstance(backend, AioSandboxBackend)
+        # Default config values
+        assert backend.config.host_port == 18091
+        assert backend.config.work_dir == "/home/user"
+
+    @pytest.mark.asyncio
+    async def test_class_type_missing_class_path_raises(self) -> None:
+        cfg = BackendConfig(type="class")  # no class_path
+        with pytest.raises(ValueError, match="backend.class is required"):
+            await create_backend(cfg)
+
+    @pytest.mark.asyncio
+    async def test_class_type_dynamic_import(self) -> None:
+        """'class' type imports the class and calls start() if present."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        mock_backend = MagicMock()
+        mock_backend.start = AsyncMock()
+        mock_cls = MagicMock(return_value=mock_backend)
+
+        with patch("genai_tk.agents.langchain.config.import_from_qualified", return_value=mock_cls):
+            cfg = BackendConfig(**{"type": "class", "class": "my_pkg:MyBackend", "kwargs": {"opt": 1}})
+            backend = await create_backend(cfg)
+
+        mock_cls.assert_called_once_with(opt=1)
+        mock_backend.start.assert_awaited_once()
+        assert backend is mock_backend
+
+    @pytest.mark.asyncio
+    async def test_class_type_no_start_method(self) -> None:
+        """'class' type with no start() on the backend — should not raise."""
+        from unittest.mock import MagicMock, patch
+
+        mock_backend = MagicMock(spec=[])  # spec=[] → no attributes at all
+        mock_cls = MagicMock(return_value=mock_backend)
+
+        with patch("genai_tk.agents.langchain.config.import_from_qualified", return_value=mock_cls):
+            cfg = BackendConfig(**{"type": "class", "class": "my_pkg:MyBackend"})
+            backend = await create_backend(cfg)
+
+        assert backend is mock_backend
+
+    @pytest.mark.asyncio
+    async def test_unknown_type_raises(self) -> None:
+        cfg = BackendConfig.model_construct(type="unknown")  # bypass validation
+        with pytest.raises(ValueError, match="Unknown backend type"):
+            await create_backend(cfg)  # type: ignore[arg-type]
