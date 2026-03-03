@@ -55,6 +55,7 @@ async def run_langchain_agent_shell(
     llm_override: str | None = None,
     extra_tools: list[BaseTool] | None = None,
     extra_mcp_servers: list[str] | None = None,
+    details: bool = False,
 ) -> None:
     """Run an interactive shell for sending prompts to any LangChain-based agent.
 
@@ -66,6 +67,7 @@ async def run_langchain_agent_shell(
         llm_override: LLM identifier taking precedence over profile.llm
         extra_tools: Additional tools to pass to the agent
         extra_mcp_servers: Additional MCP server names to connect
+        details: When True, show full panels for every LLM and tool call.
     """
     console = Console()
 
@@ -85,6 +87,7 @@ async def run_langchain_agent_shell(
             extra_tools=extra_tools,
             extra_mcp_servers=extra_mcp_servers,
             force_memory_checkpointer=True,
+            details=details,
         )
 
     history_file = Path(".blueprint.input.history")
@@ -125,8 +128,7 @@ async def run_langchain_agent_shell(
 
                 console.print(Panel(user_input, title="[bold blue]User[/bold blue]", border_style="blue"))
 
-                with console.status("[bold green]Agent is thinking...\n[/bold green]"):
-                    result = await agent.ainvoke({"messages": user_input}, {"configurable": {"thread_id": "1"}})
+                result = await agent.ainvoke({"messages": user_input}, {"configurable": {"thread_id": "1"}})
 
                 _render_final_message(result, console)
                 console.print()
@@ -151,6 +153,7 @@ async def run_langchain_agent_direct(
     extra_tools: list[BaseTool] | None = None,
     extra_mcp_servers: list[str] | None = None,
     stream: bool = False,
+    details: bool = False,
 ) -> None:
     """Execute a single query using a LangChain-based agent and render output with Rich.
 
@@ -161,6 +164,7 @@ async def run_langchain_agent_direct(
         extra_tools: Additional tools to pass to the agent
         extra_mcp_servers: Additional MCP server names to connect
         stream: If True, stream intermediate steps (deep agents only)
+        details: When True, show full panels for every LLM and tool call.
     """
     console = Console()
 
@@ -171,6 +175,7 @@ async def run_langchain_agent_direct(
             extra_tools=extra_tools,
             extra_mcp_servers=extra_mcp_servers,
             force_memory_checkpointer=False,
+            details=details,
         )
 
     system_prompt = profile.system_prompt or profile.pre_prompt

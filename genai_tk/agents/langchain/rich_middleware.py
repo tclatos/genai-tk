@@ -137,15 +137,41 @@ class ToolCallLimitMiddleware(AgentMiddleware):
 
 
 class RichToolCallMiddleware(AgentMiddleware):
-    """Middleware that traces LLM calls and tool calls to the terminal using Rich."""
+    """Middleware that traces agent execution to the terminal using Rich.
 
-    def __init__(self, console: Console | None = None, max_result_chars: int = 4000) -> None:
+    Supports two display modes controlled by the ``details`` flag:
+
+    **Compact mode** (``details=False``, default) shows a clean summary
+    inspired by the deepagents text-to-sql example output:
+
+    .. code-block:: text
+
+        📋 Planning
+          □ List tables in database
+          □ Examine schemas
+        🔧 Execution
+          1. sql_db_list_tables → 11 tables
+          2. sql_db_schema → Employee, Invoice
+        ┌─ Assistant ─┐
+        │ Answer...    │
+
+    **Detailed mode** (``details=True``, ``--details`` CLI flag) renders
+    full Rich panels for every LLM call, tool call, and tool result —
+    useful for debugging and development.
+    """
+
+    def __init__(self, console: Console | None = None, max_result_chars: int = 4000, *, details: bool = False) -> None:
         self._console = console or Console()
         self._max_result_chars = max_result_chars
+        self._details = details
+        # Counters for both modes
         self._call_count = 0
+        self._step_number = 0
+        self._execution_header_printed = False
+        self._planning_shown = False
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Internal helpers — shared
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -160,16 +186,101 @@ class RichToolCallMiddleware(AgentMiddleware):
         model = getattr(request, "model", None)
         if model is None:
             return "<unknown>"
-        # Try common attribute names across providers
         for attr in ("model", "model_name", "_model_name", "model_id"):
             val = getattr(model, attr, None)
             if isinstance(val, str) and val:
                 return val
         return type(model).__name__
 
-    def _print_tool_call(self, tool_name: str, tool_args: Any) -> None:
+    @staticmethod
+    def _response_content(response: LanguageModelOutput | Any) -> str:
+        content = getattr(response, "content", str(response))
+        if isinstance(content, list):
+            content = "\n".join(str(block) for block in content)
+        return str(content)
+
+    # ------------------------------------------------------------------
+    # Compact mode helpers
+    # ------------------------------------------------------------------
+
+    def _compact_print_planning(self, todos: list[dict]) -> None:
+        # Show header only on first planning call; subsequent calls are updates
+        if not self._planning_shown:
+            header = "[bold cyan]📋 Planning[/bold cyan]"
+            self._planning_shown = True
+        else:
+            header = "[bold cyan]📋 Plan update[/bold cyan]"
+        lines = [header]
+        for todo in todos:
+            text = todo.get("content", str(todo))
+            status = todo.get("status", "pending")
+            if status == "completed":
+                lines.append(f"  [dim]✓ {text}[/dim]")
+            elif status == "in_progress":
+                lines.append(f"  [bold]▶ {text}[/bold]")
+            else:
+                lines.append(f"  □ {text}")
+        self._console.print("\n".join(lines))
+
+    def _compact_print_step(self, tool_name: str, brief: str) -> None:
+        if not self._execution_header_printed:
+            self._console.print("\n[bold cyan]🔧 Execution[/bold cyan]")
+            self._execution_header_printed = True
+        self._step_number += 1
+        self._console.print(f"  [dim]{self._step_number}.[/dim] [yellow]{tool_name}[/yellow] [dim]→ {brief}[/dim]")
+
+    def _compact_print_skill_read(self, args_str: str) -> None:
+        import re
+
+        # Extract skill name from path like ".../query-writing/SKILL.md"
+        match = re.search(r"([^/\\]+)/SKILL\.md", args_str)
+        name = match.group(1) if match else "skill"
+        if not self._execution_header_printed:
+            self._console.print("\n[bold cyan]🔧 Execution[/bold cyan]")
+            self._execution_header_printed = True
+        self._step_number += 1
+        self._console.print(f"  [dim]{self._step_number}.[/dim] [yellow]📖 Reading skill:[/yellow] {name}")
+
+    @staticmethod
+    def _summarize_result(tool_name: str, result_text: str) -> str:
+        """Produce a short one-line summary of a tool result for compact display."""
+        text = result_text.strip()
+        if tool_name == "sql_db_list_tables":
+            tables = [t.strip() for t in text.split(",") if t.strip()]
+            if tables:
+                preview = ", ".join(tables[:5])
+                suffix = f", … ({len(tables)} tables)" if len(tables) > 5 else f" ({len(tables)} tables)"
+                return preview + suffix
+        if tool_name == "sql_db_query_checker":
+            if "looks correct" in text.lower() or text.strip().upper().startswith("SELECT"):
+                return "query OK"
+            return text[:80]
+        if tool_name == "sql_db_query":
+            lines = [ln for ln in text.splitlines() if ln.strip()]
+            n = len(lines)
+            if n <= 1:
+                return text[:80]
+            return f"{n} rows returned"
+        if tool_name == "sql_db_schema":
+            # Try to list table names found in output
+            import re
+
+            tables_found = re.findall(r"CREATE TABLE [\"`]?(\w+)[\"`]?", text)
+            if tables_found:
+                return ", ".join(tables_found)
+        if tool_name == "write_todos":
+            return "plan updated"
+        # Generic fallback
+        if len(text) > 80:
+            return text[:77] + "…"
+        return text
+
+    # ------------------------------------------------------------------
+    # Detailed mode helpers (original panels)
+    # ------------------------------------------------------------------
+
+    def _detail_print_tool_call(self, tool_name: str, tool_args: Any) -> None:
         args_str = str(tool_args) if tool_args else "(no args)"
-        # Highlight skill reads with a special style
         is_skill_read = tool_name == "read_file" and "SKILL.md" in args_str
         if is_skill_read:
             title = "[bold yellow]📖 Reading Skill[/bold yellow]"
@@ -186,13 +297,11 @@ class RichToolCallMiddleware(AgentMiddleware):
             )
         )
 
-    def _print_tool_result(self, tool_name: str, response: LanguageModelOutput | Any) -> None:
-        content = getattr(response, "content", str(response))
-        if isinstance(content, list):
-            content = "\n".join(str(block) for block in content)
-        if isinstance(content, str) and len(content) > self._max_result_chars:
+    def _detail_print_tool_result(self, tool_name: str, response: LanguageModelOutput | Any) -> None:
+        content = self._response_content(response)
+        if len(content) > self._max_result_chars:
             content = content[: self._max_result_chars] + "… [truncated]"
-        body: Any = Markdown(str(content)) if looks_like_markdown(str(content)) else str(content)
+        body: Any = Markdown(content) if looks_like_markdown(content) else content
         self._console.print(
             Panel(
                 body,
@@ -202,11 +311,10 @@ class RichToolCallMiddleware(AgentMiddleware):
             )
         )
 
-    def _print_llm_call(self, request: Any) -> None:
+    def _detail_print_llm_call(self, request: Any) -> None:
         model_id = self._model_name(request)
         messages = getattr(request, "messages", [])
         n_msgs = len(messages)
-        # Show a brief preview of the last human message if available
         last_human = next(
             (m for m in reversed(messages) if getattr(m, "type", "") == "human"),
             None,
@@ -240,7 +348,6 @@ class RichToolCallMiddleware(AgentMiddleware):
 
             skills_block = re.search(r"\*\*Available Skills:\*\*\s*(.*?)(?:\*\*How to Use Skills)", sys_text, re.DOTALL)
             if skills_block:
-                # Clean up: extract just the skill names from markdown list
                 raw = skills_block.group(1).strip()
                 names = [m.group(1) for m in re.finditer(r"\*\*([^*]+)\*\*:", raw)]
                 if names:
@@ -260,28 +367,58 @@ class RichToolCallMiddleware(AgentMiddleware):
     # AgentMiddleware hooks
     # ------------------------------------------------------------------
 
+    def _handle_tool_call(self, tool_name: str, tool_args: Any, response: LanguageModelOutput | Any) -> None:
+        """Render tool call + result in the appropriate mode."""
+        args_str = str(tool_args) if tool_args else ""
+
+        if self._details:
+            self._detail_print_tool_call(tool_name, tool_args)
+            self._detail_print_tool_result(tool_name, response)
+            return
+
+        # --- Compact mode ---
+        if tool_name == "write_todos":
+            todos = tool_args.get("todos", []) if isinstance(tool_args, dict) else []
+            self._compact_print_planning(todos)
+            return
+
+        if tool_name == "read_file" and "SKILL.md" in args_str:
+            self._compact_print_skill_read(args_str)
+            return
+
+        result_text = self._response_content(response)
+        brief = self._summarize_result(tool_name, result_text)
+        self._compact_print_step(tool_name, brief)
+
     def wrap_tool_call(self, request: Any, handler: Callable[[Any], Any]) -> Any:  # type: ignore[override]
         tool_name, tool_args = self._extract_tool_metadata(request)
-        self._print_tool_call(tool_name, tool_args)
+        if self._details:
+            self._detail_print_tool_call(tool_name, tool_args)
         response = handler(request)
-        self._print_tool_result(tool_name, response)
+        self._handle_tool_call(tool_name, tool_args, response) if not self._details else self._detail_print_tool_result(
+            tool_name, response
+        )
         return response
 
     async def awrap_tool_call(self, request: Any, handler: Callable[[Any], Awaitable[Any]]) -> Any:  # type: ignore[override]
         tool_name, tool_args = self._extract_tool_metadata(request)
-        self._print_tool_call(tool_name, tool_args)
+        if self._details:
+            self._detail_print_tool_call(tool_name, tool_args)
         response = await handler(request)
-        self._print_tool_result(tool_name, response)
+        self._handle_tool_call(tool_name, tool_args, response) if not self._details else self._detail_print_tool_result(
+            tool_name, response
+        )
         return response
 
     async def awrap_model_call(self, request: Any, handler: Callable[[Any], Awaitable[Any]]) -> Any:  # type: ignore[override]
-        """Trace each LLM invocation before executing it."""
-        self._print_llm_call(request)
+        """Trace each LLM invocation (detailed mode only)."""
+        if self._details:
+            self._detail_print_llm_call(request)
         return await handler(request)
 
 
 def create_rich_agent_middlewares(
-    console: Console | None = None, single_tool_mode: bool = False
+    console: Console | None = None, single_tool_mode: bool = False, *, details: bool = False
 ) -> list[AgentMiddleware]:
     """Create the default set of Rich-based middlewares for agents.
 
@@ -296,6 +433,7 @@ def create_rich_agent_middlewares(
     Args:
         console: Optional Rich console instance to use
         single_tool_mode: Currently unused; kept for API compatibility
+        details: When True, show full panels for LLM and tool calls.
     """
     shared_console = console or Console()
-    return [RichToolCallMiddleware(console=shared_console)]
+    return [RichToolCallMiddleware(console=shared_console, details=details)]

@@ -449,7 +449,7 @@ langchain_agents:
           database_uri: sqlite:///${paths.project}/tests/data/Chinook.sqlite
 
       skill_directories:
-        - ${paths.project}/skills/langchain example
+        - ${paths.project}/skills/langchain_examples
 
       backend:
         type: filesystem

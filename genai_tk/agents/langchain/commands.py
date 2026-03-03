@@ -129,6 +129,10 @@ def register(cli_app: typer.Typer) -> None:
             str,
             Option("--cache", help="Cache strategy: sqlite | memory | no_cache"),
         ] = "memory",
+        details: Annotated[
+            bool,
+            Option("--details", help="Show detailed LLM and tool call panels (compact summary by default)"),
+        ] = False,
         lc_verbose: Annotated[bool, Option("--verbose", "-v", help="Enable LangChain verbose mode")] = False,
         lc_debug: Annotated[bool, Option("--debug", "-d", help="Enable LangChain debug mode")] = False,
     ) -> None:
@@ -232,6 +236,7 @@ def register(cli_app: typer.Typer) -> None:
                         resolved,
                         llm_override=llm_override,
                         extra_mcp_servers=mcp or None,
+                        details=details,
                     )
                 )
             else:
@@ -242,6 +247,7 @@ def register(cli_app: typer.Typer) -> None:
                         llm_override=llm_override,
                         extra_mcp_servers=mcp or None,
                         stream=stream,
+                        details=details,
                     )
                 )
         except KeyboardInterrupt:

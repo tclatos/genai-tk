@@ -41,6 +41,7 @@ async def create_langchain_agent(
     extra_tools: list[BaseTool] | None = None,
     extra_mcp_servers: list[str] | None = None,
     force_memory_checkpointer: bool = False,
+    details: bool = False,
 ) -> Any:
     """Create an agent from a resolved profile configuration.
 
@@ -56,6 +57,7 @@ async def create_langchain_agent(
         extra_mcp_servers: Additional MCP server names appended to profile servers.
         force_memory_checkpointer: When True, always use ``MemorySaver`` even if the
             profile specifies ``checkpointer.type: none``. Use for ``--chat`` mode.
+        details: When True, enable verbose output in ``RichToolCallMiddleware``.
 
     Returns:
         A compiled LangGraph agent (``CompiledStateGraph`` or ``Pregel``).
@@ -97,6 +99,14 @@ async def create_langchain_agent(
     # 6. Middleware
     middleware_cfgs = profile.middlewares or []
     middlewares = instantiate_middlewares(middleware_cfgs, profile.type)
+
+    # Propagate --details flag to RichToolCallMiddleware instances
+    if details:
+        from genai_tk.agents.langchain.rich_middleware import RichToolCallMiddleware
+
+        for mw in middlewares:
+            if isinstance(mw, RichToolCallMiddleware):
+                mw._details = True
 
     # 7. Backend (deep agents only; ignored for react/custom with a warning)
     backend_cfg = profile.backend or BackendConfig(type="none")
