@@ -15,6 +15,7 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
   - ${paths.config}/agents/deerflow.yaml
   - ${paths.config}/agents/smolagents.yaml
   - ${paths.config}/agents/langchain.yaml
+  - ${paths.config}/agents/deepagent.yaml
  
 :env:
   LOGURU_LEVEL: info 

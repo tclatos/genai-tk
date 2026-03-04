@@ -94,6 +94,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.0.3",
     "readabilipy>=0.3.0",
     "agent-sandbox>=0.0.24",
+    "deepagents-cli>=0.0.26",
 ]
 
 [project.urls]

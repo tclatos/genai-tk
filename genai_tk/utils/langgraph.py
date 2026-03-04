@@ -2,42 +2,11 @@
 Common code for Langgraph
 """
 
-import re
 from typing import Any, AsyncIterator, Iterator
 
 from langchain_core.messages import AIMessage
 
 from genai_tk.utils.markdown import looks_like_markdown
-
-
-def _is_likely_markdown(text: str) -> bool:
-    """
-    Determine if a string is likely to be Markdown content.
-
-    Args:
-        text (str): The input string to evaluate.
-
-    Returns:
-        bool: True if the string is likely Markdown, False otherwise.
-    """
-    # Common Markdown patterns
-    markdown_patterns = [
-        r"^#{1,6} ",  # Headers
-        r"^\* ",  # Unordered lists
-        r"^\d+\. ",  # Ordered lists
-        r"\[.*?\]\(.*?\)",  # Links
-        r"\*\*.*?\*\*",  # Bold
-        r"\*.*?\*",  # Italics
-        r"`.*?`",  # Inline code
-        r"```.*?```",  # Code blocks
-    ]
-
-    # Check if any pattern matches the text
-    for pattern in markdown_patterns:
-        if re.search(pattern, text, re.MULTILINE):
-            return True
-
-    return False
 
 
 def stream_node_response_content(stream: Iterator, node: str = "agent") -> Iterator:
@@ -157,14 +126,14 @@ def print_step(step: Any, details: bool = True) -> None:
                 title_line = message_repr.split("\n")[0]
                 title = f"[bold yellow]{title_line}[/bold yellow]"
                 body = "\n".join(message_repr.split("\n")[1:]) if "\n" in message_repr else ""
-                if _is_likely_markdown(body):
+                if looks_like_markdown(body)[0]:
                     console.print(Panel(Markdown(body), title=title.upper(), border_style="blue"))
                 else:
                     console.print(Panel(body, title=title.upper(), border_style="blue"))
             else:
                 title = f"[bold yellow]Update from: {node}[/bold yellow]"
                 detail_content = updates if details else str(type(updates).__name__)
-                if _is_likely_markdown(str(detail_content)):
+                if looks_like_markdown(str(detail_content))[0]:
                     console.print(Panel(Markdown(str(detail_content)), title=title, border_style="yellow"))
                 else:
                     console.print(Panel(detail_content, title=title, border_style="yellow"))

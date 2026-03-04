@@ -10,6 +10,7 @@ import sys
 
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
+from typing_extensions import Literal
 
 from genai_tk.utils.config_mngr import global_config
 
@@ -17,7 +18,7 @@ from genai_tk.utils.config_mngr import global_config
 class LoggingConfig(BaseModel):
     """Typed view of the ``logging`` config section."""
 
-    level: str = Field("INFO")
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field("INFO")
     format: str | None = Field(None)
     backtrace: bool = Field(False)
     model_config = ConfigDict(extra="allow")

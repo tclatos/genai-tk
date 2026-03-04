@@ -55,7 +55,7 @@ T = TypeVar("T")
 #
 # Example usage:
 #   factory: QualifiedFunctionName = "genai_tk.tools.langchain.search_tools_factory:create_search_function"
-#   middleware_class: QualifiedClassName = "genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware"
+#   middleware_class: QualifiedClassName = "genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware"
 
 _QUALIFIED_PATTERN = r"^[\w.]+:[\w]+$"
 

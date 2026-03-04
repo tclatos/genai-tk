@@ -1,0 +1,84 @@
+# Deep Agent CLI Configuration
+#
+# Configures deepagents-cli integration via the `cli agents deepagent` command group.
+#
+# GLOBAL SETTINGS:
+#   default_model:   LLM identifier (tag or ID like 'default', 'fast_model',
+#                    or explicit 'gpt41mini@openai'). Falls back to llm.models.default.
+#   auto_approve:    Skip human-in-the-loop tool confirmation prompts.
+#   enable_memory:   Persist agent memories across sessions (~/.deepagents/<agent>/memories/).
+#   enable_skills:   Load agent skills from ~/.deepagents/<agent>/skills/ and project .deepagents/.
+#   enable_shell:    Allow shell command execution in interactive (TUI) mode.
+#   shell_allow_list: When non-empty, restrict shell to listed commands (non-interactive mode).
+#   sandbox:         Sandbox type for remote execution: none | modal | daytona | runloop | langsmith.
+#   system_prompt:   Custom system prompt injected at agent startup. null = use deepagents default.
+#
+# PROFILES:
+#   Named presets selectable via --profile flag.
+#   Each profile can override any global setting.
+#   Fields: name, llm, auto_approve, sandbox, shell_allow_list,
+#           system_prompt, tools, enable_memory, enable_skills, enable_shell
+#
+# TOOL NAMES (for the `tools` field):
+#   web_search  — Tavily web search (requires TAVILY_API_KEY)
+#   fetch_url   — HTTP fetch (always enabled)
+#   http_request — Full HTTP request tool (always enabled)
+
+deepagent:
+  # ─── Global defaults ────────────────────────────────────────────────────────
+  default_model: null           # null → falls back to llm.models.default
+  default_profile: null         # null → no profile selected by default
+
+  auto_approve: false           # Require human approval for gated tools
+  enable_memory: true           # Persist memories across sessions
+  enable_skills: true           # Load skills from skills directories
+  enable_shell: true            # Allow shell execution in TUI mode
+
+  shell_allow_list: []          # Empty = no restriction (TUI); or e.g. ["pytest", "git", "make"]
+  sandbox: none                 # Remote sandbox: none | modal | daytona | runloop | langsmith
+
+  system_prompt: null           # Custom system prompt; null = use deepagents default
+
+  # ─── TUI /model switcher ─────────────────────────────────────────────────────
+  # Curated list of genai-tk LLM identifiers (tags or IDs) exposed inside the
+  # deepagents TUI /model command.  Leave empty ([]) to show ALL installed
+  # LangChain provider models (the deepagents-cli default behaviour).
+  # Each entry is displayed as  genai_tk:<entry>  in the switcher.
+  # Examples: default, fast_model, gpt41mini@openai, claude3_haiku@anthropic
+  switcher_models:
+    - gpt41mini@openrouter
+    - gpt_oss120@openrouter
+
+  # ─── Agent Profiles ─────────────────────────────────────────────────────────
+  profiles:
+    - name: coder
+      description: "Coding assistant with shell and file operations"
+      llm: fast_model
+      auto_approve: false
+      enable_shell: true
+      enable_memory: true
+      enable_skills: true
+      tools: [fetch_url, http_request]
+      system_prompt: null
+
+    - name: researcher
+      description: "Research assistant with web search and memory"
+      llm: default
+      auto_approve: true
+      enable_shell: false
+      enable_memory: true
+      enable_skills: true
+      tools: [web_search, fetch_url, http_request]
+      system_prompt: |
+        You are a thorough research assistant. Always search for up-to-date information,
+        cite your sources, and provide comprehensive answers with supporting evidence.
+
+    - name: fast
+      description: "Quick tasks using the fast model with auto-approval"
+      llm: fast_model
+      auto_approve: true
+      enable_shell: true
+      enable_memory: false
+      enable_skills: false
+      tools: [fetch_url, http_request]
+      system_prompt: null
