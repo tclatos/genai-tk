@@ -13,11 +13,9 @@ Key Features:
 
 Example:
     >>> # Analyze image with structured output
-    >>> messages = image_query_message({
-    ...     "query": "Describe the image",
-    ...     "image_paths": "path/to/image.jpg",
-    ...     "output_parser": MyOutputParser()
-    ... })
+    >>> messages = image_query_message(
+    ...     {"query": "Describe the image", "image_paths": "path/to/image.jpg", "output_parser": MyOutputParser()}
+    ... )
 
     >>> # Send to vision-enabled LLM
     >>> response = llm.invoke(messages)
@@ -58,10 +56,13 @@ def image_query_message(param_dict: dict, config: dict) -> list[BaseMessage]:
             animals: list[str] = Field(description="Animals found in the image")
             actions: str = Field(description="What are the animals doing")
 
+
         parser = PydanticOutputParser(pydantic_object=ImageDesc)
         image_url = "https://example.com/image.jpg"
         chain = image_query_message | llm | parser  # ignore
-        response = chain.invoke({"query": "describe that image in JSON", "image_paths": image_url, "output_parser": parser})
+        response = chain.invoke(
+            {"query": "describe that image in JSON", "image_paths": image_url, "output_parser": parser}
+        )
     """
     allowed_params = ["query", "image_paths", "output_parser", "system"]
     for key in param_dict:

@@ -59,9 +59,9 @@ def resolve_tools_from_config(tool_configs: list) -> list[BaseTool]:
 
     Example:
         ```python
-        tools = resolve_tools_from_config([
-            {"factory": "genai_tk.tools.langchain.search_tools_factory:create_search_function"}
-        ])
+        tools = resolve_tools_from_config(
+            [{"factory": "genai_tk.tools.langchain.search_tools_factory:create_search_function"}]
+        )
         ```
     """
     from genai_tk.tools.langchain.shared_config_loader import process_langchain_tools_from_config

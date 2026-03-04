@@ -44,7 +44,7 @@ langchain_agents:
     type: react
     llm: null  # null = use global default LLM from config
     middlewares:
-      - class: genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware
+      - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
     checkpointer:
       type: none  # chat mode always forces memory; use 'memory' to persist across invocations
     backend:

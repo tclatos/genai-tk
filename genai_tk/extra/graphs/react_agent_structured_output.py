@@ -36,10 +36,14 @@ def create_react_structured_output_graph(llm: BaseChatModel, tools: list[BaseToo
         class WeatherResponse(BaseModel):
             temperature: float = Field(description="The temperature in fahrenheit")
             ...
+
+
         @tool
         def get_weather(city: Literal["nyc", "sf"]):
             "Use this to get weather information."
             ...
+
+
         llm = get_llm(...)
         graph = create_react_structured_output_graph(llm, [get_weather], WeatherResponse)
         answer = graph.invoke(input={"messages": [("human", "what's the weather in New York?")]})["final_response"]

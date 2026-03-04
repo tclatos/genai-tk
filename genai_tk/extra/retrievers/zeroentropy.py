@@ -97,7 +97,7 @@ class ZeroEntropyRetriever(BaseRetriever):
             k=10,
             retrieval_type="snippets",
             reranker="zerank-1-large",
-            filter_criteria={"category": "ml", "year": {"$gte": 2020}}
+            filter_criteria={"category": "ml", "year": {"$gte": 2020}},
         )
         ```
 
@@ -106,11 +106,9 @@ class ZeroEntropyRetriever(BaseRetriever):
         retriever = ZeroEntropyRetriever(collection_name="docs")
         configurable_retriever = retriever.configurable_fields(
             k=ConfigurableField(id="k", name="Results Count"),
-            reranker=ConfigurableField(id="reranker", name="Reranker Model")
+            reranker=ConfigurableField(id="reranker", name="Reranker Model"),
         )
-        configured = configurable_retriever.with_config(
-            configurable={"k": 15, "reranker": "zerank-1-small"}
-        )
+        configured = configurable_retriever.with_config(configurable={"k": 15, "reranker": "zerank-1-small"})
         ```
     """
 
@@ -324,11 +322,7 @@ class ZeroEntropyRetriever(BaseRetriever):
 
         Example:
             ```python
-            retriever = ZeroEntropyRetriever.from_collection(
-                "my_documents",
-                k=10,
-                reranker="zerank-1-small"
-            )
+            retriever = ZeroEntropyRetriever.from_collection("my_documents", k=10, reranker="zerank-1-small")
             ```
         """
         return cls(collection_name=collection_name, **kwargs)
@@ -346,10 +340,7 @@ class ZeroEntropyRetriever(BaseRetriever):
 
         Example:
             ```python
-            new_retriever = retriever.with_config(
-                k=20,
-                retrieval_type="snippets"
-            )
+            new_retriever = retriever.with_config(k=20, retrieval_type="snippets")
             ```
         """
         # Create new config with updates

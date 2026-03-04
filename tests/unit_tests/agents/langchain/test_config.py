@@ -136,13 +136,17 @@ class TestLoadUnifiedConfig:
         assert cfg.default_profile == "simple"
 
     def test_file_not_found(self, tmp_path: Path) -> None:
-        with pytest.raises(FileNotFoundError):
+        from genai_tk.utils.config_exceptions import ConfigFileError
+
+        with pytest.raises(ConfigFileError, match="file not found"):
             load_unified_config(str(tmp_path / "nonexistent.yaml"))
 
     def test_missing_section_raises(self, tmp_path: Path) -> None:
+        from genai_tk.utils.config_exceptions import ConfigFileError
+
         bad_yaml = {"other_section": {}}
         cfg_file = _write_yaml(tmp_path, bad_yaml)
-        with pytest.raises(ValueError, match="missing 'langchain_agents'"):
+        with pytest.raises(ConfigFileError, match="missing required top-level key"):
             load_unified_config(str(cfg_file))
 
     def test_defaults_parsed(self, tmp_path: Path) -> None:

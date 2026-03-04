@@ -17,6 +17,9 @@ Example:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from typing import Generator
+
 
 class ConfigError(Exception):
     """Base exception for all configuration-related errors."""
@@ -256,19 +259,28 @@ class ConfigInterpolationError(ConfigError):
 class ConfigValidationError(ConfigError):
     """Exception raised when configuration validation fails."""
 
-    def __init__(self, errors: list[str], config_name: str | None = None) -> None:
+    def __init__(
+        self,
+        errors: list[str],
+        config_name: str | None = None,
+        file_path: str | None = None,
+    ) -> None:
         """Initialize configuration validation error.
 
         Args:
             errors: List of validation error messages
             config_name: Optional name of the configuration being validated
+            file_path: Optional path to the configuration file that triggered the error
         """
         self.errors = errors
         self.config_name = config_name
+        self.file_path = file_path
 
         prefix = "Configuration validation failed"
         if config_name:
             prefix += f" for '{config_name}'"
+        if file_path:
+            prefix += f" in '{file_path}'"
 
         error_list = "\n  - ".join(errors)
         message = f"{prefix}:\n  - {error_list}"
@@ -276,6 +288,97 @@ class ConfigValidationError(ConfigError):
         suggestion = "Fix the validation errors listed above and try again."
 
         super().__init__(message, suggestion)
+
+
+def pydantic_error_to_config_error(
+    exc: "Exception",
+    file_path: str | None = None,
+    context: str | None = None,
+) -> ConfigValidationError:
+    """Convert a Pydantic ``ValidationError`` to a ``ConfigValidationError``.
+
+    Produces human-readable messages showing the field path, the invalid value,
+    and the expected constraint — without Pydantic's internal URLs.
+
+    Args:
+        exc: A ``pydantic.ValidationError`` instance.
+        file_path: Path to the YAML file being validated (shown in the error message).
+        context: Human-readable name for what is being validated (e.g. ``"profile 'simple'"``)
+
+    Example:
+        ```python
+        from pydantic import ValidationError
+        from genai_tk.utils.config_exceptions import pydantic_error_to_config_error
+
+        try:
+            MyModel.model_validate(data)
+        except ValidationError as e:
+            raise pydantic_error_to_config_error(e, file_path="langchain.yaml") from e
+        ```
+    """
+    error_lines: list[str] = []
+    for err in exc.errors(include_url=False):  # type: ignore[attr-defined]
+        loc: tuple = err.get("loc", ())
+
+        # Build a readable field path like "profiles[2].type"
+        parts: list[str] = []
+        for part in loc:
+            if isinstance(part, int):
+                if parts:
+                    parts[-1] += f"[{part}]"
+                else:
+                    parts.append(f"[{part}]")
+            else:
+                parts.append(str(part))
+        field_path = ".".join(parts) if parts else "(root)"
+
+        msg: str = err.get("msg", "")
+        input_val = err.get("input")
+
+        if input_val is not None:
+            line = f"'{field_path}': invalid value {input_val!r}  →  {msg}"
+        else:
+            line = f"'{field_path}': {msg}"
+        error_lines.append(line)
+
+    return ConfigValidationError(error_lines, config_name=context, file_path=file_path)
+
+
+@contextmanager
+def yaml_config_validation(
+    file_path: str | None = None,
+    context: str | None = None,
+) -> Generator[None, None, None]:
+    """Context manager that converts Pydantic ``ValidationError`` to ``ConfigValidationError``.
+
+    Wrap any block of YAML-driven Pydantic model construction with this so that
+    raw Pydantic tracebacks are replaced by user-friendly diagnostics — including
+    the source file path, human-readable field paths, and the offending value.
+
+    Args:
+        file_path: Path to the YAML file being loaded (shown in the error panel).
+        context: Human-readable label for what is being validated, e.g.
+            ``"profile 'simple'"`` or ``"defaults"``.
+
+    Example:
+        ```python
+        from genai_tk.utils.config_exceptions import yaml_config_validation
+
+        with yaml_config_validation(file_path="langchain.yaml", context="profile 'simple'"):
+            tool_specs = [tool_spec_from_dict(t) for t in tools_raw]
+            profile = AgentProfileConfig.model_validate(data)
+        ```
+    """
+    try:
+        yield
+    except Exception as exc:
+        try:
+            from pydantic import ValidationError
+        except ImportError:
+            raise exc
+        if isinstance(exc, ValidationError):
+            raise pydantic_error_to_config_error(exc, file_path=file_path, context=context) from exc
+        raise
 
 
 class ConfigMergeError(ConfigError):

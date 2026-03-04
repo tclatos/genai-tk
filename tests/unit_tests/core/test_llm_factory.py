@@ -234,6 +234,8 @@ def test_field_validator_cache() -> None:
     llm = LlmFactory(llm=LLM_ID_FOR_TEST, cache="sqlite").get()
     assert isinstance(llm.cache, SQLiteCache)
 
-    # Invalid cache value should raise ValueError
-    with pytest.raises(ValueError, match="Unknown cache method"):
+    # Invalid cache value should raise ValidationError (Literal check)
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match="'memory', 'sqlite' or 'no_cache'"):
         LlmFactory(llm_id=FAKE_LLM_ID, cache="invalid_cache")

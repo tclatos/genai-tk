@@ -35,11 +35,11 @@ def _get_configured_api_url() -> str | None:
 
     # Check application config (best-effort)
     try:
-        from genai_tk.utils.config_mngr import get_raw_config
-
         from omegaconf import OmegaConf
 
-    return OmegaConf.select(get_raw_config(), "prefect.api_url", default=None)
+        from genai_tk.utils.config_mngr import get_raw_config
+
+        return OmegaConf.select(get_raw_config(), "prefect.api_url", default=None)
     except Exception:
         return None
 

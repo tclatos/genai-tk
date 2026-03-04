@@ -14,8 +14,8 @@ import os
 
 import pytest
 import pytest_asyncio
-
 from genai_tk.agents.deer_flow.client import DeerFlowClient, TokenEvent
+
 from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 
 DEER_FLOW_PATH = os.environ.get("DEER_FLOW_PATH")

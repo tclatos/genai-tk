@@ -25,7 +25,7 @@ class RAGToolConfig(BaseModel):
             tool_name="knowledge_base",
             tool_description="Search company knowledge base for relevant documents",
             default_filter={"source": "docs"},
-            top_k=5
+            top_k=5,
         )
         ```
     """
@@ -55,7 +55,7 @@ class RAGToolFactory:
             tool_name="search_docs",
             tool_description="Search technical documentation",
             default_filter={"category": "technical"},
-            top_k=5
+            top_k=5,
         )
 
         factory = RAGToolFactory(llm)
@@ -178,7 +178,7 @@ def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | Non
             "tool_name": "search_documents",
             "tool_description": "Search company documents for relevant information",
             "default_filter": {"department": "engineering"},
-            "top_k": 5
+            "top_k": 5,
         }
 
         tool = create_rag_tool_from_config(config)
@@ -187,10 +187,7 @@ def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | Non
         result = tool.invoke({"query": "What are the coding standards?"})
 
         # Use the tool with a query and additional filter
-        result = tool.invoke({
-            "query": "Python best practices",
-            "filter": '{"author": "John Smith"}'
-        })
+        result = tool.invoke({"query": "Python best practices", "filter": '{"author": "John Smith"}'})
         ```
     """
     # Get LLM if not provided

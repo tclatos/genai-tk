@@ -102,7 +102,7 @@ async def create_langchain_agent(
 
     # Propagate --details flag to RichToolCallMiddleware instances
     if details:
-        from genai_tk.agents.langchain.rich_middleware import RichToolCallMiddleware
+        from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
 
         for mw in middlewares:
             if isinstance(mw, RichToolCallMiddleware):

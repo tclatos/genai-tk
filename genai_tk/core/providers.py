@@ -10,7 +10,9 @@ from functools import lru_cache
 from pathlib import Path
 
 import yaml
-from pydantic import BaseModel, Field, SecretStr, field_validator
+from pydantic import BaseModel, Field, SecretStr
+
+from genai_tk.utils.config_mngr import QualifiedClassName
 
 OPENROUTER_BASE = "https://openrouter.ai"
 OPENROUTER_API_BASE = f"{OPENROUTER_BASE}/api/v1"
@@ -28,21 +30,13 @@ class ProviderInfo(BaseModel):
         gateway: True for providers that accept vendor-prefixed model names
     """
 
-    use: str = Field(..., description="Module and class in format 'module.path:ClassName'")
+    use: QualifiedClassName = Field(..., description="Module and class in format 'module.path:ClassName'")
     api_key_env_var: str
     api_base: str | None = None
     litellm_prefix: str | None = None
     gateway: bool = False
 
     model_config = {"frozen": True}
-
-    @field_validator("use")
-    @classmethod
-    def validate_use_format(cls, v: str) -> str:
-        """Validate that use field contains module:ClassName format."""
-        if ":" not in v:
-            raise ValueError(f"'use' field must be in format 'module:ClassName', got: {v}")
-        return v
 
     @property
     def module(self) -> str:

@@ -26,6 +26,7 @@ await call_react_agent("What's the weather in Toulouse?", mcp_server_filter=["we
 import os
 from contextlib import AsyncExitStack
 from itertools import chain
+from typing import Literal
 
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
@@ -39,10 +40,30 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from mcpadapt.core import MCPAdapt
 from mcpadapt.langchain_adapter import LangChainAdapter
+from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.utils.config_mngr import get_raw_config, paths_config
 
 load_dotenv()
+
+
+class McpServerConfig(BaseModel):
+    """Pydantic schema for a single MCP server entry from YAML configuration.
+
+    Covers both ``mcpServers`` (external) and ``mcpProjectServers`` (project-local)
+    entries. Unknown keys are ignored so future YAML additions stay backward
+    compatible.
+    """
+
+    command: str = Field(..., description="Executable to launch the server")
+    args: list[str] = Field(default_factory=list, description="Arguments passed to the command")
+    transport: Literal["stdio", "sse"] = Field("stdio", description="Transport protocol")
+    env: dict[str, str] = Field(default_factory=dict, description="Additional environment variables")
+    disabled: bool = Field(False, description="Set true to skip this server")
+    description: str | None = Field(None, description="Human-readable description (ignored at runtime)")
+    example: str | None = Field(None, description="Usage example (ignored at runtime)")
+
+    model_config = ConfigDict(extra="ignore")
 
 
 def update_server_parameters(server_config: dict) -> dict:
@@ -69,22 +90,25 @@ def update_server_parameters(server_config: dict) -> dict:
     # {'command': 'uv', 'args': ['tool', 'run', 'pubmedmcp@0.1.3'], 'transport': 'stdio', 'env': {'PATH': ...}}
     ```
     """
-    desc = dict(server_config)
-    if (
-        "command" in desc and desc["command"] == "uvx"
-    ):  # uvx is an alias to 'uv tool run', which is not always in the path
-        desc["command"] = "uv"
-        desc["args"] = ["tool", "run"] + desc["args"]
-    if "transport" not in desc:
-        desc["transport"] = "stdio"
-    # Passing the PATH seems needed for some servers, (ex: Tavily)
-    desc["env"] = {"PATH": os.environ.get("PATH", "")} | dict(desc.get("env", {}))
+    from genai_tk.utils.config_exceptions import yaml_config_validation
 
-    desc.pop("description", "")  # not used yet
-    desc.pop("example", None)
-    desc.pop("disabled", None)  # TODO : reintroduce it
-    _ = StdioServerParameters(**desc)  # just to test argument type
+    with yaml_config_validation(context="MCP server config"):
+        cfg = McpServerConfig.model_validate(server_config)
 
+    # Resolve uvx alias to 'uv tool run'
+    command = cfg.command
+    args = list(cfg.args)
+    if command == "uvx":
+        command = "uv"
+        args = ["tool", "run"] + args
+
+    desc: dict = {
+        "command": command,
+        "args": args,
+        "transport": cfg.transport,
+        "env": {"PATH": os.environ.get("PATH", "")} | cfg.env,
+    }
+    _ = StdioServerParameters(**desc)  # validate against MCP library schema
     return desc
 
 

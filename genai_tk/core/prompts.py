@@ -11,16 +11,13 @@ Key Features:
 
 Example:
     >>> # Create simple prompt
-    >>> prompt = def_prompt(
-    ...     system="You are a helpful assistant",
-    ...     user="Tell me a joke"
-    ... )
+    >>> prompt = def_prompt(system="You are a helpful assistant", user="Tell me a joke")
 
     >>> # Create prompt with additional messages
     >>> prompt = def_prompt(
     ...     system="You are a math tutor",
     ...     user="Solve this problem: {problem}",
-    ...     other_msg={"placeholder": "{scratchpad}"}
+    ...     other_msg={"placeholder": "{scratchpad}"},
     ... )
 """
 
@@ -53,7 +50,9 @@ def def_prompt(system: str | None = None, user: str = "", other_msg: dict | None
 
     Example:
     .. code-block:: python
-        prompt = def_prompt(system="You are an helpful agent", user = "bla bla", other_msg={"placeholder": "{agent_scratchpad}"})
+        prompt = def_prompt(
+            system="You are an helpful agent", user="bla bla", other_msg={"placeholder": "{agent_scratchpad}"}
+        )
 
     """
     if other_msg is None:

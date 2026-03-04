@@ -252,7 +252,7 @@ class CustomizedPresidioAnonymizer(BaseModel):
                 entity_name="EMPLOYEE_ID",
                 patterns=[r"EMP-\\d{5}"],
                 context_words=["employee", "staff", "worker"],
-                replacement_format="EMP-####"
+                replacement_format="EMP-####",
             )
             ```
         """

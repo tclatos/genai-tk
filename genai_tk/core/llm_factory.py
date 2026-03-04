@@ -41,7 +41,7 @@ import importlib.util
 import os
 import re
 from functools import cached_property, lru_cache
-from typing import TYPE_CHECKING, Annotated, Any, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
 
 if TYPE_CHECKING:
     from langchain_core.language_models.chat_models import BaseChatModel
@@ -114,7 +114,9 @@ class LlmSection(BaseModel):
     """
 
     models: LlmModelsConfig = Field(..., description="Default and tagged LLM model IDs")
-    cache: str = Field("no_cache", description="Cache strategy: 'memory' | 'sqlite' | 'no_cache'")
+    cache: Literal["memory", "sqlite", "no_cache"] = Field(
+        "no_cache", description="Cache strategy: 'memory' | 'sqlite' | 'no_cache'"
+    )
     cache_path: str | None = Field(None, description="SQLite cache file path (required when cache='sqlite')")
     exceptions: list[Any] = Field(default_factory=list, description="Per-model provider overrides from llm.yaml")
     registry: list[Any] | None = Field(None, description="Legacy alias for 'exceptions' – prefer 'exceptions'")
@@ -352,19 +354,11 @@ def _llm_section() -> LlmSection:
         all_tags = _llm_section().models.all_tags()
         ```
     """
-    from genai_tk.utils.config_exceptions import ConfigValidationError
+    from genai_tk.utils.config_exceptions import yaml_config_validation
 
-    try:
+    with yaml_config_validation(context="llm"):
         raw = global_config().get_dict("llm")
         return LlmSection.model_validate(raw)
-    except Exception as e:
-        raise ConfigValidationError(
-            [
-                f"Invalid 'llm' configuration section: {e}",
-                "Check config/providers/llm.yaml and config/basic/init/baseline.yaml.",
-            ],
-            config_name="llm",
-        ) from e
 
 
 def _read_llm_list_file() -> list[LlmInfo]:
@@ -460,7 +454,7 @@ class LlmFactory(BaseModel):
     json_mode: bool = False
     streaming: bool = False
     reasoning: bool | None = None
-    cache: str | None = None
+    cache: Literal["memory", "sqlite", "no_cache"] | None = None
     llm_params: dict = {}
 
     # Internal fields set during resolution
@@ -524,12 +518,6 @@ class LlmFactory(BaseModel):
             raise ValueError(
                 f"Unknown LLM: {self.llm_id}; Check API key and module imports. Should be in {LlmFactory.known_items()}"
             )
-
-    @field_validator("cache")
-    def check_known_cache(cls, cache: str | None) -> str | None:
-        if cache and cache not in LlmCache.values():
-            raise ValueError(f"Unknown cache method: '{cache} '; Should be in {LlmCache.values()}")
-        return cache
 
     @lru_cache(maxsize=1)
     @staticmethod
@@ -806,8 +794,6 @@ class LlmFactory(BaseModel):
         """Model factory, according to the model class."""
         from langchain_core.globals import get_llm_cache
         from langchain_openai import ChatOpenAI
-
-        from genai_tk.core.cache import LlmCache
 
         if self.cache:
             lc_cache = LlmCache.from_value(self.cache)

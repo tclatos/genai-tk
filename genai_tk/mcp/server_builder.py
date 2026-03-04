@@ -8,6 +8,7 @@ Example:
     ```python
     # Build and serve (blocks on stdio)
     from genai_tk.mcp.server_builder import serve
+
     serve("search")
 
     # Or get the server object for testing
@@ -87,8 +88,9 @@ def serve(
     Example:
         ```python
         from genai_tk.mcp.server_builder import serve
-        serve("search")                        # stdio – used by Claude Desktop etc.
-        serve("search", transport="sse")       # HTTP SSE
+
+        serve("search")  # stdio – used by Claude Desktop etc.
+        serve("search", transport="sse")  # HTTP SSE
         ```
     """
     definition = get_mcp_server_definition(name, config_path)

@@ -107,10 +107,7 @@ class PydanticModelFactory:
             yaml_data = {
                 "Person": {
                     "description": "A person model",
-                    "fields": {
-                        "name": {"type": "str", "required": True},
-                        "age": {"type": "int", "required": False}
-                    }
+                    "fields": {"name": {"type": "str", "required": True}, "age": {"type": "int", "required": False}},
                 }
             }
             person_class = factory.create_class_from_dict(yaml_data, "Person")

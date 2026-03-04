@@ -11,7 +11,7 @@ langchain_agents:
     type: react
     llm: null
     middlewares:
-      - class: genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware
+      - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
     checkpointer:
       type: none
     backend:
@@ -79,8 +79,8 @@ class MiddlewareConfig(BaseModel):
     plus any additional kwargs passed to the constructor.
     ```yaml
     middlewares:
-      - class: genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware
-      - class: genai_tk.agents.langchain.rich_middleware:ToolCallLimitMiddleware
+      - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
+      - class: genai_tk.agents.langchain.middleware.rich_middleware:ToolCallLimitMiddleware
         thread_limit: 20
     ```
     """
@@ -299,34 +299,43 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
         config_dir = Path(paths_config().config)
         config_path = str(config_dir / "agents" / "langchain.yaml")
 
+    from genai_tk.utils.config_exceptions import ConfigFileError, yaml_config_validation
+
     path = Path(config_path)
     if not path.exists():
-        raise FileNotFoundError(f"Agent config not found at {path}")
+        raise ConfigFileError(
+            str(path),
+            "file not found",
+            suggestion=f"Create the file at '{path}' or check your config directory setting.",
+        )
 
     with open(path) as f:
         raw = yaml.safe_load(f)
 
     if not raw or "langchain_agents" not in raw:
-        raise ValueError(f"Config file {path} is missing 'langchain_agents' section")
+        raise ConfigFileError(
+            str(path),
+            "missing required top-level key 'langchain_agents'",
+            suggestion="Add a 'langchain_agents:' section to the file.",
+        )
 
     section = raw["langchain_agents"]
     defaults_raw = section.get("defaults", {})
     default_profile = section.get("default_profile", "")
     profiles_raw = section.get("profiles", [])
 
-    defaults = AgentDefaults.model_validate(defaults_raw) if defaults_raw else AgentDefaults.model_validate({})
+    with yaml_config_validation(file_path=str(path), context="defaults"):
+        defaults = AgentDefaults.model_validate(defaults_raw) if defaults_raw else AgentDefaults.model_validate({})
 
     # Convert tool specs from dicts to Pydantic models
     profiles = []
     for p in profiles_raw:
-        tools_raw = p.get("tools", [])
-        tool_specs = []
-        for tool_cfg in tools_raw:
-            spec = tool_spec_from_dict(tool_cfg.copy())
-            if spec:
-                tool_specs.append(spec)
-        p["tool_specs"] = tool_specs
-        profiles.append(AgentProfileConfig.model_validate(p))
+        profile_name = p.get("name", f"(index {len(profiles)})")
+        with yaml_config_validation(file_path=str(path), context=f"profile '{profile_name}'"):
+            tools_raw = p.get("tools", [])
+            tool_specs = [t for tool_cfg in tools_raw if (t := tool_spec_from_dict(tool_cfg.copy())) is not None]
+            p["tool_specs"] = tool_specs
+            profiles.append(AgentProfileConfig.model_validate(p))
 
     return LangchainAgentsConfig(defaults=defaults, default_profile=default_profile, profiles=profiles)
 

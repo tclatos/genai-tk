@@ -13,6 +13,8 @@ from typer import Option
 from genai_tk.utils.config_mngr import paths_config
 
 if TYPE_CHECKING:
+    from rich.console import Console
+
     from genai_tk.agents.langchain.config import AgentProfileConfig
 
 
@@ -35,7 +37,7 @@ def _list_profiles() -> None:
     try:
         cfg = load_unified_config(_get_config_path())
     except Exception as e:
-        console.print(f"[red]Error loading config:[/red] {e}")
+        _display_config_error(console, e)
         raise typer.Exit(1) from e
 
     table = Table(title=f"🤖 LangChain Agent Profiles  (default: {cfg.default_profile!r})")
@@ -58,6 +60,35 @@ def _list_profiles() -> None:
 
     console.print(table)
     console.print("[dim]⭐ = default profile  |  use --profile NAME or -p NAME to select[/dim]")
+
+
+def _display_config_error(console: "Console", error: Exception) -> None:
+    """Display a configuration error as a formatted Rich panel."""
+    from rich.panel import Panel
+    from rich.text import Text
+
+    from genai_tk.utils.config_exceptions import ConfigError, ConfigValidationError
+
+    if isinstance(error, ConfigValidationError):
+        n = len(error.errors)
+        count_label = f"{n} validation error{'s' if n != 1 else ''}"
+        ctx = f" in {error.config_name}" if error.config_name else ""
+        text = Text()
+        text.append(f"{count_label}{ctx}\n\n", style="bold red")
+        for err_msg in error.errors:
+            text.append(f"  • {err_msg}\n", style="red")
+        if error.file_path:
+            text.append(f"\n📄 File: {error.file_path}\n", style="cyan")
+        text.append("\n💡 Check the field value(s) above and update your YAML file.", style="yellow")
+        console.print(Panel(text, title="❌  Configuration Validation Error", border_style="red"))
+    elif isinstance(error, ConfigError):
+        text = Text()
+        text.append(f"{error.message}\n", style="red")
+        if error.suggestion:
+            text.append(f"\n💡 {error.suggestion}", style="yellow")
+        console.print(Panel(text, title="❌  Configuration Error", border_style="red"))
+    else:
+        console.print(f"[red]Error loading agent config:[/red] {error}")
 
 
 def _display_profile_info(profile: "AgentProfileConfig", llm_override: str | None) -> None:
@@ -183,7 +214,7 @@ def register(cli_app: typer.Typer) -> None:
         try:
             cfg = load_unified_config(_get_config_path())
         except Exception as e:
-            console.print(f"[red]Error loading agent config:[/red] {e}")
+            _display_config_error(console, e)
             raise typer.Exit(1) from e
 
         # Resolve profile name

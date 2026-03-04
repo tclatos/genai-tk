@@ -165,19 +165,11 @@ def embeddings_config() -> EmbeddingsSection:
         hf_cache = embeddings_config().cache
         ```
     """
-    from genai_tk.utils.config_exceptions import ConfigValidationError
+    from genai_tk.utils.config_exceptions import yaml_config_validation
 
-    try:
+    with yaml_config_validation(context="embeddings"):
         raw = global_config().get_dict("embeddings")
         return EmbeddingsSection.model_validate(raw)
-    except Exception as e:
-        raise ConfigValidationError(
-            [
-                f"Invalid 'embeddings' configuration section: {e}",
-                "Check config/providers/embeddings.yaml and config/basic/init/baseline.yaml.",
-            ],
-            config_name="embeddings",
-        ) from e
 
 
 def _read_embeddings_list_file() -> list[EmbeddingsInfo]:

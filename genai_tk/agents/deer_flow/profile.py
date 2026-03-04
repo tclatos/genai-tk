@@ -182,27 +182,33 @@ def load_deer_flow_profiles(config_path: str | None = None) -> list[DeerFlowProf
         config_path = str(config_dir / "agents" / "deerflow.yaml")
 
     path = Path(config_path)
+    from genai_tk.utils.config_exceptions import ConfigFileError, yaml_config_validation
+
     if not path.exists():
-        raise FileNotFoundError(f"Deer-flow config not found: {path}")
+        raise ConfigFileError(
+            str(path),
+            "file not found",
+            suggestion=f"Create the file at '{path}' or check your config directory setting.",
+        )
 
     with open(path) as f:
         raw = yaml.safe_load(f)
 
     if not raw or "deerflow_agents" not in raw:
-        raise ValueError(f"Config {path} is missing 'deerflow_agents' section")
+        raise ConfigFileError(
+            str(path),
+            "missing required top-level key 'deerflow_agents'",
+            suggestion="Add a 'deerflow_agents:' section to the file.",
+        )
 
     profiles = []
     for entry in raw.get("deerflow_agents", []):
-        # Convert tool specs from dicts to Pydantic models
-        tools_raw = entry.get("tools", [])
-        tool_specs = []
-        for tool_cfg in tools_raw:
-            spec = tool_spec_from_dict(tool_cfg.copy())
-            if spec:
-                tool_specs.append(spec)
-        entry["tool_specs"] = tool_specs
-
-        profile = DeerFlowProfile.model_validate(entry)
+        profile_name = entry.get("name", f"(index {len(profiles)})")
+        with yaml_config_validation(file_path=str(path), context=f"profile '{profile_name}'"):
+            tools_raw = entry.get("tools", [])
+            tool_specs = [t for tool_cfg in tools_raw if (t := tool_spec_from_dict(tool_cfg.copy())) is not None]
+            entry["tool_specs"] = tool_specs
+            profile = DeerFlowProfile.model_validate(entry)
         profiles.append(profile)
 
     logger.debug(f"Loaded {len(profiles)} Deer-flow profiles from {config_path}")
