@@ -32,22 +32,21 @@ Example:
     >>> llm = get_llm(llm="gpt_4o@openai")
 """
 
+from __future__ import annotations
 
 # TODO
 #  implement from langchain_core.rate_limiters import InMemoryRateLimiter
-
 import difflib
 import importlib.util
 import os
 import re
 from functools import cached_property, lru_cache
-from typing import Annotated, Any, cast
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
-from langchain.chat_models import init_chat_model
-from langchain_core.language_models.base import BaseLanguageModel
-from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.runnables import RunnableConfig, RunnableLambda
-from litellm.litellm_core_utils.get_llm_provider_logic import get_llm_provider
+if TYPE_CHECKING:
+    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.runnables import RunnableConfig, RunnableLambda
+
 from loguru import logger
 from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, computed_field, field_validator
@@ -746,6 +745,8 @@ class LlmFactory(BaseModel):
         else:
             result = self.info.model
         try:
+            from litellm.litellm_core_utils.get_llm_provider_logic import get_llm_provider
+
             get_llm_provider(result)
             # Note: LiteLLM mentions a 'get_valid_models' call, but not seems present
 
@@ -842,6 +843,8 @@ class LlmFactory(BaseModel):
 
         # case for most "standard" providers -> we use LangChain factory
         if self.info.provider not in CUSTOM_IMPLEMENTATION_PROVIDERS:
+            from langchain.chat_models import init_chat_model
+
             # Some parameters are handled differently between provider. Here some workaround:
             if self.info.provider == "groq":
                 seed = llm_params.pop("seed")
@@ -915,6 +918,8 @@ class LlmFactory(BaseModel):
                 **llm_params,
             )
             if self.json_mode:
+                from langchain_core.language_models.base import BaseLanguageModel
+
                 llm = cast(BaseLanguageModel, llm.bind(response_format={"type": "json_object"}))
         elif self.info.provider == "openrouter":
             # See https://openrouter.ai/docs/parameters
@@ -1204,7 +1209,7 @@ def get_print_chain(string: str = "") -> RunnableLambda:
         print(chain.invoke(1))
     ```
     """
-    from langchain_core.runnables import RunnableConfig, RunnableLambda
+    from langchain_core.runnables import RunnableLambda
 
     def fn(input: Any, config: RunnableConfig) -> Any:
         print(string, input, config)

@@ -7,14 +7,19 @@ Replaces the old DeerFlowAgentConfig dataclass.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal, get_args
 
 import yaml
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from genai_tk.utils.tool_specs import ToolSpec, tool_spec_from_dict
+from genai_tk.tools.tool_specs import ToolSpec, tool_spec_from_dict
 
-VALID_MODES = ("flash", "thinking", "pro", "ultra")
+DeerFlowMode = Literal["flash", "thinking", "pro", "ultra"]
+"""Valid agent reasoning-intensity modes."""
+
+DeerFlowSandbox = Literal["local", "docker"]
+"""Sandbox provider for code/file execution."""
 
 
 class DeerFlowProfile(BaseModel):
@@ -25,7 +30,7 @@ class DeerFlowProfile(BaseModel):
 
     name: str
     description: str = ""
-    mode: str = "flash"
+    mode: DeerFlowMode = "flash"
     llm: str | None = None
     tool_groups: list[str] = Field(default_factory=lambda: ["web"])
     mcp_servers: list[str] = Field(default_factory=list)
@@ -41,8 +46,7 @@ class DeerFlowProfile(BaseModel):
     subagent_enabled: bool = False
     plan_mode: bool = False
 
-    # Sandbox provider for code/file execution: "local" (no Docker) or "docker"
-    sandbox: str = "local"
+    sandbox: DeerFlowSandbox = "local"
 
     # --web mode: server lifecycle settings
     auto_start: bool = True
@@ -68,15 +72,6 @@ class ProfileNotFoundError(DeerFlowError):
         self.profile_name = profile_name
         self.available_profiles = available
         super().__init__(f"Profile '{profile_name}' not found. Available: {', '.join(available)}")
-
-
-class InvalidModeError(DeerFlowError):
-    """Raised when an invalid mode string is given."""
-
-    def __init__(self, mode: str) -> None:
-        self.mode = mode
-        self.valid_modes = list(VALID_MODES)
-        super().__init__(f"Invalid mode '{mode}'. Valid modes: {', '.join(VALID_MODES)}")
 
 
 class MCPServerNotFoundError(DeerFlowError):
@@ -111,7 +106,7 @@ class DockerSandboxError(DeerFlowError):
 
 def get_available_modes() -> list[str]:
     """Return the list of valid agent modes."""
-    return list(VALID_MODES)
+    return list(get_args(DeerFlowMode))
 
 
 def get_available_profile_names(profiles: list[DeerFlowProfile]) -> list[str]:
@@ -133,21 +128,6 @@ def validate_profile_name(name: str, profiles: list[DeerFlowProfile]) -> DeerFlo
         if p.name.lower() == name.lower():
             return p
     raise ProfileNotFoundError(name, get_available_profile_names(profiles))
-
-
-def validate_mode(mode: str) -> str:
-    """Validate and normalise a mode string.
-
-    Args:
-        mode: Raw mode string from user input.
-
-    Returns:
-        Lower-cased validated mode string.
-    """
-    normalised = mode.lower()
-    if normalised not in VALID_MODES:
-        raise InvalidModeError(mode)
-    return normalised
 
 
 def validate_mcp_servers(server_names: list[str]) -> list[str]:

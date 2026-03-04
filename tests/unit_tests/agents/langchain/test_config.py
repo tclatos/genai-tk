@@ -333,10 +333,12 @@ class TestInstantiateMiddlewares:
         result = instantiate_middlewares([], "react")
         assert result == []
 
-    def test_invalid_class_path_skipped(self) -> None:
-        cfg = MiddlewareConfig(**{"class": "no_colon_here"})
-        result = instantiate_middlewares([cfg], "react")
-        assert result == []  # bad path → warning, no crash
+    def test_invalid_class_path_rejected(self) -> None:
+        """Invalid class paths are rejected at model validation."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            MiddlewareConfig(**{"class": "no_colon_here"})
 
     def test_import_failure_skipped(self) -> None:
         cfg = MiddlewareConfig(**{"class": "nonexistent.module:SomeClass"})

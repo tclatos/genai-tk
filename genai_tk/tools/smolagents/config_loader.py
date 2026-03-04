@@ -12,8 +12,8 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 from smolagents import Tool as SmolAgentTool
 
+from genai_tk.tools.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec, tool_spec_from_dict
 from genai_tk.utils.config_mngr import global_config, import_from_qualified
-from genai_tk.utils.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec, tool_spec_from_dict
 
 CONF_YAML_FILE = "agents/smolagents.yaml"
 

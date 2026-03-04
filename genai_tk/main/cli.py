@@ -29,7 +29,7 @@ Create a command group class inheriting from `CliTopCommand`:
 ```python
 from typing import Annotated
 import typer
-from genai_tk.main.cli import CliTopCommand
+from genai_tk.cli.base import CliTopCommand
 
 class MyCommands(CliTopCommand):
     '''My custom command group.'''
@@ -104,15 +104,14 @@ cli:
 """
 
 import sys
-from abc import ABC, abstractmethod
 
 import typer
 from dotenv import load_dotenv
 from loguru import logger
-from pydantic import BaseModel
+
+from genai_tk.cli.base import CliTopCommand
 
 # Import modules where runnables are registered
-from genai_tk.cli.command_tree import display_command_tree
 from genai_tk.utils.config_exceptions import (
     ConfigError,
     ConfigFileNotFoundError,
@@ -125,120 +124,6 @@ from genai_tk.utils.config_mngr import global_config, import_from_qualified
 from genai_tk.utils.logger_factory import setup_logging
 
 load_dotenv(verbose=True)
-
-
-class CliTopCommand(BaseModel, ABC):
-    """Base class for creating CLI command groups.
-
-    This class provides a structured way to define command groups in the CLI.
-    Subclasses must implement `get_description()` and `register_sub_commands()`.
-
-    Attributes:
-        description: A brief description of the command group shown in help text.
-
-    Example:
-        ```python
-        from typing import Annotated
-        import typer
-        from genai_tk.main.cli import CliTopCommand
-
-
-        class DataCommands(CliTopCommand):
-            '''Commands for data processing.'''
-
-            description: str = "Data processing and transformation commands"
-
-            def get_description(self) -> tuple[str, str]:
-                return "data", self.description
-
-            def register_sub_commands(self, cli_app: typer.Typer) -> None:
-                @cli_app.command()
-                def transform(input_file: Annotated[str, typer.Argument(help="Input file path")]) -> None:
-                    '''Transform data from input file.'''
-                    print(f"Transforming {input_file}...")
-
-                @cli_app.command()
-                def validate(schema: Annotated[str, typer.Option("--schema", help="Validation schema")]) -> None:
-                    '''Validate data against schema.'''
-                    print(f"Validating with schema: {schema}")
-        ```
-
-        Register in config:
-        ```yaml
-        cli:
-          commands:
-            - myapp.commands:DataCommands
-        ```
-
-        Usage:
-        ```bash
-        uv run cli data transform input.json
-        uv run cli data validate --schema schema.json
-        uv run cli data --help
-        ```
-    """
-
-    def register(self, cli_app: typer.Typer) -> None:
-        """Register this command group with the CLI application.
-
-        This method is called automatically by the CLI loader. It creates a
-        sub-application for the command group and registers all sub-commands.
-
-        Args:
-            cli_app: The main Typer CLI application to register commands with.
-        """
-        command_name, description = self.get_description()
-        sub_app = typer.Typer(no_args_is_help=True, help=description)
-        self.register_sub_commands(sub_app)
-        cli_app.add_typer(sub_app, name=command_name)
-
-    @abstractmethod
-    def register_sub_commands(self, cli_app: typer.Typer) -> None:
-        """Register individual commands for this command group.
-
-        Implement this method to define the commands that belong to this group.
-        Use the `@cli_app.command()` decorator to register each command.
-
-        Args:
-            cli_app: The Typer sub-application for this command group.
-
-        Example:
-            ```python
-            def register_sub_commands(self, cli_app: typer.Typer) -> None:
-                @cli_app.command()
-                def list() -> None:
-                    '''List all items.'''
-                    print("Listing items...")
-
-                @cli_app.command()
-                def create(name: str) -> None:
-                    '''Create a new item.'''
-                    print(f"Creating {name}...")
-            ```
-        """
-        ...
-
-    @abstractmethod
-    def get_description(self) -> tuple[str, str]:
-        """Return the command group name and description.
-
-        Returns:
-            A tuple of (command_name, description) where:
-            - command_name: The CLI command name (e.g., "data", "config")
-            - description: A brief description shown in help text
-
-        Example:
-            ```python
-            def get_description(self) -> tuple[str, str]:
-                return "database", "Database management commands"
-            ```
-
-            This will create a command group accessible via:
-            ```bash
-            uv run cli database --help
-            ```
-        """
-        ...
 
 
 PRETTY_EXCEPTION = (
@@ -356,6 +241,8 @@ def main() -> None:
 
     # Check if --help is requested or no arguments provided (show custom tree instead of default help)
     if len(sys.argv) == 1 or ("--help" in sys.argv and len(sys.argv) == 2):
+        from genai_tk.cli.command_tree import display_command_tree
+
         display_command_tree(cli_app)
         return
 

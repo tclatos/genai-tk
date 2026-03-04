@@ -1,0 +1,10 @@
+📋 Available Commands
+└── echo: Echo the message (for test purpose)
+
+💡 Quick Start:
+  $ uv run cli <group> <command> # Run a command
+  $ uv run cli <group> --help         # Show help for a group
+  $ uv run cli info config              # Example: show configuration
+
+For detailed help on any command, use: uv run cli <group> <command> --help
+

@@ -55,8 +55,8 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from genai_tk.utils.config_mngr import import_from_qualified
-from genai_tk.utils.tool_specs import ToolSpec
+from genai_tk.tools.tool_specs import ToolSpec
+from genai_tk.utils.config_mngr import QualifiedClassName, import_from_qualified
 
 if TYPE_CHECKING:
     from deepagents.backends.protocol import BackendProtocol
@@ -85,7 +85,9 @@ class MiddlewareConfig(BaseModel):
     ```
     """
 
-    class_path: str = Field(..., alias="class")
+    class_path: QualifiedClassName = Field(
+        ..., alias="class", description="Qualified class name (module.path:ClassName)"
+    )
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     @property
@@ -140,10 +142,14 @@ class BackendConfig(BaseModel):
         ```
     """
 
-    type: Literal["none", "filesystem", "aio_sandbox", "class"] = "none"
-    root_dir: str | None = None
-    class_path: str | None = Field(None, alias="class")
-    kwargs: dict[str, Any] = {}
+    type: Literal["none", "filesystem", "aio_sandbox", "class"] = Field(
+        "none", description="Backend type: none (default), filesystem, aio_sandbox, or class"
+    )
+    root_dir: str | None = Field(None, description="Root directory for the filesystem backend")
+    class_path: QualifiedClassName | None = Field(
+        None, alias="class", description="Qualified class name for custom backends (module.path:ClassName)"
+    )
+    kwargs: dict[str, Any] = Field(default_factory=dict, description="Extra constructor kwargs for the class backend")
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     @property
@@ -172,9 +178,13 @@ class CheckpointerConfig(BaseModel):
     ```
     """
 
-    type: Literal["none", "memory", "class"] = "none"
-    class_path: str | None = Field(None, alias="class")
-    kwargs: dict[str, Any] = {}
+    type: Literal["none", "memory", "class"] = Field(
+        "none", description="Checkpointer type: none (no persistence), memory (in-process), or class (custom)"
+    )
+    class_path: QualifiedClassName | None = Field(
+        None, alias="class", description="Qualified class name for custom checkpointers (module.path:ClassName)"
+    )
+    kwargs: dict[str, Any] = Field(default_factory=dict, description="Constructor kwargs for the class checkpointer")
     model_config = ConfigDict(populate_by_name=True)
 
 
@@ -203,26 +213,28 @@ class AgentProfileConfig(BaseModel):
     a console warning when used with ``type: react`` or ``type: custom``.
     """
 
-    name: str
-    type: AgentType = "react"
-    description: str = ""
-    llm: str | None = None
-    system_prompt: str | None = None
-    pre_prompt: str | None = None
-    tool_specs: list[ToolSpec] = Field(default_factory=list, description="Tool specifications")
+    name: str = Field(..., description="Unique profile name used to select this configuration")
+    type: AgentType = Field("react", description="Agent type: react, deep, or custom")
+    description: str = Field("", description="Human-readable description shown in UI and help text")
+    llm: str | None = Field(None, description="LLM identifier (e.g. 'gpt-4o@openai'); falls back to defaults.llm")
+    system_prompt: str | None = Field(None, description="System prompt injected at the start of the conversation")
+    pre_prompt: str | None = Field(None, description="Prefix prepended to every user message")
+    tool_specs: list[ToolSpec] = Field(default_factory=list, description="Tool specifications loaded from YAML")
     tools: list[dict[str, Any]] = Field(default_factory=list, description="Instantiated tool objects (set at runtime)")
-    mcp_servers: list[str] = []
-    middlewares: list[MiddlewareConfig] | None = None  # None = use inherited defaults
-    checkpointer: CheckpointerConfig | None = None  # None = use inherited defaults
-    backend: BackendConfig | None = None  # None = use inherited defaults
-    # Deep-agent-specific
-    skill_directories: list[str] = []
-    enable_planning: bool = True
-    enable_file_system: bool = True
-    subagents: list[dict[str, Any]] = []
-    # UI / documentation
-    features: list[str] = []
-    examples: list[str] = []
+    mcp_servers: list[str] = Field(default_factory=list, description="MCP server names to attach to this profile")
+    middlewares: list[MiddlewareConfig] | None = Field(
+        None, description="Middleware stack; None inherits from defaults"
+    )
+    checkpointer: CheckpointerConfig | None = Field(
+        None, description="Checkpointer config; None inherits from defaults"
+    )
+    backend: BackendConfig | None = Field(None, description="Execution backend config; None inherits from defaults")
+    skill_directories: list[str] = Field(default_factory=list, description="Directories to scan for deep-agent skills")
+    enable_planning: bool = Field(True, description="Enable multi-step planning (deep agents only)")
+    enable_file_system: bool = Field(True, description="Allow file-system access inside the sandbox")
+    subagents: list[dict[str, Any]] = Field(default_factory=list, description="Subagent definitions (deep agents only)")
+    features: list[str] = Field(default_factory=list, description="Feature flags shown in the UI")
+    examples: list[str] = Field(default_factory=list, description="Example prompts shown in the UI")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -235,13 +247,19 @@ class AgentProfileConfig(BaseModel):
 class AgentDefaults(BaseModel):
     """Inheritable defaults applied to every profile that does not override them."""
 
-    type: AgentType = "react"
-    llm: str | None = None
-    middlewares: list[MiddlewareConfig] = []
-    checkpointer: CheckpointerConfig = CheckpointerConfig(type="none")
-    backend: BackendConfig = BackendConfig(type="none")
-    enable_planning: bool = True
-    enable_file_system: bool = True
+    type: AgentType = Field("react", description="Default agent type applied to profiles that omit it")
+    llm: str | None = Field(None, description="Default LLM identifier used when a profile does not specify one")
+    middlewares: list[MiddlewareConfig] = Field(default_factory=list, description="Default middleware stack")
+    checkpointer: CheckpointerConfig = Field(
+        default_factory=lambda: CheckpointerConfig.model_validate({"type": "none"}),
+        description="Default checkpointer",
+    )
+    backend: BackendConfig = Field(
+        default_factory=lambda: BackendConfig.model_validate({"type": "none"}),
+        description="Default execution backend",
+    )
+    enable_planning: bool = Field(True, description="Default planning flag for deep agents")
+    enable_file_system: bool = Field(True, description="Default file-system access flag")
     skills: SkillsConfig = SkillsConfig()
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -249,9 +267,12 @@ class AgentDefaults(BaseModel):
 class LangchainAgentsConfig(BaseModel):
     """Top-level config model for the unified ``langchain.yaml``."""
 
-    defaults: AgentDefaults = AgentDefaults()
-    default_profile: str = ""
-    profiles: list[AgentProfileConfig] = []
+    defaults: AgentDefaults = Field(
+        default_factory=lambda: AgentDefaults.model_validate({}),
+        description="Shared defaults inherited by all profiles",
+    )
+    default_profile: str = Field("", description="Name of the profile selected when none is specified")
+    profiles: list[AgentProfileConfig] = Field(default_factory=list, description="List of agent profiles")
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -271,8 +292,8 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
 
     import yaml
 
+    from genai_tk.tools.tool_specs import tool_spec_from_dict
     from genai_tk.utils.config_mngr import paths_config
-    from genai_tk.utils.tool_specs import tool_spec_from_dict
 
     if config_path is None:
         config_dir = Path(paths_config().config)
@@ -293,7 +314,7 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
     default_profile = section.get("default_profile", "")
     profiles_raw = section.get("profiles", [])
 
-    defaults = AgentDefaults.model_validate(defaults_raw) if defaults_raw else AgentDefaults()
+    defaults = AgentDefaults.model_validate(defaults_raw) if defaults_raw else AgentDefaults.model_validate({})
 
     # Convert tool specs from dicts to Pydantic models
     profiles = []

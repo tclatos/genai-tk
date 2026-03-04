@@ -20,13 +20,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
 import typer
-from langchain_core.documents import Document
 from rich.console import Console
 from rich.table import Table
 
-from genai_tk.main.cli import CliTopCommand
+from genai_tk.cli.base import CliTopCommand
 
 if TYPE_CHECKING:
+    from langchain_core.documents import Document
+
     from genai_tk.core.embeddings_store import EmbeddingsStore
 
 

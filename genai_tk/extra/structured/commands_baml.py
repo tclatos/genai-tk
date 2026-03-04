@@ -36,7 +36,7 @@ import typer
 from loguru import logger
 from pydantic import BaseModel
 
-from genai_tk.main.cli import CliTopCommand
+from genai_tk.cli.base import CliTopCommand
 
 
 class BamlCommands(CliTopCommand):

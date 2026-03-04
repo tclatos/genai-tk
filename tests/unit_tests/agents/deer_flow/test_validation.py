@@ -12,13 +12,11 @@ from genai_tk.agents.deer_flow.cli_commands import (
 from genai_tk.agents.deer_flow.profile import (
     DeerFlowProfile,
     DockerSandboxError,
-    InvalidModeError,
     MCPServerNotFoundError,
     ProfileNotFoundError,
     get_available_modes,
     get_available_profile_names,
     validate_mcp_servers,
-    validate_mode,
     validate_profile_name,
 )
 
@@ -72,26 +70,18 @@ def test_validate_profile_name_not_found():
 
 
 def test_validate_mode_success():
-    """Test successful mode validation."""
-    assert validate_mode("flash") == "flash"
-    assert validate_mode("thinking") == "thinking"
-    assert validate_mode("pro") == "pro"
-    assert validate_mode("ultra") == "ultra"
-
-    # Case insensitive
-    assert validate_mode("FLASH") == "flash"
-    assert validate_mode("Thinking") == "thinking"
+    """Test that valid modes are accepted by Pydantic."""
+    for mode in ("flash", "thinking", "pro", "ultra"):
+        profile = DeerFlowProfile(name="test", mode=mode)  # type: ignore[arg-type]
+        assert profile.mode == mode
 
 
 def test_validate_mode_invalid():
-    """Test mode validation with invalid mode."""
-    with pytest.raises(InvalidModeError) as exc_info:
-        validate_mode("invalid_mode")
+    """Test that Pydantic rejects invalid modes."""
+    from pydantic import ValidationError
 
-    error = exc_info.value
-    assert error.mode == "invalid_mode"
-    assert "flash" in error.valid_modes
-    assert "thinking" in error.valid_modes
+    with pytest.raises(ValidationError):
+        DeerFlowProfile(name="test", mode="invalid_mode")  # type: ignore[arg-type]
 
 
 def test_validate_mcp_servers_empty():

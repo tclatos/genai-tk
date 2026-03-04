@@ -24,11 +24,6 @@ from typing import Annotated, Optional
 
 import typer
 from loguru import logger
-from prompt_toolkit import PromptSession
-from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
-from prompt_toolkit.history import FileHistory
-from prompt_toolkit.patch_stdout import patch_stdout
-from prompt_toolkit.styles import Style
 from pydantic import BaseModel
 from rich.console import Console
 from rich.live import Live
@@ -38,7 +33,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from genai_tk.main.cli import CliTopCommand
+from genai_tk.cli.base import CliTopCommand
 
 console = Console()
 
@@ -773,6 +768,12 @@ async def _run_chat_mode(
     with console.status("Loading deer-flow agent...", spinner="dots"):
         client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
     thread_id = _stable_thread_id()
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+    from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.patch_stdout import patch_stdout
+    from prompt_toolkit.styles import Style
+
     session: PromptSession = PromptSession(history=FileHistory(str(Path(".deerflow.input.history"))))
     prompt_style = Style.from_dict({"prompt": "bold green"})
 

@@ -28,7 +28,6 @@ from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
-from upath import UPath
 
 from genai_tk.utils.config_exceptions import (
     ConfigFileNotFoundError,
@@ -78,8 +77,8 @@ QualifiedFunctionName = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATT
 class PathsConfig(BaseModel):
     """Paths configuration section (``paths:`` in YAML).
 
-    All path fields are resolved strings. Use ``UPath(paths_config().project)`` etc.
-    to obtain ``UPath`` objects.
+    All path fields are resolved strings. Use ``Path(paths_config().project)`` etc.
+    to obtain ``Path`` objects.
     """
 
     home: str | None = Field(None, description="Home directory (HOME env var)")
@@ -252,7 +251,7 @@ class OmegaConfig(BaseModel):
         if errors:
             raise ConfigValidationError(errors, config_name=self.selected_config)
 
-    def merge_with(self, file_path: str | UPath) -> OmegaConfig:
+    def merge_with(self, file_path: str | Path) -> OmegaConfig:
         """Merge additional YAML configuration file into the current config.
 
         Args:
@@ -260,7 +259,7 @@ class OmegaConfig(BaseModel):
         Returns:
             self for method chaining
         """
-        path = UPath(file_path)
+        path = Path(file_path)
         if not path.exists():
             raise ConfigFileNotFoundError(str(file_path))
 
@@ -450,8 +449,8 @@ class OmegaConfig(BaseModel):
                 raise ConfigValidationError(errors, config_name=key)
         return result  # pyright: ignore[reportReturnType]
 
-    def get_dir_path(self, key: str, create_if_not_exists: bool = False) -> UPath:
-        """Get a directory path. Can be local or remote  (https, S3, webdav, sftp,...)
+    def get_dir_path(self, key: str, create_if_not_exists: bool = False) -> Path:
+        """Get a directory path.
 
         Args:
             key: Configuration key containing the path
@@ -464,7 +463,7 @@ class OmegaConfig(BaseModel):
             ConfigFileNotFoundError: If path doesn't exist and create_if_not_exists=False
             ConfigValueError: If path exists but is not a directory
         """
-        path = UPath(self.get_str(key))
+        path = Path(self.get_str(key))
         if not path.exists():
             if create_if_not_exists:
                 logger.warning(f"Creating missing directory: {path}")
@@ -477,8 +476,8 @@ class OmegaConfig(BaseModel):
             raise ConfigValueError(key, value=str(path), reason="Path exists but is not a directory")
         return path
 
-    def get_file_path(self, key: str, check_if_exists: bool = True) -> UPath:
-        """Get a file path. Can be local or remote  (https, S3, webdav, sftp,...)
+    def get_file_path(self, key: str, check_if_exists: bool = True) -> Path:
+        """Get a file path.
 
         Args:
             key: Configuration key containing the file path
@@ -490,7 +489,7 @@ class OmegaConfig(BaseModel):
             ConfigTypeError: If value is not a string
             ConfigFileNotFoundError: If file doesn't exist and check_if_exists=True
         """
-        path = UPath(self.get_str(key))
+        path = Path(self.get_str(key))
         if not path.exists() and check_if_exists:
             raise ConfigFileNotFoundError(str(path))
         return path
@@ -702,8 +701,8 @@ def paths_config() -> PathsConfig:
         ```python
         from genai_tk.utils.config_mngr import paths_config
 
-        project_dir = UPath(paths_config().project)
-        config_dir = UPath(paths_config().config)
+        project_dir = Path(paths_config().project)
+        config_dir = Path(paths_config().config)
         ```
     """
     from genai_tk.utils.config_exceptions import ConfigValidationError

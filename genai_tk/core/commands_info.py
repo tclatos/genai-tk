@@ -19,7 +19,7 @@ from typing import Annotated
 import typer
 from typer import Option
 
-from genai_tk.main.cli import CliTopCommand
+from genai_tk.cli.base import CliTopCommand
 from genai_tk.utils.config_mngr import global_config
 
 

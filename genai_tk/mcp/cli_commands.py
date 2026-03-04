@@ -25,7 +25,7 @@ from typing import Annotated, Optional
 import typer
 from loguru import logger
 
-from genai_tk.main.cli import CliTopCommand
+from genai_tk.cli.base import CliTopCommand
 
 
 class McpCommands(CliTopCommand):

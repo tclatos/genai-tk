@@ -15,10 +15,14 @@ Example:
     >>> LlmCache.set_method("memory")  # Switch to in-memory caching
 """
 
-from enum import Enum
-from typing import Optional
+from __future__ import annotations
 
-from langchain_core.caches import BaseCache
+from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from langchain_core.caches import BaseCache
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.utils.config_mngr import global_config
@@ -57,7 +61,7 @@ class LlmCache:
     """A wrapper above LangChain 'set_llm_cache' to configure and select LLM cache method."""
 
     @classmethod
-    def from_value(cls, value: str | None) -> Optional[BaseCache]:
+    def from_value(cls, value: str | None) -> BaseCache | None:
         """ """
         from langchain_community.cache import InMemoryCache, SQLiteCache
         from loguru import logger

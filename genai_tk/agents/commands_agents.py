@@ -10,7 +10,7 @@ to per-agent-type modules:
 
 import typer
 
-from genai_tk.main.cli import CliTopCommand
+from genai_tk.cli.base import CliTopCommand
 
 
 class AgentCommands(CliTopCommand):

@@ -20,9 +20,8 @@ from typing import Annotated, Optional
 import typer
 from loguru import logger
 from typer import Option
-from upath import UPath
 
-from genai_tk.main.cli import CliTopCommand
+from genai_tk.cli.base import CliTopCommand
 from genai_tk.utils.config_mngr import global_config
 
 
@@ -295,6 +294,8 @@ class ExtraCommands(CliTopCommand):
             Example:
                 python -m src.ai_extra.mistral_ocr ocr_pdf "*.pdf" "data/*.pdf" --output-dir=./ocr_results
             """
+
+            from upath import UPath
 
             from genai_tk.extra.loaders.mistral_ocr import process_pdf_batch
 

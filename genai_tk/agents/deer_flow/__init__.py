@@ -29,16 +29,16 @@ from genai_tk.agents.deer_flow.embedded_client import (
 )
 from genai_tk.agents.deer_flow.profile import (
     DeerFlowError,
+    DeerFlowMode,
     DeerFlowProfile,
+    DeerFlowSandbox,
     DockerSandboxError,
-    InvalidModeError,
     MCPServerNotFoundError,
     ProfileNotFoundError,
     get_available_modes,
     get_available_profile_names,
     load_deer_flow_profiles,
     validate_mcp_servers,
-    validate_mode,
     validate_profile_name,
 )
 from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
@@ -46,11 +46,12 @@ from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 __all__ = [
     # Profile
     "DeerFlowProfile",
+    "DeerFlowMode",
+    "DeerFlowSandbox",
     "load_deer_flow_profiles",
     "get_available_modes",
     "get_available_profile_names",
     "validate_profile_name",
-    "validate_mode",
     "validate_mcp_servers",
     # Embedded client + events
     "EmbeddedDeerFlowClient",
@@ -67,6 +68,5 @@ __all__ = [
     "DeerFlowError",
     "DockerSandboxError",
     "ProfileNotFoundError",
-    "InvalidModeError",
     "MCPServerNotFoundError",
 ]
