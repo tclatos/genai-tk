@@ -56,6 +56,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.utils.config_mngr import import_from_qualified
+from genai_tk.utils.tool_specs import ToolSpec
 
 if TYPE_CHECKING:
     from deepagents.backends.protocol import BackendProtocol
@@ -208,7 +209,8 @@ class AgentProfileConfig(BaseModel):
     llm: str | None = None
     system_prompt: str | None = None
     pre_prompt: str | None = None
-    tools: list[dict[str, Any]] = []
+    tool_specs: list[ToolSpec] = Field(default_factory=list, description="Tool specifications")
+    tools: list[dict[str, Any]] = Field(default_factory=list, description="Instantiated tool objects (set at runtime)")
     mcp_servers: list[str] = []
     middlewares: list[MiddlewareConfig] | None = None  # None = use inherited defaults
     checkpointer: CheckpointerConfig | None = None  # None = use inherited defaults
@@ -270,6 +272,7 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
     import yaml
 
     from genai_tk.utils.config_mngr import paths_config
+    from genai_tk.utils.tool_specs import tool_spec_from_dict
 
     if config_path is None:
         config_dir = Path(paths_config().config)
@@ -291,7 +294,18 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
     profiles_raw = section.get("profiles", [])
 
     defaults = AgentDefaults.model_validate(defaults_raw) if defaults_raw else AgentDefaults()
-    profiles = [AgentProfileConfig.model_validate(p) for p in profiles_raw]
+
+    # Convert tool specs from dicts to Pydantic models
+    profiles = []
+    for p in profiles_raw:
+        tools_raw = p.get("tools", [])
+        tool_specs = []
+        for tool_cfg in tools_raw:
+            spec = tool_spec_from_dict(tool_cfg.copy())
+            if spec:
+                tool_specs.append(spec)
+        p["tool_specs"] = tool_specs
+        profiles.append(AgentProfileConfig.model_validate(p))
 
     return LangchainAgentsConfig(defaults=defaults, default_profile=default_profile, profiles=profiles)
 

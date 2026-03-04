@@ -50,9 +50,7 @@ def register(cli_app: typer.Typer) -> None:
         from genai_tk.core.llm_factory import LlmFactory
         from genai_tk.tools.smolagents.config_loader import (
             CONF_YAML_FILE,
-            convert_langchain_tools,
-            load_smolagent_demo_config,
-            process_tools_from_config,
+            create_demo_from_config,
         )
 
         # Resolve LLM identifier if provided
@@ -75,8 +73,8 @@ def register(cli_app: typer.Typer) -> None:
         final_imports = imports or []
 
         if config:
-            demo_config = load_smolagent_demo_config(config)
-            if demo_config is None:
+            demo = create_demo_from_config(config)
+            if demo is None:
                 print(f"❌ Error: Configuration '{config}' not found in {CONF_YAML_FILE}")
                 print()
                 from genai_tk.cli.config_display import display_smolagents_configs
@@ -85,10 +83,9 @@ def register(cli_app: typer.Typer) -> None:
                 return
 
             # Extract configuration parameters
-            raw_config_tools = process_tools_from_config(demo_config.get("tools", []))
-            config_tools = convert_langchain_tools(raw_config_tools)  # Convert LangChain tools to SmolAgent tools
-            config_authorized_imports = demo_config.get("authorized_imports", [])
-            config_pre_prompt = demo_config.get("pre_prompt")
+            config_tools = demo.tools
+            config_authorized_imports = demo.authorized_imports
+            config_pre_prompt = demo.pre_prompt
 
             print(f"Using CodeAct configuration '{config}':")
             if config_tools:

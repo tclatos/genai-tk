@@ -5,16 +5,22 @@ demo configurations from codeact_agent.yaml, eliminating code duplication
 between the CLI and webapp implementations.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from langchain_core.tools import BaseTool as LangChainBaseTool
 from loguru import logger
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from smolagents import Tool as SmolAgentTool
 
 from genai_tk.utils.config_mngr import global_config, import_from_qualified
+from genai_tk.utils.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec, tool_spec_from_dict
 
 CONF_YAML_FILE = "agents/smolagents.yaml"
+
+
+# ---------------------------------------------------------------------------
+# Configuration Models
+# ---------------------------------------------------------------------------
 
 
 class SmolagentsAgentConfig(BaseModel):
@@ -25,101 +31,55 @@ class SmolagentsAgentConfig(BaseModel):
     """
 
     name: str
-    tools: List[Any] = []
-    mcp_servers: List[str] = []
-    examples: List[str] = []
-    authorized_imports: List[str] = []
-    pre_prompt: Optional[str] = None
+    tool_specs: List[Union[ClassToolSpec, FunctionToolSpec, FactoryToolSpec]] = Field(
+        default_factory=list, description="Tool specifications"
+    )
+    tools: List[Any] = Field(default_factory=list, description="Instantiated tool objects (set at runtime)")
+    mcp_servers: List[str] = Field(default_factory=list, description="MCP server names")
+    examples: List[str] = Field(default_factory=list, description="Example prompts")
+    authorized_imports: List[str] = Field(default_factory=list, description="Authorized imports for execution")
+    pre_prompt: Optional[str] = Field(None, description="Pre-prompt to include with exemplary behavior")
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-def process_tools_from_config(tools_config: List[Dict[str, Any]] | None) -> List[Any]:
-    """Process tools configuration and return list of tool instances.
+def instantiate_tools_from_specs(
+    tool_specs: List[Union[ClassToolSpec, FunctionToolSpec, FactoryToolSpec]],
+) -> List[Any]:
+    """Instantiate tool objects from tool specifications.
 
     Args:
-        tools_config: List of tool configuration dictionaries, or None
+        tool_specs: List of ToolSpec instances
 
     Returns:
-        List of tool instances
+        List of instantiated tool objects
     """
     tools = []
 
-    # Handle None case (when YAML has "tools:" with no value)
-    if tools_config is None:
-        return tools
-
-    for tool_config in tools_config:
-        if not isinstance(tool_config, dict):
-            continue
-
+    for spec in tool_specs:
         try:
-            if "function" in tool_config:
-                tools.extend(_process_function_tool(tool_config))
-            elif "class" in tool_config:
-                tool_instance = _process_class_tool(tool_config)
-                if tool_instance:
-                    tools.append(tool_instance)
-            elif "factory" in tool_config:
-                tools.extend(_process_factory_tool(tool_config))
+            if isinstance(spec, ClassToolSpec):
+                tool_class = import_from_qualified(spec.tool_class)
+                tool_instance = tool_class(**spec.extra_params)
+                tools.append(tool_instance)
+            elif isinstance(spec, FunctionToolSpec):
+                tool_func = import_from_qualified(spec.function)
+                tools.append(tool_func)
+            elif isinstance(spec, FactoryToolSpec):
+                factory_func = import_from_qualified(spec.factory)
+                tool_result = factory_func(**spec.extra_params)
+
+                if isinstance(tool_result, list):
+                    tools.extend(tool_result)
+                else:
+                    tools.append(tool_result)
+        except ModuleNotFoundError as ex:
+            missing_module = str(ex).split("'")[1] if "'" in str(ex) else str(ex)
+            logger.warning(f"Skipping tool: missing optional dependency '{missing_module}'")
+        except (ImportError, AttributeError) as ex:
+            logger.warning(f"Skipping tool {spec}: {ex}")
         except Exception as ex:
-            logger.warning(f"Failed to process tool config {tool_config}: {ex}")
-
-    return tools
-
-
-def _process_function_tool(tool_config: Dict[str, Any]) -> List[Any]:
-    """Process a function-based tool configuration."""
-    func_ref = tool_config.get("function")
-    tools = []
-
-    if isinstance(func_ref, str) and ":" in func_ref:
-        try:
-            tool_func = import_from_qualified(func_ref)
-            tools.append(tool_func)
-        except Exception as ex:
-            logger.warning(f"Failed to load function {func_ref}: {ex}")
-    else:
-        logger.warning(f"Unknown function reference: {func_ref}")
-
-    return tools
-
-
-def _process_class_tool(tool_config: Dict[str, Any]) -> Optional[Any]:
-    """Process a class-based tool configuration."""
-    class_ref = tool_config.get("class")
-    params = {k: v for k, v in tool_config.items() if k != "class"}
-
-    if isinstance(class_ref, str) and ":" in class_ref:
-        try:
-            tool_class = import_from_qualified(class_ref)
-            return tool_class(**params)
-        except Exception as ex:
-            logger.warning(f"Failed to load class {class_ref}: {ex}")
-    else:
-        logger.warning(f"Unknown tool class reference: {class_ref}")
-
-    return None
-
-
-def _process_factory_tool(tool_config: Dict[str, Any]) -> List[Any]:
-    """Process a factory-based tool configuration."""
-    factory_ref = tool_config.get("factory")
-    params = {k: v for k, v in tool_config.items() if k != "factory"}
-    tools = []
-
-    if isinstance(factory_ref, str) and ":" in factory_ref:
-        try:
-            factory_func = import_from_qualified(factory_ref)
-            tool_result = factory_func(**params)
-
-            if isinstance(tool_result, list):
-                tools.extend(tool_result)
-            else:
-                tools.append(tool_result)
-        except Exception as ex:
-            logger.warning(f"Failed to load factory {factory_ref}: {ex}")
-    else:
-        logger.warning(f"Unknown factory reference: {factory_ref}")
+            logger.warning(f"Failed to instantiate tool from {spec}: {ex}")
 
     return tools
 
@@ -166,7 +126,7 @@ def load_all_demos_from_config() -> List[SmolagentsAgentConfig]:
     """Load and configure all demonstration scenarios from the application configuration.
 
     Returns:
-        List of configured CodeactDemo objects
+        List of configured SmolagentsAgentConfig objects
     """
     try:
         demos_config = global_config().get_list("smolagents_codeact")
@@ -179,12 +139,22 @@ def load_all_demos_from_config() -> List[SmolagentsAgentConfig]:
             authorized_imports = demo_config.get("authorized_imports", [])
             pre_prompt = demo_config.get("pre_prompt")
 
-            # Process tools
-            raw_tools = process_tools_from_config(demo_config.get("tools", []))
+            # Parse tool specifications from config
+            tool_specs = []
+            raw_tools_config = demo_config.get("tools", [])
+            if raw_tools_config:
+                for tool_cfg in raw_tools_config:
+                    spec = tool_spec_from_dict(tool_cfg.copy())
+                    if spec:
+                        tool_specs.append(spec)
+
+            # Instantiate tools from specifications
+            raw_tools = instantiate_tools_from_specs(tool_specs)
             converted_tools = convert_langchain_tools(raw_tools)
 
             demo = SmolagentsAgentConfig(
                 name=name,
+                tool_specs=tool_specs,
                 tools=converted_tools,
                 mcp_servers=mcp_servers,
                 examples=examples,
@@ -200,13 +170,13 @@ def load_all_demos_from_config() -> List[SmolagentsAgentConfig]:
 
 
 def create_demo_from_config(config_name: str) -> Optional[SmolagentsAgentConfig]:
-    """Create a single CodeactDemo from configuration.
+    """Create a single SmolagentsAgentConfig from configuration.
 
     Args:
         config_name: Name of the configuration to load
 
     Returns:
-        CodeactDemo instance or None if not found
+        SmolagentsAgentConfig instance or None if not found
     """
     demo_config = load_smolagent_demo_config(config_name)
     if not demo_config:
@@ -218,12 +188,22 @@ def create_demo_from_config(config_name: str) -> Optional[SmolagentsAgentConfig]
     authorized_imports = demo_config.get("authorized_imports", [])
     pre_prompt = demo_config.get("pre_prompt")
 
-    # Process tools
-    raw_tools = process_tools_from_config(demo_config.get("tools", []))
+    # Parse tool specifications from config
+    tool_specs = []
+    raw_tools_config = demo_config.get("tools", [])
+    if raw_tools_config:
+        for tool_cfg in raw_tools_config:
+            spec = tool_spec_from_dict(tool_cfg.copy())
+            if spec:
+                tool_specs.append(spec)
+
+    # Instantiate tools from specifications
+    raw_tools = instantiate_tools_from_specs(tool_specs)
     converted_tools = convert_langchain_tools(raw_tools)
 
     return SmolagentsAgentConfig(
         name=name,
+        tool_specs=tool_specs,
         tools=converted_tools,
         mcp_servers=mcp_servers,
         examples=examples,

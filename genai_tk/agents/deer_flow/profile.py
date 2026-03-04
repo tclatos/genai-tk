@@ -12,6 +12,8 @@ import yaml
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from genai_tk.utils.tool_specs import ToolSpec, tool_spec_from_dict
+
 VALID_MODES = ("flash", "thinking", "pro", "ultra")
 
 
@@ -29,6 +31,8 @@ class DeerFlowProfile(BaseModel):
     mcp_servers: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
     skill_directories: list[str] = Field(default_factory=list)
+    tool_specs: list[ToolSpec] = Field(default_factory=list, description="Tool specifications")
+    tools: list[dict] = Field(default_factory=list, description="Instantiated tool objects (set at runtime)")
     features: list[str] = Field(default_factory=list)
     examples: list[str] = Field(default_factory=list)
     system_prompt: str | None = None
@@ -209,6 +213,15 @@ def load_deer_flow_profiles(config_path: str | None = None) -> list[DeerFlowProf
 
     profiles = []
     for entry in raw.get("deerflow_agents", []):
+        # Convert tool specs from dicts to Pydantic models
+        tools_raw = entry.get("tools", [])
+        tool_specs = []
+        for tool_cfg in tools_raw:
+            spec = tool_spec_from_dict(tool_cfg.copy())
+            if spec:
+                tool_specs.append(spec)
+        entry["tool_specs"] = tool_specs
+
         profile = DeerFlowProfile.model_validate(entry)
         profiles.append(profile)
 

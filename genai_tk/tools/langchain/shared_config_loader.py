@@ -126,6 +126,12 @@ def _process_class_tool(tool_config: dict[str, Any]) -> BaseTool | None:
             if isinstance(instance, BaseTool):
                 return instance
             logger.warning(f"Class {class_ref!r} does not produce a BaseTool instance")
+        except ModuleNotFoundError as ex:
+            # Extract missing module name from error message
+            missing_module = str(ex).split("'")[1] if "'" in str(ex) else str(ex)
+            logger.warning(f"Skipping tool {class_ref!r}: missing optional dependency '{missing_module}'")
+        except (ImportError, AttributeError) as ex:
+            logger.warning(f"Skipping tool {class_ref!r}: {ex}")
         except Exception as ex:
             logger.warning(f"Failed to load class {class_ref!r}: {ex}")
     else:

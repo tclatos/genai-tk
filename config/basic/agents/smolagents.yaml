@@ -10,19 +10,7 @@ smolagents_codeact:
     tools: 
       - class: smolagents:WebSearchTool
       - class: smolagents:VisitWebpageTool
-      - langchain: 
-    authorized_imports: ["pandas", "matplotlib.*", "sklearn.*"]
-    examples:
-      - "How many seconds would it take for a leopard at full speed to run through Pont des Arts?"
-      - "If the US keeps its 2024 growth rate, how many years will it take for the GDP to double?"
-      - "Which Dutch player scored an open-play goal in the 2022 Netherlands vs Argentina game in the men's FIFA World Cup?"
 
-  - name: "Titanic"
-    tools:
-      - class: ${paths.smolagent_custom_tools}.dataframe_tools:DataFrameTool
-        name: "titanic_data_reader"
-        description: "Data related to the Titanic passengers"
-        source_path: ${paths.project}/use_case_data/other/titanic.csv
         
       - class: smolagents:WebSearchTool
       - class: smolagents:VisitWebpageTool
