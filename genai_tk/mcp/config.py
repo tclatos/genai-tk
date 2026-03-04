@@ -28,7 +28,7 @@ from loguru import logger
 from omegaconf import OmegaConf
 from pydantic import BaseModel
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.config_mngr import get_raw_config, global_config
 
 
 class MCPToolConfig(BaseModel):
@@ -116,7 +116,7 @@ def load_mcp_server_definitions(config_path: Path | str | None = None) -> list[M
 
     # Merge with global config so ${paths.project} etc. resolve
     try:
-        merged = OmegaConf.merge(global_config().root, raw_cfg)
+        merged = OmegaConf.merge(get_raw_config(), raw_cfg)
     except Exception as e:
         logger.warning(f"Could not merge with global config for interpolation: {e}")
         merged = raw_cfg

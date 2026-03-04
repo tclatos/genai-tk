@@ -32,14 +32,14 @@ Example:
 
 import os  # noqa: I001
 from functools import cached_property, lru_cache
-from typing import Annotated
+from typing import Annotated, Any
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
 from langchain_classic.embeddings import CacheBackedEmbeddings
 from langchain_core.embeddings import Embeddings
 from loguru import logger
-from omegaconf import DictConfig, ListConfig
-from pydantic import BaseModel, Field, computed_field, field_validator
+from omegaconf import DictConfig
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from genai_tk.extra.kv_store_registry import KvStoreRegistry
 from genai_tk.utils.config_mngr import global_config
@@ -103,6 +103,83 @@ class EmbeddingsInfo(BaseModel):
         return self.get_provider_info().api_key_env_var
 
 
+# ---------------------------------------------------------------------------
+# Embeddings configuration schema and typed accessor
+# ---------------------------------------------------------------------------
+
+
+class EmbeddingsModelsConfig(BaseModel):
+    """Named embeddings model IDs for each configured tag (``embeddings.models:`` in YAML).
+
+    The ``default`` tag is mandatory; any extra tags (e.g. ``local``, ``fake``) are stored
+    as extra fields and accessible via ``get_tag()``.
+    """
+
+    default: str = Field(..., description="Default embeddings model (ID or compact alias)")
+    model_config = ConfigDict(extra="allow")
+
+    def get_tag(self, tag: str) -> str | None:
+        """Return the embeddings ID configured for a named tag (e.g. 'local', 'fake')."""
+        if tag == "default":
+            return self.default
+        return (self.model_extra or {}).get(tag)
+
+    def all_tags(self) -> dict[str, str]:
+        """Return all configured tag → embeddings ID mappings."""
+        result: dict[str, str] = {"default": self.default}
+        result.update({k: v for k, v in (self.model_extra or {}).items() if isinstance(v, str)})
+        return result
+
+
+class EmbeddingsSection(BaseModel):
+    """Top-level ``embeddings:`` configuration section (baseline.yaml + providers/embeddings.yaml).
+
+    Example YAML:
+    ```yaml
+    embeddings:
+      models:
+        default: ada_002@openai
+        local: artic_22@ollama
+        fake: embeddings_768@fake
+      cache: data/hf_models
+      registry:
+        - model_id: ada_002
+          ...
+    ```
+    """
+
+    models: EmbeddingsModelsConfig = Field(..., description="Default and tagged embeddings model IDs")
+    cache: str | None = Field(None, description="HuggingFace model cache directory")
+    registry: list[Any] = Field(default_factory=list, description="Per-model provider entries from embeddings.yaml")
+    model_config = ConfigDict(extra="allow")
+
+
+def embeddings_config() -> EmbeddingsSection:
+    """Return typed embeddings configuration (the ``embeddings:`` section of app config).
+
+    Example:
+        ```python
+        from genai_tk.core.embeddings_factory import embeddings_config
+
+        default_model = embeddings_config().models.default
+        hf_cache = embeddings_config().cache
+        ```
+    """
+    from genai_tk.utils.config_exceptions import ConfigValidationError
+
+    try:
+        raw = global_config().get_dict("embeddings")
+        return EmbeddingsSection.model_validate(raw)
+    except Exception as e:
+        raise ConfigValidationError(
+            [
+                f"Invalid 'embeddings' configuration section: {e}",
+                "Check config/providers/embeddings.yaml and config/basic/init/baseline.yaml.",
+            ],
+            config_name="embeddings",
+        ) from e
+
+
 def _read_embeddings_list_file() -> list[EmbeddingsInfo]:
     """Read embeddings providers from merged configuration.
 
@@ -111,33 +188,19 @@ def _read_embeddings_list_file() -> list[EmbeddingsInfo]:
 
     Returns:
         List of configured embeddings models
-
-    Raises:
-        ConfigKeyNotFoundError: If embeddings is not found in config
-        ConfigTypeError: If embeddings is not a list
     """
-    from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError, ConfigTypeError
+    providers_data = embeddings_config().registry
 
-    try:
-        providers_data = global_config().get("embeddings.registry")
-    except Exception as e:
-        logger.error(
-            "Failed to load embeddings providers from config. "
+    if not providers_data:
+        logger.warning(
+            "No embeddings registry found in config. "
             "Ensure 'config/providers/embeddings.yaml' is in the :merge list in app_conf.yaml"
         )
-        raise ConfigKeyNotFoundError(
-            "embeddings.registry",
-            available_keys=[],
-        ) from e
-
-    if not isinstance(providers_data, (list, ListConfig)):
-        raise ConfigTypeError(
-            "embeddings.registry", expected_type=list, actual_type=type(providers_data), actual_value=providers_data
-        )
+        return []
 
     embeddings = []
     for idx, model_entry in enumerate(providers_data):
-        if not model_entry or not isinstance(model_entry, (dict, DictConfig)):
+        if not model_entry or not isinstance(model_entry, dict):
             logger.warning(f"Skipping invalid embeddings entry at index {idx}: {model_entry}")
             continue
 
@@ -252,7 +315,7 @@ class EmbeddingsFactory(BaseModel):
 
         # Set default if neither embeddings nor embeddings_id nor embeddings_tag provided
         if self.embeddings_id is None:
-            default_id = global_config().get_str("embeddings.models.default")
+            default_id = embeddings_config().models.default
             object.__setattr__(self, "embeddings_id", default_id)
 
         # Final validation that the resolved/default embeddings_id is known
@@ -307,7 +370,8 @@ class EmbeddingsFactory(BaseModel):
         Raises:
             ValueError: If tag is not found or corresponds to unknown embeddings
         """
-        embeddings_id = global_config().get_str(f"embeddings.models.{embeddings_tag}", default="default")
+        models = embeddings_config().models
+        embeddings_id = models.get_tag(embeddings_tag) or "default"
         if embeddings_id == "default":
             raise ValueError(f"Cannot find embeddings of type: '{embeddings_tag}' (no key found in config file)")
         if embeddings_id not in EmbeddingsFactory.known_items():
@@ -406,7 +470,7 @@ class EmbeddingsFactory(BaseModel):
         elif self.info.provider == "huggingface":
             from langchain_huggingface import HuggingFaceEmbeddings  # type: ignore
 
-            cache = global_config().get_str("embeddings.cache")
+            cache = embeddings_config().cache or ""
             emb = HuggingFaceEmbeddings(
                 model_name=self.info.model,
                 model_kwargs={"device": "cpu", "trust_remote_code": True},

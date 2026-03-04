@@ -18,11 +18,9 @@ The registry supports three types of Runnables:
 
 Example:
     >>> # Register a new chain
-    >>> register_runnable(RunnableItem(
-    ...     name="my_chain",
-    ...     runnable=my_chain_instance,
-    ...     examples=[Example(query=["sample query"])]
-    ... ))
+    >>> register_runnable(
+    ...     RunnableItem(name="my_chain", runnable=my_chain_instance, examples=[Example(query=["sample query"])])
+    ... )
 
     >>> # Find and execute a chain
     >>> chain = chain_registry.find("my_chain")

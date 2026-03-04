@@ -269,10 +269,10 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
 
     import yaml
 
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.utils.config_mngr import paths_config
 
     if config_path is None:
-        config_dir = global_config().get_dir_path("paths.config")
+        config_dir = Path(paths_config().config)
         config_path = str(config_dir / "agents" / "langchain.yaml")
 
     path = Path(config_path)
@@ -477,10 +477,10 @@ def _resolve_interpolation(value: str) -> str:
         return value
     from omegaconf import OmegaConf
 
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.utils.config_mngr import get_raw_config
 
     cfg = OmegaConf.create({"_v": value})
-    merged = OmegaConf.merge(global_config().root, cfg)
+    merged = OmegaConf.merge(get_raw_config(), cfg)
     return str(OmegaConf.to_container(merged, resolve=True)["_v"])  # type: ignore[index]
 
 

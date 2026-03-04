@@ -10,7 +10,7 @@ import typer
 from loguru import logger
 from typer import Option
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.config_mngr import paths_config
 
 if TYPE_CHECKING:
     from genai_tk.agents.langchain.config import AgentProfileConfig
@@ -18,7 +18,9 @@ if TYPE_CHECKING:
 
 def _get_config_path() -> str:
     """Return the path to the unified langchain.yaml config file."""
-    config_dir = global_config().get_dir_path("paths.config")
+    from pathlib import Path
+
+    config_dir = Path(paths_config().config)
     return str(config_dir / "agents" / "langchain.yaml")
 
 

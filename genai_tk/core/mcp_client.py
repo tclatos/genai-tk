@@ -19,10 +19,7 @@ Example usage:
 servers = get_mcp_servers_dict()
 
 # Run a query using specific MCP servers
-await call_react_agent(
-    "What's the weather in Toulouse?",
-    mcp_server_filter=["weather"]
-)
+await call_react_agent("What's the weather in Toulouse?", mcp_server_filter=["weather"])
 ```
 """
 
@@ -43,7 +40,7 @@ from mcp.client.stdio import stdio_client
 from mcpadapt.core import MCPAdapt
 from mcpadapt.langchain_adapter import LangChainAdapter
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.config_mngr import get_raw_config, paths_config
 
 load_dotenv()
 
@@ -67,10 +64,7 @@ def update_server_parameters(server_config: dict) -> dict:
 
     Example:
     ```python
-    config = {
-        "command": "uvx",
-        "args": ["tool", "run", "pubmedmcp@0.1.3"]
-    }
+    config = {"command": "uvx", "args": ["tool", "run", "pubmedmcp@0.1.3"]}
     processed = update_server_parameters(config)
     # {'command': 'uv', 'args': ['tool', 'run', 'pubmedmcp@0.1.3'], 'transport': 'stdio', 'env': {'PATH': ...}}
     ```
@@ -165,13 +159,20 @@ def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
     servers = get_mcp_servers_dict(filter=["chinook"])
     ```
     """
-    servers = global_config().get_dict("mcpServers")
+    from omegaconf import OmegaConf
+
+    raw = get_raw_config()
+    servers_node = raw.get("mcpServers", {})
+    servers: dict = dict(OmegaConf.to_container(servers_node, resolve=True)) if servers_node else {}
 
     # Merge in project-defined servers declared under ``mcpProjectServers``.
     # Each entry is served via ``uv --project <root> run cli mcp serve --name <name>``.
     try:
-        project_servers_cfg: dict = global_config().get_dict("mcpProjectServers")
-        project_root = str(global_config().get_dir_path("paths.project"))
+        project_servers_node = raw.get("mcpProjectServers", {})
+        project_servers_cfg: dict = (
+            dict(OmegaConf.to_container(project_servers_node, resolve=True)) if project_servers_node else {}
+        )
+        project_root = paths_config().project
         for pname, pcfg in project_servers_cfg.items():
             if not (pcfg or {}).get("disabled", False):
                 servers[pname] = {
@@ -213,9 +214,7 @@ def dict_to_stdio_server_list(param_list: dict) -> list[StdioServerParameters]:
 
     Example:
     ```python
-    servers = {
-        "weather": {"command": "uv", "args": ["tool", "run", "weathermcp"]}
-    }
+    servers = {"weather": {"command": "uv", "args": ["tool", "run", "weathermcp"]}}
     server_params = dict_to_stdio_server_list(servers)
     # [StdioServerParameters(command='uv', args=['tool', 'run', 'weathermcp'], ...)]
     ```

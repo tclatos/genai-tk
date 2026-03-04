@@ -3,11 +3,17 @@
 Handles loading from app_conf.yaml with environment variable substitution and multiple
 environments. Supports runtime overrides and implements singleton pattern.
 
-Example:
+Public API:
+- `global_config()` → OmegaConfig singleton with typed accessor methods
+- `paths_config()` → PathsConfig (typed Pydantic model for the ``paths`` section)
+- `get_raw_config()` → raw OmegaConf DictConfig for advanced operations
+- Each module exposes its own `xxx_config()` accessor returning a typed Pydantic model
+
+QualifiedCallable type annotations for YAML fields holding qualified names:
 ```python
-model = global_config().get("llm.models.default")
-global_config().select_config("local")
-global_config().set("llm.models.default", "gpt-4")
+QualifiedCallable  # 'module.path:callable'  (generic)
+QualifiedClassName  # 'module.path:ClassName'
+QualifiedFunctionName  # 'module.path:function_name'
 ```
 """
 
@@ -16,12 +22,12 @@ from __future__ import annotations
 import importlib
 import os
 from pathlib import Path
-from typing import Any, Callable, Optional, TypeVar
+from typing import Annotated, Any, Callable, Optional, TypeVar
 
 from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from upath import UPath
 
 from genai_tk.utils.config_exceptions import (
@@ -39,6 +45,51 @@ load_dotenv()
 APPLICATION_CONFIG_FILE: str = "config/app_conf.yaml"
 
 T = TypeVar("T")
+
+# ---------------------------------------------------------------------------
+# Qualified callable type annotations
+# ---------------------------------------------------------------------------
+# Use these Annotated types for Pydantic config fields that hold Python
+# qualified names of callables (classes or functions).
+#
+# Pattern: ``module.submodule:ClassName`` or ``module.submodule:function_name``
+#
+# Example usage:
+#   factory: QualifiedFunctionName = "genai_tk.tools.langchain.search_tools_factory:create_search_function"
+#   middleware_class: QualifiedClassName = "genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware"
+
+_QUALIFIED_PATTERN = r"^[\w.]+:[\w]+$"
+
+QualifiedCallable = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
+"""Qualified name of any callable – format: ``'module.path:callable'``."""
+
+QualifiedClassName = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
+"""Qualified class name – format: ``'module.path:ClassName'``."""
+
+QualifiedFunctionName = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
+"""Qualified function name – format: ``'module.path:function_name'``."""
+
+
+# ---------------------------------------------------------------------------
+# PathsConfig schema (paths section of app_conf.yaml / baseline.yaml)
+# ---------------------------------------------------------------------------
+
+
+class PathsConfig(BaseModel):
+    """Paths configuration section (``paths:`` in YAML).
+
+    All path fields are resolved strings. Use ``UPath(paths_config().project)`` etc.
+    to obtain ``UPath`` objects.
+    """
+
+    home: str | None = Field(None, description="Home directory (HOME env var)")
+    project: str = Field(..., description="Root of the project (PWD env var)")
+    config: str = Field(..., description="Config directory (typically <project>/config/basic)")
+    data_root: str = Field(..., description="Data root directory for caches, vector stores, etc.")
+    data: str | None = Field(None, description="Alias for data_root (may be set separately)")
+    models: str | None = Field(None, description="Models cache directory")
+
+    model_config = ConfigDict(extra="allow")
 
 
 class OmegaConfig(BaseModel):
@@ -635,6 +686,53 @@ def global_config_reload():
     OmegaConfig.singleton.invalidate()  # type: ignore
 
 
+# ---------------------------------------------------------------------------
+# Public typed API – preferred over calling global_config() directly
+# ---------------------------------------------------------------------------
+
+
+def paths_config() -> PathsConfig:
+    """Return typed paths configuration.
+
+    Reads the ``paths`` section from the global config and validates it against
+    ``PathsConfig``.  Raises a ``ConfigValidationError`` with a descriptive message
+    on missing or invalid fields.
+
+    Example:
+        ```python
+        from genai_tk.utils.config_mngr import paths_config
+
+        project_dir = UPath(paths_config().project)
+        config_dir = UPath(paths_config().config)
+        ```
+    """
+    from genai_tk.utils.config_exceptions import ConfigValidationError
+
+    try:
+        raw = global_config().get_dict("paths")
+        return PathsConfig.model_validate(raw)
+    except Exception as e:
+        raise ConfigValidationError(
+            [f"Invalid 'paths' configuration section: {e}"],
+            config_name="paths",
+        ) from e
+
+
+def select_active_config(config_name: str) -> None:
+    """Deprecated: call ``global_config().select_config()`` directly."""
+    global_config().select_config(config_name)
+
+
+def get_raw_config() -> DictConfig:
+    """Return the raw OmegaConf ``DictConfig`` for modules that need direct OmegaConf access.
+
+    Only use this when you need to perform OmegaConf-level operations (e.g. merge,
+    interpolation resolution).  Prefer typed accessors such as ``paths_config()``
+    for normal application code.
+    """
+    return global_config().root
+
+
 def import_from_qualified(qualified_name: str) -> Callable:
     """Dynamically import and return a function, class, or object by its qualified name.
 
@@ -648,7 +746,7 @@ def import_from_qualified(qualified_name: str) -> Callable:
         ```python
         # Fully qualified name
         historical_price_func = import_from_qualified("src.ai_extra.smolagents_tools:get_historical_price")
-        df = historical_price_func("AAPL", date(2024,1,1), date(2024,12,31))
+        df = historical_price_func("AAPL", date(2024, 1, 1), date(2024, 12, 31))
 
         # Short class name (searches project automatically)
         subgraph_class = import_from_qualified("CrmExtractSubGraph")

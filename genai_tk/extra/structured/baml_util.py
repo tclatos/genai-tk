@@ -14,7 +14,7 @@ import baml_lib
 from baml_py import ClientRegistry
 from loguru import logger
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.config_mngr import get_raw_config
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.utils.pydantic_utils.common import validate_pydantic_model
 
@@ -33,7 +33,9 @@ def load_baml_client(config_name: str = "default") -> tuple[Any, Any]:
         ImportError: If BAML client modules cannot be imported
     """
     config_key = f"structured.{config_name}.baml_client"
-    baml_client_package = global_config().get_str(config_key)
+    from omegaconf import OmegaConf
+
+    baml_client_package = OmegaConf.select(get_raw_config(), config_key, default=None)
 
     if not baml_client_package:
         raise ValueError(
@@ -278,7 +280,9 @@ def prompt_fingerprint(function_name: str, config_name: str = "default", **kwarg
 
     # Get BAML source files path from config
     config_key = f"structured.{config_name}.baml_client"
-    baml_client_package = global_config().get_str(config_key)
+    from omegaconf import OmegaConf
+
+    baml_client_package = OmegaConf.select(get_raw_config(), config_key, default=None)
     if not baml_client_package:
         raise ValueError(f"BAML client package not found in config at '{config_key}'")
 

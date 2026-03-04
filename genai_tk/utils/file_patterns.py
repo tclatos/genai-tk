@@ -34,8 +34,7 @@ def resolve_config_path(path_str: str) -> str:
     def replace_match(match: re.Match) -> str:
         config_key = match.group(1)
         try:
-            cfg = global_config()
-            resolved = cfg.get_str(config_key)
+            resolved = global_config().get_str(config_key)
             if resolved is None:
                 logger.warning(f"Config key '{config_key}' not found, keeping original reference")
                 return match.group(0)
@@ -77,7 +76,7 @@ def resolve_files(
             "${paths.data_root}/docs",
             include_patterns=["report_*.md", "summary_*.md"],
             exclude_patterns=["*_draft.md"],
-            recursive=True
+            recursive=True,
         )
 
         # Case-insensitive matching allows single pattern
@@ -220,11 +219,7 @@ def resolve_entries(
         dirs = resolve_entries("/data", include_directories=True, include_files=False)
 
         # Find all .py files and directories matching pattern
-        entries = resolve_entries(
-            "${paths.data_root}/src",
-            include_patterns=["*.py", "test*"],
-            recursive=True
-        )
+        entries = resolve_entries("${paths.data_root}/src", include_patterns=["*.py", "test*"], recursive=True)
         ```
     """
     resolved_root = resolve_config_path(root_dir)

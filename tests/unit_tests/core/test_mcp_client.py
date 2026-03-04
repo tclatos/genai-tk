@@ -106,17 +106,21 @@ class TestDictToStdioServerList(unittest.TestCase):
 class TestGetMcpServersDict(unittest.TestCase):
     """Test cases for the get_mcp_servers_dict function."""
 
-    @patch("genai_tk.core.mcp_client.global_config")
+    @patch("genai_tk.core.mcp_client.get_raw_config")
     @patch("genai_tk.core.mcp_client.update_server_parameters")
-    def test_get_all_servers(self, mock_update, mock_global_config):
+    def test_get_all_servers(self, mock_update, mock_get_raw_config):
         """Test retrieval of all configured servers."""
-        mock_config = MagicMock()
-        mock_config.get_dict.return_value = {
-            "server1": {"command": "test1"},
-            "server2": {"command": "test2", "disabled": False},
-            "server3": {"command": "test3", "disabled": True},
-        }
-        mock_global_config.return_value = mock_config
+        from omegaconf import OmegaConf
+
+        mock_get_raw_config.return_value = OmegaConf.create(
+            {
+                "mcpServers": {
+                    "server1": {"command": "test1"},
+                    "server2": {"command": "test2", "disabled": False},
+                    "server3": {"command": "test3", "disabled": True},
+                }
+            }
+        )
         mock_update.side_effect = lambda x: x
 
         result = get_mcp_servers_dict()
@@ -126,42 +130,50 @@ class TestGetMcpServersDict(unittest.TestCase):
         self.assertNotIn("server3", result)
         mock_update.assert_called()
 
-    @patch("genai_tk.core.mcp_client.global_config")
-    def test_filter_servers(self, mock_global_config):
+    @patch("genai_tk.core.mcp_client.get_raw_config")
+    def test_filter_servers(self, mock_get_raw_config):
         """Test filtering servers by name."""
-        mock_config = MagicMock()
-        mock_config.get_dict.return_value = {
-            "server1": {"command": "test1"},
-            "server2": {"command": "test2"},
-        }
-        mock_global_config.return_value = mock_config
+        from omegaconf import OmegaConf
+
+        mock_get_raw_config.return_value = OmegaConf.create(
+            {
+                "mcpServers": {
+                    "server1": {"command": "test1"},
+                    "server2": {"command": "test2"},
+                }
+            }
+        )
 
         result = get_mcp_servers_dict(filter=["server1"])
 
         self.assertEqual(list(result.keys()), ["server1"])
 
-    @patch("genai_tk.core.mcp_client.global_config")
-    def test_missing_server_in_filter(self, mock_global_config):
+    @patch("genai_tk.core.mcp_client.get_raw_config")
+    def test_missing_server_in_filter(self, mock_get_raw_config):
         """Test error handling when filter contains non-existent server."""
-        mock_config = MagicMock()
-        mock_config.get_dict.return_value = {"server1": {"command": "test1"}}
-        mock_global_config.return_value = mock_config
+        from omegaconf import OmegaConf
+
+        mock_get_raw_config.return_value = OmegaConf.create({"mcpServers": {"server1": {"command": "test1"}}})
 
         with self.assertRaises(ValueError) as cm:
             get_mcp_servers_dict(filter=["nonexistent"])
 
         self.assertIn("nonexistent", str(cm.exception))
 
-    @patch("genai_tk.core.mcp_client.global_config")
+    @patch("genai_tk.core.mcp_client.get_raw_config")
     @patch("genai_tk.core.mcp_client.update_server_parameters")
-    def test_server_configuration_error(self, mock_update, mock_global_config):
+    def test_server_configuration_error(self, mock_update, mock_get_raw_config):
         """Test handling of server configuration errors."""
-        mock_config = MagicMock()
-        mock_config.get_dict.return_value = {
-            "server1": {"command": "test1"},
-            "server2": {"command": "test2"},
-        }
-        mock_global_config.return_value = mock_config
+        from omegaconf import OmegaConf
+
+        mock_get_raw_config.return_value = OmegaConf.create(
+            {
+                "mcpServers": {
+                    "server1": {"command": "test1"},
+                    "server2": {"command": "test2"},
+                }
+            }
+        )
         mock_update.side_effect = [Exception("config error"), {"command": "fixed"}]
 
         result = get_mcp_servers_dict()

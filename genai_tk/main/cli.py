@@ -80,6 +80,7 @@ Create a registration function:
 ```python
 import typer
 
+
 def register_commands(cli_app: typer.Typer) -> None:
     '''Register commands using function-based approach.'''
 
@@ -141,6 +142,7 @@ class CliTopCommand(BaseModel, ABC):
         import typer
         from genai_tk.main.cli import CliTopCommand
 
+
         class DataCommands(CliTopCommand):
             '''Commands for data processing.'''
 
@@ -151,16 +153,12 @@ class CliTopCommand(BaseModel, ABC):
 
             def register_sub_commands(self, cli_app: typer.Typer) -> None:
                 @cli_app.command()
-                def transform(
-                    input_file: Annotated[str, typer.Argument(help="Input file path")]
-                ) -> None:
+                def transform(input_file: Annotated[str, typer.Argument(help="Input file path")]) -> None:
                     '''Transform data from input file.'''
                     print(f"Transforming {input_file}...")
 
                 @cli_app.command()
-                def validate(
-                    schema: Annotated[str, typer.Option("--schema", help="Validation schema")]
-                ) -> None:
+                def validate(schema: Annotated[str, typer.Option("--schema", help="Validation schema")]) -> None:
                     '''Validate data against schema.'''
                     print(f"Validating with schema: {schema}")
         ```

@@ -12,7 +12,7 @@ from langchain_core.tools import BaseTool
 from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
-from genai_tk.utils.config_mngr import global_config, import_from_qualified
+from genai_tk.utils.config_mngr import get_raw_config, import_from_qualified
 
 
 def process_langchain_tools_from_config(
@@ -69,7 +69,7 @@ def _resolve_config_vars(config: Any) -> Any:
         try:
             cfg_dict = OmegaConf.create(config)
             # Merge with global config so that ${paths.project} etc. can be resolved
-            merged = OmegaConf.merge(global_config().root, cfg_dict)
+            merged = OmegaConf.merge(get_raw_config(), cfg_dict)
             resolved = OmegaConf.to_container(merged, resolve=True)
             # Extract only the parts that were in the original config
             if isinstance(resolved, dict):
@@ -83,7 +83,7 @@ def _resolve_config_vars(config: Any) -> Any:
     elif isinstance(config, DictConfig):
         # Resolve DictConfig values by merging with global config
         try:
-            merged = OmegaConf.merge(global_config().root, config)
+            merged = OmegaConf.merge(get_raw_config(), config)
             resolved = OmegaConf.to_container(merged, resolve=True)
             return resolved if isinstance(resolved, dict) else config
         except Exception:

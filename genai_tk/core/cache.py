@@ -19,8 +19,31 @@ from enum import Enum
 from typing import Optional
 
 from langchain_core.caches import BaseCache
+from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.utils.config_mngr import global_config
+
+
+class _LlmCacheSection(BaseModel):
+    """Typed view of the ``llm`` config section relevant to caching."""
+
+    cache: str = Field("no_cache")
+    cache_path: str | None = Field(None)
+    model_config = ConfigDict(extra="allow")
+
+
+def _llm_cache_section() -> _LlmCacheSection:
+    """Return typed cache settings from the ``llm`` config section."""
+    from genai_tk.utils.config_exceptions import ConfigValidationError
+
+    try:
+        raw = global_config().get_dict("llm")
+        return _LlmCacheSection.model_validate(raw)
+    except Exception as e:
+        raise ConfigValidationError(
+            [f"Invalid 'llm' cache configuration: {e}"],
+            config_name="llm",
+        ) from e
 
 
 class CacheMethod(Enum):
@@ -43,7 +66,7 @@ class LlmCache:
             value = "default"
 
         if value == "default":
-            from_config = global_config().get_str("llm.cache")
+            from_config = _llm_cache_section().cache
             if from_config and from_config not in LlmCache.values():
                 logger.warning(f"Incorrect llm/cache configuration : {from_config}. Should be in {LlmCache.values()} ")
             value = from_config or "no_cache"
@@ -54,7 +77,10 @@ class LlmCache:
             raise ValueError(f"Unknown cache method '{value}'. Should be in {LlmCache.values()}") from e
 
         if method == "sqlite":
-            path = global_config().get_file_path("llm.cache_path", check_if_exists=False)
+            cache_path_str = _llm_cache_section().cache_path or ""
+            from pathlib import Path
+
+            path = Path(cache_path_str) if cache_path_str else None  # type: ignore[assignment]
             if path and path.parent and not path.parent.exists():
                 path.parent.mkdir(parents=True, exist_ok=True)
             return SQLiteCache(database_path=str(path))

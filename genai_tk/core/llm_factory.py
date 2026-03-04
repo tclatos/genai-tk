@@ -49,8 +49,8 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables import RunnableConfig, RunnableLambda
 from litellm.litellm_core_utils.get_llm_provider_logic import get_llm_provider
 from loguru import logger
-from omegaconf import DictConfig, ListConfig
-from pydantic import BaseModel, Field, PrivateAttr, SecretStr, computed_field, field_validator
+from omegaconf import DictConfig
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, computed_field, field_validator
 
 from genai_tk.core.cache import LlmCache
 from genai_tk.core.models_db import ModelEntry, get_models_db
@@ -66,6 +66,65 @@ from genai_tk.utils.config_mngr import global_config
 
 SEED = 42  # Arbitrary value....
 DEFAULT_MAX_RETRIES = 2
+
+
+# ---------------------------------------------------------------------------
+# LLM configuration schema and typed accessor
+# ---------------------------------------------------------------------------
+
+
+class LlmModelsConfig(BaseModel):
+    """Named LLM model IDs for each configured tag (``llm.models:`` in YAML).
+
+    The ``default`` tag is mandatory; any extra tags (e.g. ``fake``, ``fast_model``) are
+    stored as extra fields and accessible via ``get_tag()``.
+    """
+
+    default: str = Field(..., description="Default LLM model (ID or compact alias)")
+    model_config = ConfigDict(extra="allow")
+
+    def get_tag(self, tag: str) -> str | None:
+        """Return the LLM ID configured for a named tag (e.g. 'fake', 'fast_model')."""
+        if tag == "default":
+            return self.default
+        return (self.model_extra or {}).get(tag)
+
+    def all_tags(self) -> dict[str, str]:
+        """Return all configured tag → LLM ID mappings."""
+        result: dict[str, str] = {"default": self.default}
+        result.update({k: v for k, v in (self.model_extra or {}).items() if isinstance(v, str)})
+        return result
+
+
+class LlmSection(BaseModel):
+    """Top-level ``llm:`` configuration section (baseline.yaml + providers/llm.yaml).
+
+    Example YAML:
+    ```yaml
+    llm:
+      models:
+        default: gpt_oss120@openrouter
+        fake: parrot_local@fake
+      cache: sqlite
+      cache_path: data/llm_cache/langchain.db
+      exceptions:
+        - model_id: parrot_local
+          providers:
+            - fake: parrot
+    ```
+    """
+
+    models: LlmModelsConfig = Field(..., description="Default and tagged LLM model IDs")
+    cache: str = Field("no_cache", description="Cache strategy: 'memory' | 'sqlite' | 'no_cache'")
+    cache_path: str | None = Field(None, description="SQLite cache file path (required when cache='sqlite')")
+    exceptions: list[Any] = Field(default_factory=list, description="Per-model provider overrides from llm.yaml")
+    registry: list[Any] | None = Field(None, description="Legacy alias for 'exceptions' – prefer 'exceptions'")
+    model_config = ConfigDict(extra="allow")
+
+    @property
+    def exception_entries(self) -> list[Any]:
+        """Return the provider override list (falls back to legacy 'registry' key)."""
+        return self.exceptions or self.registry or []
 
 
 def _normalize(s: str) -> str:
@@ -280,38 +339,50 @@ class LlmInfo(BaseModel):
         return self.get_provider_info().api_key_env_var
 
 
+def _llm_section() -> LlmSection:
+    """Return typed LLM configuration (the ``llm:`` section of app config).
+
+    Parses ``llm.models``, ``llm.cache``, ``llm.cache_path``, and
+    ``llm.exceptions`` into a validated ``LlmSection`` model.
+
+    Example:
+        ```python
+        from genai_tk.core.llm_factory import _llm_section
+
+        default_model = _llm_section().models.default
+        all_tags = _llm_section().models.all_tags()
+        ```
+    """
+    from genai_tk.utils.config_exceptions import ConfigValidationError
+
+    try:
+        raw = global_config().get_dict("llm")
+        return LlmSection.model_validate(raw)
+    except Exception as e:
+        raise ConfigValidationError(
+            [
+                f"Invalid 'llm' configuration section: {e}",
+                "Check config/providers/llm.yaml and config/basic/init/baseline.yaml.",
+            ],
+            config_name="llm",
+        ) from e
+
+
 def _read_llm_list_file() -> list[LlmInfo]:
     """Read LLM providers from merged configuration.
 
     The providers are now merged into the main config via :merge in app_conf.yaml,
     so we read from llm instead of loading a separate file.
     """
-    from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError, ConfigTypeError
+    providers_data = _llm_section().exception_entries
 
-    try:
-        # Try new 'llm.exceptions' key first; fall back to legacy 'llm.registry'
-        try:
-            providers_data = global_config().get("llm.exceptions")
-        except Exception:
-            providers_data = global_config().get("llm.registry")
-    except Exception as e:
-        logger.error(
-            "Failed to load LLM providers from config. "
-            "Ensure 'config/providers/llm.yaml' is in the :merge list in app_conf.yaml"
-        )
-        raise ConfigKeyNotFoundError(
-            "llm.exceptions",
-            available_keys=[],
-        ) from e
-
-    if not isinstance(providers_data, (list, ListConfig)):
-        raise ConfigTypeError(
-            "llm.exceptions", expected_type=list, actual_type=type(providers_data), actual_value=providers_data
-        )
+    if not providers_data:
+        logger.warning("No LLM exceptions found in config. Ensure 'config/providers/llm.yaml' is in the :merge list.")
+        return []
 
     llms = []
     for idx, model_entry in enumerate(providers_data):
-        if not model_entry or not isinstance(model_entry, (dict, DictConfig)):
+        if not model_entry or not isinstance(model_entry, dict):
             logger.warning(f"Skipping invalid model entry at index {idx}: {model_entry}")
             continue
 
@@ -425,7 +496,7 @@ class LlmFactory(BaseModel):
 
         # Set default llm_id from config if still unset
         if self.llm_id is None:
-            default_id = global_config().get_str("llm.models.default")
+            default_id = _llm_section().models.default
             object.__setattr__(self, "llm_id", default_id)
 
         # Resolve llm_id to a canonical form if not already a known item.
@@ -542,7 +613,8 @@ class LlmFactory(BaseModel):
 
     @staticmethod
     def find_llm_id_from_tag(llm_tag: str) -> str:
-        llm_id = global_config().get_str(f"llm.models.{llm_tag}", default="default")
+        models = _llm_section().models
+        llm_id = models.get_tag(llm_tag) or "default"
         if llm_id == "default":
             raise ValueError(f"Cannot find LLM of type type : '{llm_tag}' (no key found in config file)")
         if llm_id not in LlmFactory.known_items():
@@ -612,9 +684,9 @@ class LlmFactory(BaseModel):
         # Build a helpful error: show fuzzy matches from known_items + available config tags
         close_ids = [m for m, _ in _fuzzy_match(llm, LlmFactory.known_items(), n=5, cutoff=0.3)]
         try:
-            models_cfg = global_config().get("llm.models") or {}
-            tags = {k: v for k, v in models_cfg.items() if k != "default"}
-            tags_hint = f"\n  Config tags : {dict(tags)}" if tags else ""
+            tags = _llm_section().models.all_tags()
+            tags.pop("default", None)
+            tags_hint = f"\n  Config tags : {tags}" if tags else ""
         except Exception:
             tags_hint = ""
         suggestions = f"\n  Closest IDs : {close_ids}" if close_ids else ""
@@ -991,6 +1063,7 @@ def get_llm(
 
         # Use in a chain
         from langchain_core.prompts import ChatPromptTemplate
+
         prompt = ChatPromptTemplate.from_template("Tell me a joke about {topic}")
         chain = prompt | get_llm(llm="gpt_4o_openai")
         result = chain.invoke({"topic": "AI"})

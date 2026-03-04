@@ -44,7 +44,6 @@ def create_gptr_config(config_name: str) -> str:
     """
     config_dict = global_config().get_dict(
         f"gpt_researcher.{config_name}",
-        # expected_keys=["fast_llm"],
     )
 
     # Track which providers need API keys

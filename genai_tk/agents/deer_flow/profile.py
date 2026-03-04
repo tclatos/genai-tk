@@ -161,7 +161,7 @@ def validate_mcp_servers(server_names: list[str]) -> list[str]:
     from genai_tk.utils.config_mngr import global_config
 
     try:
-        mcp_config = global_config().get_nested("mcp", {})
+        mcp_config = global_config().get("mcp", {})
         available = list((mcp_config.get("servers") or {}).keys())
     except Exception:
         available = []

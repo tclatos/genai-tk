@@ -47,26 +47,25 @@ class InfoCommands(CliTopCommand):
             from genai_tk.core.embeddings_store import EmbeddingsStore
             from genai_tk.core.llm_factory import PROVIDER_INFO, LlmFactory
 
-            config = global_config()
             console = Console()
 
             console.print(
-                Panel(f"[bold blue]Selected configuration:[/bold blue] {config.selected_config}", expand=False)
+                Panel(f"[bold blue]Selected configuration:[/bold blue] {global_config().selected_config}", expand=False)
             )
 
             # Default models info — resolve from config without instantiating (avoids validation errors)
-            llm_models_config = config.get("llm.models", {})
+            llm_models_config = global_config().get("llm.models", {})
             default_llm_id = llm_models_config.get("default", "—") if llm_models_config else "—"
             try:
                 default_embeddings = EmbeddingsFactory(embeddings=None)
                 default_embeddings_id = str(default_embeddings.embeddings_id)
             except Exception:
-                default_embeddings_id = str(config.get("embeddings.models.default", "—"))
+                default_embeddings_id = str(global_config().get("embeddings.models.default", "—"))
             try:
                 default_vector_store = EmbeddingsStore.create_from_config("default")
                 default_vector_id = str(default_vector_store.backend)
             except Exception:
-                default_vector_id = str(config.get("vector_store.default", "—"))
+                default_vector_id = str(global_config().get("vector_store.default", "—"))
 
             models_table = Table(title="Default Components", show_header=True, header_style="bold magenta")
             models_table.add_column("Type", style="cyan")
@@ -89,7 +88,7 @@ class InfoCommands(CliTopCommand):
             tags_table.add_column("Usage Example", style="dim white", width=30)
 
             # Get all LLM tags from config under llm.models.*
-            llm_models_config = config.get("llm.models", {})
+            llm_models_config = global_config().get("llm.models", {})
             tag_count = 0
             # Handle both regular dict and OmegaConf DictConfig
             if llm_models_config and hasattr(llm_models_config, "items"):
@@ -165,7 +164,7 @@ class InfoCommands(CliTopCommand):
                 for store_id in available_stores:
                     try:
                         # Try to get configuration details for each store
-                        config_info = config.get(f"kv_store.{store_id}", {})
+                        config_info = global_config().get(f"kv_store.{store_id}", {})
 
                         # Handle different configuration formats
                         if hasattr(config_info, "get") and "type" in config_info:

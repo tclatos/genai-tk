@@ -84,7 +84,7 @@ Usage Examples:
     # Add documents
     documents = [
         Document(page_content="First document", metadata={"source": "doc1"}),
-        Document(page_content="Second document", metadata={"source": "doc2"})
+        Document(page_content="Second document", metadata={"source": "doc2"}),
     ]
     factory.add_documents(documents)
 
@@ -98,9 +98,8 @@ Usage Examples:
             "query",
             k=3,
             hybrid_search_config=HybridSearchConfig(
-                tsv_column="content_tsv",
-                fusion_function_parameters={"primary_results_weight": 0.6}
-            )
+                tsv_column="content_tsv", fusion_function_parameters={"primary_results_weight": 0.6}
+            ),
         )
 
     # Document management
@@ -130,13 +129,45 @@ try:
 except ImportError:
     HybridSearchConfig = None  # Optional dependency
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from genai_tk.core.embeddings_factory import EmbeddingsFactory
-from genai_tk.utils.config_mngr import global_config, global_config_reload
+from genai_tk.utils.config_mngr import (
+    global_config,
+    global_config_reload,
+)
 
 # List of known Vector Stores (created as Literal so can be checked by MyPy)
 VECTOR_STORE_ENGINE = Literal["Chroma", "InMemory", "Sklearn", "PgVector"]
+
+
+class _EmbeddingsStoreConfig(BaseModel):
+    """Parsed configuration for an EmbeddingsStore YAML entry."""
+
+    backend: str
+    embeddings: str | None = None
+    embeddings_id: str | None = None
+    table_name_prefix: str = "embeddings"
+    index_document: bool = False
+    collection_metadata: dict[str, str] | None = None
+    record_manager: str | None = None
+    config: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _apply_defaults(self) -> "_EmbeddingsStoreConfig":
+        if self.embeddings and self.embeddings_id:
+            raise ValueError("Cannot specify both 'embeddings_id' and 'embeddings' in embeddings_store config")
+        if self.record_manager:
+            self.index_document = True
+        return self
+
+    def resolve_embeddings_factory(self) -> EmbeddingsFactory:
+        """Resolve the appropriate EmbeddingsFactory from config fields."""
+        if self.embeddings_id:
+            return EmbeddingsFactory(embeddings=self.embeddings_id)
+        if self.embeddings:
+            return EmbeddingsFactory(embeddings=self.embeddings)
+        return EmbeddingsFactory()
 
 
 class EmbeddingsStore(BaseModel):
@@ -272,101 +303,22 @@ class EmbeddingsStore(BaseModel):
             factory = EmbeddingsStore.create_from_config("local_indexed")
             ```
         """
-        config_key = f"embeddings_store.{config_tag}"
         try:
-            config_dict = global_config().get_dict(config_key)
+            cfg = _EmbeddingsStoreConfig.model_validate(global_config().get_dict(f"embeddings_store.{config_tag}"))
         except (ValueError, KeyError) as e:
             raise ValueError(f"Configuration for vector store factory '{config_tag}' not found") from e
 
-        # Extract required backend field (support both 'backend' and legacy 'id')
-        backend = config_dict.get("backend") or config_dict.get("id")
-        if not backend:
-            raise KeyError(f"Missing required 'backend' (or legacy 'id') field in configuration '{config_tag}'")
-
-        if "id" in config_dict and "backend" not in config_dict:
-            logger.warning(f"Configuration '{config_tag}' uses deprecated 'id' field. Use 'backend' instead.")
-
-        # Resolve embeddings factory
-        embeddings_factory = cls._resolve_embeddings_from_config(config_dict, config_tag)
-
-        # Extract other configuration parameters
-        table_name_prefix = config_dict.get("table_name_prefix", "embeddings")
-        index_document = config_dict.get("index_document", False)
-        collection_metadata = config_dict.get("collection_metadata")
-        record_manager = config_dict.get("record_manager")
-        config_overrides = config_dict.get("config", {})
-
-        # Handle legacy chroma_path in config_overrides
-        if "chroma_path" in config_overrides and "storage" not in config_overrides:
-            logger.warning(f"Configuration '{config_tag}' uses deprecated 'chroma_path'. Use 'storage' instead.")
-            config_overrides["storage"] = config_overrides.pop("chroma_path")
-
-        # Handle record manager for indexing
-        if record_manager and not index_document:
-            index_document = True
-            # logger.info(f"Enabling document indexing because record_manager is specified in config '{config_tag}'")
-
-        factory_args = {
-            "backend": backend,
-            "embeddings_factory": embeddings_factory,
-            "table_name_prefix": table_name_prefix,
-            "config": config_overrides,
-            "index_document": index_document,
-        }
-
-        if collection_metadata is not None:
-            factory_args["collection_metadata"] = collection_metadata
-
-        if record_manager is not None:
-            factory_args["record_manager_url"] = record_manager
-
-        # Create instance using model_construct to bypass __init__ restriction
-        instance = cls.model_construct(**factory_args)
-        # Run post-init manually since model_construct doesn't call it
+        instance = cls.model_construct(
+            backend=cfg.backend,
+            embeddings_factory=cfg.resolve_embeddings_factory(),
+            table_name_prefix=cfg.table_name_prefix,
+            config=cfg.config,
+            index_document=cfg.index_document,
+            collection_metadata=cfg.collection_metadata,
+            record_manager_url=cfg.record_manager,
+        )
         instance.model_post_init(None)
         return instance
-
-    @staticmethod
-    def _resolve_embeddings_from_config(config_dict: dict[str, Any], config_tag: str) -> EmbeddingsFactory:
-        """Resolve embeddings factory from configuration.
-
-        Args:
-            config_dict: Configuration dictionary for the vector store
-            config_tag: Configuration tag for error messaging
-
-        Returns:
-            Configured EmbeddingsFactory instance
-
-        Raises:
-            ValueError: If both embeddings_id and embeddings are specified, or if neither is found
-        """
-        embeddings_id = config_dict.get("embeddings_id")
-        embeddings_tag = config_dict.get("embeddings")  # This can be either a tag or an id
-
-        if embeddings_id and embeddings_tag:
-            raise ValueError(
-                f"Configuration '{config_tag}' cannot specify both 'embeddings_id' and 'embeddings'. "
-                f"Use 'embeddings' for tags (e.g., 'default') or 'embeddings_id' for specific IDs."
-            )
-
-        if embeddings_id:
-            return EmbeddingsFactory(embeddings=embeddings_id)
-        elif embeddings_tag:
-            # First try as embeddings_tag, if that fails try as embeddings_id
-            try:
-                return EmbeddingsFactory(embeddings=embeddings_tag)
-            except ValueError:
-                # If tag resolution fails, try treating it as a direct embeddings_id
-                try:
-                    return EmbeddingsFactory(embeddings=embeddings_tag)
-                except ValueError as e:
-                    raise ValueError(
-                        f"Invalid embeddings specification '{embeddings_tag}' in config '{config_tag}'. "
-                        f"Not found as tag or embeddings_id."
-                    ) from e
-        else:
-            # Use default embeddings if neither is specified
-            return EmbeddingsFactory()
 
     @field_validator("backend", mode="before")
     def check_known(cls, backend: str | None) -> str:
@@ -674,8 +626,7 @@ class EmbeddingsStore(BaseModel):
             List of configuration names that can be used with create_from_config
         """
         try:
-            config = global_config()
-            embeddings_store_config = config.get("embeddings_store", {})
+            embeddings_store_config = global_config().get("embeddings_store", {})
             if hasattr(embeddings_store_config, "keys"):
                 return list(embeddings_store_config.keys())
             return []

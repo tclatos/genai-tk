@@ -9,6 +9,7 @@ server so it picks them up on launch.
 Example:
 ```python
 from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
+
 config_path, ext_path = setup_deer_flow_config(
     mcp_server_names=["tavily-mcp"],
     config_dir="/path/to/deer-flow/backend",
@@ -43,14 +44,14 @@ def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
     Returns:
         List of skill identifiers, e.g. ``["public/deep-research", "custom/my-skill"]``.
     """
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.utils.config_mngr import get_raw_config, paths_config
 
-    config = global_config().root
+    config = get_raw_config()
     skills = []
 
     for skill_dir_template in skill_directories:
         if "${paths.project}" in skill_dir_template:
-            project_path = global_config().get_dir_path("paths.project")
+            project_path = Path(paths_config().project)
             skill_dir_str = skill_dir_template.replace("${paths.project}", str(project_path))
         else:
             skill_dir_str = skill_dir_template
@@ -257,7 +258,7 @@ def write_deer_flow_config(
     Returns:
         Path to the written config.yaml.
     """
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.utils.config_mngr import get_raw_config, paths_config
 
     if models is None:
         models = generate_deer_flow_models(selected_llm_id=selected_llm)
@@ -279,14 +280,14 @@ def write_deer_flow_config(
     if tool_groups is None:
         tool_groups = ["web", "file:read", "file:write", "bash"]
 
-    config = global_config().root
+    config = get_raw_config()
     # Read skills directories from config (deerflow.skills.directories list)
     skills_dirs_cfg = OmegaConf.select(config, "deerflow.skills.directories")
     if skills_dirs_cfg:
         # Use the first configured directory as the deer-flow skills path
         skills_path_str = list(skills_dirs_cfg)[0]
         if "${paths.project}" in skills_path_str:
-            project_path = global_config().get_dir_path("paths.project")
+            project_path = Path(paths_config().project)
             skills_path_str = skills_path_str.replace("${paths.project}", str(project_path))
     else:
         skills_path_str = str(Path.cwd() / "skills")
@@ -451,7 +452,7 @@ def setup_deer_flow_config(
     Returns:
         Tuple of (config.yaml path in backend, extensions_config.json path).
     """
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.utils.config_mngr import get_raw_config
 
     deer_flow_root: Path | None = None
     if config_dir is None:
@@ -482,13 +483,13 @@ def setup_deer_flow_config(
     if skill_directories:
         skills_to_enable = load_skills_from_directories(skill_directories)
     elif not enabled_skills:
-        config = global_config().root
+        config = get_raw_config()
         default_dirs = OmegaConf.select(config, "deerflow.skills.directories")
         if default_dirs:
             skills_to_enable = load_skills_from_directories(list(default_dirs))
 
     if skills_to_enable:
-        config = global_config().root
+        config = get_raw_config()
         trace_loading = OmegaConf.select(config, "deerflow.skills.trace_loading", default=True)
         if trace_loading:
             logger.debug(f"Enabling {len(skills_to_enable)} skills")

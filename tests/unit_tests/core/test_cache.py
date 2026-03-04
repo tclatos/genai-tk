@@ -44,8 +44,7 @@ class TestLlmCache:
         self, mock_sqlite_cache: MagicMock, mock_mkdir: MagicMock, mock_config: MagicMock
     ) -> None:
         """Test from_value with sqlite cache."""
-        mock_path = MagicMock()
-        mock_config.return_value.get_file_path.return_value = mock_path
+        mock_config.return_value.get_dict.return_value = {"cache": "sqlite", "cache_path": "/tmp/test_cache.db"}
         mock_sqlite_instance = MagicMock()
         mock_sqlite_cache.return_value = mock_sqlite_instance
 
@@ -61,7 +60,7 @@ class TestLlmCache:
     @patch("genai_tk.core.cache.global_config")
     def test_from_value_default(self, mock_config: MagicMock) -> None:
         """Test from_value with default cache."""
-        mock_config.return_value.get_str.return_value = "memory"
+        mock_config.return_value.get_dict.return_value = {"cache": "memory"}
         result = LlmCache.from_value("default")
         assert result is not None
 
@@ -74,8 +73,7 @@ class TestLlmCache:
     @patch("genai_tk.core.cache.global_config")
     def test_from_value_invalid_default_config(self, mock_config: MagicMock) -> None:
         """Test from_value with invalid default config."""
-        mock_config.return_value.get_str.return_value = "invalid"
-        mock_config.return_value.get_str.side_effect = None
+        mock_config.return_value.get_dict.return_value = {"cache": "invalid"}
 
         with pytest.raises(ValueError, match="Unknown cache method 'invalid'"):
             LlmCache.from_value("default")

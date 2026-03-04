@@ -178,9 +178,9 @@ async def _create_deep_agent(
     # When skills are present, ensure we have a FilesystemBackend so the
     # SkillsMiddleware can scan the directories and the LLM can read files.
     if skill_dirs and backend is None:
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.utils.config_mngr import paths_config
 
-        project_root = global_config().paths.project
+        project_root = paths_config().project
         backend = FilesystemBackend(root_dir=project_root, virtual_mode=True)
 
     # Convert absolute skill paths to backend-relative paths so that
@@ -307,11 +307,11 @@ def _resolve_skill_dirs(skill_directories: list[str]) -> list[str]:
 
     from omegaconf import OmegaConf
 
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.utils.config_mngr import get_raw_config
 
     try:
         cfg = OmegaConf.create({"dirs": skill_directories})
-        merged = OmegaConf.merge(global_config().root, cfg)
+        merged = OmegaConf.merge(get_raw_config(), cfg)
         dirs = OmegaConf.to_container(merged, resolve=True)["dirs"]  # type: ignore[index]
         resolved = [str(d) for d in dirs]
     except Exception:

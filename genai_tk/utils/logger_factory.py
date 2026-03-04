@@ -9,8 +9,27 @@ import os
 import sys
 
 from loguru import logger
+from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.utils.config_mngr import global_config
+
+
+class LoggingConfig(BaseModel):
+    """Typed view of the ``logging`` config section."""
+
+    level: str = Field("INFO")
+    format: str | None = Field(None)
+    backtrace: bool = Field(False)
+    model_config = ConfigDict(extra="allow")
+
+
+def logging_config() -> LoggingConfig:
+    """Return typed logging settings from config."""
+    try:
+        raw = global_config().get_dict("logging")
+        return LoggingConfig.model_validate(raw)
+    except Exception:
+        return LoggingConfig()
 
 
 def setup_logging(level: str | None = None) -> None:
@@ -19,9 +38,10 @@ def setup_logging(level: str | None = None) -> None:
     Sets up logging with a default format. It can be overridden by setting the LOGURU_FORMAT environment variable.
     """
     LOGURU_FORMAT = "<cyan>{time:HH:mm:ss}</cyan>-<level>{level: <7}</level> | <magenta>{file.name}</magenta>:<green>{line} <italic>{function}</italic></green>- <level>{message}</level>"
-    format_str = os.environ.get("LOGURU_FORMAT") or global_config().get_str("logging.format", LOGURU_FORMAT)
-    level = level or global_config().get_str("logging.level", "INFO")
-    backtrace = global_config().get_bool("logging.backtrace", False)
+    cfg = logging_config()
+    format_str = os.environ.get("LOGURU_FORMAT") or cfg.format or LOGURU_FORMAT
+    level = level or cfg.level
+    backtrace = cfg.backtrace
     logger.remove()
     logger.add(
         sys.stderr,

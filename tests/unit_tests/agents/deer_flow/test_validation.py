@@ -105,7 +105,7 @@ def test_validate_mcp_servers_success(monkeypatch):
 
     # Mock the config to return some servers
     class MockConfig:
-        def get_nested(self, key, default):
+        def get(self, key, default=None):
             if key == "mcp":
                 return {"servers": {"math": {}, "weather": {}, "tech_news": {}}}
             return default
@@ -127,7 +127,7 @@ def test_validate_mcp_servers_invalid(monkeypatch):
 
     # Mock the config to return some servers
     class MockConfig:
-        def get_nested(self, key, default):
+        def get(self, key, default=None):
             if key == "mcp":
                 return {"servers": {"math": {}, "weather": {}}}
             return default
