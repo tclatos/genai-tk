@@ -375,7 +375,7 @@ def yaml_config_validation(
         try:
             from pydantic import ValidationError
         except ImportError:
-            raise exc
+            raise exc from None
         if isinstance(exc, ValidationError):
             raise pydantic_error_to_config_error(exc, file_path=file_path, context=context) from exc
         raise
