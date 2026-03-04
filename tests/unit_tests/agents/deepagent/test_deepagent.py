@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -386,3 +386,153 @@ def test_write_genai_tk_provider_clears_cache(tmp_path):
     with patch("genai_tk.agents.deepagent.toml_bridge._clear_deepagents_cache") as mock_clear:
         write_genai_tk_provider(["default"], config_path=cfg_file)
     mock_clear.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# AioSandboxConfig tests
+# ---------------------------------------------------------------------------
+
+
+def test_aio_sandbox_config_defaults():
+    """AioSandboxConfig has all-None defaults except env_vars."""
+    from genai_tk.agents.deepagent.models import AioSandboxConfig
+
+    cfg = AioSandboxConfig()
+    assert cfg.image is None
+    assert cfg.host is None
+    assert cfg.host_port is None
+    assert cfg.startup_timeout is None
+    assert cfg.work_dir is None
+    assert cfg.env_vars == {}
+
+
+def test_aio_sandbox_config_in_profile():
+    """DeepagentProfile can hold an AioSandboxConfig."""
+    from genai_tk.agents.deepagent.models import AioSandboxConfig, DeepagentProfile
+
+    profile = DeepagentProfile(
+        name="aio_test",
+        sandbox="aio",
+        sandbox_config=AioSandboxConfig(image="my-image:latest", host_port=19000),
+    )
+    assert profile.sandbox == "aio"
+    assert profile.sandbox_config is not None
+    assert profile.sandbox_config.image == "my-image:latest"
+    assert profile.sandbox_config.host_port == 19000
+
+
+def test_config_sandbox_config_parsed():
+    """DeepagentConfig sandbox_config field round-trips correctly."""
+    from genai_tk.agents.deepagent.models import AioSandboxConfig, DeepagentConfig
+
+    cfg = DeepagentConfig(sandbox_config=AioSandboxConfig(host="0.0.0.0", startup_timeout=90.0))
+    assert cfg.sandbox_config is not None
+    assert cfg.sandbox_config.host == "0.0.0.0"
+    assert cfg.sandbox_config.startup_timeout == 90.0
+
+
+# ---------------------------------------------------------------------------
+# sandbox_bridge tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sandbox_context_yields_none_when_not_aio():
+    """sandbox_context yields None for sandbox values other than 'aio'."""
+    from genai_tk.agents.deepagent.models import DeepagentConfig, DeepagentProfile
+    from genai_tk.agents.deepagent.sandbox_bridge import sandbox_context
+
+    for sandbox_val in ("none", "modal", "daytona", "runloop", "langsmith"):
+        profile = DeepagentProfile(name="p", sandbox=sandbox_val)
+        config = DeepagentConfig()
+        async with sandbox_context(profile, config) as backend:
+            assert backend is None, f"Expected None for sandbox={sandbox_val!r}"
+
+
+@pytest.mark.asyncio
+async def test_sandbox_context_aio_starts_backend():
+    """sandbox_context yields the AioSandboxBackend instance for sandbox='aio'."""
+    from genai_tk.agents.deepagent.models import AioSandboxConfig, DeepagentConfig, DeepagentProfile
+    from genai_tk.agents.deepagent.sandbox_bridge import sandbox_context
+
+    profile = DeepagentProfile(
+        name="aio",
+        sandbox="aio",
+        sandbox_config=AioSandboxConfig(image="my-image:latest"),
+    )
+    config = DeepagentConfig()
+
+    mock_backend = MagicMock()
+
+    with (
+        patch("genai_tk.agents.langchain.sandbox_backend.AioSandboxBackendConfig") as MockConfig,
+        patch("genai_tk.agents.langchain.sandbox_backend.AioSandboxBackend") as MockBackend,
+    ):
+        MockBackend.return_value.__aenter__ = AsyncMock(return_value=mock_backend)
+        MockBackend.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        async with sandbox_context(profile, config) as backend:
+            MockConfig.assert_called_once()
+            MockBackend.assert_called_once()
+            assert backend is mock_backend
+
+
+def test_effective_sandbox_type_returns_none_for_aio_backend():
+    """effective_sandbox_type returns None when a custom aio backend is active."""
+    from genai_tk.agents.deepagent.models import DeepagentProfile
+    from genai_tk.agents.deepagent.sandbox_bridge import effective_sandbox_type
+
+    profile = DeepagentProfile(name="p", sandbox="aio")
+    fake_backend = MagicMock()
+    assert effective_sandbox_type(profile, fake_backend) is None
+
+
+def test_effective_sandbox_type_forwards_builtin_types():
+    """effective_sandbox_type passes through deepagents-cli native sandbox types."""
+    from genai_tk.agents.deepagent.models import DeepagentProfile
+    from genai_tk.agents.deepagent.sandbox_bridge import effective_sandbox_type
+
+    for sandbox_val in ("modal", "daytona", "runloop", "langsmith"):
+        profile = DeepagentProfile(name="p", sandbox=sandbox_val)
+        assert effective_sandbox_type(profile, None) == sandbox_val
+
+
+def test_effective_sandbox_type_returns_none_for_none():
+    """effective_sandbox_type returns None when sandbox is 'none'."""
+    from genai_tk.agents.deepagent.models import DeepagentProfile
+    from genai_tk.agents.deepagent.sandbox_bridge import effective_sandbox_type
+
+    profile = DeepagentProfile(name="p", sandbox="none")
+    assert effective_sandbox_type(profile, None) is None
+
+
+def test_sandbox_bridge_env_vars_merge():
+    """_build_backend_config merges env_vars from global and profile, profile wins."""
+    from genai_tk.agents.deepagent.models import AioSandboxConfig, DeepagentConfig, DeepagentProfile
+    from genai_tk.agents.deepagent.sandbox_bridge import _build_backend_config
+
+    config = DeepagentConfig(
+        sandbox_config=AioSandboxConfig(
+            image="base-image",
+            env_vars={"GLOBAL_VAR": "global", "SHARED": "from_global"},
+        )
+    )
+    profile = DeepagentProfile(
+        name="p",
+        sandbox="aio",
+        sandbox_config=AioSandboxConfig(
+            env_vars={"PROFILE_VAR": "profile", "SHARED": "from_profile"},
+        ),
+    )
+
+    with patch(
+        "genai_tk.agents.langchain.sandbox_backend.AioSandboxBackendConfig",
+        side_effect=lambda **kw: kw,
+    ):
+        result = _build_backend_config(profile, config)
+
+    assert result["env_vars"]["GLOBAL_VAR"] == "global"
+    assert result["env_vars"]["PROFILE_VAR"] == "profile"
+    assert result["env_vars"]["SHARED"] == "from_profile"  # profile wins
+    assert result["image"] == "base-image"  # base image preserved when profile doesn't override
+

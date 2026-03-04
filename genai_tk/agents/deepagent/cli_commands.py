@@ -171,6 +171,7 @@ async def _run_tui_async(
     from deepagents_cli.tools import fetch_url, http_request
 
     from genai_tk.agents.deepagent.llm_bridge import resolve_model_from_profile
+    from genai_tk.agents.deepagent.sandbox_bridge import effective_sandbox_type, sandbox_context
     from genai_tk.agents.deepagent.toml_bridge import write_genai_tk_provider
 
     # Populate the TUI /model switcher with the YAML-curated models list.
@@ -188,31 +189,33 @@ async def _run_tui_async(
 
     model = resolve_model_from_profile(profile, llm_id, config)
 
-    async with get_checkpointer() as checkpointer:
-        agent, backend = create_cli_agent(
-            model=model,
-            assistant_id=assistant_id,
-            tools=tools,
-            auto_approve=auto_approve,
-            enable_memory=profile.enable_memory,
-            enable_skills=profile.enable_skills,
-            enable_shell=profile.enable_shell,
-            system_prompt=profile.system_prompt,
-            checkpointer=checkpointer,
-        )
+    async with sandbox_context(profile, config) as sandbox_backend:
+        async with get_checkpointer() as checkpointer:
+            agent, backend = create_cli_agent(
+                model=model,
+                assistant_id=assistant_id,
+                tools=tools,
+                auto_approve=auto_approve,
+                enable_memory=profile.enable_memory,
+                enable_skills=profile.enable_skills,
+                enable_shell=profile.enable_shell,
+                system_prompt=profile.system_prompt,
+                checkpointer=checkpointer,
+                sandbox=sandbox_backend,
+            )
 
-        result = await run_textual_app(
-            agent=agent,
-            assistant_id=assistant_id,
-            backend=backend,
-            auto_approve=auto_approve,
-            thread_id=thread_id,
-            initial_prompt=initial_prompt,
-            checkpointer=checkpointer,
-            tools=tools,
-            sandbox_type=profile.sandbox if profile.sandbox != "none" else None,
-        )
-        return result.return_code
+            result = await run_textual_app(
+                agent=agent,
+                assistant_id=assistant_id,
+                backend=backend,
+                auto_approve=auto_approve,
+                thread_id=thread_id,
+                initial_prompt=initial_prompt,
+                checkpointer=checkpointer,
+                tools=tools,
+                sandbox_type=effective_sandbox_type(profile, sandbox_backend),
+            )
+            return result.return_code
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +259,7 @@ async def _run_task_async(
     from langgraph.types import Command
 
     from genai_tk.agents.deepagent.llm_bridge import resolve_model_from_profile
+    from genai_tk.agents.deepagent.sandbox_bridge import sandbox_context
 
     tools = [http_request, fetch_url]
     if "web_search" in profile.tools:
@@ -280,87 +284,89 @@ async def _run_task_async(
             f"[dim]Shell:[/dim] {'on' if effective_shell else 'off (use --profile with shell_allow_list)'}"
         )
 
-    async with get_checkpointer() as checkpointer:
-        agent, _backend = create_cli_agent(
-            model=model,
-            assistant_id=assistant_id,
-            tools=tools,
-            auto_approve=True,  # Non-interactive always auto-approves
-            enable_memory=profile.enable_memory,
-            enable_skills=profile.enable_skills,
-            enable_shell=effective_shell,
-            system_prompt=profile.system_prompt,
-            checkpointer=checkpointer,
-        )
+    async with sandbox_context(profile, config) as sandbox_backend:
+        async with get_checkpointer() as checkpointer:
+            agent, _backend = create_cli_agent(
+                model=model,
+                assistant_id=assistant_id,
+                tools=tools,
+                auto_approve=True,  # Non-interactive always auto-approves
+                enable_memory=profile.enable_memory,
+                enable_skills=profile.enable_skills,
+                enable_shell=effective_shell,
+                system_prompt=profile.system_prompt,
+                checkpointer=checkpointer,
+                sandbox=sandbox_backend,
+            )
 
-        thread_id = str(uuid.uuid4())
-        run_config: dict = {"configurable": {"thread_id": thread_id}}
-        stream_input: dict | Command = {"messages": [{"role": "user", "content": message}]}
+            thread_id = str(uuid.uuid4())
+            run_config: dict = {"configurable": {"thread_id": thread_id}}
+            stream_input: dict | Command = {"messages": [{"role": "user", "content": message}]}
 
-        full_response: list[str] = []
-        iterations = 0
-        max_hitl_iterations = 10
+            full_response: list[str] = []
+            iterations = 0
+            max_hitl_iterations = 10
 
-        while True:
-            async for chunk in agent.astream(
-                stream_input,
-                stream_mode=["messages", "updates"],
-                subgraphs=True,
-                config=run_config,
-                durability="exit",
-            ):
-                if not isinstance(chunk, tuple) or len(chunk) != 3:
-                    continue
-                namespace, chunk_mode, data = chunk
-                if namespace:  # Skip sub-agent output
-                    continue
-
-                if chunk_mode == "updates" and isinstance(data, dict) and "__interrupt__" in data:
-                    # Auto-approve all HITL interrupts (auto_approve=True above handles most,
-                    # but we catch any remaining ones here)
-                    interrupts = data["__interrupt__"]
-                    if interrupts:
-                        hitl_response: dict = {}
-                        for interrupt_obj in interrupts:
-                            hitl_response[interrupt_obj.id] = {"decisions": [{"type": "approve"}]}
-                        stream_input = Command(resume=hitl_response)
-                        iterations += 1
-                        if iterations > max_hitl_iterations:
-                            console.print("[red]HITL iteration limit reached, aborting.[/red]")
-                            return 1
-                        break  # Re-enter stream loop with resume command
-                elif chunk_mode == "messages" and isinstance(data, tuple) and len(data) == 2:
-                    msg_obj, meta = data
-                    if meta and meta.get("lc_source") == "summarization":
+            while True:
+                async for chunk in agent.astream(
+                    stream_input,
+                    stream_mode=["messages", "updates"],
+                    subgraphs=True,
+                    config=run_config,
+                    durability="exit",
+                ):
+                    if not isinstance(chunk, tuple) or len(chunk) != 3:
                         continue
-                    if isinstance(msg_obj, AIMessage):
-                        content = msg_obj.content
-                        if isinstance(content, str) and content:
-                            sys.stdout.write(content)
-                            sys.stdout.flush()
-                            full_response.append(content)
-                        elif isinstance(content, list):
-                            for block in content:
-                                if isinstance(block, dict) and block.get("type") == "text":
-                                    text = block.get("text", "")
-                                    if text:
-                                        sys.stdout.write(text)
-                                        sys.stdout.flush()
-                                        full_response.append(text)
-                    elif not quiet and hasattr(msg_obj, "name"):
-                        # Tool result — show brief notification
-                        pass  # keep output clean in non-interactive mode
-            else:
-                break  # Normal stream end — exit while loop
+                    namespace, chunk_mode, data = chunk
+                    if namespace:  # Skip sub-agent output
+                        continue
 
-        if full_response:
-            sys.stdout.write("\n")
-            sys.stdout.flush()
+                    if chunk_mode == "updates" and isinstance(data, dict) and "__interrupt__" in data:
+                        # Auto-approve all HITL interrupts (auto_approve=True above handles most,
+                        # but we catch any remaining ones here)
+                        interrupts = data["__interrupt__"]
+                        if interrupts:
+                            hitl_response: dict = {}
+                            for interrupt_obj in interrupts:
+                                hitl_response[interrupt_obj.id] = {"decisions": [{"type": "approve"}]}
+                            stream_input = Command(resume=hitl_response)
+                            iterations += 1
+                            if iterations > max_hitl_iterations:
+                                console.print("[red]HITL iteration limit reached, aborting.[/red]")
+                                return 1
+                            break  # Re-enter stream loop with resume command
+                    elif chunk_mode == "messages" and isinstance(data, tuple) and len(data) == 2:
+                        msg_obj, meta = data
+                        if meta and meta.get("lc_source") == "summarization":
+                            continue
+                        if isinstance(msg_obj, AIMessage):
+                            content = msg_obj.content
+                            if isinstance(content, str) and content:
+                                sys.stdout.write(content)
+                                sys.stdout.flush()
+                                full_response.append(content)
+                            elif isinstance(content, list):
+                                for block in content:
+                                    if isinstance(block, dict) and block.get("type") == "text":
+                                        text = block.get("text", "")
+                                        if text:
+                                            sys.stdout.write(text)
+                                            sys.stdout.flush()
+                                            full_response.append(text)
+                        elif not quiet and hasattr(msg_obj, "name"):
+                            # Tool result — show brief notification
+                            pass  # keep output clean in non-interactive mode
+                else:
+                    break  # Normal stream end — exit while loop
 
-        if not quiet:
-            console.print("[green]✓ Task completed[/green]")
+            if full_response:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
 
-        return 0
+            if not quiet:
+                console.print("[green]✓ Task completed[/green]")
+
+            return 0
 
 
 # ---------------------------------------------------------------------------
