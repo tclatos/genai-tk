@@ -1,5 +1,8 @@
 """Lifecycle management for the AioSandboxBackend inside deepagent-cli sessions.
 
+⚠️  **NOT TESTED** — This module provides integration infrastructure but has not
+been validated in real deepagents-cli TUI or task runner workflows yet.
+
 Provides a single async context manager, ``sandbox_context``, that starts and
 stops an :class:`~genai_tk.agents.langchain.sandbox_backend.AioSandboxBackend`
 Docker container when ``sandbox: aio`` is configured, or yields ``None`` for
