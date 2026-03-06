@@ -1,4 +1,4 @@
-"""Backward-compatible re-export. Use ``genai_tk.agents.langchain.rich_middleware`` instead."""
+"""Backward-compatible re-export. Use ``genai_tk.agents.langchain.middleware.rich_middleware`` instead."""
 
 from genai_tk.agents.langchain.middleware.rich_middleware import (  # noqa: F401
     RichToolCallMiddleware,

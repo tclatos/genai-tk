@@ -41,7 +41,7 @@ import importlib.util
 import os
 import re
 from functools import cached_property, lru_cache
-from typing import TYPE_CHECKING, Annotated, Any, Literal, cast
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 if TYPE_CHECKING:
     from langchain_core.language_models.chat_models import BaseChatModel
@@ -51,7 +51,7 @@ from loguru import logger
 from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, computed_field, field_validator
 
-from genai_tk.core.cache import LlmCache
+from genai_tk.core.cache import CacheMethod, LlmCache
 from genai_tk.core.models_db import ModelEntry, get_models_db
 from genai_tk.core.providers import (
     OPENROUTER_API_BASE,
@@ -114,8 +114,8 @@ class LlmSection(BaseModel):
     """
 
     models: LlmModelsConfig = Field(..., description="Default and tagged LLM model IDs")
-    cache: Literal["memory", "sqlite", "no_cache"] = Field(
-        "no_cache", description="Cache strategy: 'memory' | 'sqlite' | 'no_cache'"
+    cache: str | CacheMethod = Field(
+        "no_cache", description="Cache strategy: 'memory' | 'sqlite' | 'no_cache' or CacheMethod enum"
     )
     cache_path: str | None = Field(None, description="SQLite cache file path (required when cache='sqlite')")
     exceptions: list[Any] = Field(default_factory=list, description="Per-model provider overrides from llm.yaml")
@@ -454,12 +454,42 @@ class LlmFactory(BaseModel):
     json_mode: bool = False
     streaming: bool = False
     reasoning: bool | None = None
-    cache: Literal["memory", "sqlite", "no_cache"] | None = None
+    cache: str | CacheMethod | None = None
     llm_params: dict = {}
 
     # Internal fields set during resolution
     llm_id: Annotated[str | None, Field(validate_default=True)] = None
     _resolved_llm_info: LlmInfo | None = PrivateAttr(default=None)
+
+    @field_validator("cache")
+    @classmethod
+    def validate_cache(cls, v: str | CacheMethod | None) -> str | CacheMethod | None:
+        """Validate cache method value.
+
+        Args:
+            v: Cache method as string, CacheMethod enum, or None
+
+        Returns:
+            Validated cache value
+
+        Raises:
+            ValueError: If cache value is invalid
+        """
+        if v is None:
+            return v
+
+        # If it's already a CacheMethod enum, it's valid
+        if isinstance(v, CacheMethod):
+            return v
+
+        # If it's a string, validate it
+        if isinstance(v, str):
+            valid_values = ["memory", "sqlite", "no_cache"]
+            if v not in valid_values:
+                raise ValueError("Input should be 'memory', 'sqlite' or 'no_cache'")
+            return v
+
+        raise ValueError(f"cache must be string or CacheMethod, got {type(v)}")
 
     @property
     def provider(self) -> str:
@@ -1019,7 +1049,7 @@ def get_llm(
     json_mode: bool = False,
     streaming: bool = False,
     reasoning: bool | None = None,
-    cache: str | None = None,
+    cache: str | CacheMethod | None = None,
     **kwargs,
 ) -> BaseChatModel:
     """Create a configured LangChain BaseLanguageModel instance.
@@ -1100,7 +1130,7 @@ def get_llm_unified(
     json_mode: bool = False,
     streaming: bool = False,
     reasoning: bool | None = None,
-    cache: str | None = None,
+    cache: str | CacheMethod | None = None,
     **kwargs,
 ) -> BaseChatModel:
     """Create a configured LangChain BaseLanguageModel instance using unified LLM parameter.

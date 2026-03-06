@@ -61,13 +61,24 @@ class LlmCache:
     """A wrapper above LangChain 'set_llm_cache' to configure and select LLM cache method."""
 
     @classmethod
-    def from_value(cls, value: str | None) -> BaseCache | None:
-        """ """
+    def from_value(cls, value: str | CacheMethod | None) -> BaseCache | None:
+        """Convert cache method specification to LangChain BaseCache instance.
+
+        Args:
+            value: Cache method as string, CacheMethod enum, or None
+
+        Returns:
+            Configured cache instance or None for no caching
+        """
         from langchain_community.cache import InMemoryCache, SQLiteCache
         from loguru import logger
 
         if value is None:
             value = "default"
+
+        # Convert CacheMethod enum to string
+        if isinstance(value, CacheMethod):
+            value = value.value
 
         if value == "default":
             from_config = _llm_cache_section().cache

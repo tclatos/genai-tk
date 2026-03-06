@@ -535,4 +535,3 @@ def test_sandbox_bridge_env_vars_merge():
     assert result["env_vars"]["PROFILE_VAR"] == "profile"
     assert result["env_vars"]["SHARED"] == "from_profile"  # profile wins
     assert result["image"] == "base-image"  # base image preserved when profile doesn't override
-
