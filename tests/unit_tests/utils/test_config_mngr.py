@@ -294,10 +294,17 @@ additional_env:
         # Should be the same instance
         self.assertIs(config1, config2)
 
-        # Test reload
+        # Test reload – restore test config afterwards to avoid leaking state
         global_config_reload()
         config3 = global_config()
         self.assertIsNot(config1, config3)
+
+        # Restore the pytest test configuration so no state leaks to other tests
+        global_config().select_config("pytest")
+        global_config().set("llm.models.default", "parrot_local@fake")
+        global_config().set("embeddings.models.default", "embeddings_768@fake")
+        global_config().set("llm_cache.method", "memory")
+        global_config().set("kv_store.engine", "memory")
 
     def test_invalid_config_file(self) -> None:
         """Test handling of invalid configuration files."""

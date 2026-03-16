@@ -14,7 +14,12 @@ import os
 
 import pytest
 import pytest_asyncio
-from genai_tk.agents.deer_flow.client import DeerFlowClient, TokenEvent
+
+try:
+    from genai_tk.agents.deer_flow.client import DeerFlowClient, TokenEvent
+except ImportError:
+    DeerFlowClient = None  # type: ignore[assignment,misc]
+    TokenEvent = None  # type: ignore[assignment]
 
 from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
 
@@ -44,6 +49,8 @@ async def running_servers():
 @pytest_asyncio.fixture
 async def client(running_servers: DeerFlowServerManager) -> DeerFlowClient:
     """Return a DeerFlowClient connected to the running servers."""
+    if DeerFlowClient is None:
+        pytest.skip("genai_tk.agents.deer_flow.client is not available")
     return DeerFlowClient()
 
 

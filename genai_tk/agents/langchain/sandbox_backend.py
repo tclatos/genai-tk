@@ -450,13 +450,13 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             grep failure (exit code > 1).
         """
         search_path = path or self.config.work_dir
-        cmd = f"grep -rna {shlex.quote(pattern)} {shlex.quote(search_path)}"
+        cmd = f"grep -rna {shlex.quote(pattern)} {shlex.quote(search_path)} 2>/dev/null"
         if glob:
             cmd += f" --include={shlex.quote(glob)}"
         result = await self._run_bash({"command": cmd})
-        # grep exits 0 (matches), 1 (no matches), 2+ (error)
-        if result.exit_code > 1:
-            return f"grep error: {result.output.strip()}"
+        # grep exits 0 (matches found), 1 (no matches), 2+ (errors, e.g. permission denied)
+        # With 2>/dev/null, permission errors are suppressed; exit 2 means only unreadable files.
+        # We still parse whatever stdout was produced before returning an error.
         matches: list[GrepMatch] = []
         for line in result.output.splitlines():
             parts = line.split(":", 2)
@@ -465,6 +465,8 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
                     matches.append(GrepMatch(path=parts[0], line=int(parts[1]), text=parts[2]))
                 except ValueError:
                     pass
+        if result.exit_code > 1 and not matches and result.output.strip():
+            return f"grep error: {result.output.strip()}"
         return matches
 
     async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:

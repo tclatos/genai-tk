@@ -276,9 +276,9 @@ async def test_agrep_raw_finds_pattern(sandbox: AioSandboxBackend) -> None:
 
     assert isinstance(result, list)
     assert len(result) == 2
-    assert all(isinstance(m, GrepMatch) for m in result)
-    assert result[0].line == 1
-    assert result[1].line == 3
+    assert all(isinstance(m, dict) and "path" in m and "line" in m and "text" in m for m in result)
+    assert result[0]["line"] == 1
+    assert result[1]["line"] == 3
 
 
 @pytest.mark.asyncio(loop_scope="module")
