@@ -634,8 +634,8 @@ class LlmFactory(BaseModel):
         llm_id = models.get_tag(llm_tag) or "default"
         if llm_id == "default":
             raise ValueError(f"Cannot find LLM of type type : '{llm_tag}' (no key found in config file)")
-        if llm_id not in LlmFactory.known_items():
-            raise ValueError(f"Cannot find LLM '{llm_id}' of type : '{llm_tag}'")
+        # Return the resolved ID even if it's a gateway model (not in known_items).
+        # Downstream resolution in model_post_init handles gateway/alias IDs.
         return llm_id
 
     @staticmethod

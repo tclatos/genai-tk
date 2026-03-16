@@ -15,7 +15,6 @@ from deepagents.backends.protocol import (
     ExecuteResponse,
     FileDownloadResponse,
     FileUploadResponse,
-    GrepMatch,
     WriteResult,
 )
 

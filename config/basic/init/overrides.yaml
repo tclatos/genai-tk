@@ -5,7 +5,9 @@ pytest:
     models:
       default: parrot_local@fake
       fake: parrot_local@fake
-      test: gpt_41mini_openai
+      test: gpt-oss-20b@openrouter
+      cheap_model: gpt-oss-20b@openrouter
+      fast_model: gpt-oss-20b@openrouter
   embeddings:
     models:
       default: embeddings_768@fake
