@@ -1125,57 +1125,6 @@ def get_llm(
     return factory.get()
 
 
-def get_llm_unified(
-    llm: str | None = None,
-    json_mode: bool = False,
-    streaming: bool = False,
-    reasoning: bool | None = None,
-    cache: str | CacheMethod | None = None,
-    **kwargs,
-) -> BaseChatModel:
-    """Create a configured LangChain BaseLanguageModel instance using unified LLM parameter.
-
-    Args:
-        llm: Unified LLM identifier (can be either LLM ID or LLM tag)
-        json_mode: Whether to force JSON output format (where supported)
-        streaming: Whether to enable streaming responses (where supported)
-        reasoning: Whether to show reasoning/thinking process (None=default, True=enable, False=disable)
-        cache: cache method ("sqlite", "memory", no"_cache, ..) or "default", or None if no change (global setting)
-        **kwargs: other llm parameters (temperature, max_token, ....)
-
-    Returns:
-        BaseLanguageModel: Configured language model instance
-
-    Examples:
-        ```python
-        # Get default LLM
-        llm = get_llm_unified()
-
-        # Get specific model by ID
-        llm = get_llm_unified(llm="gpt_35_openai", streaming=True)
-
-        # Get model by tag
-        llm = get_llm_unified(llm="fast_model", temperature=0.7)
-        ```
-    """
-    factory = LlmFactory(
-        llm=llm,
-        json_mode=json_mode,
-        streaming=streaming,
-        reasoning=reasoning,
-        cache=cache,
-        llm_params=kwargs,
-    )
-    info = f"get LLM (unified):'{factory.llm_id}'"
-    info += " -streaming" if streaming else ""
-    info += " -json_mode" if json_mode else ""
-    info += f" -reasoning: {reasoning}" if reasoning is not None else ""
-    info += f" -cache: {cache}" if cache else ""
-    info += f" -extra: {kwargs}" if kwargs else ""
-    logger.debug(info)
-    return factory.get()
-
-
 def get_llm_info(llm_id: str) -> LlmInfo:
     """Return information on given LLM."""
     factory = LlmFactory(llm=llm_id)

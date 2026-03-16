@@ -66,7 +66,7 @@ def print_stream(stream: Iterator, content: bool = True) -> None:
         print_step(step, content)
 
 
-async def print_astream(stream: AsyncIterator, content: bool = True) -> None:
+async def print_stream(stream: AsyncIterator, content: bool = True) -> None:
     """Print async streamed responses in a readable format."""
     async for step in stream:
         print_step(step, content)

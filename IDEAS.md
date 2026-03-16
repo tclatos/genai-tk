@@ -6,6 +6,7 @@
 
 - Develop classical Deep Agents use case  , to run without too much change  (skill,  toools, MCP, ..) either in Deer-flow, Deeppagent-cli and our Langchain generic agent : research agent, coder agent, DB expert agent, etc...  
     - Test with several consiguration (sandbox, LLM, ...)
+    - See https://github.com/langchain-ai/deepagents/tree/main/examples/  and Deer-flow 
 
 - Implement Sub-agents  in our generic Langchain agent YAML config file
 
@@ -14,6 +15,8 @@
 - Improve or replace our Rich based CLI by a Textual based one, inspired by deep-agent-cli 
 
 - Implement an API for our agents, inspired by the one in Deep-Flow, so we could reuse its front-end to quick start a project
+
+ - Integrate open-code in similar way than deep-flow, lanchain, deepagents  (using https://github.com/anomalyco/opencode-sdk-python)
 
 
 ## Other  

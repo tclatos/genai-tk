@@ -258,7 +258,15 @@ reportTypedDictNotRequiredAccess = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
-markers = ["performance_tests: marks tests as performance tests"]
+markers = [
+    "performance_tests: marks tests as performance tests",
+    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests",
+    "slow: marks tests as slow-running",
+    "network: marks tests that require network access",
+    "fake_models: marks tests that use fake/mock models only",
+    "real_models: marks tests that call real AI models (opt-in via --include-real-models)",
+]
 
 
 [project.scripts]

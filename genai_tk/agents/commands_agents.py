@@ -21,7 +21,7 @@ class AgentCommands(CliTopCommand):
         return "agents", self.description
 
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
-        from genai_tk.agents.deepagent.cli_commands import DeepagentCommands
+        from genai_tk.agents.deepagent_cli.cli_commands import DeepagentCommands
         from genai_tk.agents.deer_flow.cli_commands import DeerFlowCommands
         from genai_tk.agents.langchain.commands import register as register_langchain
         from genai_tk.agents.smolagents.commands import register as register_smol

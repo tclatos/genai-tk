@@ -8,7 +8,7 @@ from genai_tk.core.chain_registry import (
     RunnableItem,
     register_runnable,
 )
-from genai_tk.core.llm_factory import get_llm_unified
+from genai_tk.core.llm_factory import get_llm
 from genai_tk.core.prompts import def_prompt
 
 load_dotenv(verbose=True)
@@ -26,7 +26,7 @@ def get_llm_from_config(topic: str, config: RunnableConfig) -> str:
     temperature = llm_args.get("temperature", 0.0)
 
     # Get configured LLM
-    llm = get_llm_unified(llm=llm_id, reasoning=reasoning, temperature=temperature)
+    llm = get_llm(llm=llm_id, reasoning=reasoning, temperature=temperature)
 
     # Create the prompt and invoke the LLM
     simple_prompt = """Tell me a joke on {topic}"""

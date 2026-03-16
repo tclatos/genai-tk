@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from genai_tk.agents.deepagent.models import DeepagentConfig, DeepagentProfile, load_deepagent_config
+from genai_tk.agents.deepagent_cli.models import DeepagentConfig, DeepagentProfile, load_deepagent_config
 
 # ---------------------------------------------------------------------------
 # DeepagentProfile tests
@@ -147,13 +147,13 @@ def test_load_deepagent_config_handles_exception_gracefully():
 
 def test_resolve_model_from_profile_uses_override():
     """resolve_model_from_profile prefers llm_override over profile.llm."""
-    from genai_tk.agents.deepagent.llm_bridge import resolve_model_from_profile
+    from genai_tk.agents.deepagent_cli.llm_bridge import resolve_model_from_profile
 
     profile = DeepagentProfile(name="test", llm="profile_llm")
     config = DeepagentConfig(default_model="config_llm")
     fake_model = MagicMock()
 
-    with patch("genai_tk.agents.deepagent.llm_bridge._resolve_identifier", return_value=fake_model) as mock_resolve:
+    with patch("genai_tk.agents.deepagent_cli.llm_bridge._resolve_identifier", return_value=fake_model) as mock_resolve:
         result = resolve_model_from_profile(profile, "override_llm", config)
         mock_resolve.assert_called_once_with("override_llm")
     assert result is fake_model
@@ -161,35 +161,35 @@ def test_resolve_model_from_profile_uses_override():
 
 def test_resolve_model_from_profile_falls_back_to_profile():
     """resolve_model_from_profile uses profile.llm when no override given."""
-    from genai_tk.agents.deepagent.llm_bridge import resolve_model_from_profile
+    from genai_tk.agents.deepagent_cli.llm_bridge import resolve_model_from_profile
 
     profile = DeepagentProfile(name="test", llm="profile_llm")
     config = DeepagentConfig(default_model="config_llm")
     fake_model = MagicMock()
 
-    with patch("genai_tk.agents.deepagent.llm_bridge._resolve_identifier", return_value=fake_model) as mock_resolve:
+    with patch("genai_tk.agents.deepagent_cli.llm_bridge._resolve_identifier", return_value=fake_model) as mock_resolve:
         resolve_model_from_profile(profile, None, config)
         mock_resolve.assert_called_once_with("profile_llm")
 
 
 def test_resolve_model_from_profile_falls_back_to_config_default():
     """resolve_model_from_profile uses config.default_model when profile has no llm."""
-    from genai_tk.agents.deepagent.llm_bridge import resolve_model_from_profile
+    from genai_tk.agents.deepagent_cli.llm_bridge import resolve_model_from_profile
 
     profile = DeepagentProfile(name="test", llm=None)
     config = DeepagentConfig(default_model="config_default")
     fake_model = MagicMock()
 
-    with patch("genai_tk.agents.deepagent.llm_bridge._resolve_identifier", return_value=fake_model) as mock_resolve:
+    with patch("genai_tk.agents.deepagent_cli.llm_bridge._resolve_identifier", return_value=fake_model) as mock_resolve:
         resolve_model_from_profile(profile, None, config)
         mock_resolve.assert_called_once_with("config_default")
 
 
 def test_resolve_identifier_raises_when_nothing_resolved():
     """_resolve_identifier raises ValueError when no identifier is available."""
-    from genai_tk.agents.deepagent.llm_bridge import _resolve_identifier
+    from genai_tk.agents.deepagent_cli.llm_bridge import _resolve_identifier
 
-    with patch("genai_tk.agents.deepagent.llm_bridge.global_config") as mock_gc:
+    with patch("genai_tk.agents.deepagent_cli.llm_bridge.global_config") as mock_gc:
         mock_gc.return_value.get.return_value = None
         with pytest.raises(ValueError, match="No LLM specified"):
             _resolve_identifier(None)
@@ -197,7 +197,7 @@ def test_resolve_identifier_raises_when_nothing_resolved():
 
 def test_resolve_identifier_raises_on_bad_id():
     """_resolve_identifier raises ValueError when LlmFactory cannot resolve the ID."""
-    from genai_tk.agents.deepagent.llm_bridge import _resolve_identifier
+    from genai_tk.agents.deepagent_cli.llm_bridge import _resolve_identifier
 
     with patch.object(
         __import__("genai_tk.core.llm_factory", fromlist=["LlmFactory"]).LlmFactory,
@@ -210,7 +210,7 @@ def test_resolve_identifier_raises_on_bad_id():
 
 def test_resolve_identifier_creates_model():
     """_resolve_identifier calls get_llm with the resolved identifier."""
-    from genai_tk.agents.deepagent.llm_bridge import _resolve_identifier
+    from genai_tk.agents.deepagent_cli.llm_bridge import _resolve_identifier
 
     fake_model = MagicMock()
     with (
@@ -219,7 +219,7 @@ def test_resolve_identifier_creates_model():
             "resolve_llm_identifier_safe",
             return_value=("gpt41mini@openai", None),
         ),
-        patch("genai_tk.agents.deepagent.llm_bridge.get_llm", return_value=fake_model) as mock_get_llm,
+        patch("genai_tk.agents.deepagent_cli.llm_bridge.get_llm", return_value=fake_model) as mock_get_llm,
     ):
         result = _resolve_identifier("fast_model")
         mock_get_llm.assert_called_once_with(llm="gpt41mini@openai")
@@ -235,7 +235,7 @@ def test_deepagent_commands_registers():
     """DeepagentCommands.register() produces a valid Typer sub-app without errors."""
     import typer
 
-    from genai_tk.agents.deepagent.cli_commands import DeepagentCommands
+    from genai_tk.agents.deepagent_cli.cli_commands import DeepagentCommands
 
     app = typer.Typer()
     DeepagentCommands().register(app)
@@ -251,10 +251,10 @@ def test_deepagent_commands_registers():
 
 def test_model_adapter_construction():
     """GenaiTkModelAdapter stores the model identifier and resolves via bridge."""
-    from genai_tk.agents.deepagent.model_adapter import GenaiTkModelAdapter
+    from genai_tk.agents.deepagent_cli.model_adapter import GenaiTkModelAdapter
 
     fake_delegate = MagicMock()
-    with patch("genai_tk.agents.deepagent.llm_bridge._resolve_identifier", return_value=fake_delegate):
+    with patch("genai_tk.agents.deepagent_cli.llm_bridge._resolve_identifier", return_value=fake_delegate):
         adapter = GenaiTkModelAdapter(model="fast_model")
 
     assert adapter.model == "fast_model"
@@ -263,10 +263,10 @@ def test_model_adapter_construction():
 
 def test_model_adapter_llm_type():
     """GenaiTkModelAdapter._llm_type returns the expected string."""
-    from genai_tk.agents.deepagent.model_adapter import GenaiTkModelAdapter
+    from genai_tk.agents.deepagent_cli.model_adapter import GenaiTkModelAdapter
 
     fake_delegate = MagicMock()
-    with patch("genai_tk.agents.deepagent.llm_bridge._resolve_identifier", return_value=fake_delegate):
+    with patch("genai_tk.agents.deepagent_cli.llm_bridge._resolve_identifier", return_value=fake_delegate):
         adapter = GenaiTkModelAdapter(model="default")
 
     assert adapter._llm_type == "genai_tk_adapter"
@@ -277,13 +277,13 @@ def test_model_adapter_generate_delegates():
     from langchain_core.messages import HumanMessage
     from langchain_core.outputs import ChatGeneration, ChatResult
 
-    from genai_tk.agents.deepagent.model_adapter import GenaiTkModelAdapter
+    from genai_tk.agents.deepagent_cli.model_adapter import GenaiTkModelAdapter
 
     fake_result = ChatResult(generations=[ChatGeneration(message=HumanMessage(content="hi"))])
     fake_delegate = MagicMock()
     fake_delegate._generate.return_value = fake_result
 
-    with patch("genai_tk.agents.deepagent.llm_bridge._resolve_identifier", return_value=fake_delegate):
+    with patch("genai_tk.agents.deepagent_cli.llm_bridge._resolve_identifier", return_value=fake_delegate):
         adapter = GenaiTkModelAdapter(model="default")
 
     messages = [HumanMessage(content="hello")]
@@ -295,11 +295,11 @@ def test_model_adapter_generate_delegates():
 
 def test_model_adapter_model_name_property():
     """GenaiTkModelAdapter.model_name falls back to the model identifier."""
-    from genai_tk.agents.deepagent.model_adapter import GenaiTkModelAdapter
+    from genai_tk.agents.deepagent_cli.model_adapter import GenaiTkModelAdapter
 
     fake_delegate = MagicMock(spec=[])  # no model_name attribute
 
-    with patch("genai_tk.agents.deepagent.llm_bridge._resolve_identifier", return_value=fake_delegate):
+    with patch("genai_tk.agents.deepagent_cli.llm_bridge._resolve_identifier", return_value=fake_delegate):
         adapter = GenaiTkModelAdapter(model="gpt41mini@openai")
 
     assert adapter.model_name == "gpt41mini@openai"
@@ -330,7 +330,7 @@ def test_config_switcher_models_parsed():
 
 def test_write_genai_tk_provider_noop_on_empty(tmp_path):
     """write_genai_tk_provider is a no-op when models list is empty."""
-    from genai_tk.agents.deepagent.toml_bridge import write_genai_tk_provider
+    from genai_tk.agents.deepagent_cli.toml_bridge import write_genai_tk_provider
 
     cfg_file = tmp_path / "config.toml"
     write_genai_tk_provider([], config_path=cfg_file)
@@ -341,7 +341,7 @@ def test_write_genai_tk_provider_creates_toml(tmp_path):
     """write_genai_tk_provider creates the config file with the genai_tk provider."""
     import tomllib
 
-    from genai_tk.agents.deepagent.toml_bridge import (
+    from genai_tk.agents.deepagent_cli.toml_bridge import (
         _ADAPTER_CLASS_PATH,
         write_genai_tk_provider,
     )
@@ -349,7 +349,7 @@ def test_write_genai_tk_provider_creates_toml(tmp_path):
     cfg_file = tmp_path / "config.toml"
     models = ["default", "fast_model"]
 
-    with patch("genai_tk.agents.deepagent.toml_bridge._clear_deepagents_cache"):
+    with patch("genai_tk.agents.deepagent_cli.toml_bridge._clear_deepagents_cache"):
         write_genai_tk_provider(models, config_path=cfg_file)
 
     assert cfg_file.exists()
@@ -365,12 +365,12 @@ def test_write_genai_tk_provider_preserves_existing(tmp_path):
     """write_genai_tk_provider keeps existing TOML keys when updating."""
     import tomllib
 
-    from genai_tk.agents.deepagent.toml_bridge import write_genai_tk_provider
+    from genai_tk.agents.deepagent_cli.toml_bridge import write_genai_tk_provider
 
     cfg_file = tmp_path / "config.toml"
     cfg_file.write_text('[models]\ndefault = "anthropic:claude-3-5-haiku-latest"\n', encoding="utf-8")
 
-    with patch("genai_tk.agents.deepagent.toml_bridge._clear_deepagents_cache"):
+    with patch("genai_tk.agents.deepagent_cli.toml_bridge._clear_deepagents_cache"):
         write_genai_tk_provider(["default"], config_path=cfg_file)
 
     data = tomllib.loads(cfg_file.read_text())
@@ -380,10 +380,10 @@ def test_write_genai_tk_provider_preserves_existing(tmp_path):
 
 def test_write_genai_tk_provider_clears_cache(tmp_path):
     """write_genai_tk_provider resets the deepagents-cli model cache."""
-    from genai_tk.agents.deepagent.toml_bridge import write_genai_tk_provider
+    from genai_tk.agents.deepagent_cli.toml_bridge import write_genai_tk_provider
 
     cfg_file = tmp_path / "config.toml"
-    with patch("genai_tk.agents.deepagent.toml_bridge._clear_deepagents_cache") as mock_clear:
+    with patch("genai_tk.agents.deepagent_cli.toml_bridge._clear_deepagents_cache") as mock_clear:
         write_genai_tk_provider(["default"], config_path=cfg_file)
     mock_clear.assert_called_once()
 
@@ -395,7 +395,7 @@ def test_write_genai_tk_provider_clears_cache(tmp_path):
 
 def test_aio_sandbox_config_defaults():
     """AioSandboxConfig has all-None defaults except env_vars."""
-    from genai_tk.agents.deepagent.models import AioSandboxConfig
+    from genai_tk.agents.deepagent_cli.models import AioSandboxConfig
 
     cfg = AioSandboxConfig()
     assert cfg.image is None
@@ -408,7 +408,7 @@ def test_aio_sandbox_config_defaults():
 
 def test_aio_sandbox_config_in_profile():
     """DeepagentProfile can hold an AioSandboxConfig."""
-    from genai_tk.agents.deepagent.models import AioSandboxConfig, DeepagentProfile
+    from genai_tk.agents.deepagent_cli.models import AioSandboxConfig, DeepagentProfile
 
     profile = DeepagentProfile(
         name="aio_test",
@@ -423,7 +423,7 @@ def test_aio_sandbox_config_in_profile():
 
 def test_config_sandbox_config_parsed():
     """DeepagentConfig sandbox_config field round-trips correctly."""
-    from genai_tk.agents.deepagent.models import AioSandboxConfig, DeepagentConfig
+    from genai_tk.agents.deepagent_cli.models import AioSandboxConfig, DeepagentConfig
 
     cfg = DeepagentConfig(sandbox_config=AioSandboxConfig(host="0.0.0.0", startup_timeout=90.0))
     assert cfg.sandbox_config is not None
@@ -439,8 +439,8 @@ def test_config_sandbox_config_parsed():
 @pytest.mark.asyncio
 async def test_sandbox_context_yields_none_when_not_aio():
     """sandbox_context yields None for sandbox values other than 'aio'."""
-    from genai_tk.agents.deepagent.models import DeepagentConfig, DeepagentProfile
-    from genai_tk.agents.deepagent.sandbox_bridge import sandbox_context
+    from genai_tk.agents.deepagent_cli.models import DeepagentConfig, DeepagentProfile
+    from genai_tk.agents.deepagent_cli.sandbox_bridge import sandbox_context
 
     for sandbox_val in ("none", "modal", "daytona", "runloop", "langsmith"):
         profile = DeepagentProfile(name="p", sandbox=sandbox_val)
@@ -452,8 +452,8 @@ async def test_sandbox_context_yields_none_when_not_aio():
 @pytest.mark.asyncio
 async def test_sandbox_context_aio_starts_backend():
     """sandbox_context yields the AioSandboxBackend instance for sandbox='aio'."""
-    from genai_tk.agents.deepagent.models import AioSandboxConfig, DeepagentConfig, DeepagentProfile
-    from genai_tk.agents.deepagent.sandbox_bridge import sandbox_context
+    from genai_tk.agents.deepagent_cli.models import AioSandboxConfig, DeepagentConfig, DeepagentProfile
+    from genai_tk.agents.deepagent_cli.sandbox_bridge import sandbox_context
 
     profile = DeepagentProfile(
         name="aio",
@@ -479,8 +479,8 @@ async def test_sandbox_context_aio_starts_backend():
 
 def test_effective_sandbox_type_returns_none_for_aio_backend():
     """effective_sandbox_type returns None when a custom aio backend is active."""
-    from genai_tk.agents.deepagent.models import DeepagentProfile
-    from genai_tk.agents.deepagent.sandbox_bridge import effective_sandbox_type
+    from genai_tk.agents.deepagent_cli.models import DeepagentProfile
+    from genai_tk.agents.deepagent_cli.sandbox_bridge import effective_sandbox_type
 
     profile = DeepagentProfile(name="p", sandbox="aio")
     fake_backend = MagicMock()
@@ -489,8 +489,8 @@ def test_effective_sandbox_type_returns_none_for_aio_backend():
 
 def test_effective_sandbox_type_forwards_builtin_types():
     """effective_sandbox_type passes through deepagents-cli native sandbox types."""
-    from genai_tk.agents.deepagent.models import DeepagentProfile
-    from genai_tk.agents.deepagent.sandbox_bridge import effective_sandbox_type
+    from genai_tk.agents.deepagent_cli.models import DeepagentProfile
+    from genai_tk.agents.deepagent_cli.sandbox_bridge import effective_sandbox_type
 
     for sandbox_val in ("modal", "daytona", "runloop", "langsmith"):
         profile = DeepagentProfile(name="p", sandbox=sandbox_val)
@@ -499,8 +499,8 @@ def test_effective_sandbox_type_forwards_builtin_types():
 
 def test_effective_sandbox_type_returns_none_for_none():
     """effective_sandbox_type returns None when sandbox is 'none'."""
-    from genai_tk.agents.deepagent.models import DeepagentProfile
-    from genai_tk.agents.deepagent.sandbox_bridge import effective_sandbox_type
+    from genai_tk.agents.deepagent_cli.models import DeepagentProfile
+    from genai_tk.agents.deepagent_cli.sandbox_bridge import effective_sandbox_type
 
     profile = DeepagentProfile(name="p", sandbox="none")
     assert effective_sandbox_type(profile, None) is None
@@ -508,8 +508,8 @@ def test_effective_sandbox_type_returns_none_for_none():
 
 def test_sandbox_bridge_env_vars_merge():
     """_build_backend_config merges env_vars from global and profile, profile wins."""
-    from genai_tk.agents.deepagent.models import AioSandboxConfig, DeepagentConfig, DeepagentProfile
-    from genai_tk.agents.deepagent.sandbox_bridge import _build_backend_config
+    from genai_tk.agents.deepagent_cli.models import AioSandboxConfig, DeepagentConfig, DeepagentProfile
+    from genai_tk.agents.deepagent_cli.sandbox_bridge import _build_backend_config
 
     config = DeepagentConfig(
         sandbox_config=AioSandboxConfig(

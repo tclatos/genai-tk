@@ -26,7 +26,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, AsyncIterator
 
 if TYPE_CHECKING:
-    from genai_tk.agents.deepagent.models import DeepagentConfig, DeepagentProfile
+    from genai_tk.agents.deepagent_cli.models import DeepagentConfig, DeepagentProfile
     from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend, AioSandboxBackendConfig
 
 _AIO_SANDBOX_TYPE = "aio"

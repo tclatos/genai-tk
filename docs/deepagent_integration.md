@@ -282,7 +282,7 @@ When you press `/model` in the TUI:
 1. deepagents-cli calls `get_available_models()` (from `deepagents_cli.model_config`)
 2. This reads `~/.deepagents/config.toml` for custom providers
 3. At TUI launch, `write_genai_tk_provider()` injects a `[models.providers.genai_tk]` section with:
-   - `class_path = "genai_tk.agents.deepagent.model_adapter:GenaiTkModelAdapter"`
+   - `class_path = "genai_tk.agents.deepagent_cli.model_adapter:GenaiTkModelAdapter"`
    - `api_key_env = "HOME"` (for credential check)
    - `models = [list from deepagent.yaml]`
 4. When a `genai_tk` model is selected, deepagents-cli instantiates:
@@ -386,7 +386,7 @@ When the TUI launches, `write_genai_tk_provider()` ensures `~/.deepagents/config
 
 ```toml
 [models.providers.genai_tk]
-class_path = "genai_tk.agents.deepagent.model_adapter:GenaiTkModelAdapter"
+class_path = "genai_tk.agents.deepagent_cli.model_adapter:GenaiTkModelAdapter"
 api_key_env = "HOME"
 models = ["gpt41mini@openai", "claude3_haiku@anthropic", "gpt41mini@openrouter"]
 ```
@@ -445,7 +445,7 @@ No additional dependencies beyond what genai-tk already requires.
 ```toml
 [models.providers.genai_tk]
 api_key_env = "HOME"     # ← must be present
-class_path = "genai_tk.agents.deepagent.model_adapter:GenaiTkModelAdapter"
+class_path = "genai_tk.agents.deepagent_cli.model_adapter:GenaiTkModelAdapter"
 models = ["..."]
 ```
 

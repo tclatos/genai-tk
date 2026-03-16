@@ -26,7 +26,7 @@ class GenaiTkModelAdapter(BaseChatModel):
     """Wraps any genai-tk LLM identifier as a LangChain ``BaseChatModel``.
 
     Used by deepagents-cli's ``/model`` TUI switcher via the
-    ``class_path = "genai_tk.agents.deepagent.model_adapter:GenaiTkModelAdapter"``
+    ``class_path = "genai_tk.agents.deepagent_cli.model_adapter:GenaiTkModelAdapter"``
     provider config entry.  The ``model`` field stores the genai-tk LLM tag or
     ID (e.g. ``"default"``, ``"fast_model"``, ``"gpt41mini@openai"``).
     """
@@ -40,7 +40,7 @@ class GenaiTkModelAdapter(BaseChatModel):
 
     def model_post_init(self, __context: Any) -> None:
         """Resolve the genai-tk identifier to a concrete BaseChatModel."""
-        from genai_tk.agents.deepagent.llm_bridge import _resolve_identifier
+        from genai_tk.agents.deepagent_cli.llm_bridge import _resolve_identifier
 
         self._delegate = _resolve_identifier(self.model)
 

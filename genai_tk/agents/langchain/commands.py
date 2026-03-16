@@ -20,9 +20,7 @@ if TYPE_CHECKING:
 
 def _get_config_path() -> str:
     """Return the path to the unified langchain.yaml config file."""
-    from pathlib import Path
-
-    config_dir = Path(paths_config().config)
+    config_dir = paths_config().config
     return str(config_dir / "agents" / "langchain.yaml")
 
 
@@ -196,9 +194,9 @@ def register(cli_app: typer.Typer) -> None:
         """
         from rich.console import Console
 
-        from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+        from genai_tk.agents.langchain.agent_cli import run_langchain_agent_direct, run_langchain_agent_shell
+        from genai_tk.agents.langchain.langchain_agent import LangchainAgent
         from genai_tk.agents.langchain.setup import setup_langchain
-        from genai_tk.core.llm_factory import LlmFactory
 
         console = Console()
 
@@ -210,43 +208,25 @@ def register(cli_app: typer.Typer) -> None:
         # Setup LangChain early
         setup_langchain(llm, lc_debug, lc_verbose, cache)
 
-        # Load config
-        try:
-            cfg = load_unified_config(_get_config_path())
-        except Exception as e:
-            _display_config_error(console, e)
-            raise typer.Exit(1) from e
-
-        # Resolve profile name
-        profile_name = profile or cfg.default_profile
-        if not profile_name:
-            console.print("[red]No profile specified and no default_profile set in langchain.yaml[/red]")
-            raise typer.Exit(1)
-
         # Validate agent_type override
         if agent_type and agent_type not in ("react", "deep", "custom"):
             console.print(f"[red]Invalid --type '{agent_type}'. Choose: react | deep | custom[/red]")
             raise typer.Exit(1)
 
-        # Resolve profile (merges defaults, warns about incompatibilities)
-        try:
-            resolved = resolve_profile(cfg, profile_name, type_override=agent_type)  # type: ignore[arg-type]
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            _list_profiles()
-            raise typer.Exit(1) from e
+        # Resolve profile name (need config only to get default_profile)
+        profile_name: str | None = profile
+        if not profile_name:
+            from genai_tk.agents.langchain.config import load_unified_config
 
-        # Resolve and validate LLM override
-        llm_override: str | None = None
-        if llm:
             try:
-                llm_override = LlmFactory.resolve_llm_identifier(llm)
-            except ValueError as e:
-                console.print(f"[red]Invalid LLM identifier:[/red] {e}")
+                cfg = load_unified_config(_get_config_path())
+            except Exception as e:
+                _display_config_error(console, e)
                 raise typer.Exit(1) from e
-
-        # Display configuration info
-        _display_profile_info(resolved, llm_override)
+            profile_name = cfg.default_profile
+            if not profile_name:
+                console.print("[red]No profile specified and no default_profile set in langchain.yaml[/red]")
+                raise typer.Exit(1)
 
         # Handle stdin input
         if not input_text and not sys.stdin.isatty():
@@ -257,32 +237,28 @@ def register(cli_app: typer.Typer) -> None:
             console.print("[red]Error:[/red] Provide a query (positional arg, stdin) or use --chat")
             raise typer.Exit(1)
 
-        from genai_tk.agents.langchain.agent import (
-            run_langchain_agent_direct,
-            run_langchain_agent_shell,
-        )
+        try:
+            agent = LangchainAgent(
+                profile_name,
+                llm=llm or None,
+                agent_type=agent_type,  # type: ignore[arg-type]
+                mcp_servers=list(mcp) if mcp else [],
+                checkpointer=chat,
+                details=details,
+            )
+        except ValueError as e:
+            console.print(f"[red]{e}[/red]")
+            _list_profiles()
+            raise typer.Exit(1) from e
+
+        assert agent._profile is not None
+        _display_profile_info(agent._profile, llm or None)
 
         try:
             if chat:
-                asyncio.run(
-                    run_langchain_agent_shell(
-                        resolved,
-                        llm_override=llm_override,
-                        extra_mcp_servers=mcp or None,
-                        details=details,
-                    )
-                )
+                asyncio.run(run_langchain_agent_shell(agent))
             else:
-                asyncio.run(
-                    run_langchain_agent_direct(
-                        input_text,
-                        resolved,
-                        llm_override=llm_override,
-                        extra_mcp_servers=mcp or None,
-                        stream=stream,
-                        details=details,
-                    )
-                )
+                asyncio.run(run_langchain_agent_direct(input_text, agent, stream=stream))
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted.[/yellow]")
             raise typer.Exit(0) from None

@@ -41,7 +41,7 @@ console = Console()
 
 def _load_config():
     """Load deepagent config (lazy import to avoid side effects at import time)."""
-    from genai_tk.agents.deepagent.models import load_deepagent_config
+    from genai_tk.agents.deepagent_cli.models import load_deepagent_config
 
     return load_deepagent_config()
 
@@ -63,7 +63,7 @@ def _resolve_profile_settings(
     Returns:
         Tuple of (config, profile_or_none, effective_llm, effective_profile_fields).
     """
-    from genai_tk.agents.deepagent.models import DeepagentProfile
+    from genai_tk.agents.deepagent_cli.models import DeepagentProfile
 
     config = _load_config()
 
@@ -170,9 +170,9 @@ async def _run_tui_async(
     from deepagents_cli.sessions import get_checkpointer
     from deepagents_cli.tools import fetch_url, http_request
 
-    from genai_tk.agents.deepagent.llm_bridge import resolve_model_from_profile
-    from genai_tk.agents.deepagent.sandbox_bridge import effective_sandbox_type, sandbox_context
-    from genai_tk.agents.deepagent.toml_bridge import write_genai_tk_provider
+    from genai_tk.agents.deepagent_cli.llm_bridge import resolve_model_from_profile
+    from genai_tk.agents.deepagent_cli.sandbox_bridge import effective_sandbox_type, sandbox_context
+    from genai_tk.agents.deepagent_cli.toml_bridge import write_genai_tk_provider
 
     # Populate the TUI /model switcher with the YAML-curated models list.
     write_genai_tk_provider(config.switcher_models)
@@ -258,8 +258,8 @@ async def _run_task_async(
     from langchain_core.messages import AIMessage
     from langgraph.types import Command
 
-    from genai_tk.agents.deepagent.llm_bridge import resolve_model_from_profile
-    from genai_tk.agents.deepagent.sandbox_bridge import sandbox_context
+    from genai_tk.agents.deepagent_cli.llm_bridge import resolve_model_from_profile
+    from genai_tk.agents.deepagent_cli.sandbox_bridge import sandbox_context
 
     tools = [http_request, fetch_url]
     if "web_search" in profile.tools:

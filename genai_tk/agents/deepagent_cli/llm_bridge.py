@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from genai_tk.agents.deepagent.models import DeepagentConfig, DeepagentProfile
+from genai_tk.agents.deepagent_cli.models import DeepagentConfig, DeepagentProfile
 from genai_tk.core.llm_factory import LlmFactory, get_llm
 from genai_tk.utils.config_mngr import global_config
 

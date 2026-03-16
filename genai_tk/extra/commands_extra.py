@@ -232,7 +232,7 @@ class ExtraCommands(CliTopCommand):
             """
             from browser_use import Agent, BrowserSession
 
-            from genai_tk.core.llm_factory import get_llm_unified
+            from genai_tk.core.llm_factory import get_llm
             from genai_tk.wip.browser_use_langchain import ChatLangchain
 
             print(f"Running browser agent with task: {task}")
@@ -241,7 +241,7 @@ class ExtraCommands(CliTopCommand):
                 window_size={"width": 800, "height": 600},
             )
 
-            llm_model = ChatLangchain(chat=get_llm_unified(llm=llm))
+            llm_model = ChatLangchain(chat=get_llm(llm=llm))
             agent = Agent(task=task, llm=llm_model, browser_session=browser_session)
             history = asyncio.run(agent.run())
             print(history.final_result())

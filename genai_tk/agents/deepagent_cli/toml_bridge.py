@@ -4,7 +4,7 @@ deepagents-cli reads ``~/.deepagents/config.toml`` to discover custom model
 providers for its TUI ``/model`` switcher.  This module writes (or updates) a
 ``[models.providers.genai_tk]`` section that lists the identifiers from
 ``deepagent.switcher_models`` and points to
-:class:`~genai_tk.agents.deepagent.model_adapter.GenaiTkModelAdapter` as the
+:class:`~genai_tk.agents.deepagent_cli.model_adapter.GenaiTkModelAdapter` as the
 instantiation class.
 
 The net effect: when the user presses ``/model`` in the TUI they see a
@@ -14,7 +14,7 @@ installed LangChain provider package.
 
 Example:
     ```python
-    from genai_tk.agents.deepagent.toml_bridge import write_genai_tk_provider
+    from genai_tk.agents.deepagent_cli.toml_bridge import write_genai_tk_provider
 
     models = ["default", "fast_model", "gpt41mini@openai"]
     write_genai_tk_provider(models)
@@ -27,7 +27,7 @@ import tomllib
 from pathlib import Path
 
 _PROVIDER_NAME = "genai_tk"
-_ADAPTER_CLASS_PATH = "genai_tk.agents.deepagent.model_adapter:GenaiTkModelAdapter"
+_ADAPTER_CLASS_PATH = "genai_tk.agents.deepagent_cli.model_adapter:GenaiTkModelAdapter"
 _CONFIG_PATH = Path.home() / ".deepagents" / "config.toml"
 
 

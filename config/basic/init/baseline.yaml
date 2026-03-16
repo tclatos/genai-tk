@@ -4,6 +4,8 @@ llm:
   models:
     default: gpt_oss120@openrouter
     fake: parrot_local@fake 
+    
+    cheap: gpt-oss-20b@openrouter
   cache: sqlite
   cache_path: data/llm_cache/langchain.db
 

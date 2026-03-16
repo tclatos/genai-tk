@@ -27,7 +27,7 @@ from typing import Annotated, Any, Callable, Optional, TypeVar
 from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, DirectoryPath, Field, StringConstraints
 
 from genai_tk.utils.config_exceptions import (
     ConfigFileNotFoundError,
@@ -60,13 +60,13 @@ T = TypeVar("T")
 _QUALIFIED_PATTERN = r"^[\w.]+:[\w]+$"
 
 QualifiedCallable = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
-"""Qualified name of any callable – format: ``'module.path:callable'``."""
+"""Qualified name of any callable - format: ``'module.path:callable'``."""
 
 QualifiedClassName = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
-"""Qualified class name – format: ``'module.path:ClassName'``."""
+"""Qualified class name -format: ``'module.path:ClassName'``."""
 
 QualifiedFunctionName = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
-"""Qualified function name – format: ``'module.path:function_name'``."""
+"""Qualified function name - format: ``'module.path:function_name'``."""
 
 
 # ---------------------------------------------------------------------------
@@ -77,16 +77,16 @@ QualifiedFunctionName = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATT
 class PathsConfig(BaseModel):
     """Paths configuration section (``paths:`` in YAML).
 
-    All path fields are resolved strings. Use ``Path(paths_config().project)`` etc.
-    to obtain ``Path`` objects.
+    All path fields are validated ``Path`` objects. Use ``paths_config().project`` directly
+    (returns ``Path`` object), or call ``.as_posix()`` for string representation.
     """
 
-    home: str | None = Field(None, description="Home directory (HOME env var)")
-    project: str = Field(..., description="Root of the project (PWD env var)")
-    config: str = Field(..., description="Config directory (typically <project>/config/basic)")
-    data_root: str = Field(..., description="Data root directory for caches, vector stores, etc.")
-    data: str | None = Field(None, description="Alias for data_root (may be set separately)")
-    models: str | None = Field(None, description="Models cache directory")
+    home: DirectoryPath | None = Field(None, description="Home directory (HOME env var)")
+    project: DirectoryPath = Field(..., description="Root of the project (PWD env var)")
+    config: DirectoryPath = Field(..., description="Config directory (typically <project>/config/basic)")
+    data_root: DirectoryPath = Field(..., description="Data root directory for caches, vector stores, etc.")
+    data: DirectoryPath | None = Field(None, description="Alias for data_root (may be set separately)")
+    models: DirectoryPath | None = Field(None, description="Models cache directory")
 
     model_config = ConfigDict(extra="allow")
 
@@ -694,15 +694,16 @@ def paths_config() -> PathsConfig:
     """Return typed paths configuration.
 
     Reads the ``paths`` section from the global config and validates it against
-    ``PathsConfig``.  Raises a ``ConfigValidationError`` with a descriptive message
-    on missing or invalid fields.
+    ``PathsConfig``. All path fields are automatically validated as existing directories
+    and returned as ``Path`` objects.  Raises a ``ConfigValidationError`` with a descriptive
+    message on missing or invalid fields.
 
     Example:
         ```python
         from genai_tk.utils.config_mngr import paths_config
 
-        project_dir = Path(paths_config().project)
-        config_dir = Path(paths_config().config)
+        project_dir = paths_config().project
+        config_dir = paths_config().config
         ```
     """
     from genai_tk.utils.config_exceptions import ConfigValidationError

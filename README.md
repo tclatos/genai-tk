@@ -271,7 +271,7 @@ langchain_agents:
   defaults:
     type: react
     middlewares:
-      - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
+      - class: genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware
     checkpointer:
       type: none
 

@@ -296,7 +296,7 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
     from genai_tk.utils.config_mngr import paths_config
 
     if config_path is None:
-        config_dir = Path(paths_config().config)
+        config_dir = paths_config().config
         config_path = str(config_dir / "agents" / "langchain.yaml")
 
     from genai_tk.utils.config_exceptions import ConfigFileError, yaml_config_validation

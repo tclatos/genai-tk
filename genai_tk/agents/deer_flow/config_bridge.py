@@ -51,7 +51,7 @@ def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
 
     for skill_dir_template in skill_directories:
         if "${paths.project}" in skill_dir_template:
-            project_path = Path(paths_config().project)
+            project_path = paths_config().project
             skill_dir_str = skill_dir_template.replace("${paths.project}", str(project_path))
         else:
             skill_dir_str = skill_dir_template
@@ -287,7 +287,7 @@ def write_deer_flow_config(
         # Use the first configured directory as the deer-flow skills path
         skills_path_str = list(skills_dirs_cfg)[0]
         if "${paths.project}" in skills_path_str:
-            project_path = Path(paths_config().project)
+            project_path = paths_config().project
             skills_path_str = skills_path_str.replace("${paths.project}", str(project_path))
     else:
         skills_path_str = str(Path.cwd() / "skills")
