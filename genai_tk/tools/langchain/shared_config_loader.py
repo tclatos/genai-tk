@@ -16,13 +16,13 @@ from genai_tk.utils.config_mngr import get_raw_config, import_from_qualified
 
 
 def process_langchain_tools_from_config(
-    tools_config: list[dict[str, Any]] | None, llm: Any | None = None
+    tools_config: list[dict[str, Any]] | None, llm: Any = "default"
 ) -> list[BaseTool]:
     """Process tools configuration and return list of LangChain tool instances.
 
     Args:
         tools_config: List of tool configuration dictionaries, or None.
-        llm: Optional LLM instance passed to factory functions that support it.
+        llm: LLM instance or identifier passed to factory functions that support it.
 
     Returns:
         List of LangChain BaseTool instances.
@@ -140,12 +140,12 @@ def _process_class_tool(tool_config: dict[str, Any]) -> BaseTool | None:
     return None
 
 
-def _process_factory_tool(tool_config: dict[str, Any], llm: Any | None = None) -> list[BaseTool]:
+def _process_factory_tool(tool_config: dict[str, Any], llm: Any = "default") -> list[BaseTool]:
     """Process a factory-based tool configuration.
 
     Args:
         tool_config: Tool configuration dictionary.
-        llm: Optional LLM instance to pass to factory functions that support it.
+        llm: LLM instance or identifier to pass to factory functions that support it.
     """
     factory_ref = tool_config.get("factory")
     params = {k: v for k, v in tool_config.items() if k != "factory"}
@@ -159,7 +159,7 @@ def _process_factory_tool(tool_config: dict[str, Any], llm: Any | None = None) -
         try:
             factory_func = import_from_qualified(factory_ref)
             sig = inspect.signature(factory_func)
-            if llm is not None and "llm" in sig.parameters:
+            if "llm" in sig.parameters:
                 params["llm"] = llm
 
             tool_result = factory_func(**params)

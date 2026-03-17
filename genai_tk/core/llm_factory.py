@@ -450,7 +450,7 @@ class LlmFactory(BaseModel):
         llm_params: other llm parameters (temperature, max_token, ....)
     """
 
-    llm: Annotated[str | None, Field(validate_default=True)] = None
+    llm: Annotated[str, Field(validate_default=True)] = "default"
     json_mode: bool = False
     streaming: bool = False
     reasoning: bool | None = None
@@ -512,15 +512,10 @@ class LlmFactory(BaseModel):
 
     def model_post_init(self, __context: dict) -> None:
         """Post-initialization validation and ID resolution."""
-        # Seed llm_id from the 'llm' parameter if provided
-        if self.llm is not None and self.llm_id is None:
-            # "standard Pydantic pattern for setting fields internally during model_post_init when you want to mutate state without re-triggering validation.""
-            object.__setattr__(self, "llm_id", self.llm)
-
-        # Set default llm_id from config if still unset
+        # Seed llm_id from the unified 'llm' parameter.
+        # "standard Pydantic pattern for setting fields internally during model_post_init when you want to mutate state without re-triggering validation.""
         if self.llm_id is None:
-            default_id = _llm_section().models.default
-            object.__setattr__(self, "llm_id", default_id)
+            object.__setattr__(self, "llm_id", self.llm)
 
         # Resolve llm_id to a canonical form if not already a known item.
         # This handles compact aliases like 'gpt_41mini@openai', config tags,
@@ -1043,7 +1038,7 @@ class LlmFactory(BaseModel):
 
 
 def get_llm(
-    llm: str | None = None,
+    llm: str = "default",
     llm_id: str | None = None,
     llm_tag: str | None = None,
     json_mode: bool = False,
@@ -1056,7 +1051,7 @@ def get_llm(
 
     Args:
         llm: Unified LLM identifier (can be either LLM ID or tag) - recommended
-        llm_id: (Deprecated) Unique model identifier (if None, uses default from config)
+        llm_id: (Deprecated) Unique model identifier
         llm_tag: (Deprecated) Tag (type) of model to use (fast_model, smart_model, etc.)
         json_mode: Whether to force JSON output format (where supported)
         streaming: Whether to enable streaming responses (where supported)
@@ -1102,9 +1097,9 @@ def get_llm(
 
     # Handle deprecated llm_id and llm_tag by converting to unified llm parameter
     resolved_llm = llm
-    if llm is None and llm_id is not None:
+    if llm == "default" and llm_id is not None:
         resolved_llm = llm_id
-    elif llm is None and llm_tag is not None:
+    elif llm == "default" and llm_tag is not None:
         resolved_llm = llm_tag
 
     factory = LlmFactory(

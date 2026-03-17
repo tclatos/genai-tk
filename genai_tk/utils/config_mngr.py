@@ -209,15 +209,15 @@ class OmegaConfig(BaseModel):
         # Check for default models
         try:
             default_llm = self.get("llm.models.default", default=None)
-            if default_llm is None:
-                warnings.append("No default LLM model configured (llm.models.default)")
+            if default_llm is None or not str(default_llm).strip():
+                errors.append("Missing required default LLM tag: llm.models.default")
         except Exception as e:
             logger.debug(f"Could not check default LLM: {e}")
 
         try:
             default_emb = self.get("embeddings.models.default", default=None)
-            if default_emb is None:
-                warnings.append("No default embeddings model configured (embeddings.models.default)")
+            if default_emb is None or not str(default_emb).strip():
+                errors.append("Missing required default embeddings tag: embeddings.models.default")
         except Exception as e:
             logger.debug(f"Could not check default embeddings: {e}")
 

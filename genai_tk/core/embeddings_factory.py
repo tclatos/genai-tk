@@ -559,7 +559,7 @@ class EmbeddingsFactory(BaseModel):
 
 
 def get_embeddings(
-    embeddings: str | None = None,
+    embeddings: str = "default",
     embeddings_id: str | None = None,
     embeddings_tag: str | None = None,
     encoding_str: str | None = None,
@@ -613,10 +613,14 @@ def get_embeddings(
             "Example: get_embeddings(embeddings='local')"
         )
 
+    resolved_embeddings = embeddings
+    if embeddings == "default" and embeddings_id is not None:
+        resolved_embeddings = embeddings_id
+    elif embeddings == "default" and embeddings_tag is not None:
+        resolved_embeddings = embeddings_tag
+
     factory = EmbeddingsFactory(
-        embeddings=embeddings,
-        embeddings_id=embeddings_id,
-        embeddings_tag=embeddings_tag,
+        embeddings=resolved_embeddings,
         encoding_str=encoding_str,
         retrieving_str=retrieving_str,
         cache_embeddings=cache_embeddings,

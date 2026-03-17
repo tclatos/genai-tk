@@ -127,9 +127,7 @@ def generate_ppt(
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Generate PowerPoint presentation from slide images"
-    )
+    parser = argparse.ArgumentParser(description="Generate PowerPoint presentation from slide images")
     parser.add_argument(
         "--plan-file",
         required=True,

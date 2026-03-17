@@ -15,14 +15,13 @@ The commands are registered with a Typer CLI application and provide:
 
 import asyncio
 import sys
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from loguru import logger
 from typer import Option
 
 from genai_tk.cli.base import CliTopCommand
-from genai_tk.utils.config_mngr import global_config
 
 
 class ExtraCommands(CliTopCommand):
@@ -223,7 +222,7 @@ class ExtraCommands(CliTopCommand):
         def browser_agent(
             task: Annotated[str, typer.Argument(help="The task for the browser agent to execute")],
             headless: Annotated[bool, typer.Option(help="Run browser in headless mode")] = False,
-            llm: Annotated[Optional[str], Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = None,
+            llm: Annotated[str, Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = "default",
         ) -> None:
             """Launch a browser agent to complete a given task.
 
@@ -253,7 +252,7 @@ class ExtraCommands(CliTopCommand):
             debug_mode: Annotated[bool, Option("--debug", "-d", help="Enable debug mode")] = False,
             stream: Annotated[bool, Option("--stream", "-s", help="Stream output progressively")] = False,
             # temperature: float = 0.0,
-            llm: Annotated[Optional[str], Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = None,
+            llm: Annotated[str, Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = "default",
         ) -> None:
             """Run 'fabric' pattern on standard input.
 
@@ -269,7 +268,7 @@ class ExtraCommands(CliTopCommand):
             set_debug(debug_mode)
             set_verbose(verbose)
 
-            config = {"llm": llm or global_config().get_str("llm.models.default")}
+            config = {"llm": llm}
             chain = get_fabric_chain(config)
             input = repr("\n".join(sys.stdin))
             input = input.replace("{", "{{").replace("}", "}}")

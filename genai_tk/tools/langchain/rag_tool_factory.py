@@ -158,7 +158,7 @@ class RAGToolFactory:
         return self.create_tool(config)
 
 
-def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | None = None) -> BaseTool:
+def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | str = "default") -> BaseTool:
     """Create a RAG tool from a configuration dictionary.
 
     This function provides a simple interface for creating RAG tools
@@ -166,7 +166,7 @@ def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | Non
 
     Args:
         config: Configuration dictionary with tool settings
-        llm: Language model (optional, will use default if not provided)
+        llm: Language model instance or LLM identifier string (use "default" for configured default)
 
     Returns:
         Configured RAG search tool
@@ -190,11 +190,15 @@ def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | Non
         result = tool.invoke({"query": "Python best practices", "filter": '{"author": "John Smith"}'})
         ```
     """
-    # Get LLM if not provided
-    if llm is None:
-        from genai_tk.core.llm_factory import get_llm
+    if isinstance(llm, str):
+        if llm == "default":
+            from genai_tk.core.llm_factory import get_llm
 
-        llm = get_llm()
+            llm = get_llm()
+        else:
+            from genai_tk.core.llm_factory import LlmFactory
+
+            llm = LlmFactory(llm=llm).get()
 
     factory = RAGToolFactory(llm)
     return factory.create_tool_from_dict(config)

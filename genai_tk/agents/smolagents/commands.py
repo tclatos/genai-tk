@@ -24,7 +24,7 @@ def register(cli_app: typer.Typer) -> None:
             Optional[str],
             Option("--pre-prompt", "-p", help="Additional context or instructions to send before the user query"),
         ] = None,
-        llm: Annotated[Optional[str], Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = None,
+        llm: Annotated[str, Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = "default",
         imports: list[str] | None = None,
         chat: Annotated[bool, Option("--chat", "-s", help="Start an interactive shell to send prompts")] = False,
     ) -> None:
@@ -53,14 +53,12 @@ def register(cli_app: typer.Typer) -> None:
             create_demo_from_config,
         )
 
-        # Resolve LLM identifier if provided
-        llm_id = None
-        if llm:
-            try:
-                llm_id = LlmFactory.resolve_llm_identifier(llm)
-            except ValueError as e:
-                print(f"Error: {e}")
-                return
+        # Resolve LLM identifier
+        try:
+            llm_id = LlmFactory.resolve_llm_identifier(llm)
+        except ValueError as e:
+            print(f"Error: {e}")
+            return
 
         if not setup_langchain(llm_id):
             return

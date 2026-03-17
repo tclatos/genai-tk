@@ -236,7 +236,7 @@ def baml_structured_extraction_flow(
     force: bool = False,
     function_name: str,
     config_name: str = "default",
-    llm: str | None = None,
+    llm: str = "default",
 ) -> BamlExtractionManifest:
     """Run BAML structured extraction as a Prefect flow.
 
@@ -250,7 +250,7 @@ def baml_structured_extraction_flow(
         force: Reprocess files even if unchanged in manifest
         function_name: BAML function name to invoke
         config_name: Configuration name from YAML config
-        llm: Optional LLM identifier
+        llm: LLM identifier (use "default" to use configured default)
 
     Returns:
         Updated manifest with processing results
@@ -458,7 +458,7 @@ def baml_single_input_flow(
     function_name: str,
     *,
     config_name: str = "default",
-    llm: str | None = None,
+    llm: str = "default",
     output_dir: str | None = None,
     output_file: str | None = None,
     force: bool = False,
@@ -469,7 +469,7 @@ def baml_single_input_flow(
         input_text: Text input to process
         function_name: BAML function name to invoke
         config_name: Configuration name from YAML config
-        llm: Optional LLM identifier
+        llm: LLM identifier (use "default" to use configured default)
         output_dir: Optional output directory (supports config variables)
         output_file: Optional output filename (must end with .json)
         force: Reprocess even if result exists in manifest

@@ -50,7 +50,7 @@ class CoreCommands(CliTopCommand):
             raw: Annotated[bool, Option(help="Output raw LLM response object")] = False,
             lc_verbose: Annotated[bool, Option("--verbose", "-v", help="Enable LangChain verbose mode")] = False,
             lc_debug: Annotated[bool, Option("--debug", "-d", help="Enable LangChain debug mode")] = False,
-            llm: Annotated[Optional[str], Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = None,
+            llm: Annotated[str, Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = "default",
         ) -> None:
             """
             Invoke an LLM.
@@ -73,13 +73,11 @@ class CoreCommands(CliTopCommand):
             from genai_tk.agents.langchain_setup import setup_langchain
             from genai_tk.core.llm_factory import LlmFactory
 
-            llm_id: str | None = None
-            if llm:
-                try:
-                    llm_id = LlmFactory.resolve_llm_identifier(llm)
-                except ValueError as e:
-                    print(f"Error: {e}")
-                    return
+            try:
+                llm_id = LlmFactory.resolve_llm_identifier(llm)
+            except ValueError as e:
+                print(f"Error: {e}")
+                return
 
             if not setup_langchain(llm_id, lc_debug, lc_verbose, cache):
                 return
@@ -176,7 +174,7 @@ class CoreCommands(CliTopCommand):
             ] = False,
             lc_verbose: Annotated[bool, Option("--verbose", "-v", help="Enable LangChain verbose mode")] = False,
             lc_debug: Annotated[bool, Option("--debug", "-d", help="Enable LangChain debug mode")] = False,
-            llm: Annotated[Optional[str], Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = None,
+            llm: Annotated[str, Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = "default",
         ) -> None:
             """
             Run a Runnable or directly invoke an LLM.
@@ -201,13 +199,11 @@ class CoreCommands(CliTopCommand):
             from genai_tk.core.chain_registry import ChainRegistry
             from genai_tk.core.llm_factory import LlmFactory
 
-            llm_id = None
-            if llm:
-                resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-                if error_msg:
-                    print(error_msg)
-                    return
-                llm_id = resolved_id
+            resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
+            if error_msg:
+                print(error_msg)
+                return
+            llm_id = resolved_id
 
             if not setup_langchain(llm_id, lc_debug, lc_verbose, cache):
                 return
@@ -263,7 +259,7 @@ class CoreCommands(CliTopCommand):
         @cli_app.command()
         def embedd(
             input: Annotated[str, typer.Argument(help="Text to embed")],
-            model: Annotated[Optional[str], Option("--model", "-m", help="Embeddings model ID or tag")] = None,
+            model: Annotated[str, Option("--model", "-m", help="Embeddings model ID or tag")] = "default",
         ) -> None:
             """
             Invoke an embedder.
@@ -394,7 +390,7 @@ class CoreCommands(CliTopCommand):
         @cli_app.command()
         def similarity(
             sentences: Annotated[list[str], typer.Argument(help="List of sentences to compare (first is reference)")],
-            model: Annotated[Optional[str], Option("--model", "-m", help="Embeddings model ID")] = None,
+            model: Annotated[str, Option("--model", "-m", help="Embeddings model ID or tag")] = "default",
         ) -> None:
             """
             Calculate semantic similarity between sentences using cosine similarity.
@@ -412,12 +408,12 @@ class CoreCommands(CliTopCommand):
                 print("Error: At least 2 sentences are required")
                 return
 
-            if model is not None:
-                if model not in EmbeddingsFactory.known_items():
-                    print(f"Error: {model} is unknown model id.\nShould be in {EmbeddingsFactory.known_items()}")
-                    return
+            resolved_id, error_msg = EmbeddingsFactory.resolve_embeddings_identifier_safe(model)
+            if error_msg:
+                print(error_msg)
+                return
 
-            embedder = get_embeddings(embeddings=model)
+            embedder = get_embeddings(embeddings=resolved_id or "default")
 
             # Generate embeddings for all sentences
             vectors = embedder.embed_documents(sentences)

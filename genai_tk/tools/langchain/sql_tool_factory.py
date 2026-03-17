@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph
 
 
-def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | None = None) -> list[BaseTool]:
+def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | str = "default") -> list[BaseTool]:
     """Create individual SQL toolkit tools from SQLDatabaseToolkit.
 
     Returns the low-level SQL tools (list_tables, get_schema, query_checker,
@@ -24,7 +24,7 @@ def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | None = None
 
     Args:
         database_uri: SQLAlchemy-compatible database URI.
-        llm: Language model for the query-checker tool. Uses the global default if omitted.
+        llm: Language model instance or LLM identifier string (use "default" for configured default).
 
     Returns:
         List of SQL BaseTool instances from SQLDatabaseToolkit.
@@ -38,10 +38,15 @@ def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | None = None
     """
     from langchain_community.agent_toolkits import SQLDatabaseToolkit
 
-    if llm is None:
-        from genai_tk.core.llm_factory import get_llm
+    if isinstance(llm, str):
+        if llm == "default":
+            from genai_tk.core.llm_factory import get_llm
 
-        llm = get_llm()
+            llm = get_llm()
+        else:
+            from genai_tk.core.llm_factory import LlmFactory
+
+            llm = LlmFactory(llm=llm).get()
 
     db = SQLDatabase.from_uri(database_uri, sample_rows_in_table_info=3)
     toolkit = SQLDatabaseToolkit(db=db, llm=llm)
@@ -144,7 +149,7 @@ class SQLToolFactory:
         return self.create_tool(config)
 
 
-def create_sql_tool_from_config(config: dict[str, Any], llm: BaseChatModel | None = None) -> BaseTool:
+def create_sql_tool_from_config(config: dict[str, Any], llm: BaseChatModel | str = "default") -> BaseTool:
     """Create a SQL tool from a configuration dictionary.
 
     This function provides a simple interface for creating SQL tools
@@ -152,7 +157,7 @@ def create_sql_tool_from_config(config: dict[str, Any], llm: BaseChatModel | Non
 
     Args:
         config: Configuration dictionary with tool settings
-        llm: Language model for query generation and answering (optional, will use default if not provided)
+        llm: Language model instance or LLM identifier string (use "default" for configured default)
 
     Returns:
         Configured SQL querying tool
@@ -174,11 +179,15 @@ def create_sql_tool_from_config(config: dict[str, Any], llm: BaseChatModel | Non
         tool = create_sql_tool_from_config(config)
     ```
     """
-    # Get LLM if not provided
-    if llm is None:
-        from genai_tk.core.llm_factory import get_llm
+    if isinstance(llm, str):
+        if llm == "default":
+            from genai_tk.core.llm_factory import get_llm
 
-        llm = get_llm()
+            llm = get_llm()
+        else:
+            from genai_tk.core.llm_factory import LlmFactory
+
+            llm = LlmFactory(llm=llm).get()
 
     factory = SQLToolFactory(llm)
     return factory.create_tool_from_dict(config)

@@ -63,7 +63,7 @@ async def create_langchain_agent(
         A compiled LangGraph agent (``CompiledStateGraph`` or ``Pregel``).
     """
     # 1. Resolve LLM
-    llm_id = llm_override or profile.llm
+    llm_id = llm_override or profile.llm or "default"
     model = get_llm(llm=llm_id)
 
     # 2. Resolve tools from profile

@@ -207,16 +207,16 @@ def load_and_validate_baml_function(
     return baml_function, return_type, baml_types, baml_async_client
 
 
-def create_baml_options(llm: str | None) -> dict[str, Any] | None:
+def create_baml_options(llm: str = "default") -> dict[str, Any] | None:
     """Create BAML options dict with client registry for the specified LLM.
 
     Args:
-        llm: LLM identifier or None
+        llm: LLM identifier (use "default" to keep configured client defaults)
 
     Returns:
         Dict with client_registry or None if no LLM specified
     """
-    if llm:
+    if llm and llm != "default":
         return {"client_registry": create_baml_client_registry(llm)}
     return None
 
@@ -326,7 +326,7 @@ async def baml_invoke(
     function_name: str,
     params: dict[str, Any],
     config_name: str = "default",
-    llm: str | None = None,
+    llm: str = "default",
     check_result_is_pydantic: bool = False,
 ) -> Any:
     """Invoke a BAML function with specified parameters and LLM.
@@ -336,7 +336,7 @@ async def baml_invoke(
         params: Dictionary of parameters to pass to the function.
                 Can use '__input__' as a generic key for the first parameter.
         config_name: Name of the structured config to use
-        llm: LLM identifier or None to use default
+        llm: LLM identifier (use "default" to use configured default)
         check_result_is_pydantic: If True, validates return type is Pydantic before calling LLM
 
     Returns:
