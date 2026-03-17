@@ -471,9 +471,16 @@ def instantiate_middlewares(
     middlewares: list[AgentMiddleware] = []
 
     for cfg in configs:
-        module_path, _, class_name = cfg.class_path.rpartition(":")
+        try:
+            cls = import_from_qualified(cfg.class_path)
+        except Exception as e:
+            logger.warning(f"Failed to import middleware '{cfg.class_path}': {e}")
+            continue
+
+        module_path = getattr(cls, "__module__", "")
+        class_name = getattr(cls, "__name__", repr(cls))
         if not module_path:
-            logger.warning(f"Invalid middleware class path: {cfg.class_path!r}. Expected 'module:ClassName'.")
+            logger.warning(f"Invalid middleware class reference: {cfg.class_path!r}.")
             continue
 
         # Compatibility warning for deepagents middleware used with non-deep agents
@@ -482,12 +489,6 @@ def instantiate_middlewares(
                 f"[bold yellow]⚠  Middleware '{class_name}' from deepagents is designed for deep agents "
                 f"and may not work correctly with agent type '{agent_type}'.[/bold yellow]"
             )
-
-        try:
-            cls = import_from_qualified(cfg.class_path)
-        except Exception as e:
-            logger.warning(f"Failed to import middleware '{cfg.class_path}': {e}")
-            continue
 
         kwargs = cfg.extra_kwargs
         # Resolve any LLM name in 'model' kwarg using LlmFactory

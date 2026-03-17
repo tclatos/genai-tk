@@ -48,15 +48,6 @@ T = TypeVar("T")
 # ---------------------------------------------------------------------------
 # Qualified callable type annotations
 # ---------------------------------------------------------------------------
-# Use these Annotated types for Pydantic config fields that hold Python
-# qualified names of callables (classes or functions).
-#
-# Pattern: ``module.submodule:ClassName`` or ``module.submodule:function_name``
-#
-# Example usage:
-#   factory: QualifiedFunctionName = "genai_tk.tools.langchain.search_tools_factory:create_search_function"
-#   middleware_class: QualifiedClassName = "genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware"
-
 _QUALIFIED_PATTERN = r"^[\w.]+:[\w]+$"
 
 QualifiedCallable = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
@@ -168,7 +159,7 @@ class OmegaConfig(BaseModel):
         """Select a different configuration section to override defaults."""
         if config_name not in self.root:
             logger.error(f"Configuration section '{config_name}' not found")
-            available = [k for k in self.root.keys() if not k.startswith(":")]
+            available = [str(k) for k in self.root.keys() if not str(k).startswith(":")]
             raise ConfigKeyNotFoundError(config_name, available_keys=available)
         logger.info(f"Switching to configuration section: {config_name}")
         self.selected_config = config_name
@@ -312,7 +303,7 @@ class OmegaConfig(BaseModel):
                     try:
                         parent = OmegaConf.select(merged, parent_key)
                         if isinstance(parent, DictConfig):
-                            available = list(parent.keys())
+                            available = [str(k) for k in parent.keys()]
                             raise ConfigKeyNotFoundError(key, available_keys=available)
                     except Exception:
                         pass
@@ -575,7 +566,10 @@ class OmegaConfig(BaseModel):
                     # Create a temporary config with the interpolated value
                     temp_conf = OmegaConf.create({"_temp": var_value})
                     merged_for_resolution = OmegaConf.merge(resolution_config, temp_conf)
-                    str_value = str(merged_for_resolution["_temp"])
+                    if isinstance(merged_for_resolution, DictConfig):
+                        str_value = str(merged_for_resolution.get("_temp"))
+                    else:
+                        str_value = str(var_value)
                 else:
                     str_value = str(var_value)
 
@@ -630,7 +624,10 @@ class OmegaConfig(BaseModel):
                 try:
                     temp_conf = OmegaConf.create({"_temp": file_path_raw})
                     merged_for_resolution = OmegaConf.merge(resolution_config, temp_conf)
-                    file_path = str(merged_for_resolution["_temp"])
+                    if isinstance(merged_for_resolution, DictConfig):
+                        file_path = str(merged_for_resolution.get("_temp"))
+                    else:
+                        file_path = str(file_path_raw)
                 except Exception as e:
                     raise ConfigInterpolationError(":merge file path", str(file_path_raw), original_error=e) from e
             else:
@@ -656,10 +653,11 @@ class OmegaConfig(BaseModel):
                 )
 
             # Process :env variables in the merged file (pass resolution config for interpolation)
-            OmegaConfig._process_env_variables(merge_config, parent_config=resolution_config)
+            parent_resolution_config = resolution_config if isinstance(resolution_config, DictConfig) else None
+            OmegaConfig._process_env_variables(merge_config, parent_config=parent_resolution_config)
 
             # Recursively process :merge in the merged file (pass resolution config)
-            merge_config = OmegaConfig._process_merge_files(merge_config, parent_config=resolution_config)
+            merge_config = OmegaConfig._process_merge_files(merge_config, parent_config=parent_resolution_config)
 
             # Clean up pseudo-keys before merging
             if ":merge" in merge_config:
@@ -668,7 +666,10 @@ class OmegaConfig(BaseModel):
                 del merge_config["merge"]
             # :env keys are already removed during processing
 
-            config = OmegaConf.merge(config, merge_config)
+            merged_config = OmegaConf.merge(config, merge_config)
+            if not isinstance(merged_config, DictConfig):
+                raise ConfigTypeError("merged_config", expected_type="DictConfig", actual_type=type(merged_config))
+            config = merged_config
 
         return config
 
@@ -733,6 +734,26 @@ def get_raw_config() -> DictConfig:
     return global_config().root
 
 
+def split_qualified_name(qualified_name: str) -> tuple[str, str]:
+    """Split and validate a qualified name in ``module.path:object_name`` format."""
+    module_path, sep, object_name = qualified_name.partition(":")
+    if not sep or not module_path or not object_name:
+        raise ValueError(f"Invalid qualified name '{qualified_name}'. Expected format 'module.path:object_name'")
+    return module_path, object_name
+
+
+def get_module_from_qualified(qualified_name: str) -> str:
+    """Return module path from a qualified name."""
+    module_path, _ = split_qualified_name(qualified_name)
+    return module_path
+
+
+def get_object_name_from_qualified(qualified_name: str) -> str:
+    """Return object name from a qualified name."""
+    _, object_name = split_qualified_name(qualified_name)
+    return object_name
+
+
 def import_from_qualified(qualified_name: str) -> Callable:
     """Dynamically import and return a function, class, or object by its qualified name.
 
@@ -757,7 +778,7 @@ def import_from_qualified(qualified_name: str) -> Callable:
         # Short name provided - search for the class in the project
         return _import_from_short_name(qualified_name)
 
-    module_path, object_name = qualified_name.split(":", 1)
+    module_path, object_name = split_qualified_name(qualified_name)
 
     try:
         module = importlib.import_module(module_path)

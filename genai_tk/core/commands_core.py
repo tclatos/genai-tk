@@ -341,8 +341,8 @@ class CoreCommands(CliTopCommand):
                 try:
                     servers = get_mcp_servers_dict(filter=[server])
                 except ValueError as exc:
-                    console.print(f"[red]{exc}[/red]")
-                    raise typer.Exit(1) from exc
+                    console.print(f"[bold red]Error:[/bold red] {exc}")
+                    raise typer.Exit(code=2) from exc
 
                 server_params_dict = servers[server]
 

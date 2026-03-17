@@ -129,7 +129,7 @@ try:
 except ImportError:
     HybridSearchConfig = None  # Optional dependency
 from loguru import logger
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.utils.config_mngr import (
@@ -204,7 +204,7 @@ class EmbeddingsStore(BaseModel):
     config: dict[str, Any] = {}
     index_document: bool = False
     collection_metadata: dict[str, str] | None = None
-    record_manager_url: str | None = None
+    record_manager_url: AnyUrl | None = None
     _record_manager: SQLRecordManager | None = None
     _conf: dict = {}
 
@@ -392,7 +392,7 @@ class EmbeddingsStore(BaseModel):
             namespace = f"{self.backend}/{self.table_name}"
             self._record_manager = SQLRecordManager(
                 namespace,
-                db_url=db_url,
+                db_url=str(db_url),
             )
             self._record_manager.create_schema()
         assert vector_store

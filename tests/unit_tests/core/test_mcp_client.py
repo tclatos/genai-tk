@@ -158,7 +158,32 @@ class TestGetMcpServersDict(unittest.TestCase):
         with self.assertRaises(ValueError) as cm:
             get_mcp_servers_dict(filter=["nonexistent"])
 
-        self.assertIn("nonexistent", str(cm.exception))
+        err_msg = str(cm.exception)
+        self.assertIn("nonexistent", err_msg)
+        self.assertIn("not found", err_msg)
+        self.assertIn("Available enabled servers", err_msg)
+
+    @patch("genai_tk.core.mcp_client.get_raw_config")
+    def test_disabled_server_in_filter(self, mock_get_raw_config):
+        """Test error handling when filter contains a disabled server."""
+        from omegaconf import OmegaConf
+
+        mock_get_raw_config.return_value = OmegaConf.create(
+            {
+                "mcpServers": {
+                    "server1": {"command": "test1"},
+                    "server2": {"command": "test2", "disabled": True},
+                }
+            }
+        )
+
+        with self.assertRaises(ValueError) as cm:
+            get_mcp_servers_dict(filter=["server2"])
+
+        err_msg = str(cm.exception)
+        self.assertIn("disabled", err_msg)
+        self.assertIn("server2", err_msg)
+        self.assertIn("Available enabled servers", err_msg)
 
     @patch("genai_tk.core.mcp_client.get_raw_config")
     @patch("genai_tk.core.mcp_client.update_server_parameters")

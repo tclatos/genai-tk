@@ -20,7 +20,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Optional, cast
 
 import typer
 from loguru import logger
@@ -34,6 +34,10 @@ from rich.table import Table
 from rich.text import Text
 
 from genai_tk.cli.base import CliTopCommand
+
+if TYPE_CHECKING:
+    from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+    from genai_tk.agents.deer_flow.profile import DeerFlowProfile, DeerFlowSandbox
 
 console = Console()
 
@@ -89,6 +93,9 @@ def _resolve_model_name(llm_identifier: str) -> str:
     if error_msg:
         console.print(f"[red]{error_msg}[/red]")
         raise typer.Exit(1)
+    if llm_id is None:
+        console.print("[red]Could not resolve model identifier[/red]")
+        raise typer.Exit(1)
     return llm_id
 
 
@@ -97,7 +104,7 @@ def _resolve_model_name(llm_identifier: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _validate_and_normalize_sandbox(sandbox: str) -> str:
+def _validate_and_normalize_sandbox(sandbox: str) -> DeerFlowSandbox:
     """Validate sandbox provider string.
 
     Args:
@@ -113,7 +120,7 @@ def _validate_and_normalize_sandbox(sandbox: str) -> str:
             "Update config/agents/deerflow.yaml."
         )
         raise typer.Exit(1)
-    return normalized
+    return cast("DeerFlowSandbox", normalized)
 
 
 def _check_docker_available() -> bool:
@@ -197,7 +204,7 @@ async def _prepare_profile(
     verbose: bool,
     *,
     start_servers: bool = False,
-) -> tuple["DeerFlowProfile", str | None, "Path"]:  # noqa: F821
+) -> tuple[DeerFlowProfile, str | None, Path]:
     """Load, validate and prepare a profile, then write the deer-flow config.
 
     For embedded (terminal) mode ``start_servers=False`` (default): only writes
@@ -354,7 +361,7 @@ async def _ensure_server(
 
 
 async def _stream_message(
-    client: "EmbeddedDeerFlowClient",  # noqa: F821
+    client: EmbeddedDeerFlowClient,
     thread_id: str,
     user_input: str,
     model_name: str | None,
@@ -564,7 +571,7 @@ def _list_profiles() -> None:
             p.mode or "flash",
             ", ".join(p.tool_groups) or "-",
             ", ".join(p.mcp_servers) or "-",
-            p.langgraph_url,
+            str(p.langgraph_url),
         )
 
     console.print(table)
@@ -1211,6 +1218,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                     raise typer.Exit(1)
 
             try:
+                user_input_text = input_text or ""
                 if chat:
                     asyncio.run(
                         _run_chat_mode(
@@ -1226,10 +1234,13 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                         )
                     )
                 else:
+                    if not user_input_text:
+                        console.print("[red]No input provided[/red]")
+                        raise typer.Exit(1)
                     asyncio.run(
                         _run_single_shot(
                             profile_name=profile,
-                            user_input=input_text,
+                            user_input=user_input_text,
                             llm_override=llm,
                             extra_mcp=list(mcp),
                             mode_override=mode,

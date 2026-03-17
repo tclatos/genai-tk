@@ -844,7 +844,11 @@ class InfoCommands(CliTopCommand):
                     console.print(table)
                     print()  # Add space between tables
 
-            asyncio.run(display_tools())
+            try:
+                asyncio.run(display_tools())
+            except ValueError as exc:
+                Console().print(f"[bold red]Error:[/bold red] {exc}")
+                raise typer.Exit(code=2) from exc
 
         @cli_app.command("commands")
         def commands() -> None:

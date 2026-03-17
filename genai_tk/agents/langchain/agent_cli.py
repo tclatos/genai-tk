@@ -110,9 +110,7 @@ async def run_langchain_agent_shell(agent: LangchainAgent) -> None:
                 console.print("\n[bold yellow]Received keyboard interrupt. Exiting...[/bold yellow]")
                 break
             except Exception as e:  # pragma: no cover
-                console.print(
-                    Panel(f"[red]Error: {e}[/red]", title="[bold red]Error[/bold red]", border_style="red")
-                )
+                console.print(Panel(f"[red]Error: {e}[/red]", title="[bold red]Error[/bold red]", border_style="red"))
     finally:
         await agent.close()
 

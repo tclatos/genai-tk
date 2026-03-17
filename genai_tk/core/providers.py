@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field, SecretStr
 
-from genai_tk.utils.config_mngr import QualifiedClassName
+from genai_tk.utils.config_mngr import QualifiedClassName, get_module_from_qualified, get_object_name_from_qualified
 
 OPENROUTER_BASE = "https://openrouter.ai"
 OPENROUTER_API_BASE = f"{OPENROUTER_BASE}/api/v1"
@@ -41,12 +41,12 @@ class ProviderInfo(BaseModel):
     @property
     def module(self) -> str:
         """Extract module path from use string."""
-        return self.use.split(":")[0]
+        return get_module_from_qualified(self.use)
 
     @property
     def langchain_class(self) -> str:
         """Extract class name from use string."""
-        return self.use.split(":")[1]
+        return get_object_name_from_qualified(self.use)
 
     def get_use_string(self) -> str:
         """Get the 'use' string in module:ClassName format."""

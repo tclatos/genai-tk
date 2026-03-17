@@ -187,18 +187,28 @@ def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
 
     raw = get_raw_config()
     servers_node = raw.get("mcpServers", {})
-    servers: dict = dict(OmegaConf.to_container(servers_node, resolve=True)) if servers_node else {}
+    servers: dict[str, dict] = {}
+    if servers_node:
+        servers_container = OmegaConf.to_container(servers_node, resolve=True)
+        if isinstance(servers_container, dict):
+            servers = {str(name): cfg for name, cfg in servers_container.items() if isinstance(cfg, dict)}
 
     # Merge in project-defined servers declared under ``mcpProjectServers``.
     # Each entry is served via ``uv --project <root> run cli mcp serve --name <name>``.
     try:
         project_servers_node = raw.get("mcpProjectServers", {})
-        project_servers_cfg: dict = (
-            dict(OmegaConf.to_container(project_servers_node, resolve=True)) if project_servers_node else {}
-        )
-        project_root = paths_config().project
+        project_servers_cfg: dict[str, dict] = {}
+        if project_servers_node:
+            project_servers_container = OmegaConf.to_container(project_servers_node, resolve=True)
+            if isinstance(project_servers_container, dict):
+                project_servers_cfg = {
+                    str(name): cfg for name, cfg in project_servers_container.items() if isinstance(cfg, dict)
+                }
+        project_root = str(paths_config().project)
         for pname, pcfg in project_servers_cfg.items():
-            if not (pcfg or {}).get("disabled", False):
+            if (pcfg or {}).get("disabled", False):
+                servers[pname] = {"disabled": True}
+            else:
                 servers[pname] = {
                     "command": "uv",
                     "args": ["--project", project_root, "run", "cli", "mcpserver", "start", "--name", pname],
@@ -206,17 +216,30 @@ def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
     except Exception:
         pass  # mcpProjectServers is optional
 
-    # Filter out servers that are explicitly disabled
-    servers = {name: config for name, config in servers.items() if not config.get("disabled", False)}
+    all_servers = servers
+    disabled_servers = {name for name, config in all_servers.items() if config.get("disabled", False)}
+    enabled_servers = {name: config for name, config in all_servers.items() if name not in disabled_servers}
+
     if filter is not None:
-        missing_servers = [name for name in filter if name not in servers]
-        if missing_servers:
-            raise ValueError(f"MCP server(s) not found or disabled in configuration: '{', '.join(missing_servers)}'")
+        disabled_in_filter = sorted(name for name in filter if name in disabled_servers)
+        not_found_in_filter = sorted(name for name in filter if name not in all_servers)
+        if disabled_in_filter or not_found_in_filter:
+            details: list[str] = []
+            if disabled_in_filter:
+                details.append(f"disabled: {', '.join(disabled_in_filter)}")
+            if not_found_in_filter:
+                details.append(f"not found: {', '.join(not_found_in_filter)}")
+
+            available_enabled_servers = sorted(enabled_servers.keys())
+            available_txt = ", ".join(available_enabled_servers) if available_enabled_servers else "none"
+            raise ValueError(
+                f"Invalid MCP server filter ({'; '.join(details)}). Available enabled servers: {available_txt}."
+            )
 
     from loguru import logger
 
     result_dict = {}
-    for name, desc in servers.items():
+    for name, desc in enabled_servers.items():
         if filter is None or name in filter:
             try:
                 result_dict[name] = update_server_parameters(desc)

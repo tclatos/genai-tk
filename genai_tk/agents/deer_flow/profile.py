@@ -7,7 +7,7 @@ Replaces the old DeerFlowAgentConfig dataclass.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal, get_args
+from typing import Literal, cast, get_args
 
 import yaml
 from loguru import logger
@@ -107,6 +107,24 @@ class DockerSandboxError(DeerFlowError):
 def get_available_modes() -> list[str]:
     """Return the list of valid agent modes."""
     return list(get_args(DeerFlowMode))
+
+
+def validate_mode(mode: str) -> DeerFlowMode:
+    """Validate and normalize a Deer-flow mode value.
+
+    Args:
+        mode: Raw mode string.
+
+    Returns:
+        Normalized mode value.
+
+    Raises:
+        ValueError: If mode is not one of the supported values.
+    """
+    normalized = mode.strip().lower()
+    if normalized not in get_available_modes():
+        raise ValueError(f"Invalid mode '{mode}'. Available: {', '.join(get_available_modes())}")
+    return cast(DeerFlowMode, normalized)
 
 
 def get_available_profile_names(profiles: list[DeerFlowProfile]) -> list[str]:
