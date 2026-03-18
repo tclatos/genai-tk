@@ -1,0 +1,61 @@
+# Unified Sandbox Configuration
+#
+# Defines all sandbox technologies available across agent frameworks.
+# Each framework reads its settings from here instead of duplicating config.
+#
+# SANDBOX NAMES (used in --sandbox CLI flag and agent YAML configs):
+#   local   — No sandbox. Code runs directly in the host process (default).
+#   docker  — Docker-based isolation.
+#              • 'aio' sub-config:  AioSandboxBackend (HTTP API container) —
+#                used by LangChain deepagent, deepagent-cli, and Deer Flow.
+#              • 'smolagents' sub-config: SmolAgents native Docker executor —
+#                a separate image approach used only by SmolAgents.
+#   e2b     — E2B cloud sandbox (SmolAgents only; LangChain E2B not released yet).
+#   wasm    — WebAssembly / Pyodide via Deno (SmolAgents only, reserved slot).
+#
+# FRAMEWORK SUPPORT MATRIX:
+#   Framework         local   docker   e2b   wasm
+#   ─────────────────────────────────────────────
+#   LangChain deep    ✓       ✓        –     –
+#   deepagent-cli     ✓       ✓        –     –
+#   Deer Flow         ✓       ✓        –     –
+#   SmolAgents        ✓       ✓        ✓     ✓*
+#   (* wasm: reserved, requires Deno install)
+
+sandbox:
+  default: local
+
+  # ── Docker-based sandboxes ─────────────────────────────────────────────────
+  docker:
+    # AioSandboxBackend — HTTP REST API container backed by agent-infra/sandbox.
+    # Used by: LangChain deepagent, deepagent-cli, Deer Flow.
+    aio:
+      image: "ghcr.io/agent-infra/sandbox:latest"
+      host: "127.0.0.1"
+      host_port: 18091
+      startup_timeout: 60.0
+      work_dir: "/home/user"
+      env_vars: {}
+
+    # SmolAgents native Docker executor — a lightweight container that runs
+    # generated Python code snippets. Uses a different image and approach than
+    # the AioSandboxBackend above.
+    smolagents:
+      image: "python:3.12-slim"
+      mem_limit: "512m"
+      cpu_quota: 50000
+      pids_limit: 100
+
+  # ── E2B cloud sandbox ──────────────────────────────────────────────────────
+  # Supported by SmolAgents (executor_type="e2b").
+  # LangChain deepagents E2B provider not yet released.
+  e2b:
+    api_key: ${E2B_API_KEY:null}
+    template: null          # Optional custom E2B template ID
+    timeout: 300            # Max execution time (seconds)
+
+  # ── WebAssembly / Pyodide ──────────────────────────────────────────────────
+  # SmolAgents executor_type="wasm" — requires Deno installed on the host.
+  # Reserved config slot; no framework-specific settings needed beyond install.
+  wasm:
+    enabled: false

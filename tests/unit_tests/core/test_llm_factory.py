@@ -215,6 +215,43 @@ def test_factory_find_llm_id_from_type() -> None:
         LlmFactory.find_llm_id_from_tag("nonexistent_type")
 
 
+def test_resolve_llm_identifier_tag_with_compact_alias() -> None:
+    """Regression test: config tag whose value is a compact alias must be fully resolved.
+
+    When `llm.models.default` (or any tag) contains a compact alias like
+    ``gpt_oss120@openrouter``, ``resolve_llm_identifier("default")`` must return
+    the canonical model name (e.g. ``openai/gpt-oss-120b@openrouter``) and NOT the
+    raw compact alias.  The bug was introduced when the refactor changed the default
+    sentinel from ``None`` to ``"default"``, causing the tag-lookup path to skip the
+    secondary ``resolve_model`` step.
+    """
+    from unittest.mock import patch
+
+    compact_alias = "gpt_oss120@openrouter"
+
+    # Only intercept "my_tag"; let other inputs (like the compact alias itself)
+    # fall through to the real implementation so the @-based resolver can run.
+    original_find = LlmFactory.find_llm_id_from_tag
+
+    def selective_mock(tag: str) -> str:
+        if tag == "my_tag":
+            return compact_alias
+        return original_find(tag)
+
+    with patch.object(LlmFactory, "find_llm_id_from_tag", side_effect=selective_mock):
+        resolved = LlmFactory.resolve_llm_identifier("my_tag")
+
+    # The result must NOT be the raw compact alias – it must be fully resolved.
+    assert resolved != compact_alias, (
+        f"resolve_llm_identifier returned the raw compact alias '{compact_alias}' "
+        "instead of the canonical model name. Regression in config-tag resolution."
+    )
+    # The canonical form has the vendor-prefixed model name (e.g. openai/gpt-oss-120b)
+    model_part, _, provider_part = resolved.rpartition("@")
+    assert provider_part == "openrouter"
+    assert "/" in model_part, f"Expected vendor/model format, got: '{model_part}'"
+
+
 def test_llm_factory_model_validation() -> None:
     """Test LlmFactory model validation."""
     # Test valid ID

@@ -166,6 +166,10 @@ def register(cli_app: typer.Typer) -> None:
         ] = False,
         lc_verbose: Annotated[bool, Option("--verbose", "-v", help="Enable LangChain verbose mode")] = False,
         lc_debug: Annotated[bool, Option("--debug", "-d", help="Enable LangChain debug mode")] = False,
+        sandbox: Annotated[
+            Optional[str],
+            Option("--sandbox", "-b", help="Sandbox override: local (default) | docker"),
+        ] = None,
     ) -> None:
         """Run a LangChain-based agent (react | deep | custom) from a YAML profile.
 
@@ -245,6 +249,7 @@ def register(cli_app: typer.Typer) -> None:
                 mcp_servers=list(mcp) if mcp else [],
                 checkpointer=chat,
                 details=details,
+                sandbox=sandbox or None,
             )
         except ValueError as e:
             console.print(f"[red]{e}[/red]")

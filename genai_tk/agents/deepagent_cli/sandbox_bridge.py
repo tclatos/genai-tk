@@ -1,12 +1,12 @@
 """Lifecycle management for the AioSandboxBackend inside deepagent-cli sessions.
 
-⚠️  **NOT TESTED** — This module provides integration infrastructure but has not
-been validated in real deepagents-cli TUI or task runner workflows yet.
-
 Provides a single async context manager, ``sandbox_context``, that starts and
-stops an :class:`~genai_tk.agents.langchain.sandbox_backend.AioSandboxBackend`
-Docker container when ``sandbox: aio`` is configured, or yields ``None`` for
-all other sandbox values (where deepagents-cli manages the backend itself).
+stops an :class:`~genai_tk.agents.sandbox.AioSandboxBackend` Docker container
+when ``sandbox: docker`` (or legacy ``aio``) is configured, or yields ``None``
+for all other sandbox values (where deepagents-cli manages the backend itself).
+
+Standard sandbox name is ``"docker"``.  The legacy name ``"aio"`` is also
+accepted for backward compatibility.
 
 Example:
     ```python
@@ -27,9 +27,10 @@ from typing import TYPE_CHECKING, AsyncIterator
 
 if TYPE_CHECKING:
     from genai_tk.agents.deepagent_cli.models import DeepagentConfig, DeepagentProfile
-    from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend, AioSandboxBackendConfig
+    from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
 
-_AIO_SANDBOX_TYPE = "aio"
+# Both names refer to the same AioSandboxBackend
+_DOCKER_SANDBOX_TYPES = frozenset({"docker", "aio"})
 
 
 @asynccontextmanager
@@ -39,23 +40,24 @@ async def sandbox_context(
 ) -> AsyncIterator[AioSandboxBackend | None]:
     """Async context manager that starts an ``AioSandboxBackend`` when requested.
 
-    When ``profile.sandbox == "aio"``, merges the sandbox configuration
-    (profile overrides global), starts the Docker container, and yields the
-    running backend.  For all other sandbox values, yields ``None`` so
-    deepagents-cli falls back to its built-in backends (local shell, Modal, etc.).
+    When ``profile.sandbox`` is ``"docker"`` (or legacy ``"aio"``), merges the
+    sandbox configuration (profile overrides shared config), starts the Docker
+    container, and yields the running backend.  For all other sandbox values,
+    yields ``None`` so deepagents-cli falls back to its built-in backends
+    (local shell, Modal, Daytona, etc.).
 
     Args:
         profile: Active profile (provides ``sandbox`` and ``sandbox_config``).
         config: Global deepagent config (provides fallback ``sandbox_config``).
 
     Yields:
-        Running ``AioSandboxBackend`` for ``sandbox: aio``, or ``None`` otherwise.
+        Running ``AioSandboxBackend`` for ``docker``/``aio`` sandbox, or ``None`` otherwise.
     """
-    if profile.sandbox != _AIO_SANDBOX_TYPE:
+    if profile.sandbox not in _DOCKER_SANDBOX_TYPES:
         yield None
         return
 
-    from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend
+    from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
 
     backend_config = _build_backend_config(profile, config)
     async with AioSandboxBackend(config=backend_config) as backend:
@@ -68,25 +70,25 @@ def effective_sandbox_type(
 ) -> str | None:
     """Return the ``sandbox_type`` string to pass to deepagents-cli.
 
-    For ``aio`` sandboxes this returns ``None`` — deepagents-cli does not know
-    the ``"aio"`` type and the system prompt will be generated without a
-    sandbox-specific section (which is fine since the system prompt is usually
-    overridden via the profile anyway).  For all other recognised deepagents-cli
-    sandbox types (``modal``, ``daytona``, ``runloop``, ``langsmith``) the
-    original type string is forwarded unchanged.
+    For ``docker``/``aio`` sandboxes this returns ``None`` — deepagents-cli
+    does not know those types and the system prompt will be generated without a
+    sandbox-specific section (fine since the profile usually overrides it).
+    For all other recognised deepagents-cli sandbox types (``modal``,
+    ``daytona``, ``runloop``, ``langsmith``) the original type string is
+    forwarded unchanged.
 
     Args:
         profile: Active profile.
         sandbox_backend: Backend instance returned by ``sandbox_context``
-            (``None`` when not running ``aio``).
+            (``None`` when not running the Docker backend).
 
     Returns:
         Sandbox type string understood by deepagents-cli, or ``None``.
     """
     if sandbox_backend is not None:
-        # Our custom backend — deepagents-cli doesn't recognise "aio"
+        # Our custom Docker backend — deepagents-cli doesn't recognise it
         return None
-    if profile.sandbox not in ("none", _AIO_SANDBOX_TYPE):
+    if profile.sandbox not in _DOCKER_SANDBOX_TYPES | {"none"}:
         return profile.sandbox
     return None
 
@@ -99,35 +101,48 @@ def effective_sandbox_type(
 def _build_backend_config(
     profile: DeepagentProfile,
     config: DeepagentConfig,
-) -> AioSandboxBackendConfig:
-    """Merge global + profile sandbox configs and produce an ``AioSandboxBackendConfig``.
+):
+    """Build a ``DockerAioSettings`` by merging shared config + global + profile overrides.
 
-    Profile fields take priority. Only non-``None`` profile values override the
-    global defaults so a partially-specified profile inherits the rest from
-    the global ``sandbox_config``.
+    Priority (highest to lowest):
+    1. Profile-level ``sandbox_config`` fields (non-None values).
+    2. Global deepagent config ``sandbox_config`` fields (non-None values).
+    3. Shared ``sandbox.yaml`` docker.aio defaults.
 
     Args:
         profile: Active profile (may have ``sandbox_config``).
         config: Global deepagent config (may have ``sandbox_config``).
 
     Returns:
-        Fully-resolved ``AioSandboxBackendConfig`` instance.
+        Fully-resolved ``DockerAioSettings`` instance.
     """
-    from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackendConfig
+    from genai_tk.agents.sandbox.config import get_docker_aio_settings
 
-    # Start from global defaults
-    base: dict = {}
+    # Start from shared sandbox.yaml settings
+    base = get_docker_aio_settings().model_dump()
+
+    # Layer global deepagent config on top (only fields explicitly set)
     if config.sandbox_config:
-        base = {k: v for k, v in config.sandbox_config.model_dump().items() if v is not None}
-
-    # Layer profile overrides on top
-    if profile.sandbox_config:
-        for k, v in profile.sandbox_config.model_dump().items():
+        explicit = config.sandbox_config.model_fields_set
+        for k, v in config.sandbox_config.model_dump().items():
+            if k not in explicit:
+                continue
             if k == "env_vars":
-                # Merge env dicts: global first, profile vars win on conflict
-                merged_env = {**base.get("env_vars", {}), **v}
-                base["env_vars"] = merged_env
-            elif v is not None:
+                base["env_vars"] = {**base.get("env_vars", {}), **v}
+            else:
                 base[k] = v
 
-    return AioSandboxBackendConfig(**base)
+    # Layer profile overrides on top (only fields explicitly set)
+    if profile.sandbox_config:
+        explicit = profile.sandbox_config.model_fields_set
+        for k, v in profile.sandbox_config.model_dump().items():
+            if k not in explicit:
+                continue
+            if k == "env_vars":
+                base["env_vars"] = {**base.get("env_vars", {}), **v}
+            else:
+                base[k] = v
+
+    from genai_tk.agents.sandbox.models import DockerAioSettings
+
+    return DockerAioSettings(**base)

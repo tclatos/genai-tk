@@ -660,7 +660,15 @@ class LlmFactory(BaseModel):
 
         # Config tag lookup
         try:
-            return LlmFactory.find_llm_id_from_tag(llm)
+            tag_value = LlmFactory.find_llm_id_from_tag(llm)
+            # The tag value is often a compact alias (e.g. "gpt_oss120@openrouter");
+            # recursively resolve it so callers always get a canonical model name.
+            if tag_value != llm:
+                try:
+                    return LlmFactory.resolve_llm_identifier(tag_value)
+                except (ValueError, NotImplementedError):
+                    pass
+            return tag_value
         except ValueError:
             pass
 

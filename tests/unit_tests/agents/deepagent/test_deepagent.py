@@ -394,15 +394,15 @@ def test_write_genai_tk_provider_clears_cache(tmp_path):
 
 
 def test_aio_sandbox_config_defaults():
-    """AioSandboxConfig has all-None defaults except env_vars."""
+    """AioSandboxConfig is now DockerAioSettings with concrete defaults."""
     from genai_tk.agents.deepagent_cli.models import AioSandboxConfig
 
     cfg = AioSandboxConfig()
-    assert cfg.image is None
-    assert cfg.host is None
-    assert cfg.host_port is None
-    assert cfg.startup_timeout is None
-    assert cfg.work_dir is None
+    assert cfg.image == "ghcr.io/agent-infra/sandbox:latest"
+    assert cfg.host == "127.0.0.1"
+    assert cfg.host_port == 18091
+    assert cfg.startup_timeout == 60.0
+    assert cfg.work_dir == "/home/user"
     assert cfg.env_vars == {}
 
 
@@ -451,28 +451,27 @@ async def test_sandbox_context_yields_none_when_not_aio():
 
 @pytest.mark.asyncio
 async def test_sandbox_context_aio_starts_backend():
-    """sandbox_context yields the AioSandboxBackend instance for sandbox='aio'."""
+    """sandbox_context yields the AioSandboxBackend instance for sandbox='docker'."""
     from genai_tk.agents.deepagent_cli.models import AioSandboxConfig, DeepagentConfig, DeepagentProfile
     from genai_tk.agents.deepagent_cli.sandbox_bridge import sandbox_context
 
     profile = DeepagentProfile(
-        name="aio",
-        sandbox="aio",
+        name="docker",
+        sandbox="docker",
         sandbox_config=AioSandboxConfig(image="my-image:latest"),
     )
     config = DeepagentConfig()
 
     mock_backend = MagicMock()
+    MockBackend = MagicMock()
+    MockBackend.return_value.__aenter__ = AsyncMock(return_value=mock_backend)
+    MockBackend.return_value.__aexit__ = AsyncMock(return_value=None)
 
     with (
-        patch("genai_tk.agents.langchain.sandbox_backend.AioSandboxBackendConfig") as MockConfig,
-        patch("genai_tk.agents.langchain.sandbox_backend.AioSandboxBackend") as MockBackend,
+        patch("genai_tk.agents.sandbox.aio_backend.AioSandboxBackend", MockBackend),
+        patch("genai_tk.utils.config_mngr.global_config", return_value=MagicMock(**{"get.return_value": {}})),
     ):
-        MockBackend.return_value.__aenter__ = AsyncMock(return_value=mock_backend)
-        MockBackend.return_value.__aexit__ = AsyncMock(return_value=None)
-
         async with sandbox_context(profile, config) as backend:
-            MockConfig.assert_called_once()
             MockBackend.assert_called_once()
             assert backend is mock_backend
 
@@ -507,7 +506,7 @@ def test_effective_sandbox_type_returns_none_for_none():
 
 
 def test_sandbox_bridge_env_vars_merge():
-    """_build_backend_config merges env_vars from global and profile, profile wins."""
+    """_build_backend_config merges env_vars from config-level and profile-level, profile wins."""
     from genai_tk.agents.deepagent_cli.models import AioSandboxConfig, DeepagentConfig, DeepagentProfile
     from genai_tk.agents.deepagent_cli.sandbox_bridge import _build_backend_config
 
@@ -519,19 +518,20 @@ def test_sandbox_bridge_env_vars_merge():
     )
     profile = DeepagentProfile(
         name="p",
-        sandbox="aio",
+        sandbox="docker",
         sandbox_config=AioSandboxConfig(
             env_vars={"PROFILE_VAR": "profile", "SHARED": "from_profile"},
         ),
     )
 
+    # Patch shared defaults with empty env_vars so test controls all env var sources via config/profile layers
     with patch(
-        "genai_tk.agents.langchain.sandbox_backend.AioSandboxBackendConfig",
-        side_effect=lambda **kw: kw,
+        "genai_tk.utils.config_mngr.global_config",
+        return_value=MagicMock(**{"get.return_value": {}}),
     ):
         result = _build_backend_config(profile, config)
 
-    assert result["env_vars"]["GLOBAL_VAR"] == "global"
-    assert result["env_vars"]["PROFILE_VAR"] == "profile"
-    assert result["env_vars"]["SHARED"] == "from_profile"  # profile wins
-    assert result["image"] == "base-image"  # base image preserved when profile doesn't override
+    assert result.env_vars["GLOBAL_VAR"] == "global"
+    assert result.env_vars["PROFILE_VAR"] == "profile"
+    assert result.env_vars["SHARED"] == "from_profile"  # profile wins
+    assert result.image == "base-image"  # config-level image preserved when profile doesn't override

@@ -10,11 +10,11 @@
 #   enable_skills:   Load agent skills from ~/.deepagents/<agent>/skills/ and project .deepagents/.
 #   enable_shell:    Allow shell command execution in interactive (TUI) mode.
 #   shell_allow_list: When non-empty, restrict shell to listed commands (non-interactive mode).
-#   sandbox:         Sandbox type for remote execution: none | aio | modal | daytona | runloop | langsmith.
-#                    Use 'aio' to run the genai-tk AioSandboxBackend (Docker container).
-#   sandbox_config:  AioSandboxBackend settings — only used when sandbox: aio.
+#   sandbox:         Sandbox type for remote execution: none | docker | modal | daytona | runloop | langsmith.
+#                    Use 'docker' to run the genai-tk AioSandboxBackend (Docker container).
+#   sandbox_config:  AioSandboxBackend settings — only used when sandbox: docker.
 #                    Fields: image, host, host_port, startup_timeout, work_dir, env_vars.
-#                    Profile sandbox_config overrides the global one (field-level merge).
+#                    Profile sandbox_config overrides the global sandbox.yaml settings (field-level merge).
 #   system_prompt:   Custom system prompt injected at agent startup. null = use deepagents default.
 #
 # PROFILES:
@@ -39,11 +39,11 @@ deepagent:
   enable_shell: true            # Allow shell execution in TUI mode
 
   shell_allow_list: []          # Empty = no restriction (TUI); or e.g. ["pytest", "git", "make"]
-  sandbox: none                 # Remote sandbox: none | aio | modal | daytona | runloop | langsmith
+  sandbox: none                 # Remote sandbox: none | docker | modal | daytona | runloop | langsmith
 
-  # AioSandboxBackend config — only used when sandbox: aio
+  # AioSandboxBackend config — only used when sandbox: docker
   # sandbox_config:
-  #   image: null               # Docker image (uses AioSandboxBackendConfig default if null)
+  #   image: null               # Docker image (uses sandbox.yaml docker.aio defaults if null)
   #   host: 127.0.0.1
   #   host_port: 18091
   #   startup_timeout: 60.0

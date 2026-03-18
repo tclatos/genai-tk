@@ -204,6 +204,7 @@ async def _prepare_profile(
     verbose: bool,
     *,
     start_servers: bool = False,
+    sandbox_override: str | None = None,
 ) -> tuple[DeerFlowProfile, str | None, Path]:
     """Load, validate and prepare a profile, then write the deer-flow config.
 
@@ -219,6 +220,7 @@ async def _prepare_profile(
         mode_override: Mode override string.
         verbose: Enable DEBUG-level logging.
         start_servers: When True, restart deer-flow backend servers after config write.
+        sandbox_override: Override sandbox type (None = use profile setting).
 
     Returns:
         Tuple of (prepared DeerFlowProfile, resolved model_name or None, config_path).
@@ -257,6 +259,8 @@ async def _prepare_profile(
         if extra_mcp:
             validated = validate_mcp_servers(extra_mcp)
             profile.mcp_servers = list(set(profile.mcp_servers + validated))
+        if sandbox_override:
+            profile.sandbox = sandbox_override
         profile.sandbox = _validate_and_normalize_sandbox(profile.sandbox)
     except DeerFlowError as e:
         console.print(f"[red]Error:[/red] {e}")
@@ -594,6 +598,7 @@ async def _run_single_shot(
     show_trace: bool = False,
     subagent_enabled: bool | None = None,
     plan_mode: bool | None = None,
+    sandbox_override: str | None = None,
 ) -> None:
     """Execute one query and exit.
 
@@ -607,11 +612,12 @@ async def _run_single_shot(
         verbose: Enable DEBUG logging.
         subagent_enabled: Override subagent flag (None = use profile setting).
         plan_mode: Override plan_mode flag (None = use profile setting).
+        sandbox_override: Override sandbox type (None = use profile setting).
     """
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
 
     profile, model_name, config_path = await _prepare_profile(
-        profile_name, llm_override, extra_mcp, mode_override, verbose
+        profile_name, llm_override, extra_mcp, mode_override, verbose, sandbox_override=sandbox_override
     )
 
     llm_display = model_name or "(profile default)"
@@ -726,6 +732,7 @@ async def _run_chat_mode(
     show_trace: bool = False,
     subagent_enabled: bool | None = None,
     plan_mode: bool | None = None,
+    sandbox_override: str | None = None,
 ) -> None:
     """Interactive multi-turn chat REPL.
 
@@ -744,11 +751,12 @@ async def _run_chat_mode(
         verbose: Enable DEBUG logging.
         subagent_enabled: Override subagent flag (None = use profile setting).
         plan_mode: Override plan_mode flag (None = use profile setting).
+        sandbox_override: Override sandbox type (None = use profile setting).
     """
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
 
     profile, model_name, config_path = await _prepare_profile(
-        profile_name, llm_override, extra_mcp, mode_override, verbose
+        profile_name, llm_override, extra_mcp, mode_override, verbose, sandbox_override=sandbox_override
     )
 
     llm_display = model_name or "(profile default)"
@@ -1097,7 +1105,11 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
             ctx: typer.Context,
             input_text: Annotated[
                 Optional[str],
-                typer.Argument(help="Query text. Omit to use --chat or stdin."),
+                typer.Argument(help="Query text. Omit to use --chat, --input, or stdin."),
+            ] = None,
+            input: Annotated[
+                Optional[str],
+                typer.Option("--input", "-i", help="Input query (alternative to positional arg)."),
             ] = None,
             profile: Annotated[
                 Optional[str],
@@ -1150,6 +1162,10 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                 bool,
                 typer.Option("--plan-mode", "-P", help="Enable TodoList planning mode. Overrides profile setting."),
             ] = False,
+            sandbox: Annotated[
+                Optional[str],
+                typer.Option("--sandbox", "-S", help="Sandbox override: local | docker"),
+            ] = None,
         ) -> None:
             """Run Deer-flow agents in-process (embedded mode).
 
@@ -1207,6 +1223,8 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                     raise typer.Exit(1) from e
                 return
 
+            # --input/-i option is an alias for the positional input_text argument
+            input_text = input_text or input
             if not input_text and not chat:
                 if not sys.stdin.isatty():
                     input_text = sys.stdin.read().strip()
@@ -1231,6 +1249,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                             verbose=verbose,
                             subagent_enabled=subagent or None,
                             plan_mode=plan_mode or None,
+                            sandbox_override=sandbox or None,
                         )
                     )
                 else:
@@ -1248,6 +1267,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                             verbose=verbose,
                             subagent_enabled=subagent or None,
                             plan_mode=plan_mode or None,
+                            sandbox_override=sandbox or None,
                         )
                     )
             except KeyboardInterrupt:

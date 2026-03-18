@@ -14,7 +14,13 @@ def register(cli_app: typer.Typer) -> None:
 
     @cli_app.command("smol")
     def smol(
-        input: Annotated[str | None, typer.Option(help="Input query or '-' to read from stdin")] = None,
+        input_text: Annotated[
+            Optional[str],
+            typer.Argument(help="Query text. Omit to read from stdin or use --input."),
+        ] = None,
+        input: Annotated[
+            str | None, typer.Option("--input", "-i", help="Input query (alternative to positional arg)")
+        ] = None,
         tools: Annotated[list[str], Option("--tools", "-t", help="Tools to use (web_search, calculator, etc.)")] = [],
         config: Annotated[
             Optional[str],
@@ -27,6 +33,10 @@ def register(cli_app: typer.Typer) -> None:
         llm: Annotated[str, Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = "default",
         imports: list[str] | None = None,
         chat: Annotated[bool, Option("--chat", "-s", help="Start an interactive shell to send prompts")] = False,
+        sandbox: Annotated[
+            Optional[str],
+            Option("--sandbox", "-b", help="Sandbox type: local (default), docker, e2b"),
+        ] = None,
     ) -> None:
         """
         Run a SmolAgent CodeAct agent with tools.
@@ -34,12 +44,13 @@ def register(cli_app: typer.Typer) -> None:
         Examples:
 
         # Using tools directly:
-        uv run cli agents smol --input "How many seconds would it take for a leopard at full speed to run through Pont des Arts?" -t web_search
+        uv run cli agents smol "How long to run through Pont des Arts at leopard speed?" -t web_search
+        uv run cli agents smol --input "..." -t web_search
         echo "Tell me about machine learning" | uv run cli agents smol -t web_search
 
         # Using a predefined configuration:
-        uv run cli agents smol --config "Titanic" --input "What is the proportion of female passengers that survived?"
-        uv run cli agents smol --config "MCP" --input "What is the current weather in Toulouse?"
+        uv run cli agents smol --config "Titanic" "What is the proportion of female passengers that survived?"
+        uv run cli agents smol --config "MCP" "What is the current weather in Toulouse?"
 
         Use --chat to start an interactive shell where you can send multiple prompts to the agent.
         """
@@ -118,20 +129,54 @@ def register(cli_app: typer.Typer) -> None:
             print("Chat mode for smolagents is not yet implemented")
             return
         else:
-            # Handle input from --input parameter or stdin
-            if not input and not sys.stdin.isatty():
-                input = sys.stdin.read()
-            if not input or len(input.strip()) < 1:
-                print("Error: Input parameter or something in stdin is required")
+            # Positional arg takes priority; --input/-i is the fallback
+            query = input_text or input
+            # Handle input from stdin
+            if not query and not sys.stdin.isatty():
+                query = sys.stdin.read()
+            if not query or len(query.strip()) < 1:
+                print("Error: Provide a query as a positional argument, --input/-i, or via stdin")
                 return
 
             # Create agent with optional pre_prompt as instructions
-            agent_kwargs = {
+            agent_kwargs: dict = {
                 "tools": available_tools,
                 "model": model,
                 "additional_authorized_imports": final_imports,
             }
             if final_pre_prompt:
                 agent_kwargs["instructions"] = final_pre_prompt
+
+            if sandbox and sandbox != "local":
+                if sandbox == "docker":
+                    from genai_tk.agents.sandbox.config import get_docker_smol_settings
+
+                    smol_cfg = get_docker_smol_settings()
+                    agent_kwargs["executor_type"] = "docker"
+                    agent_kwargs["executor_kwargs"] = {
+                        "image_name": smol_cfg.image,
+                        "container_run_kwargs": {
+                            "mem_limit": smol_cfg.mem_limit,
+                            "cpu_quota": smol_cfg.cpu_quota,
+                            "pids_limit": smol_cfg.pids_limit,
+                        },
+                    }
+                    print(f"Using Docker sandbox (image: {smol_cfg.image})")
+                elif sandbox == "e2b":
+                    from genai_tk.agents.sandbox.config import get_e2b_settings
+
+                    e2b_cfg = get_e2b_settings()
+                    if not e2b_cfg.api_key:
+                        print("Error: E2B_API_KEY is not set. Export it or configure it in sandbox.yaml.")
+                        return
+                    agent_kwargs["executor_type"] = "e2b"
+                    print("Using E2B sandbox")
+                elif sandbox == "wasm":
+                    print("Error: WASM sandbox is not yet supported.")
+                    return
+                else:
+                    print(f"Error: Unknown sandbox type '{sandbox}'. Valid values: local, docker, e2b")
+                    return
+
             agent = CodeAgent(**agent_kwargs)
-            agent.run(input)
+            agent.run(query)

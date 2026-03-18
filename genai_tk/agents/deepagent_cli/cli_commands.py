@@ -424,6 +424,12 @@ class DeepagentCommands(CliTopCommand, BaseModel):
                 bool,
                 typer.Option("--list-profiles", "-l", help="List configured profiles and exit"),
             ] = False,
+            sandbox: Annotated[
+                Optional[str],
+                typer.Option(
+                    "--sandbox", "-s", help="Sandbox override: local | docker | modal | daytona | runloop | langsmith"
+                ),
+            ] = None,
         ) -> None:
             """Launch the Deep Agents interactive TUI (default when no subcommand is given).
 
@@ -436,6 +442,7 @@ class DeepagentCommands(CliTopCommand, BaseModel):
                 cli agents deepagent --llm fast_model
                 cli agents deepagent --profile coder --agent mybot
                 cli agents deepagent --resume -m "Continue the refactor"
+                cli agents deepagent --sandbox docker
                 cli agents deepagent --list-profiles
             """
             if ctx.invoked_subcommand is not None:
@@ -454,6 +461,10 @@ class DeepagentCommands(CliTopCommand, BaseModel):
             except Exception as e:
                 console.print(f"[red]Config error:[/red] {e}")
                 raise typer.Exit(1) from e
+
+            # Apply --sandbox override to the active profile
+            if sandbox is not None:
+                _profile = _profile.model_copy(update={"sandbox": sandbox})
 
             if profile:
                 console.print(
@@ -506,6 +517,12 @@ class DeepagentCommands(CliTopCommand, BaseModel):
                 bool,
                 typer.Option("--quiet", "-q", help="Suppress diagnostic output"),
             ] = False,
+            sandbox: Annotated[
+                Optional[str],
+                typer.Option(
+                    "--sandbox", "-s", help="Sandbox override: local | docker | modal | daytona | runloop | langsmith"
+                ),
+            ] = None,
         ) -> None:
             """Run a single task non-interactively and exit.
 
@@ -517,6 +534,7 @@ class DeepagentCommands(CliTopCommand, BaseModel):
             Examples:
                 cli agents deepagent task "Write a Python hello-world script"
                 cli agents deepagent task --profile coder "Fix the failing tests"
+                cli agents deepagent task --sandbox docker "Analyse the data"
                 cli agents deepagent task -q "List all TODO comments" > todos.txt
             """
             try:
@@ -528,6 +546,10 @@ class DeepagentCommands(CliTopCommand, BaseModel):
             except Exception as e:
                 console.print(f"[red]Config error:[/red] {e}")
                 raise typer.Exit(1) from e
+
+            # Apply --sandbox override to the active profile
+            if sandbox is not None:
+                _profile = _profile.model_copy(update={"sandbox": sandbox})
 
             try:
                 exit_code = asyncio.run(

@@ -312,8 +312,13 @@ def write_deer_flow_config(
 
     # Build sandbox config based on requested provider
     if sandbox == "docker":
+        from genai_tk.agents.sandbox.config import get_docker_aio_settings
+
+        aio = get_docker_aio_settings()
         sandbox_cfg: dict[str, Any] = {
             "use": "src.community.aio_sandbox.aio_sandbox_provider:AioSandboxProvider",
+            "image": aio.image,
+            "host_port": aio.host_port,
         }
     else:
         sandbox_cfg = {"use": "src.sandbox.local:LocalSandboxProvider"}

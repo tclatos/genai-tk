@@ -142,8 +142,8 @@ class BackendConfig(BaseModel):
         ```
     """
 
-    type: Literal["none", "filesystem", "aio_sandbox", "class"] = Field(
-        "none", description="Backend type: none (default), filesystem, aio_sandbox, or class"
+    type: Literal["none", "filesystem", "aio_sandbox", "docker", "class"] = Field(
+        "none", description="Backend type: none (default), filesystem, aio_sandbox/docker, or class"
     )
     root_dir: str | None = Field(None, description="Root directory for the filesystem backend")
     class_path: QualifiedClassName | None = Field(
@@ -551,12 +551,17 @@ async def create_backend(config: BackendConfig | None) -> BackendProtocol | None
         root = _resolve_interpolation(config.root_dir) if config.root_dir else "."
         return FilesystemBackend(root_dir=root, virtual_mode=True)
 
-    if config.type == "aio_sandbox":
-        from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend, AioSandboxBackendConfig
+    if config.type in ("aio_sandbox", "docker"):
+        from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
+        from genai_tk.agents.sandbox.config import get_docker_aio_settings
 
-        # Extra YAML keys (host_port, startup_timeout, etc.) map directly onto AioSandboxBackendConfig
-        cfg_kwargs = {**config.kwargs, **config.extra_kwargs}
-        sandbox_cfg = AioSandboxBackendConfig.model_validate(cfg_kwargs) if cfg_kwargs else AioSandboxBackendConfig()
+        # Start from shared sandbox.yaml settings, then layer per-profile overrides on top
+        base_settings = get_docker_aio_settings()
+        overrides = {**config.kwargs, **config.extra_kwargs}
+        if overrides:
+            sandbox_cfg = base_settings.model_copy(update=overrides)
+        else:
+            sandbox_cfg = base_settings
         backend = AioSandboxBackend(config=sandbox_cfg)
         await backend.start()
         return backend

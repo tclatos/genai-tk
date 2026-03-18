@@ -2,31 +2,20 @@
 
 Defines the profile and global config structures loaded from
 ``config/basic/agents/deepagent.yaml`` via OmegaConf.
+
+Docker sandbox settings (image, host, port, etc.) are defined in
+``config/basic/sandbox.yaml`` and loaded via
+:mod:`genai_tk.agents.sandbox.config`.
 """
 
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-# Keep in sync with AioSandboxBackendConfig defaults
-_SANDBOX_IMAGE_DEFAULT = "ghcr.io/tclatos/agent-sandbox:latest"
+from genai_tk.agents.sandbox.models import DockerAioSettings
 
-
-class AioSandboxConfig(BaseModel):
-    """Optional Docker-based sandbox configuration for the ``aio`` sandbox type.
-
-    Mirrors ``AioSandboxBackendConfig`` so all settings can be overridden from
-    ``deepagent.yaml`` without importing the backend at config-load time.  Any
-    field left ``None`` falls back to the ``AioSandboxBackendConfig`` built-in
-    default when the backend is instantiated.
-    """
-
-    image: str | None = None
-    host: str | None = None
-    host_port: int | None = None
-    startup_timeout: float | None = None
-    work_dir: str | None = None
-    env_vars: dict[str, str] = Field(default_factory=dict)
+# Backward-compatible alias — prefer DockerAioSettings directly
+AioSandboxConfig = DockerAioSettings
 
 
 class DeepagentProfile(BaseModel):
@@ -45,7 +34,7 @@ class DeepagentProfile(BaseModel):
     enable_shell: bool = True
     shell_allow_list: list[str] = Field(default_factory=list)
     sandbox: str = "none"
-    sandbox_config: AioSandboxConfig | None = None
+    sandbox_config: DockerAioSettings | None = None
     system_prompt: str | None = None
     tools: list[str] = Field(default_factory=list)
 
@@ -64,7 +53,7 @@ class DeepagentConfig(BaseModel):
     enable_shell: bool = True
     shell_allow_list: list[str] = Field(default_factory=list)
     sandbox: str = "none"
-    sandbox_config: AioSandboxConfig | None = None
+    sandbox_config: DockerAioSettings | None = None
     system_prompt: str | None = None
     switcher_models: list[str] = Field(default_factory=list)
     profiles: list[DeepagentProfile] = Field(default_factory=list)

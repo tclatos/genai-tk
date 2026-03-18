@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
@@ -39,6 +39,8 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from genai_tk.agents.langchain.config import AgentProfileConfig, AgentType
+
+SandboxType = Literal["local", "docker"]
 
 
 class LangchainAgent(BaseModel):
@@ -61,6 +63,9 @@ class LangchainAgent(BaseModel):
             remembers conversation history across turns.
         details: When ``True`` the ``RichToolCallMiddleware`` shows full panels
             for every LLM call and tool call instead of the compact summary.
+        sandbox: Sandbox override: ``"docker"`` starts an ``AioSandboxBackend``
+            container and promotes the profile to ``deep`` if needed. ``None``
+            or ``"local"`` uses the profile's configured backend unchanged.
     """
 
     profile_name: str | None = None
@@ -71,6 +76,7 @@ class LangchainAgent(BaseModel):
     mcp_servers: list[str] = Field(default_factory=list)
     checkpointer: bool = False
     details: bool = False
+    sandbox: SandboxType | None = None
 
     # Internal – not part of the public schema
     _profile: AgentProfileConfig | None = None
@@ -171,8 +177,29 @@ class LangchainAgent(BaseModel):
             from genai_tk.agents.langchain.factory import create_langchain_agent
 
             assert self._profile is not None
+            profile = self._profile
+
+            # Apply --sandbox CLI override
+            if self.sandbox and self.sandbox != "local":
+                from genai_tk.agents.langchain.config import BackendConfig
+
+                if self.sandbox == "docker":
+                    sandbox_backend = BackendConfig(type="docker")
+                else:
+                    raise ValueError(
+                        f"Unsupported sandbox type for langchain agent: {self.sandbox!r}. Use: local, docker"
+                    )
+
+                # Local skill directories are not accessible inside the Docker container,
+                # so clear them to prevent SkillsMiddleware from failing with a 404.
+                update: dict[str, Any] = {"backend": sandbox_backend, "skill_directories": []}
+                if profile.type != "deep":
+                    update["type"] = "deep"
+                    logger.debug(f"Sandbox override '{self.sandbox}': switched profile type to deep")
+                profile = profile.model_copy(update=update)
+
             self._agent = await create_langchain_agent(
-                self._profile,
+                profile,
                 extra_tools=self.tools or None,
                 extra_mcp_servers=self.mcp_servers or None,
                 force_memory_checkpointer=self.checkpointer,
