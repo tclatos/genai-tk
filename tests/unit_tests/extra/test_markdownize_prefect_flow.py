@@ -7,6 +7,7 @@ from typing import Generator
 import pytest
 from upath import UPath
 
+import genai_tk.extra.markdownize_prefect_flow as mod
 from genai_tk.extra.markdownize_prefect_flow import (
     MarkdownizeManifest,
     MarkdownizeManifestEntry,
@@ -14,6 +15,7 @@ from genai_tk.extra.markdownize_prefect_flow import (
     _load_manifest,
     _prepare_files,
     _save_manifest,
+    markdownize_flow,
 )
 
 
@@ -175,10 +177,79 @@ def test_prepare_files_force_reprocess(temp_dir: Path, sample_files: list[Path])
 
 
 def test_markdownize_flow_basic(temp_dir: Path, sample_files: list[Path], monkeypatch) -> None:
-    """Test basic markdownize flow execution."""
-    pytest.skip("markdownize_flow uses Prefect task runner; covered in integration tests")
+    """Test basic markdownize flow creates a manifest entry per processed file."""
+    from datetime import datetime, timezone
+
+    output_dir = temp_dir / "output"
+    output_dir.mkdir()
+
+    def fake_submit(file_info, output_dir, root_dir, use_mistral_ocr):
+        entry = MarkdownizeManifestEntry(
+            source_hash=file_info.content_hash,
+            output_path=f"{file_info.path.stem}.md",
+            processed_at=datetime.now(timezone.utc),
+        )
+        return _FakeFuture((str(file_info.path), entry))
+
+    monkeypatch.setattr(mod._process_single_file_task, "submit", fake_submit)
+    monkeypatch.setattr(
+        mod,
+        "resolve_files",
+        lambda *args, **kwargs: [str(p) for p in sample_files],
+    )
+
+    manifest = markdownize_flow.fn(
+        root_dir=str(temp_dir),
+        output_dir=str(output_dir),
+        include_patterns=["*.pdf", "*.docx"],
+        recursive=False,
+        batch_size=2,
+        force=False,
+        use_mistral_ocr=False,
+    )
+
+    assert isinstance(manifest, MarkdownizeManifest)
+    assert len(manifest.entries) == 2
+    manifest_path = UPath(output_dir) / "manifest.json"
+    assert manifest_path.exists()
 
 
 def test_manifest_persistence(temp_dir: Path, sample_files: list[Path], monkeypatch) -> None:
-    """Test manifest persists across runs."""
-    pytest.skip("markdownize_flow uses Prefect task runner; covered in integration tests")
+    """Test manifest is persisted and reloaded correctly across two flow runs."""
+    from datetime import datetime, timezone
+
+    output_dir = temp_dir / "output"
+    output_dir.mkdir()
+
+    call_count = {"n": 0}
+
+    def fake_submit(file_info, output_dir, root_dir, use_mistral_ocr):
+        call_count["n"] += 1
+        entry = MarkdownizeManifestEntry(
+            source_hash=file_info.content_hash,
+            output_path=f"{file_info.path.stem}.md",
+            processed_at=datetime.now(timezone.utc),
+        )
+        return _FakeFuture((str(file_info.path), entry))
+
+    monkeypatch.setattr(mod._process_single_file_task, "submit", fake_submit)
+    pdf_only = [str(sample_files[0])]
+    monkeypatch.setattr(mod, "resolve_files", lambda *args, **kwargs: pdf_only)
+
+    run_kwargs = {
+        "root_dir": str(temp_dir),
+        "output_dir": str(output_dir),
+        "include_patterns": ["*.pdf"],
+        "recursive": False,
+        "batch_size": 1,
+        "force": False,
+        "use_mistral_ocr": False,
+    }
+    manifest1 = markdownize_flow.fn(**run_kwargs)
+    assert len(manifest1.entries) == 1
+    assert call_count["n"] == 1
+
+    # Second run on unchanged files — nothing should be re-processed.
+    manifest2 = markdownize_flow.fn(**run_kwargs)
+    assert len(manifest2.entries) == 1
+    assert call_count["n"] == 1  # still 1, no new submissions

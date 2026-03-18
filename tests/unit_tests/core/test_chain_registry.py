@@ -4,7 +4,11 @@ This module contains tests for the chain registry which manages
 reusable AI processing chains using fake models.
 """
 
-from genai_tk.core.chain_registry import ChainRegistry, Example, RunnableItem
+from unittest.mock import patch
+
+from langchain_core.runnables import Runnable
+
+from genai_tk.core.chain_registry import ChainRegistry, Example, RunnableItem, register_runnable
 from genai_tk.core.llm_factory import get_llm
 
 # Constants
@@ -191,3 +195,104 @@ def test_registry_performance(performance_threshold) -> None:
 
 # Factory and key-function tests require more complex setup
 # and depend on internal implementation details
+
+
+def test_runnable_item_get_direct_runnable() -> None:
+    """Test RunnableItem.get() returns the Runnable instance directly."""
+    llm = get_llm(llm=FAKE_LLM_ID)
+    item = RunnableItem(name="test_direct", runnable=llm)
+    result = item.get()
+    assert result is llm
+    assert isinstance(result, Runnable)
+
+
+def test_runnable_item_get_callable_factory() -> None:
+    """Test RunnableItem.get() invokes a callable factory with conf dict."""
+    llm = get_llm(llm=FAKE_LLM_ID)
+
+    def factory(conf: dict) -> Runnable:
+        return llm
+
+    item = RunnableItem(name="test_callable", runnable=factory)
+    result = item.get({"llm": None})
+    assert result is llm
+
+
+def test_runnable_item_get_callable_default_conf() -> None:
+    """Test RunnableItem.get() uses default conf {"llm": None} when conf=None."""
+    llm = get_llm(llm=FAKE_LLM_ID)
+    received_conf: dict = {}
+
+    def factory(conf: dict) -> Runnable:
+        received_conf.update(conf)
+        return llm
+
+    item = RunnableItem(name="test_callable_default", runnable=factory)
+    result = item.get()  # conf=None triggers default
+    assert result is llm
+    assert received_conf == {"llm": None}
+
+
+def test_runnable_item_get_tuple() -> None:
+    """Test RunnableItem.get() handles (key, factory) tuple branch."""
+    llm = get_llm(llm=FAKE_LLM_ID)
+
+    def factory(conf: dict) -> Runnable:
+        return llm
+
+    item = RunnableItem(name="test_tuple", runnable=("input_key", factory))
+    result = item.get({"llm": None})
+    assert isinstance(result, Runnable)
+
+
+def test_to_key_param_callable() -> None:
+    """Test _to_key_param_callable creates a Runnable pipeline wrapping the key."""
+    llm = get_llm(llm=FAKE_LLM_ID)
+    factory = lambda conf: llm  # noqa: E731
+
+    wrapped = ChainRegistry._to_key_param_callable("my_key", factory)
+    assert callable(wrapped)
+    result = wrapped({"llm": None})
+    assert isinstance(result, Runnable)
+
+
+def test_register_runnable_function() -> None:
+    """Test module-level register_runnable() adds item to the global registry."""
+    llm = get_llm(llm=FAKE_LLM_ID)
+    unique_name = "test_register_via_module_function_unique"
+    item = RunnableItem(name=unique_name, runnable=llm)
+
+    register_runnable(item)
+
+    registry = ChainRegistry.instance()
+    found = registry.find(unique_name)
+    assert found is not None
+    assert found.name == unique_name
+
+
+def test_load_modules_valid_module() -> None:
+    """Test load_modules() successfully imports a valid module."""
+    ChainRegistry.load_modules.invalidate()
+    with patch("genai_tk.core.chain_registry.global_config") as mock_config:
+        mock_config.return_value.get_list.return_value = ["genai_tk.core.chain_registry"]
+        ChainRegistry.load_modules()  # Should not raise
+    ChainRegistry.load_modules.invalidate()
+
+
+def test_load_modules_invalid_module() -> None:
+    """Test load_modules() gracefully handles an unimportable module."""
+    ChainRegistry.load_modules.invalidate()
+    with patch("genai_tk.core.chain_registry.global_config") as mock_config:
+        mock_config.return_value.get_list.return_value = ["nonexistent.bogus.module.xyz"]
+        ChainRegistry.load_modules()  # Should not raise, exception is logged
+    ChainRegistry.load_modules.invalidate()
+
+
+def test_runnable_item_get_invalid_type_raises() -> None:
+    """Test RunnableItem.get() raises when runnable is an unsupported type."""
+    import pytest
+
+    # Use model_construct to bypass Pydantic validation and inject an invalid type
+    item = RunnableItem.model_construct(name="bad", runnable=42)
+    with pytest.raises(Exception, match="unknown or ill-formatted Runnable"):
+        item.get()

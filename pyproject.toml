@@ -167,6 +167,7 @@ dev = [
     "faker>=25.0.0",          # Generate fake data for testing
     "ipykernel>=6.29.4",      # Jupyter kernel for notebooks
     "ipywidgets>=8.1.2",      # Interactive widgets for Jupyter
+    "pytest-cov>=7.0.0",
 ]
 
 [tool.uv]

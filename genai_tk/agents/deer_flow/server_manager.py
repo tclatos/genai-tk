@@ -201,8 +201,16 @@ class DeerFlowServerManager:
         return path
 
     def _resolve_backend_path(self) -> Path:
-        """Return the resolved deer-flow backend directory."""
+        """Return the resolved deer-flow backend directory.
+
+        Accepts ``DEER_FLOW_PATH`` pointing to either the repository root
+        (expected layout: ``<root>/backend/``) or directly to the backend
+        directory (contains ``langgraph.json`` or ``pyproject.toml``).
+        """
         root = self._resolve_root_path()
+        # If the path already IS the backend (has langgraph.json or pyproject.toml at root level)
+        if (root / "langgraph.json").exists() or (root / "pyproject.toml").exists():
+            return root
         backend = (root / "backend").resolve()
         if not backend.exists():
             raise FileNotFoundError(f"Deer-flow backend not found at {backend}")

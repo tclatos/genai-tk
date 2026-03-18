@@ -22,7 +22,7 @@ def setup_langchain(
     """Configure LangChain with the specified settings.
 
     Args:
-        llm_id: The ID of the LLM model to use, or None to keep current model.
+        llm: The ID of the LLM model to use, or None to keep current model.
         lc_debug: Whether to enable LangChain debug mode.
         lc_verbose: Whether to enable LangChain verbose mode.
         cache: The cache strategy to use (e.g., 'sqlite', 'memory', 'no_cache').

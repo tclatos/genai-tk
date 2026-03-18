@@ -1,7 +1,7 @@
 # Makefile for GenAI Toolkit (genai-tk)
 # Provides commands for development, testing, and maintenance
 
-.PHONY: help install install-dev fmt lint test test-unit test-integration clean check
+.PHONY: help install install-dev fmt lint test test-unit test-integration test-full clean check
 
 # Default target
 help:
@@ -10,9 +10,10 @@ help:
 	@echo "  install-dev  - Install with development dependencies"
 	@echo "  fmt          - Format code with ruff"
 	@echo "  lint         - Lint code with ruff"
-	@echo "  test         - Run all tests"
+	@echo "  test         - Run all tests (unit + integration, fake models)"
 	@echo "  test-unit    - Run unit tests only"
-	@echo "  test-integration - Run integration tests only"  
+	@echo "  test-integration - Run integration tests only"
+	@echo "  test-full    - Run ALL tests including real LLM (requires API keys)"
 	@echo "  test-install - Quick test of package installation"
 	@echo "  clean        - Clean Python cache files"
 	@echo "  check        - Run format, lint, and test"
@@ -38,6 +39,14 @@ test-unit: ## Run unit tests only
 
 test-integration: ## Run integration tests only
 	uv run pytest tests/integration_tests/
+
+test-full: ## Run ALL tests including real LLM calls (requires API keys and fast model tag)
+	@echo "Running full test suite including real LLM tests..."
+	@echo "Requires: valid API key for the 'fast_model' tag (cheap/fast model)"
+	uv run pytest tests/unit_tests/ tests/integration_tests/ \
+		--include-real-models \
+		-m "not slow" \
+		-v
 
 test-install: ## Quick test of package installation - tests basic imports
 	@echo "Testing genai_tk package imports..."

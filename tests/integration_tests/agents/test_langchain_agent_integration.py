@@ -6,6 +6,8 @@ Real-model tests use the ``fast_model`` tag (cheap, gated by --include-real-mode
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from genai_tk.agents.langchain.langchain_agent import LangchainAgent
@@ -100,3 +102,78 @@ async def test_react_agent_with_cheap_llm() -> None:
     result = await agent.arun("What is 2 + 2? Reply with just the number.")
     assert isinstance(result, str)
     assert len(result.strip()) > 0
+
+
+# ---------------------------------------------------------------------------
+# Option / constructor coverage (fake models, no network)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.fake_models
+def test_system_prompt_applied_to_profile() -> None:
+    """system_prompt kwarg is stored in the resolved profile."""
+    agent = LangchainAgent(llm="parrot_local@fake", system_prompt="You are a helpful assistant.")
+    assert agent._profile is not None
+    assert agent._profile.system_prompt == "You are a helpful assistant."
+
+
+@pytest.mark.integration
+@pytest.mark.fake_models
+def test_agent_type_override() -> None:
+    """agent_type kwarg is reflected in the resolved profile."""
+    agent = LangchainAgent(llm="parrot_local@fake", agent_type="react")
+    assert agent._profile is not None
+    assert agent._profile.type == "react"
+
+
+@pytest.mark.integration
+@pytest.mark.fake_models
+def test_checkpointer_stored() -> None:
+    """checkpointer=True is stored and forwarded to the factory."""
+    agent = LangchainAgent(llm="parrot_local@fake", checkpointer=True)
+    assert agent.checkpointer is True
+
+
+@pytest.mark.integration
+@pytest.mark.fake_models
+def test_details_flag_stored() -> None:
+    """details=True is stored on the agent."""
+    agent = LangchainAgent(llm="parrot_local@fake", details=True)
+    assert agent.details is True
+
+
+@pytest.mark.integration
+@pytest.mark.fake_models
+def test_mcp_servers_stored() -> None:
+    """mcp_servers list is stored on the agent."""
+    agent = LangchainAgent(llm="parrot_local@fake", mcp_servers=["weather", "math"])
+    assert agent.mcp_servers == ["weather", "math"]
+
+
+@pytest.mark.integration
+@pytest.mark.fake_models
+@pytest.mark.asyncio
+async def test_arun_shell_delegates_to_shell_function() -> None:
+    """arun_shell() delegates to run_langchain_agent_shell."""
+    agent = LangchainAgent(llm="parrot_local@fake")
+    with patch(
+        "genai_tk.agents.langchain.agent_cli.run_langchain_agent_shell",
+        new_callable=AsyncMock,
+    ) as mock_shell:
+        await agent.arun_shell()
+    mock_shell.assert_called_once_with(agent)
+
+
+@pytest.mark.integration
+@pytest.mark.fake_models
+@pytest.mark.asyncio
+async def test_unsupported_sandbox_raises_value_error() -> None:
+    """_ensure_initialized() raises ValueError for an unknown sandbox type."""
+    agent = LangchainAgent(llm="parrot_local@fake")
+    # Override sandbox after construction to bypass Pydantic's Literal type guard
+    object.__setattr__(agent, "sandbox", "kubernetes")
+    object.__setattr__(agent, "_agent", None)
+
+    with pytest.raises(ValueError, match="Unsupported sandbox type"):
+        await agent._ensure_initialized()

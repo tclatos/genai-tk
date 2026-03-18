@@ -144,9 +144,6 @@ def load_and_register_commands(cli_app: typer.Typer) -> None:
 
     Args:
         cli_app: The Typer app instance to register commands to
-
-    Raises:
-        ConfigError: If configuration cannot be loaded or is invalid
     """
     try:
         modules = global_config().get_list("cli.commands", value_type=str)

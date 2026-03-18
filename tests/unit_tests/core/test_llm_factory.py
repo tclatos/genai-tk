@@ -93,13 +93,21 @@ def test_llm_factory_get_litellm_model_name() -> None:
 
 
 def test_llm_factory_get_smolagent_model() -> None:
-    """Test get_smolagent_model method."""
+    """Test get_smolagent_model returns a model object (smolagents mocked)."""
+    from unittest.mock import MagicMock, patch
+
     factory = LlmFactory(llm=FAKE_LLM_ID)
-    # Skip this test for fake provider since smolagent doesn't support it
-    if factory.provider == FAKE_LLM_PROVIDER:
-        pytest.skip("smolagent doesn't support fake provider")
-    model = factory.get_smolagent_model()
-    assert model is not None
+    mock_model = MagicMock()
+    mock_litellm_cls = MagicMock(return_value=mock_model)
+
+    with (
+        patch("smolagents.LiteLLMModel", mock_litellm_cls),
+        patch.object(LlmFactory, "get_litellm_model_name", return_value="fake/parrot"),
+    ):
+        model = factory.get_smolagent_model()
+
+    assert model is mock_model
+    mock_litellm_cls.assert_called_once_with(model_id="fake/parrot", **factory.llm_params)
 
 
 def test_get_llm_info() -> None:
@@ -194,7 +202,7 @@ def test_complex_provider_config_parsing() -> None:
         assert isinstance(complex_model.llm_args, dict)
 
         # Check that nested structures are parsed
-        for key, value in complex_model.llm_args.items():
+        for _key, value in complex_model.llm_args.items():
             if isinstance(value, dict):
                 # Nested configuration found
                 assert len(value) >= 0  # Should be a valid dict
