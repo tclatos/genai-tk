@@ -4,7 +4,7 @@ Provides reusable tool specification models for factory, class, and function-bas
 tools used in LangChain, Smolagents, and Deerflow agent configurations.
 """
 
-from typing import Any, Dict, Union
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -15,7 +15,7 @@ class ClassToolSpec(BaseModel):
     """Tool specification for a class-based tool."""
 
     tool_class: QualifiedClassName = Field(..., alias="class", description="Qualified class name")
-    extra_params: Dict[str, Any] = Field(
+    extra_params: dict[str, Any] = Field(
         default_factory=dict, description="Additional parameters for class instantiation"
     )
 
@@ -32,14 +32,14 @@ class FactoryToolSpec(BaseModel):
     """Tool specification for a factory-based tool."""
 
     factory: QualifiedFunctionName = Field(..., description="Qualified factory function name")
-    extra_params: Dict[str, Any] = Field(default_factory=dict, description="Additional parameters for factory")
+    extra_params: dict[str, Any] = Field(default_factory=dict, description="Additional parameters for factory")
 
 
 # Union type for all tool specifications
-ToolSpec = Union[ClassToolSpec, FunctionToolSpec, FactoryToolSpec]
+ToolSpec = ClassToolSpec | FunctionToolSpec | FactoryToolSpec
 
 
-def tool_spec_from_dict(tool_config: Dict[str, Any]) -> Union[ClassToolSpec, FunctionToolSpec, FactoryToolSpec, None]:
+def tool_spec_from_dict(tool_config: dict[str, Any]) -> ClassToolSpec | FunctionToolSpec | FactoryToolSpec | None:
     """Convert a dictionary tool configuration to a ToolSpec Pydantic model.
 
     Args:
