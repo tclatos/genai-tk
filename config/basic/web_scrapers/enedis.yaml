@@ -1,0 +1,114 @@
+# Enedis customer portal — solar production data scraper
+#
+# Retrieves photovoltaic production data from the Enedis "mon compte particulier"
+# portal after OAuth/form login.
+#
+# Required environment variables (never hardcoded):
+#   ENEDIS_USERNAME   Your Enedis account email address
+#   ENEDIS_PASSWORD   Your Enedis account password
+#
+# Session persistence:
+#   After first successful login, the session is saved to data/sessions/enedis_production_session.json
+#   Subsequent runs reuse the session until cookies expire (typically 24-48 h).
+#
+# First-run note:
+#   If Enedis detects headless Chrome and blocks login, set browser.headless: false
+#   for the first run to complete login with a visible browser window.
+#   Once data/sessions/enedis_production_session.json exists, switch back to headless: true.
+#
+# Usage in a LangChain agent profile (config/basic/agents/langchain.yaml):
+#   tools:
+#     - factory: genai_tk.tools.browser.factory:create_web_scraper_tool
+#       config_name: enedis_production
+#
+# Direct usage:
+#   import asyncio
+#   from genai_tk.tools.browser.scraper_session import run_scraper
+#   from genai_tk.tools.browser.config_loader import load_web_scraper_config
+#   cfg = load_web_scraper_config("enedis_production")
+#   print(asyncio.run(run_scraper(cfg, "production_daily")))
+
+web_scrapers:
+  enedis_production:
+    description: "Retrieve solar photovoltaic production data from the Enedis customer portal"
+
+    # ------------------------------------------------------------------
+    # Browser settings
+    # ------------------------------------------------------------------
+    browser:
+      headless: true              # Set to false for first-run if CAPTCHA/block occurs
+      user_agent: rotating        # Picks from built-in Chrome 127-134 UA pool
+      viewport:
+        width: 1920
+        height: 1080
+      viewport_jitter: true       # ±30 px to reduce fingerprinting
+      timeout_ms: 30000
+      locale: "fr-FR"             # Match French site expectation
+      slow_mo_ms: 80              # Simulate human typing speed (ms between keystrokes)
+      java_script_enabled: true
+
+    # ------------------------------------------------------------------
+    # Authentication
+    # ------------------------------------------------------------------
+    auth:
+      type: form
+
+      # Entry point — Enedis SSO redirects to Okta-based IdP
+      login_url: "https://mon-compte-particulier.enedis.fr/auth/login"
+
+      # Credentials resolved from environment variables at runtime.
+      # NEVER put actual passwords here.
+      credentials:
+        username: {env: ENEDIS_USERNAME}
+        password: {env: ENEDIS_PASSWORD}
+
+      # CSS selectors — adjust if Enedis updates their login page markup
+      selectors:
+        username_input: "input[type='email'], input[name='username'], input[id='username'], #username"
+        password_input: "input[type='password'], input[name='password'], #password"
+        submit_button:  "button[type='submit'], input[type='submit'], button:has-text('Se connecter'), button:has-text('Connexion')"
+
+      # URL pattern to confirm successful authentication
+      success_url_pattern: "**/espace-client/**"
+
+      session:
+        storage_state_path: "data/sessions/enedis_production_session.json"
+        check_validity: true      # Reuse session if cookies are still valid
+
+    # ------------------------------------------------------------------
+    # Cookie consent (Enedis uses Tarteaucitron + custom banners)
+    # ------------------------------------------------------------------
+    cookie_consent:
+      enabled: true
+      strategy: auto              # Tries Tarteaucitron, Didomi, OneTrust, generic
+      timeout_ms: 8000            # Give the banner time to load (Enedis SPA is slow)
+
+    # ------------------------------------------------------------------
+    # Scraping targets
+    # ------------------------------------------------------------------
+    targets:
+      # Daily / monthly production chart page
+      - name: production_daily
+        description: "Solar production overview page with daily and monthly production figures"
+        url: "https://mon-compte-particulier.enedis.fr/visualiser-vos-mesures-production"
+        wait_for: networkidle
+        # Wait for the Highcharts graph or data table to appear before extracting
+        wait_for_selector: ".highcharts-root, .donnees-mensuelles, table, [class*='mesures'], [class*='production']"
+        wait_for_selector_timeout_ms: 20000
+        extract:
+          type: text
+          selector: null          # Full page body text — the LLM extracts the numbers
+          # Future option: type: screenshot — for multimodal models to read the chart image
+          # Future option: type: custom
+          #   custom_extractor: my_package.extractors:extract_enedis_production
+
+      # Monthly summary (if available via direct URL — may require navigation)
+      - name: production_monthly
+        description: "Monthly production summary page"
+        url: "https://mon-compte-particulier.enedis.fr/visualiser-vos-mesures-production?periode=mois"
+        wait_for: networkidle
+        wait_for_selector: "table, [class*='mesures'], .highcharts-root"
+        wait_for_selector_timeout_ms: 20000
+        extract:
+          type: text
+          selector: null
