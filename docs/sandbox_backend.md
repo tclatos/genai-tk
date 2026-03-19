@@ -1,30 +1,37 @@
 # AioSandboxBackend
 
-`AioSandboxBackend` is a `deepagents` `SandboxBackendProtocol` implementation backed by the
-[agent-infra/sandbox](https://github.com/agent-infra/sandbox) Docker container.
-
-It manages the full container lifecycle — pulling the image, starting the container, polling until the REST API is healthy, and stopping the container on exit.
+`AioSandboxBackend` is a `deepagents` `SandboxBackendProtocol` implementation that provides secure, isolated code execution via [Alibaba OpenSandbox](https://github.com/alibaba/OpenSandbox).
 
 ## Architecture
 
 ```
 AioSandboxBackend (Python, this process)
         │
-        │  HTTP  (via agent_sandbox.AsyncSandbox)
-        ▼
-ghcr.io/agent-infra/sandbox container
+        ├─ Manages OpenSandbox lifecycle via opensandbox SDK
         │
-        ├─ port 8091 (SANDBOX_SRV_PORT) ← REST API
-        │     /v1/shell/exec_command
-        │     /v1/file/read_file
-        │     /v1/file/write_file
-        │     /v1/file/replace_in_file
-        │     /v1/file/list_path
+        ├─ Spawns opensandbox-server (if not already running)
+        │     └─ Listens on http://localhost:8080 (configurable)
         │
-        └─ port 8080 ← nginx web UI (not used by this backend)
+        └─ HTTP client (via agent_sandbox.AsyncSandbox)
+             │  HTTP
+             ▼
+        OpenSandbox Server
+             │
+             ├─ REST API on configured port
+             │     /v1/shell/exec_command
+             │     /v1/file/read_file
+             │     /v1/file/write_file
+             │     /v1/file/replace_in_file
+             │     /v1/file/list_path
+             │
+             └─ Manages Docker container lifecycle
+                  │
+                  └─ ghcr.io/agent-infra/sandbox:latest
+                       ├─ port 8091 ← REST API
+                       └─ port 8080 ← nginx web UI
 ```
 
-The `agent_sandbox.AsyncSandbox` SDK is a pure HTTP client (Fern-generated). It does **not** manage Docker — the backend does that via `asyncio.create_subprocess_exec("docker", ...)`.
+The `agent_sandbox.AsyncSandbox` SDK is a pure HTTP client (Fern-generated). Container lifecycle and port management are handled by the OpenSandbox server.
 
 ## Usage
 
@@ -80,10 +87,11 @@ With custom config:
 
 ```python
 config = AioSandboxBackendConfig(
-    host_port=19091,          # host port to bind (default: 18091)
-    startup_timeout=120.0,    # seconds to wait for the API to become ready
-    work_dir="/workspace",    # default path for ls when no path is given
-    env_vars={"MY_VAR": "1"}, # extra env vars passed to the container
+    opensandbox_server_url="http://localhost:8080",  # OpenSandbox server URL
+    startup_timeout=120.0,  # seconds to wait for the API to become ready
+    work_dir="/workspace",  # default path for ls when no path is given
+    env_vars={"MY_VAR": "1"},  # extra env vars passed to the container
+    entrypoint=["/opt/gem/run.sh"],  # sandbox container entrypoint
 )
 
 async with AioSandboxBackend(config=config) as backend:
@@ -125,24 +133,31 @@ All methods are async-native; sync counterparts (`ls_info`, `read`, etc.) raise 
 | `adownload_files(paths)` | `list[FileDownloadResponse]` | Read multiple files as `bytes` |
 | `id` (property) | `str` | Container short ID when running; random hex otherwise |
 
-## Docker Image
+## OpenSandbox Server Setup
 
-```
-ghcr.io/agent-infra/sandbox:latest
-```
+The backend automatically starts `opensandbox-server` if it's not already running. No manual setup required, but you can configure it:
 
-Pull manually if needed:
+### Installation
 
 ```bash
-docker pull ghcr.io/agent-infra/sandbox:latest
+uv add opensandbox-server
 ```
 
-The container exposes two ports:
+### Initialize Configuration
 
-| Port | Purpose |
-|------|---------|
-| 8080 | nginx web UI — not used |
-| 8091 | REST API (`SANDBOX_SRV_PORT`) — used by this backend |
+```bash
+opensandbox-server init-config ~/.sandbox.toml --example docker
+```
+
+This creates `~/.sandbox.toml` with Docker-based sandbox configuration. The `opensandbox-server` manages Docker image pulling and container lifecycle internally.
+
+### Manual Server Start
+
+```bash
+opensandbox-server --config ~/.sandbox.toml
+```
+
+The server listens on `http://localhost:8080` by default.
 
 ## Proxy Caveat
 
@@ -164,14 +179,13 @@ assert result.exit_code == 42
 
 ## Configuration Reference
 
-| Field             | Type              | Default                              | Description                       |
-|-------------------|-------------------|--------------------------------------|-----------------------------------|
-| `image`           | `str`             | `ghcr.io/agent-infra/sandbox:latest` | Docker image to run               |
-| `host`            | `str`             | `127.0.0.1`                          | Interface to bind on the host     |
-| `host_port`       | `int`             | `18091`                              | Host port mapped to container 8091|
-| `startup_timeout` | `float`           | `60.0`                               | Seconds to wait for the API       |
-| `work_dir`        | `str`             | `/home/user`                         | Default path for `ls` / `agrep_raw` |
-| `env_vars`        | `dict[str, str]`  | `{}`                                 | Extra env vars for the container  |
+| Field                     | Type              | Default                                      | Description                              |
+|---------------------------|-------------------|----------------------------------------------|------------------------------------------|
+| `opensandbox_server_url`  | `str`             | `http://localhost:8080`                      | OpenSandbox server URL                   |
+| `entrypoint`              | `list[str]`       | `["/opt/gem/run.sh"]`                        | Sandbox container entrypoint             |
+| `startup_timeout`         | `float`           | `60.0`                                       | Seconds to wait for the API              |
+| `work_dir`                | `str`             | `/home/user`                                 | Default path for `ls` / `agrep_raw`      |
+| `env_vars`                | `dict[str, str]`  | `{}`                                         | Extra env vars for the container         |
 
 ## Testing
 

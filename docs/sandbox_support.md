@@ -6,13 +6,35 @@ Unified sandbox integration for secure, isolated code execution across all AI ag
 
 Sandbox support enables agents to safely execute arbitrary code, scripts, and tools in isolated environments. This document covers:
 
+- **Why OpenSandbox**: Rationale for the architecture choice
 - **Architecture**: Unified configuration system and framework integration
-- **Available Sandboxes**: Local, Docker, and cloud-based options
+- **Available Sandboxes**: Local and Docker-based options
 - **CLI Usage**: Running agents with sandbox activation
 - **Configuration**: YAML-based settings and customization
 - **Integration Patterns**: Using sandboxes in your applications
 
-## Why Sandboxes?
+## Why OpenSandbox?
+
+### The Migration Story
+
+Previously, sandbox execution used direct Docker subprocess management in Python:
+- Each agent created its own container via `docker run` commands
+- Port allocation was manual and error-prone (fixed host ports like 18091)
+- Container cleanup was complex (tracking stale containers, handling race conditions)
+- Configuration was scattered and framework-specific
+
+### Why OpenSandbox (KISS Principle)
+
+We migrated to [Alibaba OpenSandbox](https://github.com/alibaba/OpenSandbox) to **simplify** the architecture:
+
+1. **Lifecycle Management**: OpenSandbox server handles all Docker container lifecycle — pulling images, creating, healthchecking, and cleanup
+2. **Dynamic Port Allocation**: No more manual port management; OpenSandbox dynamically allocates ports
+3. **Separation of Concerns**: Backend focuses on HTTP communication; server focuses on infrastructure
+4. **Reduced Code**: Eliminated ~500 lines of Docker subprocess handling, container tracking, stale process cleanup, and port conflict resolution
+5. **Reusability**: Single server instance serves multiple concurrent sandboxes via HTTP
+6. **Reliability**: Server handles retries, timeouts, and edge cases we'd have to reimplement
+
+### Sandbox Benefits
 
 Agents often need to execute untrusted code:
 - Run user-provided scripts
@@ -21,15 +43,54 @@ Agents often need to execute untrusted code:
 - Interact with external tools and APIs
 
 Sandboxes provide:
-- **Process isolation** — Code runs in a separate OS process or container
-- **Resource limits** — CPU, memory, and process constraints
-- **File isolation** — Filesystem namespace separation
-- **Network control** — Optional network access restrictions
-- **Audit trail** — Execution history and logging
+- **Process isolation** — Code runs in a separate Docker container with filesystem namespace
+- **Resource limits** — CPU, memory, and process constraints managed by Docker
+- **File isolation** — Sandbox working directory isolated from host
+- **Network control** — Configurable network access restrictions
+- **Audit trail** — Execution history logged via HTTP API
 
 ## Architecture
 
-### Unified Configuration System
+### OpenSandbox Server
+
+The sandbox backend delegates all infrastructure concerns to the OpenSandbox server:
+
+```
+Agent Code
+    │
+    ├─ AioSandboxBackend (HTTP client)
+    │       │
+    │       └─ Auto-starts opensandbox-server if not running
+    │              │
+    │              ├─ Manages Docker container lifecycle
+    │              ├─ Allocates dynamic ports
+    │              ├─ Healthchecks containers
+    │              └─ Cleans up on shutdown
+    │
+    └─ OpenSandbox Server (REST API at config.opensandbox_server_url)
+            │
+            └─ Docker container (ghcr.io/agent-infra/sandbox)
+                 ├─ /v1/shell/exec_command
+                 ├─ /v1/file/read_file
+                 ├─ /v1/file/write_file
+                 └─ /v1/file/replace_in_file
+```
+
+**Key Feature:** The backend automatically starts `opensandbox-server` if it detects the server isn't running at the configured URL. The server binary is resolved from the Python environment's bin directory, ensuring compatibility with virtual environments.
+
+### Initialization
+
+Before running sandboxed agents, initialize the OpenSandbox configuration once:
+
+```bash
+# Install server (if not already in dependencies)
+uv add opensandbox-server
+
+# Initialize configuration
+opensandbox-server init-config ~/.sandbox.toml --example docker
+```
+
+This creates `~/.sandbox.toml` with Docker-based sandbox templates. The backend will use this configuration when auto-starting the server.
 
 All sandbox technologies are configured through a single YAML file: `config/basic/sandbox.yaml`
 
@@ -38,41 +99,32 @@ sandbox:
   default: "local"  # Default execution environment
   docker:
     aio:  # AioSandboxBackend (LangChain, DeepAgent, Deer Flow)
-      image: "ghcr.io/agent-infra/sandbox:latest"
-      host: "127.0.0.1"
-      host_port: 18091
+      opensandbox_server_url: "http://localhost:8080"
       startup_timeout: 60.0
       work_dir: "/home/user"
+      entrypoint: ["/opt/gem/run.sh"]
       env_vars: {}
-    smolagents:  # SmolAgents Docker executor
-      image: "python:3.12-slim"
-      mem_limit: "512m"
-      cpu_quota: 50000
-      pids_limit: 100
-  e2b:  # E2B cloud sandbox (SmolAgents only)
-    api_key: null
-    template: null
-    timeout: 300
-  wasm:  # WebAssembly / Pyodide (reserved)
-    enabled: false
 ```
 
 ### Module Structure
 
 ```
 genai_tk/agents/sandbox/
-├── __init__.py         # Public API exports
-├── models.py           # Pydantic configuration models
-├── config.py           # Configuration loader functions
-└── aio_backend.py      # AioSandboxBackend implementation
+├── __init__.py          # Public API exports
+├── models.py            # Pydantic configuration models
+├── config.py            # Configuration loader functions
+└── aio_backend.py       # AioSandboxBackend implementation (OpenSandbox-based)
 ```
 
 **Key Classes:**
 
 - `SandboxConfig` — Top-level configuration (Docker, E2B, WASM settings)
-- `DockerAioSettings` — Docker settings for AioSandboxBackend (LangChain/DeepAgent/Deer Flow)
-- `DockerSmolSettings` — Docker executor settings for SmolAgents
-- `E2bSandboxSettings` — E2B cloud sandbox credentials and options
+- `DockerAioSettings` — Docker sandbox settings for AioSandboxBackend (OpenSandbox-based lifecycle)
+  - `opensandbox_server_url` — URL for OpenSandbox server (default: `http://localhost:8080`)
+  - `entrypoint` — Container entrypoint (default: `["/opt/gem/run.sh"]`)
+  - `startup_timeout` — API healthcheck timeout in seconds
+  - `work_dir` — Default working directory in sandbox
+  - `env_vars` — Extra environment variables for container
 - `AioSandboxBackend` — deepagents `SandboxBackendProtocol` implementation
 
 ### Framework Integration
@@ -81,14 +133,15 @@ Each AI framework integrates sandbox support via command-line options and config
 
 #### LangChain (`genai_tk.agents.langchain`)
 
-- **CLI Option**: `--sandbox local|docker` (`-b`)
+- **CLI Option**: `--sandbox local|docker` (`-b local|docker`)
 - **Config**: `SandboxConfig` in `LlmFactory` and `LangchainAgent`
 - **Files**: `commands.py`, `config.py`, `langchain_agent.py`, `sandbox_backend.py`
-- **Supported Types**: Local (uses local OS for execution), Docker (AioSandboxBackend)
+- **Supported Types**: Local (subprocess execution), Docker (AioSandboxBackend with OpenSandbox)
 
 **Usage:**
 ```bash
 uv run cli agents langchain --sandbox docker "Write to file.txt"
+uv run cli agents langchain --sandbox local "Calculate something"
 ```
 
 #### DeepAgent CLI (`genai_tk.agents.deepagent_cli`)
@@ -96,7 +149,7 @@ uv run cli agents langchain --sandbox docker "Write to file.txt"
 - **CLI Option**: `--sandbox local|docker`
 - **Config**: Passed to `deep_agent/run` via `sandbox_bridge.py`
 - **Files**: `cli_commands.py`, `models.py`, `sandbox_bridge.py`
-- **Supported Types**: Local, Docker (AioSandboxBackend)
+- **Supported Types**: Local (subprocess), Docker (AioSandboxBackend with OpenSandbox)
 
 **Usage:**
 ```bash
