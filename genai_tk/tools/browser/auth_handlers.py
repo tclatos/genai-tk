@@ -52,6 +52,27 @@ class AuthHandlerProtocol:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+_COOKIE_ACCEPT_SELECTORS: tuple[str, ...] = (
+    "#popin_tc_privacy_button_3",
+    "button:has-text('Autoriser tous les cookies')",
+    "button:has-text('Accepter tous les cookies')",
+    "button:has-text('Tout accepter')",
+)
+
+_CAPTCHA_START_SELECTORS: tuple[str, ...] = (
+    "#captcha-widget",
+    ".frc-captcha",
+    "text='Clique ici pour vérifier'",
+)
+
+_CAPTCHA_SOLUTION_SELECTOR = "input[name='frc-captcha-solution']"
+_LOGIN_ERROR_SELECTORS: tuple[str, ...] = (
+    "[role='alert']",
+    ".fr-input-message",
+    ".error",
+    ".alert",
+    ".frc-banner",
+)
 
 
 async def _random_delay(min_ms: int = 50, max_ms: int = 200) -> None:
@@ -72,6 +93,171 @@ async def _type_human(locator: object, text: str, delay_ms: int = 60) -> None:
         await locator.type(char, delay=max(10, delay_ms + jitter))  # type: ignore[attr-defined]
 
 
+async def _locator_is_visible(locator: object) -> bool:
+    """Return ``True`` when the locator is currently visible."""
+    try:
+        return bool(await locator.is_visible())  # type: ignore[attr-defined]
+    except Exception:
+        return False
+
+
+async def _click_first_visible(page: object, selectors: tuple[str, ...], timeout_ms: int = 1_500) -> bool:
+    """Try clicking the first visible element among selectors."""
+    for selector in selectors:
+        try:
+            loc = page.locator(selector)  # type: ignore[attr-defined]
+            count = await loc.count()
+        except Exception:
+            continue
+        for idx in range(count):
+            item = loc.nth(idx)
+            if not await _locator_is_visible(item):
+                continue
+            try:
+                await item.click(timeout=timeout_ms)  # type: ignore[attr-defined]
+                return True
+            except Exception:
+                continue
+    return False
+
+
+async def _captcha_solution_value(page: object) -> str | None:
+    """Return FriendlyCaptcha hidden solution marker/value when present."""
+    try:
+        loc = page.locator(_CAPTCHA_SOLUTION_SELECTOR)  # type: ignore[attr-defined]
+        if await loc.count() == 0:
+            return None
+        return await loc.first.get_attribute("value")
+    except Exception:
+        return None
+
+def _captcha_pending(value: str | None) -> bool:
+    """Return ``True`` when FriendlyCaptcha indicates unresolved challenge."""
+    return value is not None and value.startswith(".")
+
+
+
+async def _prepare_challenge_if_needed(page: object) -> None:
+    """Dismiss known overlays and trigger anti-robot verification when present."""
+    await _click_first_visible(page, _COOKIE_ACCEPT_SELECTORS)
+    captcha_value = await _captcha_solution_value(page)
+    if _captcha_pending(captcha_value):
+        await _click_first_visible(page, _CAPTCHA_START_SELECTORS)
+
+
+async def _wait_for_captcha_ready(page: object, timeout_ms: int = 120_000) -> None:
+    """Wait for FriendlyCaptcha pending state to clear when captcha is present."""
+    value = await _captcha_solution_value(page)
+    if not _captcha_pending(value):
+        return
+
+    logger.info(f"[form auth] Waiting for anti-robot challenge (captcha state={value!r})")
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + (timeout_ms / 1000)
+    last_value = value
+    while loop.time() < deadline:
+        await _prepare_challenge_if_needed(page)
+        value = await _captcha_solution_value(page)
+        if value != last_value:
+            logger.info(f"[form auth] captcha state: {value!r}")
+            last_value = value
+        if not _captcha_pending(value):
+            return
+        await _random_delay(220, 420)
+
+    if value == ".HEADLESS_ERROR":
+        raise TimeoutError(
+            "Anti-robot challenge failed in headless mode (captcha=.HEADLESS_ERROR). "
+            "Retry with --no-headless and complete the challenge in the browser window."
+        )
+    raise TimeoutError(
+        f"Anti-robot challenge not completed within {timeout_ms}ms (captcha={value!r}). "
+        "Complete the captcha in the browser window and retry."
+    )
+
+async def _locator_is_enabled(locator: object) -> bool:
+    """Return ``True`` when the locator appears enabled for interaction."""
+    try:
+        if await locator.is_disabled():  # type: ignore[attr-defined]
+            return False
+    except Exception:
+        # Some custom elements may not support is_disabled; fall back to attributes
+        pass
+
+    try:
+        aria_disabled = (await locator.get_attribute("aria-disabled") or "").strip().lower()  # type: ignore[attr-defined]
+        if aria_disabled in {"true", "1"}:
+            return False
+    except Exception:
+        pass
+
+    try:
+        disabled_attr = await locator.get_attribute("disabled")  # type: ignore[attr-defined]
+        if disabled_attr is not None:
+            return False
+    except Exception:
+        pass
+
+    return True
+
+
+async def _wait_for_enabled(locator: object, timeout_ms: int = 12_000) -> None:
+    """Wait until a locator is enabled or raise ``TimeoutError``."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + (timeout_ms / 1000)
+    page = getattr(locator, "page", None)
+    observed_captcha_value: str | None = None
+    attempts = 0
+    while True:
+        if await _locator_is_enabled(locator):
+            return
+        attempts += 1
+        if page is not None and (attempts == 1 or attempts % 5 == 0):
+            await _prepare_challenge_if_needed(page)
+            captcha_value = await _captcha_solution_value(page)
+            if captcha_value != observed_captcha_value:
+                logger.info(f"[form auth] captcha state: {captcha_value!r}")
+                observed_captcha_value = captcha_value
+        if loop.time() >= deadline:
+            if observed_captcha_value is not None:
+                raise TimeoutError(
+                    f"Submit control stayed disabled for {timeout_ms}ms "
+                    f"(captcha={observed_captcha_value!r}). Complete anti-robot check and retry."
+                )
+            raise TimeoutError(f"Submit control stayed disabled for {timeout_ms}ms")
+        await _random_delay(120, 260)
+
+async def _collect_visible_error_hints(page: object) -> list[str]:
+    """Return a small list of visible error/alert text snippets on the page."""
+    hints: list[str] = []
+    for selector in _LOGIN_ERROR_SELECTORS:
+        try:
+            loc = page.locator(selector)  # type: ignore[attr-defined]
+            count = min(await loc.count(), 5)
+        except Exception:
+            continue
+        for idx in range(count):
+            item = loc.nth(idx)
+            if not await _locator_is_visible(item):
+                continue
+            text = ""
+            try:
+                text = (await item.inner_text()).strip()  # type: ignore[attr-defined]
+            except Exception:
+                try:
+                    text = (await item.text_content() or "").strip()  # type: ignore[attr-defined]
+                except Exception:
+                    text = ""
+            if not text:
+                continue
+            compact = " ".join(text.split())
+            if compact not in hints:
+                hints.append(compact)
+            if len(hints) >= 4:
+                return hints
+    return hints
+
+
 async def _fill_form(page: object, config: AuthConfig) -> None:
     """Fill username and password fields on the current page.
 
@@ -85,36 +271,109 @@ async def _fill_form(page: object, config: AuthConfig) -> None:
     password = creds.password.resolve()
 
     selectors = config.selectors
+    await _prepare_challenge_if_needed(page)
 
     await _random_delay(200, 500)
 
     # Username
     username_loc = page.locator(selectors.username_input).first  # type: ignore[attr-defined]
     await username_loc.wait_for(state="visible")
-    await username_loc.click()
+    try:
+        await username_loc.click(timeout=3_000)
+    except Exception:
+        logger.debug("[form auth] Username click failed; continuing with direct typing/fill")
     await _random_delay(80, 200)
-    await _type_human(username_loc, username)
+    try:
+        await _type_human(username_loc, username)
+    except Exception:
+        await username_loc.fill(username)  # type: ignore[attr-defined]
     await _random_delay(100, 300)
+    # Some IdPs use a two-step form: username first, password after an
+    # intermediate submit/continue action.
+    password_loc = page.locator(selectors.password_input).first  # type: ignore[attr-defined]
+    if not await _locator_is_visible(password_loc):
+        logger.info("[form auth] Password field not visible yet — submitting username step first")
+        await _wait_for_captcha_ready(page, timeout_ms=120_000)
+        username_submit_loc = page.locator(selectors.submit_button).first  # type: ignore[attr-defined]
+        await username_submit_loc.wait_for(state="visible")
+        await _wait_for_enabled(username_submit_loc, timeout_ms=60_000)
+        await username_submit_loc.click()
+        await _random_delay(350, 800)
 
     # Password
-    password_loc = page.locator(selectors.password_input).first  # type: ignore[attr-defined]
     await password_loc.wait_for(state="visible")
-    await password_loc.click()
+    try:
+        await password_loc.click(timeout=3_000)
+    except Exception:
+        logger.debug("[form auth] Password click failed; continuing with direct typing/fill")
     await _random_delay(80, 200)
-    await _type_human(password_loc, password)
+    try:
+        await _type_human(password_loc, password)
+    except Exception:
+        await password_loc.fill(password)  # type: ignore[attr-defined]
     await _random_delay(200, 500)
+    # Some IdP forms only enable submit after blur/validation.
+    try:
+        await password_loc.press("Tab")
+    except Exception:
+        pass
+    await _prepare_challenge_if_needed(page)
+    await _wait_for_captcha_ready(page, timeout_ms=120_000)
+    await _random_delay(120, 260)
 
     # Submit
     submit_loc = page.locator(selectors.submit_button).first  # type: ignore[attr-defined]
+    await submit_loc.wait_for(state="visible")
+    await _wait_for_enabled(submit_loc, timeout_ms=90_000)
     await submit_loc.click()
 
 
 async def _wait_for_success(page: object, config: AuthConfig) -> None:
     """Wait for the post-login page to appear."""
-    if config.success_url_pattern:
-        await page.wait_for_url(config.success_url_pattern, timeout=30_000)  # type: ignore[attr-defined]
-    else:
+    if not config.success_url_pattern:
         await page.wait_for_load_state("networkidle")  # type: ignore[attr-defined]
+        return
+
+    try:
+        await page.wait_for_url(config.success_url_pattern, timeout=30_000)  # type: ignore[attr-defined]
+        return
+    except Exception as exc:
+        if "Timeout" not in str(exc):
+            raise
+        current_url = str(getattr(page, "url", "<unknown>"))
+        logger.warning(
+            "[auth] success_url_pattern not reached within timeout "
+            f"({config.success_url_pattern!r}); current_url={current_url!r}. "
+            "Falling back to login-form visibility check."
+        )
+
+    await page.wait_for_load_state("networkidle")  # type: ignore[attr-defined]
+    await _random_delay(200, 500)
+
+    selectors = config.selectors
+    username_visible = await _locator_is_visible(page.locator(selectors.username_input).first)  # type: ignore[attr-defined]
+    password_visible = await _locator_is_visible(page.locator(selectors.password_input).first)  # type: ignore[attr-defined]
+
+    if not username_visible and not password_visible:
+        logger.info(
+            "[auth] Login form fields are no longer visible after submit; "
+            "treating authentication as successful despite URL pattern mismatch."
+        )
+        return
+
+    current_url = str(getattr(page, "url", "<unknown>"))
+    captcha_value = await _captcha_solution_value(page)
+    hints = await _collect_visible_error_hints(page)
+    details: list[str] = []
+    if captcha_value is not None:
+        details.append(f"captcha={captcha_value!r}")
+    if hints:
+        details.append(f"page_hints={hints!r}")
+    details_msg = f" ({'; '.join(details)})" if details else ""
+    raise TimeoutError(
+        "Timeout waiting for authenticated page: expected URL pattern "
+        f"{config.success_url_pattern!r} and login form is still visible at {current_url!r}{details_msg}"
+    )
 
 
 async def _run_mfa(page: object, config: AuthConfig) -> None:

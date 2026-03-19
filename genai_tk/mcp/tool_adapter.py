@@ -30,8 +30,11 @@ from typing import Any
 from langchain_core.tools import BaseTool
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticUndefined
+
+from genai_tk.tools.langchain.shared_config_loader import process_langchain_tools_from_config
+from genai_tk.tools.tool_specs import ToolSpec
 
 
 def register_tools(server: FastMCP, tools: list[BaseTool]) -> None:
@@ -64,9 +67,10 @@ def resolve_tools_from_config(tool_configs: list) -> list[BaseTool]:
         )
         ```
     """
-    from genai_tk.tools.langchain.shared_config_loader import process_langchain_tools_from_config
 
-    return process_langchain_tools_from_config(tool_configs)
+    ta = TypeAdapter(ToolSpec)
+    specs = [ta.validate_python(cfg) for cfg in tool_configs if isinstance(cfg, dict)]
+    return process_langchain_tools_from_config(specs)
 
 
 # ---------------------------------------------------------------------------

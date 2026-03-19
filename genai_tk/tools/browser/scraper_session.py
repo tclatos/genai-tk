@@ -87,68 +87,92 @@ class ScraperSession:
             from playwright.async_api import async_playwright  # noqa: PLC0415
         except ImportError as exc:
             raise RuntimeError("playwright is required: uv sync --group browser-control") from exc
+        try:
+            bc: BrowserConfig = self._config.browser
+            ua = get_user_agent(bc.user_agent)
 
-        bc: BrowserConfig = self._config.browser
-        ua = get_user_agent(bc.user_agent)
+            if bc.viewport_jitter:
+                width, height = _apply_viewport_jitter(bc.viewport.width, bc.viewport.height)
+            else:
+                width, height = bc.viewport.width, bc.viewport.height
 
-        if bc.viewport_jitter:
-            width, height = _apply_viewport_jitter(bc.viewport.width, bc.viewport.height)
-        else:
-            width, height = bc.viewport.width, bc.viewport.height
+            self._playwright = await async_playwright().start()
 
-        self._playwright = await async_playwright().start()
+            # Determine if we can load a stored session
+            auth = self._config.auth
+            name = self._config.name
+            use_storage_state = SessionManager.has_valid_session(auth, name)
+            storage_state_path = str(SessionManager.state_path(auth, name)) if use_storage_state else None
 
-        # Determine if we can load a stored session
-        auth = self._config.auth
-        name = self._config.name
-        use_storage_state = SessionManager.has_valid_session(auth, name)
-        storage_state_path = str(SessionManager.state_path(auth, name)) if use_storage_state else None
+            context_kwargs: dict = {
+                "user_agent": ua,
+                "viewport": {"width": width, "height": height},
+                "locale": bc.locale,
+                "java_script_enabled": bc.java_script_enabled,
+            }
+            if storage_state_path:
+                context_kwargs["storage_state"] = storage_state_path
+                logger.info(f"[{name}] Launching browser with cached session")
+            else:
+                logger.info(f"[{name}] Launching browser (no cached session — will authenticate)")
 
-        context_kwargs: dict = {
-            "user_agent": ua,
-            "viewport": {"width": width, "height": height},
-            "locale": bc.locale,
-            "java_script_enabled": bc.java_script_enabled,
-        }
-        if storage_state_path:
-            context_kwargs["storage_state"] = storage_state_path
-            logger.info(f"[{name}] Launching browser with cached session")
-        else:
-            logger.info(f"[{name}] Launching browser (no cached session — will authenticate)")
+            self._browser = await self._playwright.chromium.launch(
+                headless=bc.headless,
+                slow_mo=bc.slow_mo_ms,
+            )
+            self._context = await self._browser.new_context(**context_kwargs)
 
-        self._browser = await self._playwright.chromium.launch(
-            headless=bc.headless,
-            slow_mo=bc.slow_mo_ms,
-        )
-        self._context = await self._browser.new_context(**context_kwargs)
+            # Inject anti-bot script into every page opened in this context
+            await self._context.add_init_script(_ANTI_BOT_SCRIPT)
 
-        # Inject anti-bot script into every page opened in this context
-        await self._context.add_init_script(_ANTI_BOT_SCRIPT)
+            self._page = await self._context.new_page()
+            self._page.set_default_timeout(bc.timeout_ms)
 
-        self._page = await self._context.new_page()
-        self._page.set_default_timeout(bc.timeout_ms)
+            if not use_storage_state:
+                # Perform authentication
+                handler = get_auth_handler(auth.type)
+                await handler.authenticate(self._page, auth, name)
 
-        if not use_storage_state:
-            # Perform authentication
-            handler = get_auth_handler(auth.type)
-            await handler.authenticate(self._page, auth, name)
+                # After auth, handle cookie consent (first visit)
+                await CookieConsentHandler.handle(self._page, self._config.cookie_consent)
+            else:
+                logger.debug(f"[{name}] Skipping auth (session reused)")
 
-            # After auth, handle cookie consent (first visit)
-            await CookieConsentHandler.handle(self._page, self._config.cookie_consent)
-        else:
-            logger.debug(f"[{name}] Skipping auth (session reused)")
-
+            return self
+        except Exception:
+            await self.__aexit__(None, None, None)
+            raise
         return self
 
     async def __aexit__(self, *_args: object) -> None:
         if self._page:
-            await self._page.close()
+            try:
+                await self._page.close()
+            except Exception as exc:
+                logger.debug(f"Error while closing Playwright page: {exc}")
+            finally:
+                self._page = None
         if self._context:
-            await self._context.close()
+            try:
+                await self._context.close()
+            except Exception as exc:
+                logger.debug(f"Error while closing Playwright context: {exc}")
+            finally:
+                self._context = None
         if self._browser:
-            await self._browser.close()
+            try:
+                await self._browser.close()
+            except Exception as exc:
+                logger.debug(f"Error while closing Playwright browser: {exc}")
+            finally:
+                self._browser = None
         if self._playwright:
-            await self._playwright.stop()
+            try:
+                await self._playwright.stop()
+            except Exception as exc:
+                logger.debug(f"Error while stopping Playwright runtime: {exc}")
+            finally:
+                self._playwright = None
 
     async def scrape(self, target: TargetConfig) -> str:
         """Navigate to a target page and extract content.

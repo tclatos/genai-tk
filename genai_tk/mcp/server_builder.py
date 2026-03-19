@@ -23,10 +23,12 @@ Example:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
+from genai_tk.mcp.agent_tool import register_agent_tool
 from genai_tk.mcp.config import MCPServerDefinition, get_mcp_server_definition, load_mcp_server_definitions
 from genai_tk.mcp.tool_adapter import register_tools, resolve_tools_from_config
 
@@ -56,7 +58,7 @@ def build_mcp_server(definition: MCPServerDefinition) -> FastMCP:
     server = FastMCP(definition.name, instructions=definition.description or None)
 
     # Step 1 – resolve LangChain tools from factory configs
-    raw_tool_configs = [{"factory": t.factory, **t.factory_kwargs()} for t in definition.tools]
+    raw_tool_configs: list[dict[str, Any]] = [{"factory": t.factory, **t.factory_kwargs()} for t in definition.tools]
     lc_tools = resolve_tools_from_config(raw_tool_configs)
     logger.info(f"[{definition.name}] resolved {len(lc_tools)} LangChain tool(s)")
 
@@ -65,8 +67,6 @@ def build_mcp_server(definition: MCPServerDefinition) -> FastMCP:
 
     # Step 3 – optionally register the agent-as-a-tool
     if definition.agent and definition.agent.enabled:
-        from genai_tk.mcp.agent_tool import register_agent_tool
-
         register_agent_tool(server, definition.agent, extra_tools=lc_tools)
 
     return server

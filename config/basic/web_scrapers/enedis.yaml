@@ -66,7 +66,7 @@ web_scrapers:
       selectors:
         username_input: "input[type='email'], input[name='username'], input[id='username'], #username"
         password_input: "input[type='password'], input[name='password'], #password"
-        submit_button:  "button[type='submit'], input[type='submit'], button:has-text('Se connecter'), button:has-text('Connexion')"
+        submit_button:  "button[type='submit'], input[type='submit'], button:has-text('Se connecter'), button:has-text('Connexion'), button:has-text('Continuer'), button:has-text('Suivant'), input[value*='Continuer'], input[value*='Suivant']"
 
       # URL pattern to confirm successful authentication
       success_url_pattern: "**/espace-client/**"

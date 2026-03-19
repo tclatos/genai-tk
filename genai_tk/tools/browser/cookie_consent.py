@@ -51,6 +51,10 @@ _AUTO_SELECTORS: list[tuple[str, str]] = [
     ("CookieBot", 'button[id="CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll"]'),
     # RGPD.io / generic EU patterns
     ("RGPD.io", 'button[data-testid="allow-all-cookies"]'),
+    # Enedis / TC Privacy wrapper
+    ("TCPrivacy", "#popin_tc_privacy_button_3"),
+    ("TCPrivacy", '#popin_tc_privacy_button_2'),
+    ("TCPrivacy", 'button:has-text("Autoriser tous les cookies")'),
     # Generic French (most likely on gov / energy sites)
     ("Generic-fr", 'button:has-text("Tout accepter")'),
     ("Generic-fr", 'button:has-text("Accepter tout")'),
@@ -81,6 +85,10 @@ class CookieConsentHandler:
         """
         if not config.enabled or config.strategy == "skip":
             return
+        page_url = str(getattr(page, "url", "") or "")
+        if page_url.startswith("about:blank"):
+            logger.debug("Skipping cookie consent on about:blank page")
+            return
 
         if config.strategy == "custom":
             await CookieConsentHandler._run_custom(page, config)
@@ -95,10 +103,15 @@ class CookieConsentHandler:
         """Attempt each selector in the auto list, stopping at first success."""
         for banner_name, selector in _AUTO_SELECTORS:
             try:
-                # Use a short per-selector timeout so we don't stall on absent banners
-                per_selector_timeout = min(timeout_ms, 3_000)
                 locator = page.locator(selector)  # type: ignore[attr-defined]
-                await locator.first.click(timeout=per_selector_timeout)
+                if await locator.count() == 0:
+                    continue
+                first = locator.first
+                if not await first.is_visible():
+                    continue
+                if await first.is_disabled():
+                    continue
+                await first.click(timeout=min(timeout_ms, 1_000))
                 logger.info(f"Cookie consent dismissed via {banner_name} selector: {selector!r}")
                 return
             except Exception:
@@ -111,7 +124,14 @@ class CookieConsentHandler:
         for selector in selectors:
             try:
                 locator = page.locator(selector)  # type: ignore[attr-defined]
-                await locator.first.click(timeout=min(timeout_ms, 3_000))
+                if await locator.count() == 0:
+                    continue
+                first = locator.first
+                if not await first.is_visible():
+                    continue
+                if await first.is_disabled():
+                    continue
+                await first.click(timeout=min(timeout_ms, 1_000))
                 logger.info(f"Cookie consent dismissed via custom selector: {selector!r}")
                 return
             except Exception:
