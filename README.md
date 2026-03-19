@@ -118,6 +118,42 @@ project_path = config.get('paths.project')
 config.select_config('production')
 ```
 
+## Documentation
+
+Comprehensive documentation organized by topic:
+
+### Core Modules
+- **[Core Module](docs/core.md)** - LLM Factory, Embeddings, Vector Stores, Caching, Configuration, Models DB, Providers
+- **[Agents Module](docs/agents.md)** - LangChain Agents (ReAct, Deep, Custom), SmolAgents, Configuration, Profiles, Middleware, Checkpointing
+- **[Extra Module](docs/extra.md)** - Advanced Graphs (ReAct, SQL, Structured Output), RAG Systems, Data Loaders, Retrievers, Privacy Tools, Vector DB
+
+### Integration & Framework
+- **[MCP Servers](docs/mcp-servers.md)** - Model Context Protocol servers, tool exposure, CLI commands
+- **[Deer-flow Integration](docs/Deer_Flow_Integration.md)** - ByteDance multi-agent system, in-process client, architecture
+- **[Deep Agents CLI](docs/deepagents-cli_integration.md)** - Deepagents integration, TUI interface, persistent memory
+- **[Deer-flow Quick Reference](docs/deer_flow_quick_reference.md)** - Quick command reference
+- **[Deer-flow Skills](docs/deer_flow_skills_management.md)** - Skill library management
+- **[Deer-flow Input Box Patch](docs/deer_flow_input_box_patch.md)** - UI improvements
+
+### Advanced Features
+- **[Sandbox Support](docs/sandbox_support.md)** - OpenSandbox, sandboxed code execution, architecture, configuration
+- **[Browser Control](docs/browser_control.md)** - Authenticated web scraping, Playwright integration, session caching
+- **[Testing Guide](docs/TESTING_GUIDE.md)** - Unit testing patterns, fixtures, mocking, integration tests
+
+### Documentation Navigation
+**Starting Point:** Choose your task
+- **Getting Started?** → Start with [Core Module](docs/core.md) for basic usage
+- **Building Agents?** → See [Agents Module](docs/agents.md) for configuration and CLI
+- **Advanced Features?** → Check [Extra Module](docs/extra.md) for RAG, graphs, and utilities
+- **Integrating Tools?** → Read [MCP Servers](docs/mcp-servers.md) for external tool integration
+- **Running Code Safely?** → See [Sandbox Support](docs/sandbox_support.md)
+- **Web Automation?** → Check [Browser Control](docs/browser_control.md)
+- **Testing Code?** → Refer to [Testing Guide](docs/TESTING_GUIDE.md)
+- **Using Deer-flow?** → Start with [Deer-flow Integration](docs/Deer_Flow_Integration.md)
+
+### All Documentation Files
+All markdown documentation files are stored in the [`docs/`](docs/) directory. Use the links above for topic-based navigation.
+
 ## Package Structure
 
 ```
@@ -128,26 +164,28 @@ genai_tk/
 │   │   ├── factory.py      # Unified agent factory
 │   │   ├── agent.py        # Shell & direct runner
 │   │   ├── commands.py     # CLI command registration
-│   │   └── rich_middleware.py # Rich console middleware
+│   │   └── middleware/     # Middleware pipeline
 │   └── smolagents/         # SmolAgents implementation
-├── core/                    # Core AI components
+├── core/                    # Core AI components [See docs/core.md]
 │   ├── llm_factory.py      # LLM creation and management
 │   ├── embeddings_factory.py # Embeddings models
 │   ├── embeddings_store.py # Vector databases
-│   ├── deep_agents.py      # Deep agent runtime helpers
 │   ├── cache.py            # Caching utilities
 │   ├── chain_registry.py   # Chain registration system
-│   ├── langgraph_runner.py # LangGraph execution engine
 │   ├── mcp_client.py       # Model Context Protocol client
-│   └── ...
-├── extra/                   # Extended AI capabilities
-│   ├── graphs/             # Agent graphs (ReAct, SQL, etc.)
-│   ├── loaders/            # Data loaders (OCR, etc.)
-│   ├── retrievers/         # Retrieval components (BM25, etc.)
+│   ├── models_db.py        # Model registry and metadata
+│   ├── providers.py        # Provider configuration
+│   └── prompts.py          # Prompt utilities
+├── extra/                   # Extended AI capabilities [See docs/extra.md]
+│   ├── graphs/             # Agent graphs (ReAct, SQL, structured output)
+│   ├── rag/                # RAG pipeline components
+│   ├── loaders/            # Data loaders (OCR, markdown)
+│   ├── retrievers/         # Retrieval systems (BM25, ensemble)
 │   ├── custom_presidio_anonymizer.py # Data anonymization
+│   ├── image_analysis.py   # Image processing and analysis
 │   ├── gpt_researcher_helper.py # Research assistant
-│   ├── image_analysis.py   # Image processing
-│   └── ...
+│   ├── kv_store_registry.py # Key-value store management
+│   └── pgvector_factory.py # PostgreSQL vector DB
 ├── main/                    # CLI and command interface
 │   ├── cli.py              # Main CLI entry point
 │   ├── commands_agents.py  # Agent-related commands
@@ -170,7 +208,6 @@ genai_tk/
 │   │   ├── langchain_setup.py
 │   │   ├── langgraph_agent_shell.py
 │   │   └── smolagents_shell.py
-│   ├── crew_ai/            # CrewAI utilities
 │   ├── pydantic/           # Pydantic helpers
 │   │   ├── dyn_model_factory.py
 │   │   ├── kv_store.py
@@ -179,78 +216,137 @@ genai_tk/
 │   ├── langgraph.py        # LangGraph utilities
 │   └── ...
 └── wip/                     # Work in progress
-    ├── autogen_utils.py
-    ├── browser_use_langchain.py
-    └── structured_output.py
+
 ```
 
-## Key Components
+## Module Overview
 
 ### Core (`genai_tk.core`)
 
-- **LLM Factory** - Creates Language Models from multiple providers
-- **Embeddings Factory** - Provides embeddings for semantic search
-- **Embeddings Store** - Vector database management for RAG
-- **Deep Agents** - Runtime helpers for deep agent execution
-- **MCP Client** - Model Context Protocol integration
-- **Cache** - Intelligent caching system for AI responses
-- **Chain Registry** - Centralized chain registration and discovery
-- **LangGraph Runner** - Execution engine for LangGraph workflows
+Foundation components for AI applications. See [Core Module Documentation](docs/core.md) for details.
 
-### Main (`genai_tk.main`)
+**Key Components:**
+- **LLM Factory** - Creates Language Models from 100+ providers via LiteLLM
+- **Embeddings Factory** - Manages embedding models for semantic search
+- **Embeddings Store** - Vector database backend (Chroma, Weaviate, PGVector, etc.)
+- **Models DB** - Central registry of supported models with metadata
+- **Cache** - Intelligent response caching (file, in-memory, Redis)
+- **MCP Client** - Model Context Protocol integration for external tools
+- **Configuration** - Hierarchical, auto-discovering configuration system
+- **Providers** - Provider management and API key handling
 
-- **CLI Interface** - Comprehensive command-line interface
-- **Agent Commands** - Agent management and execution commands
-- **Core Commands** - Core functionality commands
-- **RAG Commands** - RAG pipeline management commands
+**Quick Links:**
+- [LLM Factory Configuration](docs/core.md#llm-factory) - Model selection and caching
+- [Embeddings Setup](docs/core.md#embeddings-factory) - Semantic search configuration
+- [Vector Databases](docs/core.md#embeddings-store) - RAG database backends
+- [Configuration System](docs/core.md#configuration-files) - YAML-based configuration
+
+### Agents (`genai_tk.agents`)
+
+Agent implementations and orchestration. See [Agents Module Documentation](docs/agents.md) for details.
+
+**LangChain Agents:**
+- **Unified Configuration** - YAML-driven agent profiles (react, deep, custom types)
+- **ReAct Agent** - Standard reasoning with tool use loops
+- **Deep Agent** - Advanced planning and subagents (requires `deepagents` package)
+- **Custom Agent** - Functional API-based agents with LangGraph
+- **Middleware System** - Tool call logging, rate limiting, summarization
+- **Checkpointing** - State persistence for multi-turn conversations
+- **MCP Integration** - Load tools from Model Context Protocol servers
+
+**SmolAgents:**
+- Simple agent framework for quick prototyping
+- Automatic tool composition
+- Model-agnostic implementation
+
+**Quick Links:**
+- [Agent Configuration](docs/agents.md#configuration-system) - Profile-based setup
+- [ReAct Agent](docs/agents.md#react-agent-default) - Standard reasoning agent
+- [Deep Agent](docs/agents.md#deep-agent-advanced) - Advanced multi-step reasoning
+- [CLI Usage](docs/agents.md#cli-interface) - Command-line operations
+- [MCP Integration](docs/agents.md#mcp-servers-integration) - External tool servers
 
 ### Extra (`genai_tk.extra`)
 
-- **Agent Graphs** - ReAct, SQL, and structured output agents
-- **Data Loaders** - OCR (Mistral), document processing
-- **Retrievers** - BM25S and other retrieval components
-- **Presidio Anonymizer** - Data privacy and anonymization
-- **GPT Researcher Helper** - Research assistant integration
-- **Image Analysis** - Image processing and analysis
-- **KV Store Registry** - Key-value store management
-- **PGVector Factory** - PostgreSQL vector database integration
+Extended AI capabilities beyond core functionality. See [Extra Module Documentation](docs/extra.md) for details.
+
+**Agent Graphs:**
+- **ReAct Agent** - Custom implementation with max flexibility
+- **SQL Agent** - Natural language database queries
+- **Structured Output Agent** - Validated Pydantic model responses
+
+**RAG Systems:**
+- **Markdown Chunking** - Semantic document splitting
+- **RAG Prefect Flow** - Orchestrated pipelines with scheduling
+- **Dynamic Retrieval** - Query expansion and multi-step retrieval
+
+**Data Loaders:**
+- **Markdown Loader** - YAML frontmatter and metadata extraction
+- **OCR Loader** - Image-to-text via Mistral
+
+**Retrievers:**
+- **BM25 Search** - Keyword-based retrieval
+- **Ensemble Retriever** - Hybrid semantic + keyword search
+- **Multi-Query Retriever** - Query expansion
+
+**Privacy & Analysis:**
+- **Presidio Anonymizer** - PII detection and masking
+- **Image Analysis** - Computer vision understanding
+- **GPT Researcher** - Multi-source synthesis
+
+**Storage:**
+- **PGVector** - PostgreSQL vector database
+- **KV Store Registry** - Caching backends (SQLite, Redis, in-memory)
+
+**Quick Links:**
+- [Agent Graphs](docs/extra.md#agent-graphs) - Specialized agents
+- [RAG Systems](docs/extra.md#rag-systems) - Retrieval pipelines
+- [Data Loaders](docs/extra.md#data-loaders) - Document processing
+- [Privacy Tools](docs/extra.md#utility-functions) - Data anonymization
+- [Advanced Patterns](docs/extra.md#advanced-patterns) - Multi-step workflows
 
 ### Tools (`genai_tk.tools`)
 
-- **LangChain Tools** - RAG, search, SQL, and web search tools
+Framework-specific tool implementations.
+
+- **LangChain Tools** - RAG, search, SQL, web search tools
 - **SmolAgents Tools** - Browser automation, data analysis, financial tools
 
 ### Utils (`genai_tk.utils`)
 
+Shared utilities and helpers.
+
 - **Configuration Manager** - Hierarchical config system with auto-discovery
 - **CLI Utilities** - Shell interfaces for LangChain and SmolAgents
-- **CrewAI Utilities** - CrewAI integration helpers
 - **Pydantic Helpers** - Dynamic models, validation, and data stores
 - **LangGraph Utilities** - LangGraph workflow utilities
-- **Rich Widgets** - Rich console components and displays
 
 ## Supported AI Providers
 
-- **OpenAI** - GPT models, embeddings, tools
+Complete list of supported providers - see [Providers Documentation](docs/core.md#providers) for setup.
+
+- **OpenAI** - GPT-4, GPT-4 Turbo, embeddings, vision - [Config example](docs/core.md#llm-factory)
 - **Anthropic** - Claude models (via OpenRouter)
 - **Local Models** - Ollama, VLLM, local inference
 - **DeepSeek** - DeepSeek models and reasoning  
-- **Mistral** - Mistral AI models
+- **Mistral** - Mistral AI models and embeddings
 - **Groq** - Fast inference endpoints
-- **LiteLLM** - 100+ LLM providers unified API
+- **Google** - Gemini models and embeddings
+- **Azure** - Azure OpenAI and Cognitive Services
+- **LiteLLM** - Access to 100+ LLM providers unified API
 
 ## Agent Frameworks
 
-### LangChain Agents (`cli agents langchain`)
+### LangChain Agents - See [Comprehensive Documentation](docs/agents.md)
 
-All LangChain-based agents are configured through a single `config/basic/agents/langchain.yaml` file and launched via one command.
+All LangChain-based agents are configured through a single `config/basic/agents/langchain.yaml` file.
 
-**Profile types:**
-- `react` — standard ReAct agent via LangChain `create_agent`
-- `deep` — advanced multi-step agent via DeepAgents `create_deep_agent` with skills, planning, and file system access
-- `custom` — functional ReAct agent built from scratch with LangGraph
+**Three Agent Types:**
+- **`react`** — Standard ReAct agent via LangChain `create_agent` - [Read more](docs/agents.md#react-agent-default)
+- **`deep`** — Advanced multi-step agent via DeepAgents `create_deep_agent` with skills, planning, subagents - [Read more](docs/agents.md#deep-agent-advanced)
+- **`custom`** — Functional ReAct agent built from scratch with LangGraph - [Read more](docs/agents.md#custom-agent)
 
-**CLI:**
+**Quick CLI Usage:**
 ```bash
 # List profiles
 cli agents langchain --list
@@ -265,61 +361,19 @@ cli agents langchain -p Coding --chat
 cli agents langchain -p Research --type react --llm gpt_41mini@openai "Quick answer"
 ```
 
-**YAML profile example:**
-```yaml
-langchain_agents:
-  defaults:
-    type: react
-    middlewares:
-      - class: genai_tk.agents.langchain.rich_middleware:RichToolCallMiddleware
-    checkpointer:
-      type: none
-
-  default_profile: "Research"
-
-  profiles:
-    - name: "filesystem"
-      type: react
-      mcp_servers: [filesystem]
-
-    - name: "Research"
-      type: deep
-      llm: "gpt_41@openai"
-      mcp_servers: [tavily-mcp]
-      skill_directories: ["${paths.project}/skills"]
-      middlewares:
-        - class: deepagents.middleware.summarization:SummarizationMiddleware
-          model: "gpt-4.1@openrouter"
-```
+**Complete documentation with examples:** [Agents Module Documentation](docs/agents.md#langchain-agents)
 
 ### Deer-flow Integration
 
-GenAI Toolkit integrates with [Deer-flow](https://github.com/bytedance/deer-flow), ByteDance's LangGraph-based agent system with advanced features like subagents, sandboxed execution, and skill libraries.
+GenAI Toolkit integrates with [Deer-flow](https://github.com/bytedance/deer-flow), ByteDance's LangGraph-based agent system.
 
-**Setup**:
+See [Deer-flow Documentation](docs/Deer_Flow_Integration.md) for setup and usage.
+
+**Quick Usage**:
 ```bash
-# Quick setup with automated script
-bash scripts/setup_deerflow.sh
-
-# Or manual setup:
-export DEER_FLOW_PATH=/path/to/deer-flow
-git clone https://github.com/bytedance/deer-flow.git $DEER_FLOW_PATH
-uv pip install -e $DEER_FLOW_PATH/backend
-```
-
-**Usage**:
-```bash
-# List available profiles
-cli agents deerflow --list
-
-# Run in chat mode
 cli agents deerflow --chat
-
-# Single-shot query
 cli agents deerflow "Research the latest AI developments"
 ```
-
-See [docs/Deer_Flow_Integration.md](docs/Deer_Flow_Integration.md) for full documentation.
 
 ## Configuration
 
@@ -394,6 +448,13 @@ config = global_config()
 model_id = config.get('llm.models.default')
 ```
 
+**Detailed Documentation:**
+- [Core Module Configuration](docs/core.md#configuration-files) - All configuration options
+- [LLM Provider Setup](docs/core.md#llm-factory) - Configuring language models
+- [Embeddings Configuration](docs/core.md#embeddings-factory) - Vector embeddings setup
+- [Agent Profiles](docs/agents.md#configuration-system) - Agent-specific configuration
+- [Vector Databases](docs/core.md#embeddings-store) - RAG database configuration
+
 ## Development
 
 ```bash
@@ -448,8 +509,21 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **LangChain** - Core LLM application framework
 - **LangGraph** - Multi-agent workflow engine
 
-## Support
+## Support & Documentation
 
-- Documentation: [Agents.md](Agents.md)
+**Main Documentation:**
+- [Core Module Documentation](docs/core.md) - LLM Factory, Embeddings, Configuration, Caching
+- [Agents Module Documentation](docs/agents.md) - Agent Implementation, Profiles, Configuration
+- [Extra Module Documentation](docs/extra.md) - Advanced Graphs, RAG, Data Loaders, Retrievers
+- [Development Guidelines](AGENTS.md) - Code style, testing, architecture
+
+**Integration & Advanced Topics:**
+- [MCP Servers Integration](docs/mcp-servers.md) - Model Context Protocol
+- [Deer-flow Integration](docs/Deer_Flow_Integration.md) - Advanced agent framework
+- [Testing Guide](docs/TESTING_GUIDE.md) - Testing patterns and best practices
+- [Sandbox Support](docs/sandbox_support.md) - Sandboxed code execution
+- [Browser Control](docs/browser_control.md) - Web automation
+
+**Get Help:**
 - Issues: [GitHub Issues](https://github.com/tclatos/genai-tk/issues)
 - Discussions: [GitHub Discussions](https://github.com/tclatos/genai-tk/discussions)
