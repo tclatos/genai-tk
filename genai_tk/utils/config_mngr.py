@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Annotated, Any, Optional, TypeVar
+from typing import Annotated, Any, Optional, TypeVar, overload
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -36,6 +36,7 @@ from genai_tk.utils.config_exceptions import (
     ConfigParseError,
     ConfigTypeError,
     ConfigValidationError,
+    yaml_config_validation,
 )
 from genai_tk.utils.import_utils import (
     ImportResolver,
@@ -51,6 +52,7 @@ load_dotenv()
 APPLICATION_CONFIG_FILE: str = "config/app_conf.yaml"
 
 T = TypeVar("T")
+M = TypeVar("M", bound=BaseModel)
 
 # ---------------------------------------------------------------------------
 # Qualified callable type annotations
@@ -772,12 +774,33 @@ def _deep_merge_with_list_keys(base: dict, override: dict, list_keys: set[str]) 
     return result
 
 
+@overload
 def load_yaml_configs(
     config_path: Path,
     top_level_key: str,
     *,
     list_merge_keys: list[str] | None = None,
-) -> dict[str, Any] | list[Any]:
+    model: None = None,
+) -> dict[str, Any] | list[Any]: ...
+
+
+@overload
+def load_yaml_configs(
+    config_path: Path,
+    top_level_key: str,
+    *,
+    list_merge_keys: list[str] | None = None,
+    model: type[M],
+) -> M | list[M]: ...
+
+
+def load_yaml_configs(
+    config_path: Path,
+    top_level_key: str,
+    *,
+    list_merge_keys: list[str] | None = None,
+    model: type[M] | None = None,
+) -> dict[str, Any] | list[Any] | M | list[M]:
     """Load configuration from a YAML file or a directory of YAML files.
 
     Supports OmegaConf ``${...}`` interpolations resolved against the global config
@@ -896,7 +919,49 @@ def load_yaml_configs(
             )
         raise ConfigKeyNotFoundError(top_level_key)
 
+    if model is not None:
+        with yaml_config_validation(file_path=str(config_path), context=top_level_key):
+            if isinstance(accumulated, dict):
+                return model.model_validate(accumulated)
+            return [model.model_validate(item) for item in accumulated]  # type: ignore[union-attr]
+
     return accumulated
+
+
+def load_named_yaml_config(
+    config_path: Path,
+    top_level_key: str,
+    name: str,
+    model: type[M],
+) -> M:
+    """Load and validate a single named entry from a dict-keyed YAML section.
+
+    Calls :func:`load_yaml_configs` to obtain the full section (a dict whose keys
+    are entry names), looks up *name*, injects ``name`` into the raw dict when the
+    key is absent, then validates against *model*.
+
+    Args:
+        config_path: Path to a YAML file or directory.
+        top_level_key: Top-level YAML key whose value is a dict of named entries.
+        name: Key to look up within that dict.
+        model: Pydantic model class used for validation.
+
+    Returns:
+        Validated model instance.
+
+    Example:
+        ```python
+        config = load_named_yaml_config(Path("config/web_scrapers"), "web_scrapers", "my_scraper", WebScraperConfig)
+        ```
+    """
+    entries: dict[str, Any] = load_yaml_configs(config_path, top_level_key)  # type: ignore[assignment]
+    if not isinstance(entries, dict) or name not in entries:
+        available = list(entries.keys()) if isinstance(entries, dict) else []
+        raise KeyError(f"'{name}' not found under '{top_level_key}' in '{config_path}'. Available: {available}")
+    raw: dict = entries[name]
+    raw.setdefault("name", name)
+    with yaml_config_validation(file_path=str(config_path), context=f"'{name}'"):
+        return model.model_validate(raw)
 
 
 ## for quick test ##

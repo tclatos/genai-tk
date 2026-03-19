@@ -2,11 +2,22 @@
 
 Provides reusable tool specification models for factory, class, and function-based
 tools used in LangChain, Smolagents, and Deerflow agent configurations.
+
+YAML format (flat dict, ``class``/``function``/``factory`` key acts as discriminator):
+
+```yaml
+tools:
+  - class: my.pkg:MyTool        # ClassToolSpec – extra keys become extra_params
+    timeout: 30
+  - function: my.pkg:my_func    # FunctionToolSpec
+  - factory: my.pkg:make_tools  # FactoryToolSpec – extra keys become extra_params
+    param1: value
+```
 """
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from genai_tk.utils.config_mngr import QualifiedClassName, QualifiedFunctionName
 
@@ -14,50 +25,44 @@ from genai_tk.utils.config_mngr import QualifiedClassName, QualifiedFunctionName
 class ClassToolSpec(BaseModel):
     """Tool specification for a class-based tool."""
 
-    tool_class: QualifiedClassName = Field(..., alias="class", description="Qualified class name")
-    extra_params: dict[str, Any] = Field(
-        default_factory=dict, description="Additional parameters for class instantiation"
-    )
+    tool_class: QualifiedClassName = Field(..., alias="class")
+    extra_params: dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _collect_extra_params(cls, v: Any) -> Any:
+        if not isinstance(v, dict) or "class" not in v:
+            return v
+        v = dict(v)
+        class_ref = v.pop("class")
+        existing = v.pop("extra_params", {})
+        return {"class": class_ref, "extra_params": {**v, **existing}}
 
 
 class FunctionToolSpec(BaseModel):
     """Tool specification for a function-based tool."""
 
-    function: QualifiedFunctionName = Field(..., description="Qualified function name")
+    function: QualifiedFunctionName
 
 
 class FactoryToolSpec(BaseModel):
     """Tool specification for a factory-based tool."""
 
-    factory: QualifiedFunctionName = Field(..., description="Qualified factory function name")
-    extra_params: dict[str, Any] = Field(default_factory=dict, description="Additional parameters for factory")
+    factory: QualifiedFunctionName
+    extra_params: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _collect_extra_params(cls, v: Any) -> Any:
+        if not isinstance(v, dict) or "factory" not in v:
+            return v
+        v = dict(v)
+        factory_ref = v.pop("factory")
+        existing = v.pop("extra_params", {})
+        return {"factory": factory_ref, "extra_params": {**v, **existing}}
 
 
-# Union type for all tool specifications
+# Union type for all tool specifications — Pydantic parses flat YAML dicts directly.
 ToolSpec = ClassToolSpec | FunctionToolSpec | FactoryToolSpec
-
-
-def tool_spec_from_dict(tool_config: dict[str, Any]) -> ClassToolSpec | FunctionToolSpec | FactoryToolSpec | None:
-    """Convert a dictionary tool configuration to a ToolSpec Pydantic model.
-
-    Args:
-        tool_config: Tool configuration dictionary
-
-    Returns:
-        ToolSpec instance or None if invalid
-    """
-    config_copy = tool_config.copy()
-    if "class" in config_copy:
-        class_ref = config_copy.pop("class")
-        extra_params = config_copy
-        return ClassToolSpec(tool_class=class_ref, extra_params=extra_params)
-    elif "function" in config_copy:
-        func_ref = config_copy.pop("function")
-        return FunctionToolSpec(function=func_ref)
-    elif "factory" in config_copy:
-        factory_ref = config_copy.pop("factory")
-        extra_params = config_copy
-        return FactoryToolSpec(factory=factory_ref, extra_params=extra_params)
-    return None

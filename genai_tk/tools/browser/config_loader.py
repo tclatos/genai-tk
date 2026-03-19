@@ -34,10 +34,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from loguru import logger
-from pydantic import ValidationError
 
 from genai_tk.tools.browser.models import WebScraperConfig
-from genai_tk.utils.config_mngr import load_yaml_configs
+from genai_tk.utils.config_mngr import load_named_yaml_config
 
 
 def _default_scrapers_dir() -> Path:
@@ -77,19 +76,6 @@ def load_web_scraper_config(
         candidate = config_dir / f"{name}.yaml"
         search_path = candidate if candidate.exists() else config_dir
 
-    scrapers: dict = load_yaml_configs(search_path, "web_scrapers")  # type: ignore[assignment]
-
-    if name not in scrapers:
-        available = list(scrapers.keys())
-        raise KeyError(f"Scraper '{name}' not found in '{search_path}'. Available: {available}")
-
-    scraper_raw: dict = scrapers[name]
-    scraper_raw.setdefault("name", name)
-
-    try:
-        config = WebScraperConfig.model_validate(scraper_raw)
-    except ValidationError as exc:
-        raise ValueError(f"Invalid web scraper config '{name}' in '{search_path}':\n{exc}") from exc
-
+    config = load_named_yaml_config(search_path, "web_scrapers", name, WebScraperConfig)
     logger.debug(f"Loaded web scraper '{name}' with {len(config.targets)} target(s)")
     return config

@@ -56,7 +56,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.tools.tool_specs import ToolSpec
-from genai_tk.utils.config_mngr import QualifiedClassName, import_from_qualified
+from genai_tk.utils.config_mngr import QualifiedClassName, import_from_qualified, load_yaml_configs, paths_config
 
 if TYPE_CHECKING:
     from deepagents.backends.protocol import BackendProtocol
@@ -219,8 +219,7 @@ class AgentProfileConfig(BaseModel):
     llm: str | None = Field(None, description="LLM identifier (e.g. 'gpt-4o@openai'); falls back to defaults.llm")
     system_prompt: str | None = Field(None, description="System prompt injected at the start of the conversation")
     pre_prompt: str | None = Field(None, description="Prefix prepended to every user message")
-    tool_specs: list[ToolSpec] = Field(default_factory=list, description="Tool specifications loaded from YAML")
-    tools: list[dict[str, Any]] = Field(default_factory=list, description="Instantiated tool objects (set at runtime)")
+    tools: list[ToolSpec] = Field(default_factory=list, description="Tool specifications loaded from YAML")
     mcp_servers: list[str] = Field(default_factory=list, description="MCP server names to attach to this profile")
     middlewares: list[MiddlewareConfig] | None = Field(
         None, description="Middleware stack; None inherits from defaults"
@@ -296,10 +295,6 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
     """
     from pathlib import Path
 
-    from genai_tk.tools.tool_specs import tool_spec_from_dict
-    from genai_tk.utils.config_exceptions import yaml_config_validation
-    from genai_tk.utils.config_mngr import load_yaml_configs, paths_config
-
     if config_path is None:
         agents_dir = paths_config().config / "agents"
         dir_path = agents_dir / "langchain"
@@ -307,25 +302,7 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
     else:
         path = Path(config_path)
 
-    section: dict = load_yaml_configs(path, "langchain_agents", list_merge_keys=["profiles"])  # type: ignore[assignment]
-
-    defaults_raw = section.get("defaults", {})
-    default_profile = section.get("default_profile", "")
-    profiles_raw = section.get("profiles", [])
-
-    with yaml_config_validation(file_path=str(path), context="defaults"):
-        defaults = AgentDefaults.model_validate(defaults_raw) if defaults_raw else AgentDefaults.model_validate({})
-
-    profiles = []
-    for p in profiles_raw:
-        profile_name = p.get("name", f"(index {len(profiles)})")
-        with yaml_config_validation(file_path=str(path), context=f"profile '{profile_name}'"):
-            tools_raw = p.get("tools", [])
-            tool_specs = [t for tool_cfg in tools_raw if (t := tool_spec_from_dict(tool_cfg.copy())) is not None]
-            p["tool_specs"] = tool_specs
-            profiles.append(AgentProfileConfig.model_validate(p))
-
-    return LangchainAgentsConfig(defaults=defaults, default_profile=default_profile, profiles=profiles)
+    return load_yaml_configs(path, "langchain_agents", list_merge_keys=["profiles"], model=LangchainAgentsConfig)  # type: ignore[return-value]
 
 
 def resolve_profile(
@@ -366,7 +343,7 @@ def resolve_profile(
         llm=match.llm or d.llm,
         system_prompt=match.system_prompt,
         pre_prompt=match.pre_prompt,
-        tools=match.tools,
+        tools=match.tools,  # list[ToolSpec]
         mcp_servers=match.mcp_servers,
         middlewares=match.middlewares if match.middlewares is not None else d.middlewares,
         checkpointer=match.checkpointer if match.checkpointer is not None else d.checkpointer,

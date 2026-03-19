@@ -12,7 +12,7 @@ from typing import Literal, cast, get_args
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from genai_tk.tools.tool_specs import ToolSpec, tool_spec_from_dict
+from genai_tk.tools.tool_specs import ToolSpec
 
 DeerFlowMode = Literal["flash", "thinking", "pro", "ultra"]
 """Valid agent reasoning-intensity modes."""
@@ -35,8 +35,7 @@ class DeerFlowProfile(BaseModel):
     mcp_servers: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
     skill_directories: list[str] = Field(default_factory=list)
-    tool_specs: list[ToolSpec] = Field(default_factory=list, description="Tool specifications")
-    tools: list[dict] = Field(default_factory=list, description="Instantiated tool objects (set at runtime)")
+    tools: list[ToolSpec] = Field(default_factory=list)
     features: list[str] = Field(default_factory=list)
     examples: list[str] = Field(default_factory=list)
     system_prompt: str | None = None
@@ -198,7 +197,6 @@ def load_deer_flow_profiles(config_path: str | None = None) -> list[DeerFlowProf
     Returns:
         List of ``DeerFlowProfile`` instances.
     """
-    from genai_tk.utils.config_exceptions import yaml_config_validation
     from genai_tk.utils.config_mngr import load_yaml_configs, paths_config
 
     if config_path is None:
@@ -208,17 +206,6 @@ def load_deer_flow_profiles(config_path: str | None = None) -> list[DeerFlowProf
     else:
         path = Path(config_path)
 
-    entries: list[dict] = load_yaml_configs(path, "deerflow_agents")  # type: ignore[assignment]
-
-    profiles: list[DeerFlowProfile] = []
-    for entry in entries:
-        profile_name = entry.get("name", f"(index {len(profiles)})")
-        with yaml_config_validation(file_path=str(path), context=f"profile '{profile_name}'"):
-            tools_raw = entry.get("tools", [])
-            tool_specs = [t for tool_cfg in tools_raw if (t := tool_spec_from_dict(tool_cfg.copy())) is not None]
-            entry["tool_specs"] = tool_specs
-            profile = DeerFlowProfile.model_validate(entry)
-        profiles.append(profile)
-
+    profiles: list[DeerFlowProfile] = load_yaml_configs(path, "deerflow_agents", model=DeerFlowProfile)  # type: ignore[assignment]
     logger.debug(f"Loaded {len(profiles)} Deer-flow profiles from {path}")
     return profiles

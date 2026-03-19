@@ -121,7 +121,7 @@ def test_singleton_with_args() -> None:
     # Test with None values
     @once
     def none_arg_func(a: int | None, b: str | None = None):
-        return SingletonExample(value=a if a else 0)
+        return SingletonExample(value=a or 0)
 
     instance12 = none_arg_func(None)
     instance13 = none_arg_func(None)

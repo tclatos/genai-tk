@@ -97,7 +97,6 @@ def load_deepagent_config(config_path: str | Path | None = None) -> DeepagentCon
             print(profile.name)
         ```
     """
-    from genai_tk.utils.config_exceptions import yaml_config_validation
     from genai_tk.utils.config_mngr import load_yaml_configs, paths_config
 
     if config_path is None:
@@ -107,7 +106,4 @@ def load_deepagent_config(config_path: str | Path | None = None) -> DeepagentCon
     else:
         path = Path(config_path)
 
-    raw: dict = load_yaml_configs(path, "deepagent", list_merge_keys=["profiles"])  # type: ignore[assignment]
-
-    with yaml_config_validation(file_path=str(path), context="deepagent config"):
-        return DeepagentConfig.model_validate(raw)
+    return load_yaml_configs(path, "deepagent", list_merge_keys=["profiles"], model=DeepagentConfig)  # type: ignore[return-value]

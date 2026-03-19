@@ -365,7 +365,6 @@ def yaml_config_validation(
         from genai_tk.utils.config_exceptions import yaml_config_validation
 
         with yaml_config_validation(file_path="langchain.yaml", context="profile 'simple'"):
-            tool_specs = [tool_spec_from_dict(t) for t in tools_raw]
             profile = AgentProfileConfig.model_validate(data)
         ```
     """
