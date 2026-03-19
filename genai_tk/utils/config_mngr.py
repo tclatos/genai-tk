@@ -19,10 +19,9 @@ QualifiedFunctionName  # 'module.path:function_name'
 
 from __future__ import annotations
 
-import importlib
 import os
 from pathlib import Path
-from typing import Annotated, Any, Callable, Optional, TypeVar
+from typing import Annotated, Any, Optional, TypeVar
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -30,12 +29,20 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import BaseModel, ConfigDict, DirectoryPath, Field, StringConstraints
 
 from genai_tk.utils.config_exceptions import (
+    ConfigFileError,
     ConfigFileNotFoundError,
     ConfigInterpolationError,
     ConfigKeyNotFoundError,
     ConfigParseError,
     ConfigTypeError,
     ConfigValidationError,
+)
+from genai_tk.utils.import_utils import (
+    ImportResolver,
+    get_module_from_qualified,
+    get_object_name_from_qualified,
+    import_from_qualified,
+    split_qualified_name,
 )
 from genai_tk.utils.singleton import once
 
@@ -734,139 +741,162 @@ def get_raw_config() -> DictConfig:
     return global_config().root
 
 
-def split_qualified_name(qualified_name: str) -> tuple[str, str]:
-    """Split and validate a qualified name in ``module.path:object_name`` format."""
-    module_path, sep, object_name = qualified_name.partition(":")
-    if not sep or not module_path or not object_name:
-        raise ValueError(f"Invalid qualified name '{qualified_name}'. Expected format 'module.path:object_name'")
-    return module_path, object_name
+# ---------------------------------------------------------------------------
+# Re-exported from import_utils for backward compatibility
+# Import directly from genai_tk.utils.import_utils for new code.
+# ---------------------------------------------------------------------------
+__all__ = [
+    "ImportResolver",
+    "import_from_qualified",
+    "split_qualified_name",
+    "get_module_from_qualified",
+    "get_object_name_from_qualified",
+]
 
 
-def get_module_from_qualified(qualified_name: str) -> str:
-    """Return module path from a qualified name."""
-    module_path, _ = split_qualified_name(qualified_name)
-    return module_path
+# ---------------------------------------------------------------------------
+# Generic YAML config loader (file or directory)
+# ---------------------------------------------------------------------------
 
 
-def get_object_name_from_qualified(qualified_name: str) -> str:
-    """Return object name from a qualified name."""
-    _, object_name = split_qualified_name(qualified_name)
-    return object_name
+def _deep_merge_with_list_keys(base: dict, override: dict, list_keys: set[str]) -> dict:
+    """Deep-merge two dicts; keys in *list_keys* are concatenated, not overwritten."""
+    result = dict(base)
+    for k, v in override.items():
+        if k in list_keys and isinstance(v, list) and isinstance(result.get(k), list):
+            result[k] = result[k] + v
+        elif isinstance(v, dict) and isinstance(result.get(k), dict):
+            result[k] = _deep_merge_with_list_keys(result[k], v, list_keys)
+        else:
+            result[k] = v
+    return result
 
 
-def import_from_qualified(qualified_name: str) -> Callable:
-    """Dynamically import and return a function, class, or object by its qualified name.
+def load_yaml_configs(
+    config_path: Path,
+    top_level_key: str,
+    *,
+    list_merge_keys: list[str] | None = None,
+) -> dict[str, Any] | list[Any]:
+    """Load configuration from a YAML file or a directory of YAML files.
 
-    The configuration value can be:
-    - Fully qualified: 'module.submodule:function_or_class_name'
-    - Short class name: 'ClassName' (will search for the class in the project)
+    Supports OmegaConf ``${...}`` interpolations resolved against the global config
+    (e.g. ``${paths.project}``, ``${paths.config}``).
 
-    If a short name is provided and multiple classes with that name exist, raises ValueError.
+    When *config_path* is a **directory**, all ``*.yaml`` / ``*.yml`` files are loaded
+    in alphabetical order and merged:
 
-    Examples:
-        ```python
-        # Fully qualified name
-        historical_price_func = import_from_qualified("src.ai_extra.smolagents_tools:get_historical_price")
-        df = historical_price_func("AAPL", date(2024, 1, 1), date(2024, 12, 31))
+    - If the top-level value is a **dict**: files are deep-merged.  Keys listed in
+      *list_merge_keys* have their contents **concatenated** rather than overwritten
+      (useful for ``profiles`` lists that span multiple files).
+    - If the top-level value is a **list**: lists are concatenated.
 
-        # Short class name (searches project automatically)
-        subgraph_class = import_from_qualified("CrmExtractSubGraph")
-        ```
-
-    """
-    if ":" not in qualified_name:
-        # Short name provided - search for the class in the project
-        return _import_from_short_name(qualified_name)
-
-    module_path, object_name = split_qualified_name(qualified_name)
-
-    try:
-        module = importlib.import_module(module_path)
-        return getattr(module, object_name)
-    except ImportError as e:
-        raise ImportError(f"Cannot import module '{module_path}' for {qualified_name}': {e}") from e
-    except AttributeError as e:
-        raise AttributeError(
-            f"Cannot find object '{object_name}' in module '{module_path}' for {qualified_name}': {e}"
-        ) from e
-
-
-def _import_from_short_name(class_name: str) -> Callable:
-    """Find and import a class by its short name by searching the project.
-
-    Searches for Python files containing the class definition and imports it.
-    Raises ValueError if zero or multiple matches are found.
+    Files that do not contain *top_level_key* are silently skipped.
 
     Args:
-        class_name: The short class name to search for (e.g., "CrmExtractSubGraph")
+        config_path: Path to a YAML file or a directory containing YAML files.
+        top_level_key: Key at the top level of each YAML file whose value is returned.
+        list_merge_keys: When merging dicts, these nested keys hold lists that should
+            be concatenated across files.  Example: ``["profiles"]``.
 
     Returns:
-        The imported class
+        The merged / concatenated value under *top_level_key*.
 
-    Raises:
-        ValueError: If no class found or multiple classes with the same name exist
+    Example:
+        ```python
+        from genai_tk.utils.config_mngr import load_yaml_configs
+        from pathlib import Path
+
+        # Single file
+        profiles = load_yaml_configs(Path("config/agents/deerflow.yaml"), "deerflow_agents")
+
+        # Directory (all *.yaml files merged, profiles lists concatenated)
+        cfg = load_yaml_configs(
+            Path("config/agents/deepagent"),
+            "deepagent",
+            list_merge_keys=["profiles"],
+        )
+        ```
     """
-    import ast
-    from pathlib import Path
+    list_keys: set[str] = set(list_merge_keys or [])
 
-    # Determine the project root (look for common markers)
-    current_dir = Path.cwd()
-    project_root = current_dir
+    if config_path.is_file():
+        yaml_files = [config_path]
+    elif config_path.is_dir():
+        yaml_files = sorted([*config_path.glob("*.yaml"), *config_path.glob("*.yml")])
+        if not yaml_files:
+            raise ConfigFileError(
+                str(config_path),
+                "directory is empty — no *.yaml / *.yml files found",
+                suggestion=f"Add at least one YAML file with a '{top_level_key}:' key to '{config_path}'.",
+            )
+    else:
+        raise ConfigFileNotFoundError(str(config_path))
 
-    # Look for project markers
-    for parent in [current_dir] + list(current_dir.parents):
-        if (parent / "pyproject.toml").exists() or (parent / "setup.py").exists():
-            project_root = parent
-            break
+    # Load global config for OmegaConf interpolation; fail gracefully if unavailable
+    try:
+        base_cfg: DictConfig | None = get_raw_config()
+    except Exception:
+        base_cfg = None
 
-    matches = []
+    accumulated: dict[str, Any] | list[Any] | None = None
 
-    # Search for Python files in the project
-    for py_file in project_root.rglob("*.py"):
-        # Skip virtual environments and common excluded directories
-        if any(part in py_file.parts for part in [".venv", "venv", "__pycache__", ".git", "node_modules", ".eggs"]):
-            continue
+    for yaml_path in yaml_files:
+        try:
+            file_node = OmegaConf.load(yaml_path)
+        except Exception as exc:
+            raise ConfigParseError(str(yaml_path), original_error=exc) from exc
+
+        # Overlay file onto global config so ${paths.*} interpolations resolve
+        if base_cfg is not None:
+            try:
+                merged_node = OmegaConf.merge(base_cfg, file_node)
+            except Exception:
+                merged_node = file_node
+        else:
+            merged_node = file_node
 
         try:
-            content = py_file.read_text(encoding="utf-8")
-            tree = ast.parse(content)
+            resolved: dict[str, Any] = OmegaConf.to_container(merged_node, resolve=True)  # type: ignore[assignment]
+        except Exception as exc:
+            raise ConfigInterpolationError(
+                key=str(yaml_path),
+                interpolation=str(exc),
+                original_error=exc,
+            ) from exc
 
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef) and node.name == class_name:
-                    # Found a matching class
-                    # Convert file path to module path
-                    rel_path = py_file.relative_to(project_root)
-                    module_parts = list(rel_path.parts[:-1]) + [rel_path.stem]
-                    module_path = ".".join(module_parts)
+        if not isinstance(resolved, dict):
+            raise ConfigTypeError(yaml_path.name, expected_type=dict, actual_type=type(resolved))
 
-                    matches.append((module_path, class_name, py_file))
-                    break  # Only one class definition per file with this name
-        except (SyntaxError, UnicodeDecodeError):
-            # Skip files that can't be parsed
+        if top_level_key not in resolved:
+            logger.debug(f"Skipping '{yaml_path}': no '{top_level_key}' key found")
             continue
 
-    if len(matches) == 0:
-        raise ValueError(
-            f"No class named '{class_name}' found in the project. "
-            f"Please use the fully qualified format 'module.path:ClassName'"
-        )
+        value = resolved[top_level_key]
 
-    if len(matches) > 1:
-        match_details = "\n".join([f"  - {m[0]}:{m[1]} (in {m[2]})" for m in matches])
-        raise ValueError(
-            f"Multiple classes named '{class_name}' found in the project:\n{match_details}\n"
-            f"Please use the fully qualified format to specify which one you want."
-        )
+        if accumulated is None:
+            accumulated = value
+        elif isinstance(accumulated, list) and isinstance(value, list):
+            accumulated = accumulated + value
+        elif isinstance(accumulated, dict) and isinstance(value, dict):
+            accumulated = _deep_merge_with_list_keys(accumulated, value, list_keys)
+        else:
+            raise ConfigTypeError(
+                f"{top_level_key} in {yaml_path.name}",
+                expected_type=type(accumulated).__name__,
+                actual_type=type(value),
+            )
 
-    # Single match found - import it
-    module_path, object_name, _ = matches[0]
-    try:
-        module = importlib.import_module(module_path)
-        return getattr(module, object_name)
-    except ImportError as e:
-        raise ImportError(f"Cannot import module '{module_path}' for class '{class_name}': {e}") from e
-    except AttributeError as e:
-        raise AttributeError(f"Cannot find class '{object_name}' in module '{module_path}': {e}") from e
+    if accumulated is None:
+        if config_path.is_dir():
+            raise ConfigFileError(
+                str(config_path),
+                f"no file in the directory contains the '{top_level_key}' key",
+                suggestion=f"Add a '{top_level_key}:' section to at least one YAML file in '{config_path}'.",
+            )
+        raise ConfigKeyNotFoundError(top_level_key)
+
+    return accumulated
 
 
 ## for quick test ##

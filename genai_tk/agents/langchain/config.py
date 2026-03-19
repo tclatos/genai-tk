@@ -282,44 +282,33 @@ class LangchainAgentsConfig(BaseModel):
 
 
 def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig:
-    """Load and parse the unified ``langchain.yaml`` configuration file.
+    """Load and parse the unified LangChain agents configuration.
+
+    When *config_path* is ``None`` the loader looks for
+    ``{paths.config}/agents/langchain/`` (directory) first, then
+    ``{paths.config}/agents/langchain.yaml`` (single file).  In directory mode
+    all ``*.yaml`` / ``*.yml`` files are deep-merged with ``profiles`` lists
+    concatenated in alphabetical file order.
 
     Args:
-        config_path: Path to ``langchain.yaml``. Defaults to
-            ``{paths.config}/agents/langchain.yaml``.
+        config_path: Explicit path to a YAML file or directory.  ``None`` uses
+            the default location derived from ``paths.config``.
     """
     from pathlib import Path
 
-    import yaml
-
     from genai_tk.tools.tool_specs import tool_spec_from_dict
-    from genai_tk.utils.config_mngr import paths_config
+    from genai_tk.utils.config_exceptions import yaml_config_validation
+    from genai_tk.utils.config_mngr import load_yaml_configs, paths_config
 
     if config_path is None:
-        config_dir = paths_config().config
-        config_path = str(config_dir / "agents" / "langchain.yaml")
+        agents_dir = paths_config().config / "agents"
+        dir_path = agents_dir / "langchain"
+        path: Path = dir_path if dir_path.is_dir() else agents_dir / "langchain.yaml"
+    else:
+        path = Path(config_path)
 
-    from genai_tk.utils.config_exceptions import ConfigFileError, yaml_config_validation
+    section: dict = load_yaml_configs(path, "langchain_agents", list_merge_keys=["profiles"])  # type: ignore[assignment]
 
-    path = Path(config_path)
-    if not path.exists():
-        raise ConfigFileError(
-            str(path),
-            "file not found",
-            suggestion=f"Create the file at '{path}' or check your config directory setting.",
-        )
-
-    with open(path) as f:
-        raw = yaml.safe_load(f)
-
-    if not raw or "langchain_agents" not in raw:
-        raise ConfigFileError(
-            str(path),
-            "missing required top-level key 'langchain_agents'",
-            suggestion="Add a 'langchain_agents:' section to the file.",
-        )
-
-    section = raw["langchain_agents"]
     defaults_raw = section.get("defaults", {})
     default_profile = section.get("default_profile", "")
     profiles_raw = section.get("profiles", [])
@@ -327,7 +316,6 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
     with yaml_config_validation(file_path=str(path), context="defaults"):
         defaults = AgentDefaults.model_validate(defaults_raw) if defaults_raw else AgentDefaults.model_validate({})
 
-    # Convert tool specs from dicts to Pydantic models
     profiles = []
     for p in profiles_raw:
         profile_name = p.get("name", f"(index {len(profiles)})")

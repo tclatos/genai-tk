@@ -1312,6 +1312,15 @@ wheels = [
 ]
 
 [[package]]
+name = "fasteners"
+version = "0.20"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/2d/18/7881a99ba5244bfc82f06017316ffe93217dbbbcfa52b887caa1d4f2a6d3/fasteners-0.20.tar.gz", hash = "sha256:55dce8792a41b56f727ba6e123fcaee77fd87e638a6863cec00007bfea84c8d8", size = 25087, upload-time = "2025-08-11T10:19:37.785Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/51/ac/e5d886f892666d2d1e5cb8c1a41146e1d79ae8896477b1153a21711d3b44/fasteners-0.20-py3-none-any.whl", hash = "sha256:9422c40d1e350e4259f509fb2e608d6bc43c0136f79a00db1b49046029d0b3b7", size = 18702, upload-time = "2025-08-11T10:19:35.716Z" },
+]
+
+[[package]]
 name = "fastuuid"
 version = "0.14.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1460,6 +1469,7 @@ dependencies = [
     { name = "omegaconf" },
     { name = "openai" },
     { name = "openpyxl" },
+    { name = "pgembed" },
     { name = "prefect" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -1557,6 +1567,7 @@ requires-dist = [
     { name = "omegaconf", specifier = ">=2.3.0" },
     { name = "openai", specifier = ">=1.80.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
+    { name = "pgembed", specifier = ">=0.2.0" },
     { name = "prefect", specifier = ">=3.6.7" },
     { name = "pydantic", specifier = ">=2.7.0,<3" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
@@ -3677,6 +3688,24 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/42/92/cc564bf6381ff43ce1f4d06852fc19a2f11d180f23dc32d9588bee2f149d/pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f", size = 166450, upload-time = "2023-11-25T09:07:26.339Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9e/c3/059298687310d527a58bb01f3b1965787ee3b40dce76752eda8b44e9a2c5/pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523", size = 63772, upload-time = "2023-11-25T06:56:14.81Z" },
+]
+
+[[package]]
+name = "pgembed"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fasteners" },
+    { name = "platformdirs" },
+    { name = "psutil" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f5/9b/705d237d7088bb191e896db4e90c0d671ecaac2d258532d78003a363d0b0/pgembed-0.2.0-cp312-cp312-macosx_15_0_arm64.whl", hash = "sha256:a7db0fccfb0aca91b1f4757079cb95c9c0a946609206c8ba91c1e7339da1038a", size = 83045333, upload-time = "2026-03-18T15:08:09.171Z" },
+    { url = "https://files.pythonhosted.org/packages/70/06/850135e74c728986e7670cf112bd7ccf91d9cc7b30d747ca09823c1098e0/pgembed-0.2.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:564647405608b7cc3455c455b7c91803e078a56be9ba90bbcdabc1ab449ee36f", size = 67896497, upload-time = "2026-03-18T15:08:15.978Z" },
+    { url = "https://files.pythonhosted.org/packages/60/3f/4f281cf18c495eb05177103de8c27e2b390b5fe4885548501a7359bca8a8/pgembed-0.2.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:08d509684e902a1773ebcb4c8e61d2a5fc7974f81d017f349574312f74b487e4", size = 68175051, upload-time = "2026-03-18T15:08:22.41Z" },
+    { url = "https://files.pythonhosted.org/packages/42/0e/917108be10529c6c1611ec173cf9494c246cacdc0e941a20df4a82fddb27/pgembed-0.2.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:a2579aad5975e334e6bcb474af2ff6e68b3aad3a20034701f2fb0f4770a5f81d", size = 12577388, upload-time = "2026-03-18T15:08:25.777Z" },
+    { url = "https://files.pythonhosted.org/packages/37/c7/d21b3552fcd103165d213d4839ad1e0da8fc0762357c4564970172c985f1/pgembed-0.2.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:0b6d3dad4a6a7eea25c4d3e140284f3f549676b186e7facd5bbdb6e3e26e418b", size = 12726660, upload-time = "2026-03-18T15:08:28.944Z" },
+    { url = "https://files.pythonhosted.org/packages/e4/f2/714e67e7ab5f3053255ce336c895292959260069f836dab2625db67adfdd/pgembed-0.2.0-cp312-cp312-win_amd64.whl", hash = "sha256:ca22d748b98f83c197923977d409b57babb1692ea04db348c72493cc8e662fdf", size = 13877913, upload-time = "2026-03-18T15:08:31.711Z" },
 ]
 
 [[package]]

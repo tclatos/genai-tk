@@ -12,10 +12,9 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
   - ${paths.config}/providers/embeddings.yaml
   - ${paths.config}/init/overrides.yaml
   - ${paths.config}/init/mcp_servers.yaml
-  - ${paths.config}/agents/deerflow.yaml
-  - ${paths.config}/agents/smolagents.yaml
-  - ${paths.config}/agents/langchain.yaml
-  - ${paths.config}/agents/deepagent.yaml
+  # Agent configs are loaded on-demand by their respective loaders
+  # (load_deepagent_config, load_deer_flow_profiles, load_unified_config,
+  # load_all_demos_from_config) — no need to merge them globally here.
  
 :env:
   LOGURU_LEVEL: info 

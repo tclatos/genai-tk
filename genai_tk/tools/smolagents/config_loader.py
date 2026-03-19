@@ -1,10 +1,11 @@
 """Shared configuration loader for SmolAgent demos.
 
-This module provides common functionality for loading and processing
-demo configurations from codeact_agent.yaml, eliminating code duplication
-between the CLI and webapp implementations.
+Loads agent configurations from a YAML file or directory
+(``config/basic/agents/smolagents.yaml`` or ``config/basic/agents/smolagents/``)
+using OmegaConf for ``${...}`` interpolation.
 """
 
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from langchain_core.tools import BaseTool as LangChainBaseTool
@@ -13,10 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from smolagents import Tool as SmolAgentTool
 
 from genai_tk.tools.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec, tool_spec_from_dict
-from genai_tk.utils.config_mngr import global_config, import_from_qualified
-
-CONF_YAML_FILE = "agents/smolagents.yaml"
-
+from genai_tk.utils.config_mngr import import_from_qualified, load_yaml_configs, paths_config
 
 # ---------------------------------------------------------------------------
 # Configuration Models
@@ -102,18 +100,25 @@ def convert_langchain_tools(tools: List[Any]) -> List[Any]:
     return converted_tools
 
 
+def _load_smolagents_raw() -> list[dict[str, Any]]:
+    """Load raw smolagents config entries from file or directory."""
+    agents_dir = paths_config().config / "agents"
+    dir_path = agents_dir / "smolagents"
+    path: Path = dir_path if dir_path.is_dir() else agents_dir / "smolagents.yaml"
+    return load_yaml_configs(path, "smolagents_codeact")  # type: ignore[return-value]
+
+
 def load_smolagent_demo_config(config_name: str) -> Optional[Dict[str, Any]]:
-    """Load configuration for a specific demo from codeact_agent.yaml.
+    """Load configuration for a specific demo by name.
 
     Args:
-        config_name: Name of the configuration to load (e.g., 'titanic')
+        config_name: Name of the configuration to load.
 
     Returns:
-        Dictionary containing the demo configuration, or None if not found
+        Dictionary containing the demo configuration, or ``None`` if not found.
     """
     try:
-        demos_config = global_config().get_list("smolagents_codeact")
-        for demo_config in demos_config:
+        for demo_config in _load_smolagents_raw():
             if demo_config.get("name", "").lower() == config_name.lower():
                 return demo_config
         return None
@@ -123,13 +128,13 @@ def load_smolagent_demo_config(config_name: str) -> Optional[Dict[str, Any]]:
 
 
 def load_all_demos_from_config() -> List[SmolagentsAgentConfig]:
-    """Load and configure all demonstration scenarios from the application configuration.
+    """Load and configure all SmolAgent demonstration scenarios.
 
     Returns:
-        List of configured SmolagentsAgentConfig objects
+        List of configured ``SmolagentsAgentConfig`` objects.
     """
     try:
-        demos_config = global_config().get_list("smolagents_codeact")
+        demos_config = _load_smolagents_raw()
         result = []
 
         for demo_config in demos_config:

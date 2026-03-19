@@ -1,7 +1,7 @@
 """Pydantic models for deepagent-cli configuration.
 
 Defines the profile and global config structures loaded from
-``config/basic/agents/deepagent.yaml`` via OmegaConf.
+``config/basic/agents/deepagent/`` (directory) or ``deepagent.yaml``.
 
 Docker sandbox settings (image, host, port, etc.) are defined in
 ``config/basic/sandbox.yaml`` and loaded via
@@ -9,6 +9,8 @@ Docker sandbox settings (image, host, port, etc.) are defined in
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -71,12 +73,19 @@ class DeepagentConfig(BaseModel):
         return None
 
 
-def load_deepagent_config() -> DeepagentConfig:
-    """Load and validate the deepagent configuration from the global config.
+def load_deepagent_config(config_path: str | Path | None = None) -> DeepagentConfig:
+    """Load and validate the deepagent configuration from a YAML file or directory.
 
-    Reads the ``deepagent`` section from the OmegaConf singleton and validates
-    it as a ``DeepagentConfig`` Pydantic model. Falls back to defaults if the
-    section is absent.
+    When *config_path* is ``None`` the loader looks for
+    ``{paths.config}/agents/deepagent/`` (directory) first, then
+    ``{paths.config}/agents/deepagent.yaml`` (single file).  A directory allows
+    splitting global settings and individual profiles into separate files — they
+    are deep-merged with the ``profiles`` lists concatenated in alphabetical
+    file order.
+
+    Args:
+        config_path: Explicit path to a YAML file or directory.  ``None`` uses
+            the default location derived from ``paths.config``.
 
     Returns:
         Validated ``DeepagentConfig`` instance.
@@ -84,23 +93,21 @@ def load_deepagent_config() -> DeepagentConfig:
     Example:
         ```python
         config = load_deepagent_config()
-        if config.default_model:
-            print(f"Default model: {config.default_model}")
         for profile in config.profiles:
-            print(f"  Profile: {profile.name}")
+            print(profile.name)
         ```
     """
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.utils.config_exceptions import yaml_config_validation
+    from genai_tk.utils.config_mngr import load_yaml_configs, paths_config
 
-    try:
-        raw = global_config().get("deepagent", {})
-        if not raw:
-            return DeepagentConfig()
-        # OmegaConf returns a DictConfig — convert to a plain dict first
-        from omegaconf import OmegaConf
+    if config_path is None:
+        agents_dir = paths_config().config / "agents"
+        dir_path = agents_dir / "deepagent"
+        path = dir_path if dir_path.is_dir() else agents_dir / "deepagent.yaml"
+    else:
+        path = Path(config_path)
 
-        if hasattr(raw, "_metadata"):  # is OmegaConf node
-            raw = OmegaConf.to_container(raw, resolve=True)
+    raw: dict = load_yaml_configs(path, "deepagent", list_merge_keys=["profiles"])  # type: ignore[assignment]
+
+    with yaml_config_validation(file_path=str(path), context="deepagent config"):
         return DeepagentConfig.model_validate(raw)
-    except Exception:
-        return DeepagentConfig()

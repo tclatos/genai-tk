@@ -1,0 +1,16 @@
+# Deep Agent CLI — Fast Profile
+#
+# Quick tasks using the fast model with auto-approval.
+# Select with: cli agents deepagent run --profile fast <task>
+
+deepagent:
+  profiles:
+    - name: fast
+      description: "Quick tasks using the fast model with auto-approval"
+      llm: fast_model
+      auto_approve: true
+      enable_shell: true
+      enable_memory: false
+      enable_skills: false
+      tools: [fetch_url, http_request]
+      system_prompt: null

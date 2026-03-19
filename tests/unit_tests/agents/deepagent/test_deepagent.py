@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import yaml
 
 from genai_tk.agents.deepagent_cli.models import DeepagentConfig, DeepagentProfile, load_deepagent_config
 
@@ -108,36 +110,51 @@ def test_config_model_validate_from_dict():
 # ---------------------------------------------------------------------------
 
 
-def test_load_deepagent_config_returns_defaults_when_missing():
-    """load_deepagent_config returns defaults when 'deepagent' key is absent."""
-    with patch("genai_tk.utils.config_mngr.global_config") as mock_gc:
-        mock_gc.return_value.get.return_value = {}
-        config = load_deepagent_config()
-    assert isinstance(config, DeepagentConfig)
-    assert config.profiles == []
-
-
-def test_load_deepagent_config_parses_profiles():
-    """load_deepagent_config correctly parses profiles from config dict."""
-    raw = {
-        "default_model": "gpt41mini@openai",
-        "profiles": [
-            {"name": "coder", "llm": "fast_model", "auto_approve": False},
-        ],
-    }
-    with patch("genai_tk.utils.config_mngr.global_config") as mock_gc:
-        mock_gc.return_value.get.return_value = raw
-        config = load_deepagent_config()
+def test_load_deepagent_config_from_file(tmp_path: Path) -> None:
+    """load_deepagent_config loads from a YAML file."""
+    yml = tmp_path / "deepagent.yaml"
+    yml.write_text(
+        yaml.dump(
+            {
+                "deepagent": {
+                    "default_model": "gpt41mini@openai",
+                    "profiles": [
+                        {"name": "coder", "llm": "fast_model", "auto_approve": False},
+                    ],
+                }
+            }
+        )
+    )
+    config = load_deepagent_config(config_path=yml)
     assert config.default_model == "gpt41mini@openai"
     assert len(config.profiles) == 1
     assert config.profiles[0].name == "coder"
 
 
-def test_load_deepagent_config_handles_exception_gracefully():
-    """load_deepagent_config returns empty config on unexpected error."""
-    with patch("genai_tk.utils.config_mngr.global_config", side_effect=RuntimeError("broken")):
-        config = load_deepagent_config()
-    assert isinstance(config, DeepagentConfig)
+def test_load_deepagent_config_from_directory(tmp_path: Path) -> None:
+    """load_deepagent_config merges profiles from multiple files in a directory."""
+    d = tmp_path / "deepagent"
+    d.mkdir()
+    (d / "global.yaml").write_text(yaml.dump({"deepagent": {"default_model": "fast_model", "auto_approve": True}}))
+    (d / "profile_a.yaml").write_text(yaml.dump({"deepagent": {"profiles": [{"name": "coder", "llm": "fast_model"}]}}))
+    (d / "profile_b.yaml").write_text(
+        yaml.dump({"deepagent": {"profiles": [{"name": "researcher", "llm": "default"}]}})
+    )
+    config = load_deepagent_config(config_path=d)
+    assert config.default_model == "fast_model"
+    assert config.auto_approve is True
+    assert len(config.profiles) == 2
+    assert {p.name for p in config.profiles} == {"coder", "researcher"}
+
+
+def test_load_deepagent_config_missing_key_raises(tmp_path: Path) -> None:
+    """ConfigKeyNotFoundError is raised when 'deepagent' key is absent."""
+    from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError
+
+    yml = tmp_path / "other.yaml"
+    yml.write_text(yaml.dump({"other_section": {}}))
+    with pytest.raises(ConfigKeyNotFoundError, match="deepagent"):
+        load_deepagent_config(config_path=yml)
 
 
 # ---------------------------------------------------------------------------

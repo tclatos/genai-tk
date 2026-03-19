@@ -1,0 +1,16 @@
+# Deep Agent CLI — Coder Profile
+#
+# Coding assistant with shell access and file operations.
+# Select with: cli agents deepagent run --profile coder <task>
+
+deepagent:
+  profiles:
+    - name: coder
+      description: "Coding assistant with shell and file operations"
+      llm: fast_model
+      auto_approve: false
+      enable_shell: true
+      enable_memory: true
+      enable_skills: true
+      tools: [fetch_url, http_request]
+      system_prompt: null

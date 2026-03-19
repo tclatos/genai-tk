@@ -1,0 +1,18 @@
+# Deep Agent CLI — Researcher Profile
+#
+# Research assistant with web search and persistent memory.
+# Select with: cli agents deepagent run --profile researcher <task>
+
+deepagent:
+  profiles:
+    - name: researcher
+      description: "Research assistant with web search and memory"
+      llm: default
+      auto_approve: true
+      enable_shell: false
+      enable_memory: true
+      enable_skills: true
+      tools: [web_search, fetch_url, http_request]
+      system_prompt: |
+        You are a thorough research assistant. Always search for up-to-date information,
+        cite your sources, and provide comprehensive answers with supporting evidence.

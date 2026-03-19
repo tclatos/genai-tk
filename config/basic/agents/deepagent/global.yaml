@@ -1,0 +1,38 @@
+# Deep Agent CLI — Global Settings
+#
+# Applies to all profiles unless overridden at the profile level.
+# See sibling files (coder.yaml, researcher.yaml, fast.yaml) for profile definitions.
+#
+# FIELD REFERENCE:
+#   default_model:   LLM tag or ID ('default', 'fast_model', 'gpt41mini@openai').
+#                    Falls back to llm.models.default when null.
+#   default_profile: Profile selected when no --profile flag is given; null = none.
+#   auto_approve:    Skip human-in-the-loop confirmation for gated tools.
+#   enable_memory:   Persist memories across sessions (~/.deepagents/<agent>/memories/).
+#   enable_skills:   Load skills from ~/.deepagents/<agent>/skills/ and project .deepagents/.
+#   enable_shell:    Allow shell command execution in interactive (TUI) mode.
+#   shell_allow_list: When non-empty, restrict shell to listed commands.
+#   sandbox:         Remote sandbox: none | docker | modal | daytona | runloop | langsmith.
+#   system_prompt:   Custom system prompt injected at startup; null = deepagents default.
+#   switcher_models: Curated LLM list for the TUI /model command.
+#                    Each entry shown as  genai_tk:<entry>  in the switcher.
+
+deepagent:
+  default_model: null
+  default_profile: null
+
+  auto_approve: false
+  enable_memory: true
+  enable_skills: true
+  enable_shell: true
+
+  shell_allow_list: []
+  sandbox: none
+
+  system_prompt: null
+
+  # Curated models exposed in the deepagents TUI /model switcher.
+  # Leave empty ([]) to show ALL installed LangChain provider models.
+  switcher_models:
+    - gpt41mini@openrouter
+    - gpt_oss120@openrouter

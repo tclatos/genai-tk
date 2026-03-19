@@ -142,11 +142,11 @@ class TestLoadUnifiedConfig:
             load_unified_config(str(tmp_path / "nonexistent.yaml"))
 
     def test_missing_section_raises(self, tmp_path: Path) -> None:
-        from genai_tk.utils.config_exceptions import ConfigFileError
+        from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError
 
         bad_yaml = {"other_section": {}}
         cfg_file = _write_yaml(tmp_path, bad_yaml)
-        with pytest.raises(ConfigFileError, match="missing required top-level key"):
+        with pytest.raises(ConfigKeyNotFoundError, match="langchain_agents"):
             load_unified_config(str(cfg_file))
 
     def test_defaults_parsed(self, tmp_path: Path) -> None:

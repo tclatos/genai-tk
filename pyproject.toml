@@ -95,7 +95,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.0.3", # SQLite checkpoint persistence for LangGraph
     "readabilipy>=0.3.0",                 # Web article extraction and readability parsing
     "agent-sandbox>=0.0.24",              # All-in-One Sandbox -  code execution environment
-
+    "pgembed>=0.2.0",
 ]
 
 [project.urls]

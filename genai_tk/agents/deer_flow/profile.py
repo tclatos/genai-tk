@@ -9,7 +9,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal, cast, get_args
 
-import yaml
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -184,43 +183,35 @@ def validate_mcp_servers(server_names: list[str]) -> list[str]:
 
 
 def load_deer_flow_profiles(config_path: str | None = None) -> list[DeerFlowProfile]:
-    """Load Deer-flow profiles from a YAML file.
+    """Load Deer-flow profiles from a YAML file or directory.
+
+    When *config_path* is ``None`` the loader looks for
+    ``{paths.config}/agents/deerflow/`` (directory) first, then
+    ``{paths.config}/agents/deerflow.yaml`` (single file).  In directory mode
+    all ``*.yaml`` / ``*.yml`` files are loaded and their ``deerflow_agents``
+    lists are concatenated in alphabetical file order.
 
     Args:
-        config_path: Path to ``deerflow.yaml``. Defaults to ``config/agents/deerflow.yaml``
-            resolved via the global config manager.
+        config_path: Explicit path to a YAML file or directory.  ``None`` uses
+            the default location derived from ``paths.config``.
 
     Returns:
-        List of DeerFlowProfile instances.
+        List of ``DeerFlowProfile`` instances.
     """
+    from genai_tk.utils.config_exceptions import yaml_config_validation
+    from genai_tk.utils.config_mngr import load_yaml_configs, paths_config
+
     if config_path is None:
-        from genai_tk.utils.config_mngr import global_config
+        agents_dir = paths_config().config / "agents"
+        dir_path = agents_dir / "deerflow"
+        path = dir_path if dir_path.is_dir() else agents_dir / "deerflow.yaml"
+    else:
+        path = Path(config_path)
 
-        config_dir = global_config().get_dir_path("paths.config")
-        config_path = str(config_dir / "agents" / "deerflow.yaml")
+    entries: list[dict] = load_yaml_configs(path, "deerflow_agents")  # type: ignore[assignment]
 
-    path = Path(config_path)
-    from genai_tk.utils.config_exceptions import ConfigFileError, yaml_config_validation
-
-    if not path.exists():
-        raise ConfigFileError(
-            str(path),
-            "file not found",
-            suggestion=f"Create the file at '{path}' or check your config directory setting.",
-        )
-
-    with open(path) as f:
-        raw = yaml.safe_load(f)
-
-    if not raw or "deerflow_agents" not in raw:
-        raise ConfigFileError(
-            str(path),
-            "missing required top-level key 'deerflow_agents'",
-            suggestion="Add a 'deerflow_agents:' section to the file.",
-        )
-
-    profiles = []
-    for entry in raw.get("deerflow_agents", []):
+    profiles: list[DeerFlowProfile] = []
+    for entry in entries:
         profile_name = entry.get("name", f"(index {len(profiles)})")
         with yaml_config_validation(file_path=str(path), context=f"profile '{profile_name}'"):
             tools_raw = entry.get("tools", [])
@@ -229,5 +220,5 @@ def load_deer_flow_profiles(config_path: str | None = None) -> list[DeerFlowProf
             profile = DeerFlowProfile.model_validate(entry)
         profiles.append(profile)
 
-    logger.debug(f"Loaded {len(profiles)} Deer-flow profiles from {config_path}")
+    logger.debug(f"Loaded {len(profiles)} Deer-flow profiles from {path}")
     return profiles

@@ -63,7 +63,7 @@ def test_load_by_key_found_in_different_file(scraper_dir: Path, monkeypatch: pyt
     """Key 'my_scraper' lives in site_a.yaml, not my_scraper.yaml — loader must find it."""
     from genai_tk.tools.browser import config_loader
 
-    monkeypatch.setattr(config_loader, "_default_config_dir", lambda: scraper_dir)
+    monkeypatch.setattr(config_loader, "_default_scrapers_dir", lambda: scraper_dir)
 
     cfg = config_loader.load_web_scraper_config("my_scraper")
     assert cfg.name == "my_scraper"
@@ -75,7 +75,7 @@ def test_load_second_file_key(scraper_dir: Path, monkeypatch: pytest.MonkeyPatch
     """Key 'other_scraper' lives in site_b.yaml — loader scans all files."""
     from genai_tk.tools.browser import config_loader
 
-    monkeypatch.setattr(config_loader, "_default_config_dir", lambda: scraper_dir)
+    monkeypatch.setattr(config_loader, "_default_scrapers_dir", lambda: scraper_dir)
 
     cfg = config_loader.load_web_scraper_config("other_scraper")
     assert cfg.name == "other_scraper"
@@ -83,12 +83,12 @@ def test_load_second_file_key(scraper_dir: Path, monkeypatch: pytest.MonkeyPatch
 
 
 def test_load_missing_key_raises(scraper_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A key that does not exist in any file raises FileNotFoundError."""
+    """A key that does not exist in any file raises KeyError."""
     from genai_tk.tools.browser import config_loader
 
-    monkeypatch.setattr(config_loader, "_default_config_dir", lambda: scraper_dir)
+    monkeypatch.setattr(config_loader, "_default_scrapers_dir", lambda: scraper_dir)
 
-    with pytest.raises(FileNotFoundError, match="not found in any YAML"):
+    with pytest.raises(KeyError, match="nonexistent_scraper"):
         config_loader.load_web_scraper_config("nonexistent_scraper")
 
 
