@@ -9,7 +9,7 @@ Example:
 
     cfg = load_sandbox_config()
     aio = cfg.docker.aio
-    print(f"Docker image: {aio.image}  port: {aio.host_port}")
+    print(f"Docker image: {aio.image}  server: {aio.opensandbox_server_url}")
     ```
 """
 
@@ -19,18 +19,18 @@ from pydantic import BaseModel, Field
 
 
 class DockerAioSettings(BaseModel):
-    """AioSandboxBackend Docker container settings.
+    """AioSandboxBackend settings.
 
-    Used by LangChain deepagent, deepagent-cli, and Deer Flow.
     Maps to the ``sandbox.docker.aio`` block in ``sandbox.yaml``.
+    Requires a running ``opensandbox-server`` (``uv add opensandbox``).
     """
 
     image: str = "ghcr.io/agent-infra/sandbox:latest"
-    host: str = "127.0.0.1"
-    host_port: int = 18091
     startup_timeout: float = 60.0
     work_dir: str = "/home/user"
     env_vars: dict[str, str] = Field(default_factory=dict)
+    opensandbox_server_url: str = "http://localhost:8080"
+    entrypoint: list[str] = Field(default_factory=lambda: ["/opt/gem/run.sh"])
 
 
 class DockerSmolSettings(BaseModel):

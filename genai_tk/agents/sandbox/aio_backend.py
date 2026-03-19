@@ -1,38 +1,18 @@
-"""AioSandboxBackend — deepagents BackendProtocol backed by agent-infra/sandbox.
+"""AioSandboxBackend — deepagents BackendProtocol backed by OpenSandbox + agent-infra/sandbox.
 
-Uses ``agent_sandbox.AsyncSandbox`` as an HTTP client against a running Docker
-container.  This module manages the full container lifecycle: starts the
-container on ``start()``, polls until the HTTP API is healthy, then stops and
-removes the container on ``stop()``.
+Uses an OpenSandbox server to manage the container lifecycle (dynamic port
+allocation, concurrent sandboxes) and ``agent_sandbox.AsyncSandbox`` as the
+HTTP client for shell/file operations.
 
-``AioSandboxBackend`` implements ``SandboxBackendProtocol`` (which extends
-``BackendProtocol``) from deepagents, providing:
-
-- ``execute_tool`` — low-level named-tool dispatch (bash, ls, read_file, write_file, str_replace)
-- ``aexecute`` — shell command → ``ExecuteResponse``
-- ``als_info`` / ``aread`` / ``awrite`` / ``aedit`` — file operations → typed results
-- ``agrep_raw`` / ``aglob_info`` — search operations
-- ``aupload_files`` / ``adownload_files`` — bulk file I/O
-
-Docker image and connection settings come from :class:`~genai_tk.agents.sandbox.models.DockerAioSettings`,
-loaded from ``config/basic/sandbox.yaml`` via
-:func:`~genai_tk.agents.sandbox.config.get_docker_aio_settings`.
+Prerequisites: ``uv add opensandbox agent-sandbox`` and ``opensandbox-server`` running.
 
 Example:
     ```python
-    from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
-    from genai_tk.agents.sandbox.config import get_docker_aio_settings
+    from genai_tk.agents.sandbox import AioSandboxBackend
 
-    async with AioSandboxBackend(config=get_docker_aio_settings()) as backend:
-        result = await backend.execute_tool("bash", {"command": "echo hello"})
-        print(result.output)
-
-        # BackendProtocol interface
-        resp = await backend.aexecute("ls /tmp")
+    async with AioSandboxBackend() as backend:
+        resp = await backend.aexecute("echo hello")
         print(resp.output)
-
-        files = await backend.als_info("/home/user")
-        print([f["path"] for f in files])
     ```
 """
 
@@ -40,8 +20,8 @@ from __future__ import annotations
 
 import asyncio
 import shlex
-import subprocess
 import uuid
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from deepagents.backends.protocol import (
@@ -63,8 +43,6 @@ if TYPE_CHECKING:
     from agent_sandbox import AsyncSandbox
 
 
-SANDBOX_INTERNAL_PORT = 8091  # SANDBOX_SRV_PORT — the REST API port exposed by the container
-
 _SUPPORTED_TOOLS = frozenset({"bash", "ls", "read_file", "write_file", "str_replace"})
 
 
@@ -82,139 +60,162 @@ class SandboxToolResult(BaseModel):
 
 
 class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
-    """deepagents ``SandboxBackendProtocol`` backed by ``agent_sandbox.AsyncSandbox``.
+    """deepagents ``SandboxBackendProtocol`` backed by OpenSandbox + ``agent_sandbox.AsyncSandbox``.
 
-    Manages the Docker container lifecycle: starts on ``__aenter__``, exposes
-    the full ``BackendProtocol`` interface plus the low-level ``execute_tool``
-    dispatch, and stops the container on ``__aexit__``.
-
-    Settings are taken from :class:`~genai_tk.agents.sandbox.models.DockerAioSettings`
-    (loaded from ``config/basic/sandbox.yaml``).  Async-native: the ``a*``
-    protocol methods are the primary implementations; sync counterparts raise
-    ``NotImplementedError`` since the backend depends on a running event loop.
+    Lifecycle is managed by an OpenSandbox server; the ``a*`` protocol methods
+    are async-native and communicate via the agent-sandbox HTTP client.
     """
 
     config: DockerAioSettings = Field(default_factory=DockerAioSettings)
 
-    _container_id: str | None = None
     _client: AsyncSandbox | None = None
+    _sandbox: object | None = None
+    _server_proc: object | None = None
+    _base_url: str = PrivateAttr(default="")
     _instance_id: str = PrivateAttr(default_factory=lambda: uuid.uuid4().hex[:12])
 
     model_config = {"arbitrary_types_allowed": True}
 
     @property
-    def base_url(self) -> str:
-        return f"http://{self.config.host}:{self.config.host_port}"
-
-    @property
     def id(self) -> str:
-        """Unique identifier: container short ID when running, otherwise a random hex."""
-        if self._container_id:
-            return self._container_id[:12]
-        return self._instance_id
+        """Unique sandbox identifier."""
+        return getattr(self._sandbox, "id", self._instance_id)
 
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
 
-    async def _cleanup_stale_container(self) -> None:
-        """Stop any container already bound to the configured host port.
-
-        Docker refuses to start a new container when the port is already
-        allocated (e.g. from a previous session that crashed without calling
-        ``stop()``).  This method finds the offending container ID via
-        ``docker ps`` and stops it so the port becomes free again.
-        """
-        port_filter = f"{self.config.host_port}"
-        proc = await asyncio.create_subprocess_exec(
-            "docker",
-            "ps",
-            "--filter",
-            f"publish={port_filter}",
-            "--format",
-            "{{.ID}}",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        )
-        stdout, _ = await proc.communicate()
-        stale_ids = stdout.decode().split()
-        for cid in stale_ids:
-            cid = cid.strip()
-            if not cid:
-                continue
-            logger.warning(f"Port {port_filter} already in use by container {cid[:12]} — stopping it")
-            stop_proc = await asyncio.create_subprocess_exec(
-                "docker",
-                "stop",
-                cid,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            await stop_proc.communicate()
-
     async def start(self) -> None:
-        """Start the sandbox Docker container and wait until healthy.
+        """Create the sandbox via OpenSandbox and wait until healthy.
 
-        If a container is already holding the configured port (e.g. from a
-        previous crashed session), it is stopped first so the new container
-        can bind successfully.
+        Auto-starts ``opensandbox-server`` if it is not already reachable.
         """
+        from datetime import timedelta  # noqa: PLC0415
+        from urllib.parse import urlparse  # noqa: PLC0415
+
+        try:
+            from opensandbox import Sandbox  # noqa: PLC0415
+            from opensandbox.config import ConnectionConfig  # noqa: PLC0415
+        except ImportError as exc:
+            raise RuntimeError("opensandbox is required: uv add opensandbox") from exc
         try:
             from agent_sandbox import AsyncSandbox  # noqa: PLC0415
         except ImportError as exc:
             raise RuntimeError("agent-sandbox is required: uv add agent-sandbox") from exc
-
-        await self._cleanup_stale_container()
-
-        docker_cmd = [
-            "docker",
-            "run",
-            "-d",
-            "--rm",
-            "-p",
-            f"{self.config.host_port}:{SANDBOX_INTERNAL_PORT}",
-        ]
-        for k, v in self.config.env_vars.items():
-            docker_cmd += ["-e", f"{k}={v}"]
-        docker_cmd.append(self.config.image)
-
-        logger.debug(f"Starting sandbox container: {self.config.image}")
-        proc = await asyncio.create_subprocess_exec(
-            *docker_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            raise RuntimeError(f"docker run failed: {stderr.decode().strip()}")
-
-        self._container_id = stdout.decode().strip()
-        logger.debug(f"Container started: {self._container_id[:12]}")
-
-        # Pass trust_env=False so http_proxy env vars don't route localhost through a corporate proxy
         import httpx  # noqa: PLC0415
 
-        httpx_client = httpx.AsyncClient(trust_env=False, timeout=120)
-        self._client = AsyncSandbox(base_url=self.base_url, httpx_client=httpx_client)
-        await self._wait_healthy()
-        logger.info(f"AioSandbox ready at {self.base_url}")
+        server_url = self.config.opensandbox_server_url
+        self._server_proc = await self._ensure_server(server_url)
+        parsed = urlparse(server_url)
+        conn_config = ConnectionConfig(domain=parsed.netloc or server_url, protocol=parsed.scheme or "http")
+        startup_timeout = self.config.startup_timeout
+
+        async def _health_check(sbx: object) -> bool:
+            try:
+                ep = await sbx.get_endpoint(8080)  # type: ignore[attr-defined]
+            except Exception:
+                return False
+            url = f"http://{ep.endpoint}/v1/shell/sessions"
+            deadline = asyncio.get_event_loop().time() + startup_timeout
+            async with httpx.AsyncClient(trust_env=False) as hc:
+                while True:
+                    try:
+                        if (await hc.get(url, timeout=2.0)).status_code < 500:
+                            return True
+                    except Exception:
+                        pass
+                    if asyncio.get_event_loop().time() > deadline:
+                        return False
+                    await asyncio.sleep(1.0)
+
+        logger.debug(f"Starting AIO sandbox via {server_url}")
+        self._sandbox = await Sandbox.create(
+            self.config.image,
+            timeout=timedelta(seconds=startup_timeout),
+            entrypoint=self.config.entrypoint,
+            env=self.config.env_vars,
+            connection_config=conn_config,
+            health_check=_health_check,
+        )
+        endpoint = await self._sandbox.get_endpoint(8080)  # type: ignore[attr-defined]
+        self._base_url = f"http://{endpoint.endpoint}"
+        self._client = AsyncSandbox(
+            base_url=self._base_url, httpx_client=httpx.AsyncClient(trust_env=False, timeout=120)
+        )
+        logger.info(f"AioSandbox ready at {self._base_url}")
 
     async def stop(self) -> None:
-        """Stop and remove the sandbox Docker container."""
+        """Kill the sandbox and stop the server if we started it."""
         self._client = None
-        if self._container_id:
-            cid = self._container_id
-            self._container_id = None
-            logger.debug(f"Stopping container {cid[:12]}")
+        if self._sandbox is not None:
+            sbx, self._sandbox = self._sandbox, None
+            try:
+                await sbx.kill()  # type: ignore[attr-defined]
+            except Exception as exc:
+                logger.warning(f"sandbox kill failed: {exc}")
+            logger.info("AioSandbox stopped")
+        if self._server_proc is not None:
+            proc, self._server_proc = self._server_proc, None
+            proc.terminate()  # type: ignore[attr-defined]
+            try:
+                await asyncio.wait_for(proc.wait(), timeout=5.0)  # type: ignore[attr-defined]
+            except asyncio.TimeoutError:
+                proc.kill()  # type: ignore[attr-defined]
+            logger.info("opensandbox-server stopped")
+
+    async def _ensure_server(self, server_url: str) -> object | None:
+        """Return ``None`` if the server is already up, otherwise start it and return the process."""
+        import shutil  # noqa: PLC0415
+        import subprocess  # noqa: PLC0415
+        import sys  # noqa: PLC0415
+
+        import httpx  # noqa: PLC0415
+
+        check_url = f"{server_url}/v1/sandboxes"
+        try:
+            async with httpx.AsyncClient(trust_env=False) as hc:
+                await hc.get(check_url, timeout=2.0)
+            return None  # already running
+        except Exception:
+            pass
+
+        # Resolve the server binary: prefer the one next to this Python interpreter
+        # (i.e. same virtualenv), fall back to PATH.
+        venv_bin = Path(sys.executable).parent / "opensandbox-server"
+        if venv_bin.is_file():
+            server_cmd = str(venv_bin)
+        else:
+            server_cmd = shutil.which("opensandbox-server") or "opensandbox-server"
+
+        logger.info(f"opensandbox-server not reachable at {server_url} — starting it")
+        try:
             proc = await asyncio.create_subprocess_exec(
-                "docker",
-                "stop",
-                cid,
+                server_cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            await proc.communicate()
-            logger.info("AioSandbox stopped")
+        except (FileNotFoundError, PermissionError) as exc:
+            raise RuntimeError(
+                "opensandbox-server not found. "
+                "Install: uv add opensandbox-server && opensandbox-server init-config ~/.sandbox.toml --example docker"
+            ) from exc
+
+        deadline = asyncio.get_event_loop().time() + 15
+        async with httpx.AsyncClient(trust_env=False) as hc:
+            while True:
+                try:
+                    await hc.get(check_url, timeout=2.0)
+                    logger.info("opensandbox-server ready")
+                    return proc
+                except Exception:
+                    pass
+                if asyncio.get_event_loop().time() > deadline:
+                    proc.terminate()
+                    raise RuntimeError(
+                        "opensandbox-server did not become healthy within 15s. "
+                        "Check config: opensandbox-server init-config ~/.sandbox.toml --example docker"
+                    )
+                await asyncio.sleep(0.5)
 
     async def __aenter__(self) -> AioSandboxBackend:
         await self.start()
@@ -558,25 +559,3 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
                 logger.warning(f"download_files failed for {file_path}: {exc}")
                 responses.append(FileDownloadResponse(path=file_path, error="file_not_found"))
         return responses
-
-    # ------------------------------------------------------------------
-    # Helpers
-    # ------------------------------------------------------------------
-
-    async def _wait_healthy(self) -> None:
-        """Poll the sandbox HTTP API until it responds or startup_timeout elapses."""
-        import httpx  # noqa: PLC0415
-
-        deadline = asyncio.get_event_loop().time() + self.config.startup_timeout
-        # trust_env=False: bypass http_proxy env vars
-        async with httpx.AsyncClient(trust_env=False) as http:
-            while True:
-                try:
-                    resp = await http.get(f"{self.base_url}/v1/shell/sessions", timeout=2.0)
-                    if resp.status_code < 500:
-                        return
-                except (httpx.ConnectError, httpx.ReadError, httpx.TimeoutException, httpx.RemoteProtocolError):
-                    pass
-                if asyncio.get_event_loop().time() > deadline:
-                    raise TimeoutError(f"Sandbox did not become healthy within {self.config.startup_timeout}s")
-                await asyncio.sleep(1.0)

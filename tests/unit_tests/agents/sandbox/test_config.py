@@ -27,7 +27,7 @@ class TestLoadSandboxConfig:
             mock_gc.return_value = _mock_global_config({})
             cfg = load_sandbox_config()
         assert cfg.default == "local"
-        assert cfg.docker.aio.host_port == 18091
+        assert cfg.docker.aio.opensandbox_server_url == "http://localhost:8080"
 
     def test_returns_defaults_on_import_error(self) -> None:
         with patch(_PATCH_TARGET, side_effect=Exception):
@@ -38,7 +38,7 @@ class TestLoadSandboxConfig:
         raw = {
             "default": "docker",
             "docker": {
-                "aio": {"host_port": 9999, "image": "custom:v1"},
+                "aio": {"opensandbox_server_url": "http://prod:8080", "image": "custom:v1"},
                 "smolagents": {"mem_limit": "2g"},
             },
             "e2b": {"api_key": "mykey"},
@@ -48,7 +48,7 @@ class TestLoadSandboxConfig:
             mock_gc.return_value = _mock_global_config(raw)
             cfg = load_sandbox_config()
         assert cfg.default == "docker"
-        assert cfg.docker.aio.host_port == 9999
+        assert cfg.docker.aio.opensandbox_server_url == "http://prod:8080"
         assert cfg.docker.aio.image == "custom:v1"
         assert cfg.docker.smolagents.mem_limit == "2g"
         assert cfg.e2b.api_key == "mykey"
@@ -68,12 +68,12 @@ class TestLoadSandboxConfig:
 
 class TestGetDockerAioSettings:
     def test_returns_docker_aio(self) -> None:
-        raw = {"default": "docker", "docker": {"aio": {"host_port": 8888}}}
+        raw = {"default": "docker", "docker": {"aio": {"opensandbox_server_url": "http://myserver:8080"}}}
         with patch(_PATCH_TARGET) as mock_gc:
             mock_gc.return_value = _mock_global_config(raw)
             aio = get_docker_aio_settings()
         assert isinstance(aio, DockerAioSettings)
-        assert aio.host_port == 8888
+        assert aio.opensandbox_server_url == "http://myserver:8080"
 
 
 class TestGetDockerSmolSettings:

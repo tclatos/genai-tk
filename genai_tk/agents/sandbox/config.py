@@ -11,7 +11,7 @@ Example:
     print(cfg.default)  # "local"
 
     aio = get_docker_aio_settings()
-    print(aio.image, aio.host_port)
+    print(aio.image, aio.opensandbox_server_url)
     ```
 """
 

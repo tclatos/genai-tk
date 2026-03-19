@@ -31,11 +31,11 @@ sandbox:
     # Used by: LangChain deepagent, deepagent-cli, Deer Flow.
     aio:
       image: "ghcr.io/agent-infra/sandbox:latest"
-      host: "127.0.0.1"
-      host_port: 18091
       startup_timeout: 60.0
       work_dir: "/home/user"
       env_vars: {}
+      opensandbox_server_url: "http://localhost:8080"
+      # entrypoint: ["/opt/gem/run.sh"]  # default matches ghcr.io/agent-infra/sandbox
 
     # SmolAgents native Docker executor — a lightweight container that runs
     # generated Python code snippets. Uses a different image and approach than

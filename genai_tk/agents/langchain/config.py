@@ -31,7 +31,7 @@ langchain_agents:
       # Use the built-in Docker sandbox backend:
       backend:
         type: aio_sandbox
-        host_port: 18091
+        opensandbox_server_url: http://localhost:8080
         startup_timeout: 90.0
       # Or a custom deepagents-compatible backend:
       # backend:
@@ -123,7 +123,7 @@ class BackendConfig(BaseModel):
         ```yaml
         backend:
           type: aio_sandbox
-          host_port: 18091
+          opensandbox_server_url: http://localhost:8080
           startup_timeout: 90.0
           work_dir: /workspace
           env_vars:

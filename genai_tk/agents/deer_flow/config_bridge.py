@@ -318,7 +318,7 @@ def write_deer_flow_config(
         sandbox_cfg: dict[str, Any] = {
             "use": "src.community.aio_sandbox.aio_sandbox_provider:AioSandboxProvider",
             "image": aio.image,
-            "host_port": aio.host_port,
+            "opensandbox_server_url": aio.opensandbox_server_url,
         }
     else:
         sandbox_cfg = {"use": "src.sandbox.local:LocalSandboxProvider"}

@@ -275,13 +275,12 @@ def test_sandbox_tool_result_success_flag() -> None:
 
 
 def test_id_returns_instance_id_when_not_started(backend: AioSandboxBackend) -> None:
-    backend._container_id = None
     assert len(backend.id) == 12  # _instance_id hex
 
 
-def test_id_returns_container_short_id_when_started(backend: AioSandboxBackend) -> None:
-    backend._container_id = "abc123def456789"
-    assert backend.id == "abc123def456"
+def test_id_no_sandbox_falls_back_to_instance_id(backend: AioSandboxBackend) -> None:
+    assert backend._sandbox is None
+    assert len(backend.id) == 12
 
 
 # ---------------------------------------------------------------------------

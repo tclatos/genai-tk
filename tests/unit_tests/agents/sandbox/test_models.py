@@ -13,23 +13,23 @@ from genai_tk.agents.sandbox.models import (
 class TestDockerAioSettings:
     def test_defaults(self) -> None:
         s = DockerAioSettings()
-        assert s.host == "127.0.0.1"
-        assert s.host_port == 18091
+        assert s.image == "ghcr.io/agent-infra/sandbox:latest"
         assert s.startup_timeout == 60.0
         assert s.work_dir == "/home/user"
         assert s.env_vars == {}
+        assert s.opensandbox_server_url == "http://localhost:8080"
+        assert s.entrypoint == ["/opt/gem/run.sh"]
 
     def test_custom_values(self) -> None:
-        s = DockerAioSettings(host="0.0.0.0", host_port=9000, env_vars={"FOO": "bar"})
-        assert s.host == "0.0.0.0"
-        assert s.host_port == 9000
+        s = DockerAioSettings(opensandbox_server_url="http://10.0.0.1:8080", env_vars={"FOO": "bar"})
+        assert s.opensandbox_server_url == "http://10.0.0.1:8080"
         assert s.env_vars == {"FOO": "bar"}
 
     def test_model_validate(self) -> None:
-        s = DockerAioSettings.model_validate({"image": "my-image:1.0", "host_port": 8080})
+        s = DockerAioSettings.model_validate({"image": "my-image:1.0", "entrypoint": ["/custom/run.sh"]})
         assert s.image == "my-image:1.0"
-        assert s.host_port == 8080
-        assert s.host == "127.0.0.1"  # default
+        assert s.entrypoint == ["/custom/run.sh"]
+        assert s.opensandbox_server_url == "http://localhost:8080"  # default
 
 
 class TestDockerSmolSettings:
@@ -53,8 +53,10 @@ class TestDockerSandboxSettings:
         assert isinstance(s.smolagents, DockerSmolSettings)
 
     def test_nested_model_validate(self) -> None:
-        s = DockerSandboxSettings.model_validate({"aio": {"host_port": 9999}, "smolagents": {"mem_limit": "1g"}})
-        assert s.aio.host_port == 9999
+        s = DockerSandboxSettings.model_validate(
+            {"aio": {"opensandbox_server_url": "http://myserver:8080"}, "smolagents": {"mem_limit": "1g"}}
+        )
+        assert s.aio.opensandbox_server_url == "http://myserver:8080"
         assert s.smolagents.mem_limit == "1g"
 
 
@@ -89,7 +91,7 @@ class TestSandboxConfig:
         data = {
             "default": "docker",
             "docker": {
-                "aio": {"host_port": 9191, "image": "custom:latest"},
+                "aio": {"opensandbox_server_url": "http://prod:8080", "image": "custom:latest"},
                 "smolagents": {"mem_limit": "1g"},
             },
             "e2b": {"api_key": "abc123", "timeout": 120},
@@ -97,7 +99,7 @@ class TestSandboxConfig:
         }
         cfg = SandboxConfig.model_validate(data)
         assert cfg.default == "docker"
-        assert cfg.docker.aio.host_port == 9191
+        assert cfg.docker.aio.opensandbox_server_url == "http://prod:8080"
         assert cfg.docker.aio.image == "custom:latest"
         assert cfg.docker.smolagents.mem_limit == "1g"
         assert cfg.e2b.api_key == "abc123"
@@ -106,4 +108,4 @@ class TestSandboxConfig:
     def test_partial_config(self) -> None:
         cfg = SandboxConfig.model_validate({"default": "e2b"})
         assert cfg.default == "e2b"
-        assert cfg.docker.aio.host_port == 18091  # default preserved
+        assert cfg.docker.aio.opensandbox_server_url == "http://localhost:8080"  # default preserved

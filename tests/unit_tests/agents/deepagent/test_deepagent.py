@@ -416,8 +416,8 @@ def test_aio_sandbox_config_defaults():
 
     cfg = AioSandboxConfig()
     assert cfg.image == "ghcr.io/agent-infra/sandbox:latest"
-    assert cfg.host == "127.0.0.1"
-    assert cfg.host_port == 18091
+    assert cfg.opensandbox_server_url == "http://localhost:8080"
+    assert cfg.entrypoint == ["/opt/gem/run.sh"]
     assert cfg.startup_timeout == 60.0
     assert cfg.work_dir == "/home/user"
     assert cfg.env_vars == {}
@@ -430,21 +430,23 @@ def test_aio_sandbox_config_in_profile():
     profile = DeepagentProfile(
         name="aio_test",
         sandbox="aio",
-        sandbox_config=AioSandboxConfig(image="my-image:latest", host_port=19000),
+        sandbox_config=AioSandboxConfig(image="my-image:latest", opensandbox_server_url="http://myserver:8080"),
     )
     assert profile.sandbox == "aio"
     assert profile.sandbox_config is not None
     assert profile.sandbox_config.image == "my-image:latest"
-    assert profile.sandbox_config.host_port == 19000
+    assert profile.sandbox_config.opensandbox_server_url == "http://myserver:8080"
 
 
 def test_config_sandbox_config_parsed():
     """DeepagentConfig sandbox_config field round-trips correctly."""
     from genai_tk.agents.deepagent_cli.models import AioSandboxConfig, DeepagentConfig
 
-    cfg = DeepagentConfig(sandbox_config=AioSandboxConfig(host="0.0.0.0", startup_timeout=90.0))
+    cfg = DeepagentConfig(
+        sandbox_config=AioSandboxConfig(opensandbox_server_url="http://prod:9090", startup_timeout=90.0)
+    )
     assert cfg.sandbox_config is not None
-    assert cfg.sandbox_config.host == "0.0.0.0"
+    assert cfg.sandbox_config.opensandbox_server_url == "http://prod:9090"
     assert cfg.sandbox_config.startup_timeout == 90.0
 
 

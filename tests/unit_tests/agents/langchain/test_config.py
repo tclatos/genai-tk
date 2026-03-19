@@ -380,9 +380,9 @@ class TestBackendConfig:
         assert cfg.kwargs == {"opt": 1}
 
     def test_extra_kwargs_for_aio_sandbox(self) -> None:
-        """Extra YAML keys (e.g. host_port) are surfaced via extra_kwargs."""
-        cfg = BackendConfig(type="aio_sandbox", host_port=19091, startup_timeout=120.0)  # type: ignore[call-arg]
-        assert cfg.extra_kwargs["host_port"] == 19091
+        """Extra YAML keys (e.g. opensandbox_server_url) are surfaced via extra_kwargs."""
+        cfg = BackendConfig(type="aio_sandbox", opensandbox_server_url="http://myserver:8080", startup_timeout=120.0)  # type: ignore[call-arg]
+        assert cfg.extra_kwargs["opensandbox_server_url"] == "http://myserver:8080"
         assert cfg.extra_kwargs["startup_timeout"] == 120.0
 
     def test_agent_defaults_has_none_backend(self) -> None:
@@ -420,11 +420,13 @@ class TestResolveProfileBackend:
         return load_unified_config(str(cfg_file))
 
     def test_backend_inherited_from_defaults(self, tmp_path: Path) -> None:
-        cfg = self._make_config_with_backend(tmp_path, {"type": "aio_sandbox", "host_port": 19091}, None)
+        cfg = self._make_config_with_backend(
+            tmp_path, {"type": "aio_sandbox", "opensandbox_server_url": "http://myserver:8080"}, None
+        )
         profile = resolve_profile(cfg, "p")
         assert profile.backend is not None
         assert profile.backend.type == "aio_sandbox"
-        assert profile.backend.extra_kwargs.get("host_port") == 19091
+        assert profile.backend.extra_kwargs.get("opensandbox_server_url") == "http://myserver:8080"
 
     def test_profile_backend_overrides_default(self, tmp_path: Path) -> None:
         cfg = self._make_config_with_backend(
@@ -481,7 +483,7 @@ class TestCreateBackend:
     async def test_aio_sandbox_instantiates_and_starts(self) -> None:
         from unittest.mock import AsyncMock, patch
 
-        cfg = BackendConfig(type="aio_sandbox", host_port=19091)  # type: ignore[call-arg]
+        cfg = BackendConfig(type="aio_sandbox", opensandbox_server_url="http://myserver:8080")  # type: ignore[call-arg]
 
         with patch(
             "genai_tk.agents.langchain.sandbox_backend.AioSandboxBackend.start",
@@ -494,7 +496,7 @@ class TestCreateBackend:
         assert isinstance(backend, AioSandboxBackend)
         mock_start.assert_awaited_once()
         # Extra kwargs forwarded to config
-        assert backend.config.host_port == 19091
+        assert backend.config.opensandbox_server_url == "http://myserver:8080"
 
     @pytest.mark.asyncio
     async def test_aio_sandbox_default_config(self) -> None:
@@ -512,7 +514,7 @@ class TestCreateBackend:
 
         assert isinstance(backend, AioSandboxBackend)
         # Default config values
-        assert backend.config.host_port == 18091
+        assert backend.config.opensandbox_server_url == "http://localhost:8080"
         assert backend.config.work_dir == "/home/user"
 
     @pytest.mark.asyncio
