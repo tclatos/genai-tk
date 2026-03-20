@@ -52,6 +52,7 @@ class SandboxBrowserSession:
         self._page: Page | None = None
         self._playwright: object | None = None
         self._connected = False
+        self._event_log: list[str] = []  # in-memory log surviving browser disconnect
 
     @property
     def page(self) -> Page:
@@ -153,17 +154,25 @@ class SandboxBrowserSession:
             self._page.on("pageerror", self._on_page_error)
             self._page.on("crash", self._on_page_crash)
             self._page.on("close", self._on_page_close)
+            self._page.on("request", self._on_request)
+            self._page.on("response", self._on_response)
         if self._browser is not None:
             self._browser.on("disconnected", self._on_browser_disconnected)
 
     def _detach_debug_listeners(self) -> None:
         """Remove previously attached event listeners."""
+        _page_handlers = {
+            "console": self._on_console,
+            "pageerror": self._on_page_error,
+            "crash": self._on_page_crash,
+            "close": self._on_page_close,
+            "request": self._on_request,
+            "response": self._on_response,
+        }
         try:
             if self._page is not None:
-                self._page.remove_listener("console", self._on_console)
-                self._page.remove_listener("pageerror", self._on_page_error)
-                self._page.remove_listener("crash", self._on_page_crash)
-                self._page.remove_listener("close", self._on_page_close)
+                for evt, handler in _page_handlers.items():
+                    self._page.remove_listener(evt, handler)
         except Exception:
             pass
         try:
@@ -172,35 +181,70 @@ class SandboxBrowserSession:
         except Exception:
             pass
 
-    @staticmethod
-    def _on_console(msg: object) -> None:
+    def _log_event(self, level: str, message: str) -> None:
+        """Append a timestamped entry to the in-memory event log and emit via loguru."""
+        from datetime import datetime, timezone
+
+        ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
+        self._event_log.append(f"[{ts}] {level}: {message}")
+        # Keep last 200 entries to bound memory
+        if len(self._event_log) > 200:
+            self._event_log = self._event_log[-200:]
+        getattr(logger, level.lower(), logger.debug)(message)
+
+    def get_event_log(self, last_n: int = 50) -> str:
+        """Return the last *last_n* browser events as a newline-separated string.
+
+        Survives browser disconnects — useful for post-mortem analysis.
+        """
+        entries = self._event_log[-last_n:]
+        if not entries:
+            return "(no browser events recorded)"
+        return "\n".join(entries)
+
+    def _on_console(self, msg: object) -> None:
         """Log browser console messages (console.log, console.warn, console.error)."""
         msg_type = getattr(msg, "type", "log")
         text = str(getattr(msg, "text", msg))
         if msg_type in ("error", "warning"):
-            logger.warning(f"Browser console [{msg_type}]: {text[:500]}")
+            self._log_event("WARNING", f"Browser console [{msg_type}]: {text[:500]}")
         else:
-            logger.debug(f"Browser console [{msg_type}]: {text[:300]}")
+            self._log_event("DEBUG", f"Browser console [{msg_type}]: {text[:300]}")
 
-    @staticmethod
-    def _on_page_error(error: object) -> None:
+    def _on_page_error(self, error: object) -> None:
         """Log uncaught JavaScript exceptions."""
-        logger.error(f"Browser page error: {error}")
+        self._log_event("ERROR", f"Browser page error: {error}")
 
-    @staticmethod
-    def _on_page_crash(_: object) -> None:
+    def _on_page_crash(self, _: object) -> None:
         """Log page (renderer) crash events."""
-        logger.error("Browser page CRASHED — renderer process died")
+        self._log_event("ERROR", "Browser page CRASHED — renderer process died")
 
-    @staticmethod
-    def _on_page_close(_: object) -> None:
+    def _on_page_close(self, _: object) -> None:
         """Log when a page is closed (possibly by navigation or site JS)."""
-        logger.warning("Browser page closed")
+        self._log_event("WARNING", "Browser page closed")
 
-    @staticmethod
-    def _on_browser_disconnected(_: object) -> None:
+    def _on_browser_disconnected(self, _: object) -> None:
         """Log when the CDP connection to the browser drops."""
-        logger.error("Browser DISCONNECTED — CDP connection lost (container may have died)")
+        self._log_event("ERROR", "Browser DISCONNECTED — CDP connection lost (container may have died)")
+
+    def _on_request(self, request: object) -> None:
+        """Log main-frame navigations."""
+        url = getattr(request, "url", "")
+        frame = getattr(request, "frame", None)
+        is_navigation = getattr(request, "is_navigation_request", lambda: False)()
+        if is_navigation and frame and getattr(frame, "parent_frame", None) is None:
+            self._log_event("INFO", f"Navigation request → {url}")
+
+    def _on_response(self, response: object) -> None:
+        """Log non-2xx responses on main-frame navigations."""
+        status = getattr(response, "status", 0)
+        url = getattr(response, "url", "")
+        request = getattr(response, "request", None)
+        is_navigation = request and getattr(request, "is_navigation_request", lambda: False)()
+        frame = request and getattr(request, "frame", None)
+        is_main = frame and getattr(frame, "parent_frame", None) is None
+        if is_navigation and is_main and status >= 400:
+            self._log_event("WARNING", f"HTTP {status} on navigation → {url}")
 
     async def save_cookies(self, name: str) -> str:
         """Save the current browser context storage state to a JSON file.

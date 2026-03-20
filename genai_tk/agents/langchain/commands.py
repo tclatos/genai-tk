@@ -170,6 +170,14 @@ def register(cli_app: typer.Typer) -> None:
             Optional[str],
             Option("--sandbox", "-b", help="Sandbox override: local (default) | docker"),
         ] = None,
+        vnc: Annotated[
+            bool,
+            Option("--vnc", help="Auto-open VNC in browser for visual debugging (requires --sandbox docker)"),
+        ] = False,
+        keep_sandbox: Annotated[
+            bool,
+            Option("--keep-sandbox", help="Keep the sandbox container running after agent exits for inspection"),
+        ] = False,
     ) -> None:
         """Run a LangChain-based agent (react | deep | custom) from a YAML profile.
 
@@ -250,6 +258,8 @@ def register(cli_app: typer.Typer) -> None:
                 checkpointer=chat,
                 details=details,
                 sandbox=sandbox or None,
+                vnc=vnc,
+                keep_sandbox=keep_sandbox,
             )
         except ValueError as e:
             console.print(f"[red]{e}[/red]")

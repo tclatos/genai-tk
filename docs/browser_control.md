@@ -110,6 +110,91 @@ sandbox_browser:
     - SHAREPOINT_PASSWORD
 ```
 
+## Security Assessment
+
+This browser automation approach provides multiple independent layers of
+protection that make credential-based authentication safe to use with LLMs.
+
+### 1. Credential Isolation (LLM-Level)
+
+**Credentials never reach the LLM context.**
+
+- The agent calls `browser_fill_credential` with only the **env var name**
+  (e.g. `ENEDIS_USERNAME`), not the actual value.
+- The credential is resolved via `os.environ` **only inside the tool**, in
+  server memory, and is never serialised into the conversation.
+- The tool returns only a confirmation string — the password never appears in
+  any LLM response, log line, or conversation turn.
+- The **allowlist** in `sandbox.yaml` ensures the LLM cannot be prompt-injected
+  into requesting arbitrary env vars (AWS keys, API tokens, etc.).
+
+### 2. Docker Sandboxing (Infrastructure-Level)
+
+The browser runs inside a Docker container (`ghcr.io/agent-infra/sandbox:latest`),
+isolated from:
+
+- **Host filesystem**: SSH keys, `.aws/config`, `~/.kube/config` are not
+  visible inside the container.
+- **Host network**: The container has its own network namespace — it cannot
+  sniff host traffic or reach other services directly.
+- **Host processes**: Kernel namespaces prevent container processes from
+  seeing or signalling host processes.
+- **Other containers**: Network and PID namespaces isolate containers from
+  each other.
+
+Even if malicious JavaScript in a webpage tried to exfiltrate data, it would
+be trapped inside the sandbox with no path to the host or other services.
+
+### 3. Open Sandbox (Transparency & Auditability)
+
+The AIO sandbox is **open-source**:
+
+- The exact browser environment is defined in code — no black-box behaviour.
+- Source can be audited to verify no telemetry or credential capture is
+  happening inside the container.
+- **VNC** (`http://localhost:8080/vnc`) lets authorised users watch the browser
+  in real-time, enabling human verification and audit trails — important for
+  regulated environments.
+
+### 4. Session Token Strategy
+
+Credentials are typed into the browser **only once** per session:
+
+- After a successful login, `browser_save_cookies` persists the session.
+- Subsequent agent runs use `browser_load_cookies` to restore the session
+  without re-entering credentials, minimising the credential exposure window.
+
+### 5. Real Browser (Anti-Bot Avoidance)
+
+The sandbox runs a **full Chromium** instance (not headless), which:
+
+- Avoids bot-detection rejections on SSO portals (SAP, SharePoint, Enedis).
+- Supports modern SPAs, WebSockets, and MFA dialogs that headless Chrome
+  struggles with.
+- Allows visual verification via VNC for unexpected prompts (CAPTCHA, MFA).
+
+### 6. Defense-in-Depth Summary
+
+| Layer | Mechanism | Protects Against |
+|---|---|---|
+| **Application** | Allowlist + credential hiding in `browser_fill_credential` | LLM exfiltration, prompt injection |
+| **System** | Docker kernel namespaces + network isolation | Host compromise, lateral movement |
+| **Operational** | Open-source sandbox + VNC visibility | Supply-chain risk, undetected malicious actions |
+
+A compromise at any single layer does not automatically expose credentials,
+because the other layers remain intact.
+
+### Recommended Production Practices
+
+- Store credentials in a secrets manager (Vault, AWS Secrets Manager) and
+  inject them as env vars at runtime — never commit to source control.
+- Keep `allowed_credential_envs` as short as possible; list only what is
+  strictly needed.
+- Enable Docker resource limits (`--memory`, `--cpus`) to prevent runaway
+  containers.
+- Rotate portal credentials regularly; invalidate saved session files after
+  rotation (`data/sessions/`).
+
 ## Skills
 
 Site-specific knowledge is encoded as **SKILL.md** files, not Python code.

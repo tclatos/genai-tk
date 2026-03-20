@@ -77,6 +77,8 @@ class LangchainAgent(BaseModel):
     checkpointer: bool = False
     details: bool = False
     sandbox: SandboxType | None = None
+    vnc: bool = False
+    keep_sandbox: bool = False
 
     # Internal – not part of the public schema
     _profile: AgentProfileConfig | None = None
@@ -152,12 +154,22 @@ class LangchainAgent(BaseModel):
         await run_langchain_agent_shell(self)
 
     async def close(self) -> None:
-        """Stop any running backend (e.g. Docker sandbox)."""
+        """Stop any running backend (e.g. Docker sandbox).
+
+        When ``keep_sandbox`` is True the container is left running so the user
+        can inspect it via VNC; only the Playwright connection is dropped.
+        """
         if self._agent is None:
             return
         backend = getattr(self._agent, "_backend", None)
         if backend is not None and hasattr(backend, "stop"):
-            await backend.stop()
+            if self.keep_sandbox:
+                vnc = getattr(backend, "_base_url", "")
+                if vnc:
+                    logger.info(f"Sandbox kept alive — VNC: {vnc}/vnc/index.html?autoconnect=true")
+                    logger.info("Use 'cli sandbox list' to see running containers, 'cli sandbox stop' to clean up.")
+            else:
+                await backend.stop()
         self._agent = None
 
     # Context-manager support
@@ -206,6 +218,18 @@ class LangchainAgent(BaseModel):
                 details=self.details,
             )
             logger.debug(f"LangchainAgent initialized: profile={self._profile.name}")
+
+            # Auto-open VNC in the default browser for visual debugging
+            if self.vnc:
+                backend = getattr(self._agent, "_backend", None)
+                base_url = getattr(backend, "_base_url", "") if backend else ""
+                if base_url:
+                    import webbrowser  # noqa: PLC0415
+
+                    vnc_url = f"{base_url}/vnc/index.html?autoconnect=true"
+                    logger.info(f"Opening VNC in browser: {vnc_url}")
+                    webbrowser.open(vnc_url)
+
         return self._agent
 
     def _load_profile(self) -> AgentProfileConfig:

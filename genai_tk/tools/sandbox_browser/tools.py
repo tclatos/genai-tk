@@ -347,6 +347,28 @@ class BrowserLoadCookiesTool(_BrowserTool):
             return f"Failed to load cookies: {exc}"
 
 
+class BrowserGetLogsTool(_BrowserTool):
+    """Retrieve the in-memory browser event log for self-diagnosis.
+
+    The event log survives browser disconnects, making it useful for
+    post-mortem analysis when the browser crashes or the container dies.
+    """
+
+    name: str = "browser_get_logs"
+    description: str = (
+        "Retrieve recent browser event logs (console messages, JS errors, page crashes, "
+        "navigations, HTTP errors). Use this to diagnose why a page failed to load, "
+        "why the browser disconnected, or what happened before an error. "
+        "The log survives browser crashes. Optional arg: last_n (default 50)."
+    )
+
+    def _run(self, last_n: int = 50) -> str:
+        return self.session.get_event_log(last_n=last_n)
+
+    async def _arun(self, last_n: int = 50, **kwargs: Any) -> str:
+        return self.session.get_event_log(last_n=last_n)
+
+
 # Registry for easy access
 ALL_BROWSER_TOOLS: list[type[_BrowserTool]] = [
     BrowserNavigateTool,
@@ -359,4 +381,5 @@ ALL_BROWSER_TOOLS: list[type[_BrowserTool]] = [
     BrowserWaitTool,
     BrowserSaveCookiesTool,
     BrowserLoadCookiesTool,
+    BrowserGetLogsTool,
 ]
