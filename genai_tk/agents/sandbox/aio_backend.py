@@ -173,10 +173,6 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         env = dict(self.config.env_vars)
         if "BROWSER_EXTRA_ARGS" not in env:
             env["BROWSER_EXTRA_ARGS"] = "--ignore-certificate-errors --disable-blink-features=AutomationControlled"
-        if "BROWSER_USER_AGENT" not in env:
-            env["BROWSER_USER_AGENT"] = (
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            )
 
         logger.debug(f"Starting AIO sandbox via {server_url}")
         create_kwargs: dict[str, Any] = {

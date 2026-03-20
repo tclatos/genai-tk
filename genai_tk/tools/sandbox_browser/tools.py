@@ -369,6 +369,35 @@ class BrowserGetLogsTool(_BrowserTool):
         return self.session.get_event_log(last_n=last_n)
 
 
+class BrowserEvaluateTool(_BrowserTool):
+    """Run JavaScript in the page and return the result."""
+
+    name: str = "browser_evaluate"
+    description: str = (
+        "Execute a JavaScript expression in the current page and return the result. "
+        "The expression must return a JSON-serializable value (string, number, object, array). "
+        "Useful for inspecting page state, checking element attributes, reading JS variables, "
+        "or diagnosing browser fingerprint (e.g. navigator.userAgent). "
+        "Example: 'document.querySelector(\"h1\").textContent' or 'navigator.userAgent'."
+    )
+
+    def _run(self, expression: str) -> str:
+        return asyncio.get_event_loop().run_until_complete(self._arun(expression=expression))
+
+    async def _arun(self, expression: str, **kwargs: Any) -> str:
+        await self._ensure_connected()
+        page = self.session.page
+        try:
+            result = await page.evaluate(expression)
+            if isinstance(result, str):
+                return result[:4000]
+            import json  # noqa: PLC0415
+
+            return json.dumps(result, ensure_ascii=False, default=str)[:4000]
+        except Exception as exc:
+            return f"Evaluate failed: {exc}"
+
+
 # Registry for easy access
 ALL_BROWSER_TOOLS: list[type[_BrowserTool]] = [
     BrowserNavigateTool,
@@ -382,4 +411,5 @@ ALL_BROWSER_TOOLS: list[type[_BrowserTool]] = [
     BrowserSaveCookiesTool,
     BrowserLoadCookiesTool,
     BrowserGetLogsTool,
+    BrowserEvaluateTool,
 ]
