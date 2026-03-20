@@ -63,6 +63,11 @@ class SandboxBrowserSession:
     def connected(self) -> bool:
         return self._connected
 
+    @property
+    def vnc_url(self) -> str:
+        """Return the noVNC URL for visual debugging of the sandbox browser."""
+        return f"{self._sandbox_url}/vnc/index.html?autoconnect=true"
+
     async def connect(self) -> None:
         """Connect to the sandbox browser via CDP and create a page."""
         if self._connected:
@@ -94,6 +99,7 @@ class SandboxBrowserSession:
         self._context = await self._browser.new_context(
             viewport={"width": width, "height": height},
             locale=self.config.locale,
+            ignore_https_errors=self.config.ignore_https_errors,
         )
 
         if self.config.anti_bot_js:
@@ -178,6 +184,7 @@ class SandboxBrowserSession:
         self._context = await self._browser.new_context(
             viewport={"width": width, "height": height},
             locale=self.config.locale,
+            ignore_https_errors=self.config.ignore_https_errors,
             storage_state=state,
         )
         if self.config.anti_bot_js:

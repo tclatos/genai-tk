@@ -143,16 +143,22 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             base_url=self._base_url, httpx_client=httpx.AsyncClient(trust_env=False, timeout=120)
         )
         logger.info(f"AioSandbox ready at {self._base_url}")
+        logger.info(f"VNC (visual debug): {self._base_url}/vnc/index.html?autoconnect=true")
 
     async def stop(self) -> None:
         """Kill the sandbox and stop the server if we started it."""
+        if self._client is not None:
+            try:
+                await self._client.httpx_client.aclose()  # type: ignore[union-attr]
+            except Exception:
+                pass
         self._client = None
         if self._sandbox is not None:
             sbx, self._sandbox = self._sandbox, None
             try:
                 await sbx.kill()  # type: ignore[attr-defined]
             except Exception as exc:
-                logger.warning(f"sandbox kill failed: {exc}")
+                logger.debug(f"sandbox kill (non-critical): {exc}")
             logger.info("AioSandbox stopped")
         if self._server_proc is not None:
             proc, self._server_proc = self._server_proc, None

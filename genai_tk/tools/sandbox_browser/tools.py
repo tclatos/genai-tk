@@ -68,6 +68,18 @@ class _BrowserTool(BaseTool):
     async def _ensure_connected(self) -> None:
         if not self.session.connected:
             await self.session.connect()
+            return
+        # Detect stale connection (browser/context closed by remote crash or timeout)
+        try:
+            page = self.session.page
+            # Quick liveness check — if the browser is dead this throws
+            await page.evaluate("1")
+        except Exception:
+            from loguru import logger  # noqa: PLC0415
+
+            logger.warning("Browser context appears dead — reconnecting")
+            await self.session.close()
+            await self.session.connect()
 
 
 # ---------------------------------------------------------------------------

@@ -283,6 +283,64 @@ class SandboxCommands(CliTopCommand):
             for tip in tips:
                 console.print(f"[yellow]Tip:[/yellow] {tip}" if not tip.startswith("[yellow]Server") else tip)
 
+        @cli_app.command("list")
+        def list_sandboxes(
+            config_url: str = typer.Option("", "--url", help="opensandbox-server URL (default: from sandbox.yaml)"),
+        ) -> None:
+            """List active sandboxes and their VNC / API URLs.
+
+            Shows the per-container endpoints needed for debugging:
+            noVNC URL for visual inspection, API base for shell/browser access.
+            """
+            import httpx
+            from rich.table import Table
+
+            from genai_tk.agents.sandbox.config import get_docker_aio_settings
+
+            server_url = config_url or get_docker_aio_settings().opensandbox_server_url
+            try:
+                resp = httpx.get(f"{server_url}/v1/sandboxes", timeout=5.0)
+                resp.raise_for_status()
+            except Exception as exc:
+                console.print(f"[red]Cannot reach opensandbox-server at {server_url}:[/red] {exc}")
+                raise typer.Exit(1) from exc
+
+            data = resp.json()
+            sandboxes = data if isinstance(data, list) else data.get("sandboxes", data.get("data", []))
+            if not sandboxes:
+                console.print("[dim]No active sandboxes.[/dim]")
+                return
+
+            table = Table(title=f"Active Sandboxes ({server_url})")
+            table.add_column("ID", style="cyan", no_wrap=True)
+            table.add_column("Status", style="green")
+            table.add_column("API URL", style="white")
+            table.add_column("VNC URL", style="blue")
+
+            for sbx in sandboxes:
+                sbx_id = sbx.get("id", sbx.get("sandbox_id", "?"))
+                sbx_status = sbx.get("status", "?")
+                # Build per-container URL from endpoints or port mappings
+                endpoints = sbx.get("endpoints", sbx.get("ports", {}))
+                api_url = ""
+                vnc_url = ""
+                if isinstance(endpoints, dict):
+                    ep_8080 = endpoints.get("8080", endpoints.get(8080, {}))
+                    if isinstance(ep_8080, dict):
+                        host = ep_8080.get("endpoint", ep_8080.get("host", ""))
+                        if host:
+                            api_url = f"http://{host}"
+                            vnc_url = f"http://{host}/vnc/index.html?autoconnect=true"
+                    elif isinstance(ep_8080, str) and ep_8080:
+                        api_url = f"http://{ep_8080}"
+                        vnc_url = f"http://{ep_8080}/vnc/index.html?autoconnect=true"
+                table.add_row(sbx_id[:12], sbx_status, api_url, vnc_url)
+
+            console.print(table)
+            console.print(
+                "[dim]Open the VNC URL in a browser to see the sandbox desktop and Chromium in real time.[/dim]"
+            )
+
         @cli_app.command("pull")
         def pull(
             image: str = typer.Option("", "--image", "-i", help="Docker image to pull (default: from sandbox.yaml)"),
