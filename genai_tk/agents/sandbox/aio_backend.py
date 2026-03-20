@@ -166,11 +166,18 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         # Build volume mounts from config + runtime additions
         volumes = self._build_volumes()
 
+        # Merge environment vars: inject BROWSER_EXTRA_ARGS for SSL compatibility
+        # unless already set by the user.  The sandbox container's Chromium uses
+        # this env var for additional launch flags.
+        env = dict(self.config.env_vars)
+        if "BROWSER_EXTRA_ARGS" not in env:
+            env["BROWSER_EXTRA_ARGS"] = "--ignore-certificate-errors"
+
         logger.debug(f"Starting AIO sandbox via {server_url}")
         create_kwargs: dict[str, Any] = {
             "timeout": timedelta(seconds=startup_timeout),
             "entrypoint": self.config.entrypoint,
-            "env": self.config.env_vars,
+            "env": env,
             "connection_config": conn_config,
             "health_check": _health_check,
         }
@@ -212,6 +219,38 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             pid_file = Path.home() / ".cache" / "genai-tk" / "opensandbox-server.pid"
             pid_file.unlink(missing_ok=True)
             logger.info("opensandbox-server stopped")
+
+    def detach(self) -> None:
+        """Release all references without killing processes or containers.
+
+        Used by ``--keep-sandbox`` to prevent asyncio’s subprocess transport
+        ``__del__`` from sending SIGKILL to the opensandbox-server on exit.
+        The server PID file is preserved so ``cli sandbox stop`` still works.
+        """
+        # Close the httpx client — we don't need it
+        if self._client is not None:
+            try:
+                import asyncio as _aio
+
+                loop = _aio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(self._client.httpx_client.aclose())  # type: ignore[union-attr]
+            except Exception:
+                pass
+        self._client = None
+
+        # Detach the asyncio subprocess transport so __del__ won't kill the server.
+        # The actual OS process survives because we used start_new_session=True.
+        if self._server_proc is not None:
+            transport = getattr(self._server_proc, "_transport", None)
+            if transport is not None:
+                transport._closed = True  # prevent __del__ -> close() -> kill()
+            self._server_proc = None
+
+        # Release the sandbox reference without killing the container.
+        self._sandbox = None
+        self._connected = False  # type: ignore[attr-defined]
+        logger.info("AioSandbox detached — server and container left running")
 
     async def _ensure_server(self, server_url: str) -> object | None:
         """Return ``None`` if the server is already up, otherwise start it and return the process.

@@ -156,19 +156,20 @@ class LangchainAgent(BaseModel):
     async def close(self) -> None:
         """Stop any running backend (e.g. Docker sandbox).
 
-        When ``keep_sandbox`` is True the container is left running so the user
-        can inspect it via VNC; only the Playwright connection is dropped.
+        When ``keep_sandbox`` is True the container and server are left running;
+        references are detached so GC won't kill them.
         """
         if self._agent is None:
             return
         backend = getattr(self._agent, "_backend", None)
-        if backend is not None and hasattr(backend, "stop"):
-            if self.keep_sandbox:
+        if backend is not None:
+            if self.keep_sandbox and hasattr(backend, "detach"):
                 vnc = getattr(backend, "_base_url", "")
                 if vnc:
                     logger.info(f"Sandbox kept alive — VNC: {vnc}/vnc/index.html?autoconnect=true")
                     logger.info("Use 'cli sandbox list' to see running containers, 'cli sandbox stop' to clean up.")
-            else:
+                backend.detach()
+            elif hasattr(backend, "stop"):
                 await backend.stop()
         self._agent = None
 
