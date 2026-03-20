@@ -166,12 +166,17 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         # Build volume mounts from config + runtime additions
         volumes = self._build_volumes()
 
-        # Merge environment vars: inject BROWSER_EXTRA_ARGS for SSL compatibility
-        # unless already set by the user.  The sandbox container's Chromium uses
-        # this env var for additional launch flags.
+        # Merge environment vars: inject browser flags for SSL compatibility and
+        # anti-bot stealth.  The sandbox container's entrypoint appends
+        # BROWSER_EXTRA_ARGS to Chromium's command line and uses BROWSER_USER_AGENT
+        # for the --user-agent flag.
         env = dict(self.config.env_vars)
         if "BROWSER_EXTRA_ARGS" not in env:
-            env["BROWSER_EXTRA_ARGS"] = "--ignore-certificate-errors"
+            env["BROWSER_EXTRA_ARGS"] = "--ignore-certificate-errors --disable-blink-features=AutomationControlled"
+        if "BROWSER_USER_AGENT" not in env:
+            env["BROWSER_USER_AGENT"] = (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            )
 
         logger.debug(f"Starting AIO sandbox via {server_url}")
         create_kwargs: dict[str, Any] = {

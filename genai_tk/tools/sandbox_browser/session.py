@@ -30,10 +30,45 @@ if TYPE_CHECKING:
 
 # Anti-bot JS injected via add_init_script before any page JS runs.
 _ANTI_BOT_SCRIPT = """
+// Hide webdriver flag (primary automation detection vector)
 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]});
+delete navigator.__proto__.webdriver;
+
+// Fake plugins array (headless has none)
+Object.defineProperty(navigator, 'plugins', {
+  get: () => {
+    const arr = [
+      {name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer'},
+      {name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai'},
+      {name: 'Native Client', filename: 'internal-nacl-plugin'},
+    ];
+    arr.item = i => arr[i];
+    arr.namedItem = n => arr.find(p => p.name === n);
+    arr.refresh = () => {};
+    return arr;
+  }
+});
+
+// Languages
 Object.defineProperty(navigator, 'languages', {get: () => ['fr-FR', 'fr', 'en-US', 'en']});
-window.chrome = {runtime: {}};
+
+// Chrome runtime object (missing in headless)
+window.chrome = window.chrome || {};
+window.chrome.runtime = window.chrome.runtime || {};
+
+// Permissions query override (headless returns 'denied' for notifications)
+const origQuery = window.navigator.permissions?.query?.bind(window.navigator.permissions);
+if (origQuery) {
+  window.navigator.permissions.query = (params) =>
+    params.name === 'notifications'
+      ? Promise.resolve({state: Notification.permission})
+      : origQuery(params);
+}
+
+// Hide CDP artifacts
+delete window.cdc_adoQpoasnfa76pfcZLmcfl_Array;
+delete window.cdc_adoQpoasnfa76pfcZLmcfl_Promise;
+delete window.cdc_adoQpoasnfa76pfcZLmcfl_Symbol;
 """
 
 
@@ -101,6 +136,9 @@ class SandboxBrowserSession:
             viewport={"width": width, "height": height},
             locale=self.config.locale,
             ignore_https_errors=self.config.ignore_https_errors,
+            user_agent=(
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+            ),
         )
 
         if self.config.anti_bot_js:
