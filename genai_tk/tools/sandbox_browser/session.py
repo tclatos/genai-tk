@@ -87,6 +87,7 @@ class SandboxBrowserSession:
         self._page: Page | None = None
         self._playwright: object | None = None
         self._connected = False
+        self._owns_context = True  # False when reusing the browser's default context
         self._event_log: list[str] = []  # in-memory log surviving browser disconnect
 
     @property
@@ -129,22 +130,43 @@ class SandboxBrowserSession:
         self._playwright = pw
         self._browser = await pw.chromium.connect_over_cdp(cdp_url)
 
-        # Create context with anti-bot mitigations and locale
+        # Reuse the browser's DEFAULT context so that all launch flags
+        # (--user-agent, --disable-blink-features=AutomationControlled, etc.)
+        # are inherited.  Creating a new_context() over CDP does NOT inherit
+        # Chromium launch flags — that causes bot-detection redirects.
+        contexts = self._browser.contexts
+        if contexts:
+            self._context = contexts[0]
+            self._owns_context = False
+            pages = self._context.pages
+            if pages:
+                self._page = pages[0]
+            else:
+                self._page = await self._context.new_page()
+        else:
+            # Fallback: create a fresh context (shouldn't happen with sandbox)
+            width = self.config.viewport_width + random.randint(-30, 30)
+            height = self.config.viewport_height + random.randint(-30, 30)
+            self._context = await self._browser.new_context(
+                viewport={"width": width, "height": height},
+                locale=self.config.locale,
+                ignore_https_errors=self.config.ignore_https_errors,
+                user_agent=(
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+                ),
+            )
+            self._owns_context = True
+            self._page = await self._context.new_page()
+
+        # Set viewport on whichever page we ended up with
         width = self.config.viewport_width + random.randint(-30, 30)
         height = self.config.viewport_height + random.randint(-30, 30)
-        self._context = await self._browser.new_context(
-            viewport={"width": width, "height": height},
-            locale=self.config.locale,
-            ignore_https_errors=self.config.ignore_https_errors,
-            user_agent=(
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-            ),
-        )
+        await self._page.set_viewport_size({"width": width, "height": height})
 
         if self.config.anti_bot_js:
             await self._context.add_init_script(_ANTI_BOT_SCRIPT)
 
-        self._page = await self._context.new_page()
         self._connected = True
 
         # Attach browser-level event listeners for debugging
@@ -158,7 +180,9 @@ class SandboxBrowserSession:
         # Detach event listeners before closing to avoid callbacks on dead objects
         self._detach_debug_listeners()
         try:
-            if self._context:
+            # Only close the context if we created it; the browser's default
+            # context must not be closed — that would tear down Chromium.
+            if self._context and self._owns_context:
                 await self._context.close()
         except Exception as exc:
             logger.warning(f"Error closing browser context: {exc}")
