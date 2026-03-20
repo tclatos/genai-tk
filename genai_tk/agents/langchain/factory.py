@@ -345,17 +345,24 @@ def _load_skills_as_prompt(skill_dirs: list[str]) -> str | None:
 
 
 def _resolve_skill_dirs(skill_directories: list[str]) -> list[str]:
-    """Resolve ``${...}`` variable interpolation in skill directory paths.
+    """Resolve ``${...}`` variable interpolation in skill directory paths and expand
+    to the level that deepagents' ``SkillsMiddleware`` expects.
 
-    Uses OmegaConf so that paths like ``${paths.project}/skills/my-skill``
-    are resolved correctly even when the variable is not the entire string.
+    ``SkillsMiddleware`` scans exactly one level deep:
+    ``source_path/skill-name/SKILL.md``.  If a configured directory does not have
+    any immediate subdirectory with a ``SKILL.md``, it is automatically expanded
+    to the subdirectories that do — so pointing at a top-level ``skills/``
+    folder that groups collections inside it (``skills/custom/``,
+    ``skills/langchain_examples/``) works transparently.
     """
     if not skill_directories:
         return []
 
-    from omegaconf import OmegaConf
+    from pathlib import Path  # noqa: PLC0415
 
-    from genai_tk.utils.config_mngr import get_raw_config
+    from omegaconf import OmegaConf  # noqa: PLC0415
+
+    from genai_tk.utils.config_mngr import get_raw_config  # noqa: PLC0415
 
     try:
         cfg = OmegaConf.create({"dirs": skill_directories})
@@ -370,4 +377,21 @@ def _resolve_skill_dirs(skill_directories: list[str]) -> list[str]:
     missing = [d for d in resolved if d not in existing]
     if missing:
         logger.warning(f"Skill directories not found (will be ignored): {missing}")
-    return existing
+
+    # Expand to source-level directories: SkillsMiddleware needs a path whose
+    # immediate subdirs are the individual skills (each containing SKILL.md).
+    # If a dir's immediate children don't have SKILL.md, expand one level.
+    sources: list[str] = []
+    for d in existing:
+        base = Path(d)
+        subdirs = [sd for sd in base.iterdir() if sd.is_dir()]
+        if any((sd / "SKILL.md").is_file() for sd in subdirs):
+            # Already at skill-source level
+            sources.append(d)
+        else:
+            # Expand: include subdirs that themselves contain skill directories
+            for sub in sorted(subdirs):
+                sub_subdirs = [sd for sd in sub.iterdir() if sd.is_dir()]
+                if any((sd / "SKILL.md").is_file() for sd in sub_subdirs):
+                    sources.append(str(sub))
+    return sources
