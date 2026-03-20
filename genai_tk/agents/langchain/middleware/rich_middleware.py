@@ -442,8 +442,19 @@ class RichToolCallMiddleware(AgentMiddleware):
 
     def _print_llm_response_summary(self, response: Any, elapsed: float) -> None:
         """Print a one-line summary of what the LLM returned."""
-        tool_calls = getattr(response, "tool_calls", None) or []
-        content = getattr(response, "content", None)
+        # Unwrap deepagents ModelResponse / ExtendedModelResponse wrappers
+        # to get the actual AIMessage with content and tool_calls.
+        msg = response
+        if hasattr(response, "model_response"):
+            # ExtendedModelResponse → ModelResponse → result[0]
+            response = response.model_response
+        if hasattr(response, "result"):
+            # ModelResponse.result is list[BaseMessage]; first is the AI message
+            msgs = response.result
+            msg = msgs[0] if msgs else response
+
+        tool_calls = getattr(msg, "tool_calls", None) or []
+        content = getattr(msg, "content", None)
         text_len = 0
         if isinstance(content, str):
             text_len = len(content)
@@ -458,10 +469,9 @@ class RichToolCallMiddleware(AgentMiddleware):
             parts.append(f"[dim]{text_len} chars text[/dim]")
         if not tool_calls and not text_len:
             parts.append("[bold red]⚠ empty response (no tool calls, no text)[/bold red]")
-            # Log the raw response for debugging empty outputs
-            logger.warning(f"LLM #{self._call_count}: empty response — raw type={type(response).__name__}")
+            logger.warning(f"LLM #{self._call_count}: empty response — raw type={type(msg).__name__}")
             raw_attrs = {
-                a: repr(getattr(response, a, None))[:200]
+                a: repr(getattr(msg, a, None))[:200]
                 for a in (
                     "content",
                     "tool_calls",
@@ -471,7 +481,7 @@ class RichToolCallMiddleware(AgentMiddleware):
                     "type",
                     "id",
                 )
-                if hasattr(response, a)
+                if hasattr(msg, a)
             }
             logger.debug(f"LLM #{self._call_count} raw attrs: {raw_attrs}")
             if self._details:
