@@ -466,6 +466,8 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         infos: list[FileInfo] = []
         for f in data.files:
             info: FileInfo = {"path": f.path}
+            if f.is_directory:
+                info["is_dir"] = True
             if f.size is not None:
                 info["size"] = f.size
             infos.append(info)
