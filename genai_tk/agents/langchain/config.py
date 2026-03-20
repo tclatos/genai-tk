@@ -494,18 +494,18 @@ def _resolve_interpolation(value: str) -> str:
     return str(OmegaConf.to_container(merged, resolve=True)["_v"])  # type: ignore[index]
 
 
-async def create_backend(config: BackendConfig | None) -> BackendProtocol | None:
-    """Instantiate and start a deepagents backend from config.
+async def instantiate_backend(config: BackendConfig | None) -> BackendProtocol | None:
+    """Instantiate a backend from config without calling ``start()``.
 
-    Backends with an async ``start()`` method (e.g. ``AioSandboxBackend``) are
-    started automatically.  Callers are responsible for calling ``stop()`` (or
-    using the backend as an async context manager) when done.
+    Use this when you need to configure the backend (e.g. add volume mounts)
+    before the container starts.  The caller is responsible for calling
+    ``await backend.start()`` afterwards.
 
     Args:
         config: Backend configuration, or ``None`` / ``type: none`` for no backend.
 
     Returns:
-        A started ``BackendProtocol`` instance, or ``None`` when ``type`` is ``none``.
+        An unstarted ``BackendProtocol`` instance, or ``None`` when ``type`` is ``none``.
     """
     if config is None or config.type == "none":
         return None
@@ -520,24 +520,40 @@ async def create_backend(config: BackendConfig | None) -> BackendProtocol | None
         from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
         from genai_tk.agents.sandbox.config import get_docker_aio_settings
 
-        # Start from shared sandbox.yaml settings, then layer per-profile overrides on top
         base_settings = get_docker_aio_settings()
         overrides = {**config.kwargs, **config.extra_kwargs}
         if overrides:
             sandbox_cfg = base_settings.model_copy(update=overrides)
         else:
             sandbox_cfg = base_settings
-        backend = AioSandboxBackend(config=sandbox_cfg)
-        await backend.start()
-        return backend
+        return AioSandboxBackend(config=sandbox_cfg)
 
     if config.type == "class":
         if not config.class_path:
             raise ValueError("backend.class is required when type is 'class'")
         cls = import_from_qualified(config.class_path)
-        backend = cls(**config.kwargs)
-        if hasattr(backend, "start"):
-            await backend.start()
-        return backend
+        return cls(**config.kwargs)
 
     raise ValueError(f"Unknown backend type: {config.type!r}")
+
+
+async def create_backend(config: BackendConfig | None) -> BackendProtocol | None:
+    """Instantiate and start a deepagents backend from config.
+
+    Backends with an async ``start()`` method (e.g. ``AioSandboxBackend``) are
+    started automatically.  Callers are responsible for calling ``stop()`` (or
+    using the backend as an async context manager) when done.
+
+    When you need to configure the backend before starting (e.g. add volume mounts),
+    use ``instantiate_backend`` instead, configure, then call ``await backend.start()``.
+
+    Args:
+        config: Backend configuration, or ``None`` / ``type: none`` for no backend.
+
+    Returns:
+        A started ``BackendProtocol`` instance, or ``None`` when ``type`` is ``none``.
+    """
+    backend = await instantiate_backend(config)
+    if backend is not None and hasattr(backend, "start"):
+        await backend.start()
+    return backend

@@ -26,8 +26,8 @@ from genai_tk.agents.langchain.config import (
     AgentProfileConfig,
     BackendConfig,
     CheckpointerConfig,
-    create_backend,
     create_checkpointer,
+    instantiate_backend,
     instantiate_middlewares,
 )
 from genai_tk.core.llm_factory import get_llm
@@ -115,7 +115,24 @@ async def create_langchain_agent(
             f"Profile '{profile.name}' (type={profile.type}) has a backend configured "
             "but backends are only used by deep agents — ignoring."
         )
-    backend = await create_backend(backend_cfg) if profile.type == "deep" else None
+
+    backend: Any = None
+    if profile.type == "deep":
+        from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend  # noqa: PLC0415
+
+        # For AIO sandbox backends, resolve skill volume mounts BEFORE starting
+        # the container — Sandbox.create() requires volumes at creation time.
+        backend = await instantiate_backend(backend_cfg)
+        if isinstance(backend, AioSandboxBackend) and profile.skill_directories:
+            from pathlib import Path as _Path  # noqa: PLC0415
+
+            skill_dirs = _resolve_skill_dirs(profile.skill_directories)
+            for d in skill_dirs:
+                container_path = f"/mnt/skills/{_Path(d).name}"
+                backend.add_volume(d, container_path, read_only=True)
+                logger.info(f"Skill mount: {d} → {container_path} (read-only)")
+        if backend is not None and hasattr(backend, "start"):
+            await backend.start()
 
     # When an AioSandboxBackend starts it gets a dynamic per-container URL
     # (e.g. http://127.0.0.1:46628).  Browser tools are created *before* the
@@ -211,17 +228,11 @@ async def _create_deep_agent(
         project_root = paths_config().project
         backend = FilesystemBackend(root_dir=project_root, virtual_mode=True)
 
-    # For AioSandboxBackend: bind-mount each skill directory into the container
-    # and rewrite skill paths to the container mount points.
+    # For AioSandboxBackend: volumes were already mounted before container start
+    # (done in create_langchain_agent).  Just compute the container paths.
     relative_skills: list[str] | None = None
     if skill_dirs and isinstance(backend, AioSandboxBackend):
-        relative_skills = []
-        for d in skill_dirs:
-            dir_name = Path(d).name
-            container_path = f"/mnt/skills/{dir_name}"
-            backend.add_volume(d, container_path, read_only=True)
-            relative_skills.append(container_path)
-            logger.info(f"Skill mount: {d} → {container_path} (read-only)")
+        relative_skills = [f"/mnt/skills/{Path(d).name}" for d in skill_dirs]
     elif skill_dirs and backend is not None:
         # FilesystemBackend: convert to backend-relative paths
         backend_root = str(getattr(backend, "cwd", ""))
