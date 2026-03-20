@@ -18,6 +18,14 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class VolumeMountConfig(BaseModel):
+    """A bind-mount mapping a host directory into the sandbox container."""
+
+    host_path: str
+    container_path: str
+    read_only: bool = False
+
+
 class DockerAioSettings(BaseModel):
     """AioSandboxBackend settings.
 
@@ -31,6 +39,7 @@ class DockerAioSettings(BaseModel):
     env_vars: dict[str, str] = Field(default_factory=dict)
     opensandbox_server_url: str = "http://localhost:8080"
     entrypoint: list[str] = Field(default_factory=lambda: ["/opt/gem/run.sh"])
+    volumes: list[VolumeMountConfig] = Field(default_factory=list)
 
 
 class DockerSmolSettings(BaseModel):

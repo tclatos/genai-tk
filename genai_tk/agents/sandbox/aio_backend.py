@@ -22,7 +22,7 @@ import asyncio
 import shlex
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from deepagents.backends.protocol import (
     EditResult,
@@ -73,6 +73,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
     _server_proc: object | None = None
     _base_url: str = PrivateAttr(default="")
     _instance_id: str = PrivateAttr(default_factory=lambda: uuid.uuid4().hex[:12])
+    _extra_volumes: list = PrivateAttr(default_factory=list)  # runtime-added VolumeMountConfig items
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -80,6 +81,40 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
     def id(self) -> str:
         """Unique sandbox identifier."""
         return getattr(self._sandbox, "id", self._instance_id)
+
+    def add_volume(self, host_path: str, container_path: str, *, read_only: bool = False) -> None:
+        """Register an additional bind-mount to include when the sandbox starts.
+
+        Must be called **before** ``start()``.
+        """
+        from genai_tk.agents.sandbox.models import VolumeMountConfig  # noqa: PLC0415
+
+        self._extra_volumes.append(
+            VolumeMountConfig(host_path=host_path, container_path=container_path, read_only=read_only)
+        )
+
+    def _build_volumes(self) -> list:
+        """Convert config + runtime volume mounts into opensandbox ``Volume`` objects."""
+        from opensandbox.models.sandboxes import Host, Volume  # noqa: PLC0415
+
+        from genai_tk.agents.sandbox.models import VolumeMountConfig  # noqa: PLC0415
+
+        all_mounts: list[VolumeMountConfig] = list(self.config.volumes) + list(self._extra_volumes)
+        if not all_mounts:
+            return []
+
+        volumes: list[Volume] = []
+        for i, m in enumerate(all_mounts):
+            volumes.append(
+                Volume(
+                    name=f"vol-{i}",
+                    host=Host(path=m.host_path),
+                    mount_path=m.container_path,
+                    read_only=m.read_only,
+                )
+            )
+            logger.debug(f"Volume mount: {m.host_path} → {m.container_path} (ro={m.read_only})")
+        return volumes
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -128,15 +163,21 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
                         return False
                     await asyncio.sleep(1.0)
 
+        # Build volume mounts from config + runtime additions
+        volumes = self._build_volumes()
+
         logger.debug(f"Starting AIO sandbox via {server_url}")
-        self._sandbox = await Sandbox.create(
-            self.config.image,
-            timeout=timedelta(seconds=startup_timeout),
-            entrypoint=self.config.entrypoint,
-            env=self.config.env_vars,
-            connection_config=conn_config,
-            health_check=_health_check,
-        )
+        create_kwargs: dict[str, Any] = {
+            "timeout": timedelta(seconds=startup_timeout),
+            "entrypoint": self.config.entrypoint,
+            "env": self.config.env_vars,
+            "connection_config": conn_config,
+            "health_check": _health_check,
+        }
+        if volumes:
+            create_kwargs["volumes"] = volumes
+            logger.info(f"Mounting {len(volumes)} volume(s) into sandbox")
+        self._sandbox = await Sandbox.create(self.config.image, **create_kwargs)
         endpoint = await self._sandbox.get_endpoint(8080)  # type: ignore[attr-defined]
         self._base_url = f"http://{endpoint.endpoint}"
         self._client = AsyncSandbox(

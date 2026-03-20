@@ -189,9 +189,17 @@ async def _create_deep_agent(
     the LLM sees skill metadata and reads full content on demand via file
     tools.  An explicit ``system_prompt`` in the YAML profile is passed
     through unchanged.
+
+    For ``AioSandboxBackend`` (Docker), local skill directories are bind-mounted
+    into the container at ``/mnt/skills/<dirname>`` so the SkillsMiddleware can
+    read them via the backend filesystem — just like Deer Flow does.
     """
+    from pathlib import Path  # noqa: PLC0415
+
     from deepagents import create_deep_agent
     from deepagents.backends.filesystem import FilesystemBackend
+
+    from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
 
     skill_dirs = _resolve_skill_dirs(profile.skill_directories)
 
@@ -203,10 +211,19 @@ async def _create_deep_agent(
         project_root = paths_config().project
         backend = FilesystemBackend(root_dir=project_root, virtual_mode=True)
 
-    # Convert absolute skill paths to backend-relative paths so that
-    # deepagents' SkillsMiddleware can resolve them via the backend.
+    # For AioSandboxBackend: bind-mount each skill directory into the container
+    # and rewrite skill paths to the container mount points.
     relative_skills: list[str] | None = None
-    if skill_dirs and backend is not None:
+    if skill_dirs and isinstance(backend, AioSandboxBackend):
+        relative_skills = []
+        for d in skill_dirs:
+            dir_name = Path(d).name
+            container_path = f"/mnt/skills/{dir_name}"
+            backend.add_volume(d, container_path, read_only=True)
+            relative_skills.append(container_path)
+            logger.info(f"Skill mount: {d} → {container_path} (read-only)")
+    elif skill_dirs and backend is not None:
+        # FilesystemBackend: convert to backend-relative paths
         backend_root = str(getattr(backend, "cwd", ""))
         relative_skills = []
         for d in skill_dirs:
