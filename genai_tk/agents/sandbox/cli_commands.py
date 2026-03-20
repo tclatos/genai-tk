@@ -102,6 +102,13 @@ def _docker_image_local(image: str) -> bool:
         return False  # docker not installed
 
 
+def _playwright_installed() -> bool:
+    """Return ``True`` if the ``playwright`` Python package is importable."""
+    import importlib.util
+
+    return importlib.util.find_spec("playwright") is not None
+
+
 class SandboxCommands(CliTopCommand):
     """Commands for managing the OpenSandbox server daemon and Docker images."""
 
@@ -233,6 +240,7 @@ class SandboxCommands(CliTopCommand):
             proc_alive = pid is not None and _is_pid_alive(pid)
             http_ok = asyncio.run(_check_server_http(server_url))
             image_local = _docker_image_local(image)
+            playwright_ok = _playwright_installed()
 
             table = Table(title="OpenSandbox Status", show_header=False, box=None)
             table.add_column("Key", style="bold cyan", no_wrap=True)
@@ -244,6 +252,10 @@ class SandboxCommands(CliTopCommand):
                 f"{image}  [green](cached locally)[/green]"
                 if image_local
                 else f"{image}  [yellow](not pulled yet)[/yellow]",
+            )
+            table.add_row(
+                "playwright",
+                "[green]installed[/green]" if playwright_ok else "[red]missing[/red]",
             )
             table.add_row(
                 "Daemon PID",
@@ -266,6 +278,8 @@ class SandboxCommands(CliTopCommand):
                     tips.append("run [cyan]cli sandbox start[/cyan] to start the daemon")
             if not image_local:
                 tips.append("run [cyan]cli sandbox pull[/cyan] to cache the Docker image locally")
+            if not playwright_ok:
+                tips.append("run [cyan]uv sync --group browser-control[/cyan] to install playwright")
             for tip in tips:
                 console.print(f"[yellow]Tip:[/yellow] {tip}" if not tip.startswith("[yellow]Server") else tip)
 

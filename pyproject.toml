@@ -175,7 +175,7 @@ dev = [
 ]
 
 [tool.uv]
-default-groups = ["dev", "postgres"]
+default-groups = ["dev", "postgres", "browser-control"]
 
 package = true
 
