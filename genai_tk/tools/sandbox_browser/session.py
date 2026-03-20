@@ -107,12 +107,17 @@ class SandboxBrowserSession:
 
         self._page = await self._context.new_page()
         self._connected = True
+
+        # Attach browser-level event listeners for debugging
+        self._attach_debug_listeners()
         logger.info("Sandbox browser session connected")
 
     async def close(self) -> None:
         """Close the browser session and release resources."""
         if not self._connected:
             return
+        # Detach event listeners before closing to avoid callbacks on dead objects
+        self._detach_debug_listeners()
         try:
             if self._context:
                 await self._context.close()
@@ -134,6 +139,68 @@ class SandboxBrowserSession:
         self._playwright = None
         self._connected = False
         logger.info("Sandbox browser session closed")
+
+    # ------------------------------------------------------------------
+    # Debug event listeners
+    # ------------------------------------------------------------------
+
+    def _attach_debug_listeners(self) -> None:
+        """Wire Playwright event listeners for browser-level console and error logging."""
+        if not self.config.log_browser_console:
+            return
+        if self._page is not None:
+            self._page.on("console", self._on_console)
+            self._page.on("pageerror", self._on_page_error)
+            self._page.on("crash", self._on_page_crash)
+            self._page.on("close", self._on_page_close)
+        if self._browser is not None:
+            self._browser.on("disconnected", self._on_browser_disconnected)
+
+    def _detach_debug_listeners(self) -> None:
+        """Remove previously attached event listeners."""
+        try:
+            if self._page is not None:
+                self._page.remove_listener("console", self._on_console)
+                self._page.remove_listener("pageerror", self._on_page_error)
+                self._page.remove_listener("crash", self._on_page_crash)
+                self._page.remove_listener("close", self._on_page_close)
+        except Exception:
+            pass
+        try:
+            if self._browser is not None:
+                self._browser.remove_listener("disconnected", self._on_browser_disconnected)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _on_console(msg: object) -> None:
+        """Log browser console messages (console.log, console.warn, console.error)."""
+        msg_type = getattr(msg, "type", "log")
+        text = str(getattr(msg, "text", msg))
+        if msg_type in ("error", "warning"):
+            logger.warning(f"Browser console [{msg_type}]: {text[:500]}")
+        else:
+            logger.debug(f"Browser console [{msg_type}]: {text[:300]}")
+
+    @staticmethod
+    def _on_page_error(error: object) -> None:
+        """Log uncaught JavaScript exceptions."""
+        logger.error(f"Browser page error: {error}")
+
+    @staticmethod
+    def _on_page_crash(_: object) -> None:
+        """Log page (renderer) crash events."""
+        logger.error("Browser page CRASHED — renderer process died")
+
+    @staticmethod
+    def _on_page_close(_: object) -> None:
+        """Log when a page is closed (possibly by navigation or site JS)."""
+        logger.warning("Browser page closed")
+
+    @staticmethod
+    def _on_browser_disconnected(_: object) -> None:
+        """Log when the CDP connection to the browser drops."""
+        logger.error("Browser DISCONNECTED — CDP connection lost (container may have died)")
 
     async def save_cookies(self, name: str) -> str:
         """Save the current browser context storage state to a JSON file.

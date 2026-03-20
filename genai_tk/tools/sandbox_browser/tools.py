@@ -78,8 +78,15 @@ class _BrowserTool(BaseTool):
             from loguru import logger  # noqa: PLC0415
 
             logger.warning("Browser context appears dead — reconnecting")
-            await self.session.close()
-            await self.session.connect()
+            try:
+                await self.session.close()
+                await self.session.connect()
+            except Exception as reconn_exc:
+                raise RuntimeError(
+                    f"Browser connection lost and reconnect failed ({reconn_exc}). "
+                    "The sandbox container may have been terminated. "
+                    "Check 'cli sandbox list' or VNC for status."
+                ) from reconn_exc
 
 
 # ---------------------------------------------------------------------------

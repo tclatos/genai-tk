@@ -24,6 +24,7 @@ class SandboxBrowserConfig(BaseModel):
     slow_type_ms: int = 60
     anti_bot_js: bool = True
     ignore_https_errors: bool = True
+    log_browser_console: bool = True
     cookies_dir: str = "data/sessions"
     allowed_credential_envs: list[str] = Field(default_factory=list)
 
