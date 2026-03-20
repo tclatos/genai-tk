@@ -295,6 +295,7 @@ class BrowserSaveCookiesTool(_BrowserTool):
         return asyncio.get_event_loop().run_until_complete(self._arun(name=name))
 
     async def _arun(self, name: str, **kwargs: Any) -> str:
+        await self._ensure_connected()
         try:
             path = await self.session.save_cookies(name)
             return f"Session saved to {path}"
@@ -316,6 +317,8 @@ class BrowserLoadCookiesTool(_BrowserTool):
         return asyncio.get_event_loop().run_until_complete(self._arun(name=name))
 
     async def _arun(self, name: str, **kwargs: Any) -> str:
+        # Connect first so the browser is available when cookies exist
+        await self._ensure_connected()
         try:
             loaded = await self.session.load_cookies(name)
             if loaded:

@@ -117,6 +117,26 @@ async def create_langchain_agent(
         )
     backend = await create_backend(backend_cfg) if profile.type == "deep" else None
 
+    # When an AioSandboxBackend starts it gets a dynamic per-container URL
+    # (e.g. http://127.0.0.1:46628).  Browser tools are created *before* the
+    # backend from the profile's tool list and therefore carry the
+    # opensandbox-server URL (e.g. http://localhost:8080).  That URL only
+    # handles container lifecycle — the browser/CDP API lives on the container
+    # itself.  Patch the sessions now so they point at the right endpoint.
+    if backend is not None:
+        container_url: str = getattr(backend, "_base_url", "")
+        if container_url:
+            from genai_tk.tools.sandbox_browser.session import SandboxBrowserSession
+
+            patched = 0
+            for tool in all_tools:
+                session = getattr(tool, "session", None)
+                if isinstance(session, SandboxBrowserSession):
+                    session._sandbox_url = container_url
+                    patched += 1
+            if patched:
+                logger.debug(f"Patched {patched} browser tool session(s) → {container_url}")
+
     # 8. Dispatch to engine
     if profile.type == "react":
         return _create_react_agent(model, all_tools, middlewares, checkpointer, profile)
