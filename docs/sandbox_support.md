@@ -299,6 +299,57 @@ uv run cli agents smolagents --executor e2b "analyze data"
 
 ## CLI Usage
 
+### Optimising Docker Sandbox Startup (Recommended)
+
+Docker sandboxes are slow on first use (~28 seconds) because the server and image need to be initialised. To avoid this cost on every agent invocation, use the **`cli sandbox`** commands to warm up the infrastructure once:
+
+```bash
+# 1. Start the opensandbox-server as a background daemon (keeps running between invocations)
+cli sandbox start
+
+# 2. Pre-pull the Docker image so there's no download stall
+cli sandbox pull
+
+# 3. Verify everything is ready
+cli sandbox status
+```
+
+Once these run, every subsequent `--sandbox docker` agent call reuses the warm server and cached image, reducing startup from ~28 s to ~5–10 s.
+
+**`cli sandbox` subcommands:**
+
+| Command | Purpose |
+|---------|---------|
+| `cli sandbox start` | Launch opensandbox-server as a background daemon. Writes PID to `~/.cache/genai-tk/opensandbox-server.pid`. Returns immediately after the server becomes HTTP-ready. |
+| `cli sandbox stop` | Terminate the daemon and clean up the PID file. |
+| `cli sandbox status` | Show daemon status, image cache status, and HTTP reachability. Tips are printed only when action is needed. |
+| `cli sandbox pull` | Run `docker pull` on the configured image (default: `ghcr.io/agent-infra/sandbox:latest`). |
+
+**Example workflow:**
+
+```bash
+# Once per machine boot
+$ cli sandbox start
+opensandbox-server started (pid 12345)
+Listening at: http://localhost:8080
+Server is ready.
+Tip: run cli sandbox pull to pre-pull the Docker image.
+
+$ cli sandbox pull
+Pulling Docker image: ghcr.io/agent-infra/sandbox:latest
+Image ready: ghcr.io/agent-infra/sandbox:latest
+
+$ cli sandbox status
+           OpenSandbox Status
+ Server URL              http://localhost:8080
+ Docker image            ghcr.io/agent-infra/sandbox:latest  (cached locally)
+ Daemon PID              12345 (alive)
+ HTTP reachable          yes
+
+# Every agent invocation now reuses the warm server + cached image
+$ uv run cli agents langchain --sandbox docker "Your query"
+```
+
 ### Quick Start
 
 **LangChain:**

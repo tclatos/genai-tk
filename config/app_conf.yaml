@@ -34,6 +34,7 @@ cli:
     - genai_tk.core.commands_info:InfoCommands
     - genai_tk.extra.commands_extra:ExtraCommands
     - genai_tk.agents.commands_agents:AgentCommands
+    - genai_tk.agents.sandbox.cli_commands:SandboxCommands
     - genai_tk.extra.structured.commands_baml:BamlCommands
     - genai_tk.extra.rag.commands_rag:RagCommands
     - genai_tk.mcp.cli_commands:McpCommands

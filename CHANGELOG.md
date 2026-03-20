@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`cli sandbox` command group for Docker sandbox lifecycle management**
+  - `cli sandbox start` — Launches opensandbox-server as a background daemon (survives CLI process exit)
+  - `cli sandbox stop` — Terminates the daemon and cleans up PID file (`~/.cache/genai-tk/opensandbox-server.pid`)
+  - `cli sandbox status` — Shows daemon health, image cache status, and HTTP reachability; context-aware tips
+  - `cli sandbox pull` — Pre-pulls the configured Docker image to avoid first-run download stalls
+  - **Startup performance improvement**: Pre-warmed server + image reduces `--sandbox docker` overhead from ~28 s to ~5–10 s per invocation
+  - `_docker_image_local()` helper checks if image is cached via `docker image inspect`
+  - Daemon process detection uses `os.kill(pid, 0)` (safe liveness check, no side effects)
+  - Full documentation in `docs/sandbox_support.md` with workflow examples
+  - New file: `genai_tk/agents/sandbox/cli_commands.py` (SandboxCommands class)
+
 - **Deep Agent Text-to-SQL Example with Progressive Skill Disclosure**
   - New `text2sql` profile: SQL agent for Chinook music database with dynamic skill loading
   - Core identity (role, safety rules, approach) in `system_prompt` YAML field — always present in every LLM call
