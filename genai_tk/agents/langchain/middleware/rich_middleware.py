@@ -10,11 +10,13 @@ agent execution.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
 from langchain_core.language_models.base import LanguageModelOutput
+from loguru import logger
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
@@ -404,17 +406,53 @@ class RichToolCallMiddleware(AgentMiddleware):
         tool_name, tool_args = self._extract_tool_metadata(request)
         if self._details:
             self._detail_print_tool_call(tool_name, tool_args)
+        t0 = time.monotonic()
         response = await handler(request)
-        self._handle_tool_call(tool_name, tool_args, response) if not self._details else self._detail_print_tool_result(
-            tool_name, response
-        )
+        elapsed = time.monotonic() - t0
+        if self._details:
+            self._detail_print_tool_result(tool_name, response)
+            self._console.print(f"  [dim]⏱ {tool_name}: {elapsed:.1f}s[/dim]")
+        else:
+            self._handle_tool_call(tool_name, tool_args, response)
+        logger.debug(f"Tool {tool_name}: {elapsed:.1f}s")
         return response
 
     async def awrap_model_call(self, request: Any, handler: Callable[[Any], Awaitable[Any]]) -> Any:  # type: ignore[override]
-        """Trace each LLM invocation (detailed mode only)."""
+        """Trace each LLM invocation with timing and response summary."""
         if self._details:
             self._detail_print_llm_call(request)
-        return await handler(request)
+        t0 = time.monotonic()
+        response = await handler(request)
+        elapsed = time.monotonic() - t0
+        self._print_llm_response_summary(response, elapsed)
+        return response
+
+    # ------------------------------------------------------------------
+    # Response summary (always shown, compact or detailed)
+    # ------------------------------------------------------------------
+
+    def _print_llm_response_summary(self, response: Any, elapsed: float) -> None:
+        """Print a one-line summary of what the LLM returned."""
+        tool_calls = getattr(response, "tool_calls", None) or []
+        content = getattr(response, "content", None)
+        text_len = 0
+        if isinstance(content, str):
+            text_len = len(content)
+        elif isinstance(content, list):
+            text_len = sum(len(b.get("text", "")) if isinstance(b, dict) else len(str(b)) for b in content)
+
+        parts: list[str] = [f"[dim]{elapsed:.1f}s[/dim]"]
+        if tool_calls:
+            names = [tc.get("name", "?") for tc in tool_calls]
+            parts.append(f"[yellow]→ {len(tool_calls)} tool call(s): {', '.join(names)}[/yellow]")
+        if text_len:
+            parts.append(f"[dim]{text_len} chars text[/dim]")
+        if not tool_calls and not text_len:
+            parts.append("[bold red]⚠ empty response (no tool calls, no text)[/bold red]")
+
+        summary = "  ".join(parts)
+        self._console.print(f"  [dim]LLM #{self._call_count}:[/dim] {summary}")
+        logger.debug(f"LLM #{self._call_count}: {elapsed:.1f}s, tool_calls={len(tool_calls)}, text={text_len}")
 
 
 def create_rich_agent_middlewares(
