@@ -40,7 +40,7 @@ def _render_content(content: str, console: Console) -> None:
     )
 
 
-async def run_langchain_agent_shell(agent: LangchainAgent) -> None:
+async def run_langchain_agent_shell(agent: LangchainAgent, initial_query: str | None = None) -> None:
     """Run an interactive multi-turn shell for a ``LangchainAgent``.
 
     Initialises the agent once, then loops over prompts. Type ``/quit`` to exit.
@@ -48,6 +48,8 @@ async def run_langchain_agent_shell(agent: LangchainAgent) -> None:
     Args:
         agent: A configured ``LangchainAgent``. ``checkpointer=True`` is
             recommended for conversation memory.
+        initial_query: If provided, execute this query before entering the
+            interactive loop (useful for ``--sandbox docker`` auto-chat).
     """
     console = Console()
     assert agent._profile is not None
@@ -63,6 +65,19 @@ async def run_langchain_agent_shell(agent: LangchainAgent) -> None:
 
     history_file = Path(".blueprint.input.history")
     session: PromptSession = PromptSession(history=FileHistory(str(history_file)))
+
+    # Execute the initial query before entering the interactive loop
+    if initial_query and initial_query.strip():
+        console.print(Panel(initial_query, title="[bold blue]User[/bold blue]", border_style="blue"))
+        try:
+            result = await compiled.ainvoke(
+                {"messages": initial_query},
+                {"configurable": {"thread_id": "1"}},
+            )
+            _render_content(_extract_content(result), console)
+            console.print()
+        except Exception as e:
+            console.print(Panel(f"[red]Error: {e}[/red]", title="[bold red]Error[/bold red]", border_style="red"))
 
     try:
         while True:

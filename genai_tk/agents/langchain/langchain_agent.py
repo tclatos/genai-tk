@@ -202,12 +202,31 @@ class LangchainAgent(BaseModel):
                         f"Unsupported sandbox type for langchain agent: {self.sandbox!r}. Use: local, docker"
                     )
 
-                # Local skill directories are not accessible inside the Docker container,
-                # so clear them to prevent SkillsMiddleware from failing with a 404.
+                # Local skill directories are not accessible inside the Docker
+                # container via the backend filesystem.  Instead of dropping them,
+                # load the SKILL.md content now and inject it into the system prompt
+                # so the agent still has site-specific knowledge.
                 update: dict[str, Any] = {"backend": sandbox_backend, "skill_directories": []}
                 if profile.type != "deep":
                     update["type"] = "deep"
                     logger.debug(f"Sandbox override '{self.sandbox}': switched profile type to deep")
+
+                if profile.skill_directories:
+                    from genai_tk.agents.langchain.factory import _load_skills_as_prompt, _resolve_skill_dirs
+
+                    skill_dirs = _resolve_skill_dirs(profile.skill_directories)
+                    if skill_dirs:
+                        skills_text = _load_skills_as_prompt(skill_dirs)
+                        if skills_text:
+                            base_prompt = profile.system_prompt or ""
+                            update["system_prompt"] = (
+                                f"{base_prompt}\n\n"
+                                "# Site-Specific Skills\n\n"
+                                "Use the following skills to navigate known sites:\n\n"
+                                f"{skills_text}"
+                            ).strip()
+                            logger.info(f"Injected {len(skill_dirs)} skill(s) into system prompt (docker sandbox)")
+
                 profile = profile.model_copy(update=update)
 
             self._agent = await create_langchain_agent(

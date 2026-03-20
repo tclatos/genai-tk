@@ -167,10 +167,18 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
                 await asyncio.wait_for(proc.wait(), timeout=5.0)  # type: ignore[attr-defined]
             except asyncio.TimeoutError:
                 proc.kill()  # type: ignore[attr-defined]
+            # Clean up the PID file we wrote during _ensure_server
+            pid_file = Path.home() / ".cache" / "genai-tk" / "opensandbox-server.pid"
+            pid_file.unlink(missing_ok=True)
             logger.info("opensandbox-server stopped")
 
     async def _ensure_server(self, server_url: str) -> object | None:
-        """Return ``None`` if the server is already up, otherwise start it and return the process."""
+        """Return ``None`` if the server is already up, otherwise start it and return the process.
+
+        The server is started in a new session (``start_new_session=True``) so it
+        survives the parent process exiting — important for ``--keep-sandbox``.
+        A PID file is written so ``cli sandbox stop`` can find and terminate it.
+        """
         import shutil  # noqa: PLC0415
         import subprocess  # noqa: PLC0415
         import sys  # noqa: PLC0415
@@ -199,6 +207,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
                 server_cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                start_new_session=True,  # detach from parent so the server survives process exit
             )
         except (FileNotFoundError, PermissionError) as exc:
             raise RuntimeError(
@@ -212,6 +221,10 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
                 try:
                     await hc.get(check_url, timeout=2.0)
                     logger.info("opensandbox-server ready")
+                    # Write PID file so `cli sandbox stop` can find the server
+                    pid_file = Path.home() / ".cache" / "genai-tk" / "opensandbox-server.pid"
+                    pid_file.parent.mkdir(parents=True, exist_ok=True)
+                    pid_file.write_text(str(proc.pid))
                     return proc
                 except Exception:
                     pass

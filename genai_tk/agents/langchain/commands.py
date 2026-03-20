@@ -269,9 +269,18 @@ def register(cli_app: typer.Typer) -> None:
         assert agent._profile is not None
         _display_profile_info(agent._profile, llm or None)
 
+        # Docker sandbox browser tasks typically need multi-turn interaction
+        # (e.g. the agent may ask which site to use).  Auto-promote to chat mode
+        # so the user can reply, while still sending the initial query.
+        effective_chat = chat
+        if not chat and sandbox == "docker":
+            effective_chat = True
+            agent.checkpointer = True
+            console.print("[dim]ℹ  --sandbox docker implies --chat (multi-turn). Type /quit to exit.[/dim]")
+
         try:
-            if chat:
-                asyncio.run(run_langchain_agent_shell(agent))
+            if effective_chat:
+                asyncio.run(run_langchain_agent_shell(agent, initial_query=input_text))
             else:
                 asyncio.run(run_langchain_agent_direct(input_text, agent, stream=stream))
         except KeyboardInterrupt:
