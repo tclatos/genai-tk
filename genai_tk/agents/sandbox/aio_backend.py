@@ -166,13 +166,14 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         # Build volume mounts from config + runtime additions
         volumes = self._build_volumes()
 
-        # Merge environment vars: inject browser flags for SSL compatibility and
-        # anti-bot stealth.  The sandbox container's entrypoint appends
-        # BROWSER_EXTRA_ARGS to Chromium's command line and uses BROWSER_USER_AGENT
-        # for the --user-agent flag.
+        # Merge environment vars: inject browser flag to suppress automation signal.
+        # The sandbox container's entrypoint appends BROWSER_EXTRA_ARGS to Chromium's
+        # command line.  We only set --disable-blink-features=AutomationControlled to
+        # prevent navigator.webdriver=true.  IMPORTANT: Do NOT add --ignore-certificate-errors
+        # here — it alters the TLS fingerprint (JA3) and is detectable by WAFs.
         env = dict(self.config.env_vars)
         if "BROWSER_EXTRA_ARGS" not in env:
-            env["BROWSER_EXTRA_ARGS"] = "--ignore-certificate-errors --disable-blink-features=AutomationControlled"
+            env["BROWSER_EXTRA_ARGS"] = "--disable-blink-features=AutomationControlled"
 
         logger.debug(f"Starting AIO sandbox via {server_url}")
         create_kwargs: dict[str, Any] = {

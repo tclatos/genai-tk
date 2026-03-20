@@ -129,7 +129,11 @@ class SandboxBrowserSession:
         height = self.config.viewport_height + random.randint(-30, 30)
         await self._page.set_viewport_size({"width": width, "height": height})
 
-        if self.config.anti_bot_js:
+        # Only inject anti-bot script on contexts we created ourselves.
+        # The browser's default context already has launch flags applied
+        # (--disable-blink-features=AutomationControlled) and injecting via
+        # CDP's addScriptToEvaluateOnNewDocument is itself detectable.
+        if self.config.anti_bot_js and self._owns_context:
             await self._context.add_init_script(_ANTI_BOT_SCRIPT)
 
         self._connected = True
