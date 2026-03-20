@@ -422,7 +422,16 @@ class RichToolCallMiddleware(AgentMiddleware):
         if self._details:
             self._detail_print_llm_call(request)
         t0 = time.monotonic()
-        response = await handler(request)
+        try:
+            response = await handler(request)
+        except Exception as exc:
+            elapsed = time.monotonic() - t0
+            self._call_count += 1
+            self._console.print(
+                f"  [bold red]LLM #{self._call_count}: FAILED after {elapsed:.1f}s — {exc!r}[/bold red]"
+            )
+            logger.error(f"LLM #{self._call_count}: {elapsed:.1f}s, exception={exc!r}")
+            raise
         elapsed = time.monotonic() - t0
         self._print_llm_response_summary(response, elapsed)
         return response
@@ -449,6 +458,30 @@ class RichToolCallMiddleware(AgentMiddleware):
             parts.append(f"[dim]{text_len} chars text[/dim]")
         if not tool_calls and not text_len:
             parts.append("[bold red]⚠ empty response (no tool calls, no text)[/bold red]")
+            # Log the raw response for debugging empty outputs
+            logger.warning(f"LLM #{self._call_count}: empty response — raw type={type(response).__name__}")
+            raw_attrs = {
+                a: repr(getattr(response, a, None))[:200]
+                for a in (
+                    "content",
+                    "tool_calls",
+                    "additional_kwargs",
+                    "response_metadata",
+                    "usage_metadata",
+                    "type",
+                    "id",
+                )
+                if hasattr(response, a)
+            }
+            logger.debug(f"LLM #{self._call_count} raw attrs: {raw_attrs}")
+            if self._details:
+                self._console.print(
+                    Panel(
+                        "\n".join(f"[bold]{k}[/bold]: [dim]{v}[/dim]" for k, v in raw_attrs.items()),
+                        title="[bold red]⚠ Empty LLM Response Debug[/bold red]",
+                        border_style="red",
+                    )
+                )
 
         summary = "  ".join(parts)
         self._console.print(f"  [dim]LLM #{self._call_count}:[/dim] {summary}")
