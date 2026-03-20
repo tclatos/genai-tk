@@ -502,19 +502,6 @@ wheels = [
 ]
 
 [[package]]
-name = "browser-use-sdk"
-version = "3.3.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "httpx" },
-    { name = "pydantic" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7a/4d/d19839f9dc0c3746007930ed2991fa40158d8606e95acf8146c1acaad297/browser_use_sdk-3.3.1.tar.gz", hash = "sha256:c886dbba786b00a3435d56320d4e6d55cc75507712f8b814054b743ab716fba3", size = 63414, upload-time = "2026-03-18T23:52:42.827Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ff/b1/804eff93f5145326d42b428139d209e92d597c9ec78f0b1531c1eb50b9ec/browser_use_sdk-3.3.1-py3-none-any.whl", hash = "sha256:a5f4b9370dafcb0f58ab9076af016674fe7f79eb61dbf052807fe2c1aa8edc11", size = 47870, upload-time = "2026-03-18T23:52:41.794Z" },
-]
-
-[[package]]
 name = "build"
 version = "1.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1495,7 +1482,7 @@ autogen = [
     { name = "autogen-openaiext-client" },
 ]
 browser-control = [
-    { name = "browser-use-sdk" },
+    { name = "agent-sandbox" },
     { name = "playwright" },
 ]
 deer-flow-docker = [
@@ -1595,7 +1582,7 @@ autogen = [
     { name = "autogen-openaiext-client", specifier = ">=0.0.3" },
 ]
 browser-control = [
-    { name = "browser-use-sdk", specifier = ">=2.0.4" },
+    { name = "agent-sandbox", specifier = ">=0.0.24" },
     { name = "playwright", specifier = ">=1.51.0" },
 ]
 deer-flow = []

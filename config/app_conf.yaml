@@ -37,5 +37,4 @@ cli:
     - genai_tk.extra.structured.commands_baml:BamlCommands
     - genai_tk.extra.rag.commands_rag:RagCommands
     - genai_tk.mcp.cli_commands:McpCommands
-    - genai_tk.tools.browser.cli_commands:BrowserCommands
     - genai_tk.main.cli:register_commands

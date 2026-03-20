@@ -118,11 +118,11 @@ postgres = [
 ]
 
 # ============================================
-# Browser Automation
+# Browser Automation (sandbox browser tools)
 # ============================================
 browser-control = [
-    "playwright>=1.51.0",     # Headless browser automation framework
-    "browser-use-sdk>=2.0.4", # High-level browser automation agent SDK
+    "playwright>=1.51.0",    # Browser automation via CDP
+    "agent-sandbox>=0.0.24", # AIO sandbox SDK client
 ]
 
 # ============================================
