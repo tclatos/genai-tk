@@ -28,18 +28,6 @@ from genai_tk.tools.sandbox_browser.models import SandboxBrowserConfig
 if TYPE_CHECKING:
     from playwright.async_api import Browser, BrowserContext, Page
 
-# Minimal anti-bot JS: only clean up CDP artifacts that leak automation.
-# The sandbox runs *headful* Chromium with --disable-blink-features=AutomationControlled,
-# so navigator.webdriver is already false, plugins/languages/UA are all genuine.
-# Heavy-handed overrides (faking plugins, UA, etc.) create detectable INCONSISTENCIES
-# that sophisticated bot detectors flag.
-_ANTI_BOT_SCRIPT = """
-// Remove CDP (Chrome DevTools Protocol) artifacts left by automation drivers
-for (const key of Object.keys(window)) {
-  if (key.startsWith('cdc_')) delete window[key];
-}
-"""
-
 
 class SandboxBrowserSession:
     """Manages a Playwright connection to an AIO sandbox's Chromium via CDP."""
@@ -128,13 +116,6 @@ class SandboxBrowserSession:
         width = self.config.viewport_width + random.randint(-30, 30)
         height = self.config.viewport_height + random.randint(-30, 30)
         await self._page.set_viewport_size({"width": width, "height": height})
-
-        # Only inject anti-bot script on contexts we created ourselves.
-        # The browser's default context already has launch flags applied
-        # (--disable-blink-features=AutomationControlled) and injecting via
-        # CDP's addScriptToEvaluateOnNewDocument is itself detectable.
-        if self.config.anti_bot_js and self._owns_context:
-            await self._context.add_init_script(_ANTI_BOT_SCRIPT)
 
         self._connected = True
 
@@ -329,8 +310,6 @@ class SandboxBrowserSession:
             ignore_https_errors=self.config.ignore_https_errors,
             storage_state=state,
         )
-        if self.config.anti_bot_js:
-            await self._context.add_init_script(_ANTI_BOT_SCRIPT)
 
         self._page = await self._context.new_page()
         logger.info(f"Cookies loaded from {file_path}")

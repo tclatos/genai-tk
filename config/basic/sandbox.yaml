@@ -70,7 +70,6 @@ sandbox_browser:
   viewport_height: 1080
   default_timeout_ms: 30000
   slow_type_ms: 60              # Human-like typing delay (ms per character)
-  anti_bot_js: true             # Inject anti-fingerprinting JS
   cookies_dir: "data/sessions"
   # Allowlist of environment variable names that browser_fill_credential can
   # access.  Prevents the LLM from exfiltrating arbitrary env vars.

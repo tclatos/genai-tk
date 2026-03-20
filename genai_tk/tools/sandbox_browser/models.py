@@ -1,7 +1,7 @@
 """Pydantic configuration models for the sandbox browser tools.
 
-Defines settings for browser session management, anti-bot mitigations,
-and the credential allowlist used by ``browser_fill_credential``.
+Defines settings for browser session management and the credential
+allowlist used by ``browser_fill_credential``.
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ class SandboxBrowserConfig(BaseModel):
     viewport_height: int = 1080
     default_timeout_ms: int = 30_000
     slow_type_ms: int = 60
-    anti_bot_js: bool = True
     ignore_https_errors: bool = True
     log_browser_console: bool = True
     cookies_dir: str = "data/sessions"

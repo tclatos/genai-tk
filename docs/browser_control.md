@@ -253,7 +253,6 @@ sandbox_browser:
   viewport_height: 1080
   default_timeout_ms: 30000
   slow_type_ms: 60
-  anti_bot_js: true
   cookies_dir: "data/sessions"
   allowed_credential_envs:
     - ENEDIS_USERNAME

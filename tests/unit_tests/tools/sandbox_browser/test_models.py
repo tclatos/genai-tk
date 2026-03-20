@@ -16,7 +16,6 @@ class TestSandboxBrowserConfig:
         assert cfg.viewport_height == 1080
         assert cfg.default_timeout_ms == 30_000
         assert cfg.slow_type_ms == 60
-        assert cfg.anti_bot_js is True
         assert cfg.cookies_dir == "data/sessions"
         assert cfg.allowed_credential_envs == []
 
