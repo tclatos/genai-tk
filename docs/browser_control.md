@@ -249,6 +249,7 @@ enabled, and the `create_sandbox_browser_tools` factory.
 ```yaml
 sandbox_browser:
   locale: "fr-FR"
+  timezone_id: "Europe/Paris"
   viewport_width: 1920
   viewport_height: 1080
   default_timeout_ms: 30000

@@ -12,6 +12,7 @@ class TestSandboxBrowserConfig:
     def test_defaults(self) -> None:
         cfg = SandboxBrowserConfig()
         assert cfg.locale == "fr-FR"
+        assert cfg.timezone_id == "Europe/Paris"
         assert cfg.viewport_width == 1920
         assert cfg.viewport_height == 1080
         assert cfg.default_timeout_ms == 30_000
@@ -22,10 +23,12 @@ class TestSandboxBrowserConfig:
     def test_custom_values(self) -> None:
         cfg = SandboxBrowserConfig(
             locale="en-US",
+            timezone_id="UTC",
             viewport_width=1280,
             allowed_credential_envs=["MY_USER", "MY_PASS"],
         )
         assert cfg.locale == "en-US"
+        assert cfg.timezone_id == "UTC"
         assert cfg.viewport_width == 1280
         assert cfg.allowed_credential_envs == ["MY_USER", "MY_PASS"]
 

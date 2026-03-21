@@ -1,7 +1,7 @@
 """Unit tests for sandbox browser LangChain tools."""
 
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -37,11 +37,41 @@ def mock_session() -> SandboxBrowserSession:
     mock_page.screenshot = AsyncMock(return_value=b"\x89PNG\r\n")
     mock_page.query_selector = AsyncMock()
     mock_page.evaluate = AsyncMock()
+    mock_page.is_closed = MagicMock(return_value=False)
     mock_page.wait_for_selector = AsyncMock()
     mock_page.wait_for_load_state = AsyncMock()
     session._page = mock_page
     session._connected = True
     return session
+
+
+class TestBrowserToolConnectionHandling:
+    @pytest.mark.asyncio
+    async def test_transient_navigation_error_does_not_reconnect(self, mock_session: SandboxBrowserSession) -> None:
+        mock_session.page.evaluate.side_effect = Exception(
+            "Execution context was destroyed, most likely because of a navigation",
+        )
+        mock_session.close = AsyncMock()
+        mock_session.connect = AsyncMock()
+        tool = BrowserNavigateTool(session=mock_session)
+
+        await tool._ensure_connected()
+
+        mock_session.close.assert_not_called()
+        mock_session.connect.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_closed_page_reconnects(self, mock_session: SandboxBrowserSession) -> None:
+        mock_session.page.evaluate.side_effect = Exception("Target page, context or browser has been closed")
+        mock_session.page.is_closed.return_value = True
+        mock_session.close = AsyncMock()
+        mock_session.connect = AsyncMock()
+        tool = BrowserNavigateTool(session=mock_session)
+
+        await tool._ensure_connected()
+
+        mock_session.close.assert_awaited_once()
+        mock_session.connect.assert_awaited_once()
 
 
 class TestBrowserNavigateTool:
@@ -132,6 +162,8 @@ class TestBrowserReadPageTool:
     async def test_read_full_page(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserReadPageTool(session=mock_session)
         result = await tool._arun()
+        assert "URL: https://example.com/dashboard" in result
+        assert "Title: Dashboard" in result
         assert "42kWh" in result
 
     @pytest.mark.asyncio
@@ -141,6 +173,7 @@ class TestBrowserReadPageTool:
         mock_session.page.query_selector.return_value = mock_element
         tool = BrowserReadPageTool(session=mock_session)
         result = await tool._arun(selector=".production-data")
+        assert "URL: https://example.com/dashboard" in result
         assert "42kWh" in result
 
     @pytest.mark.asyncio
@@ -156,14 +189,14 @@ class TestBrowserScrollTool:
     async def test_scroll_down(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserScrollTool(session=mock_session)
         result = await tool._arun(direction="down", amount=500)
-        mock_session.page.evaluate.assert_called_once_with("window.scrollBy(0, 500)")
+        mock_session.page.evaluate.assert_any_call("window.scrollBy(0, 500)")
         assert "Dashboard" in result
 
     @pytest.mark.asyncio
     async def test_scroll_up(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserScrollTool(session=mock_session)
         await tool._arun(direction="up", amount=300)
-        mock_session.page.evaluate.assert_called_once_with("window.scrollBy(0, -300)")
+        mock_session.page.evaluate.assert_any_call("window.scrollBy(0, -300)")
 
 
 class TestBrowserWaitTool:
@@ -179,6 +212,13 @@ class TestBrowserWaitTool:
         tool = BrowserWaitTool(session=mock_session)
         result = await tool._arun(selector="#missing", timeout_ms=1000)
         assert "Timeout" in result
+
+    @pytest.mark.asyncio
+    async def test_wait_for_load_state(self, mock_session: SandboxBrowserSession) -> None:
+        tool = BrowserWaitTool(session=mock_session)
+        result = await tool._arun(load_state="networkidle", timeout_ms=5000)
+        mock_session.page.wait_for_load_state.assert_called_once_with("networkidle", timeout=5000)
+        assert result == "Load state 'networkidle' reached."
 
 
 class TestBrowserSaveCookiesTool:

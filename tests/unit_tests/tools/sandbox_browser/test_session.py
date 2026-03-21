@@ -61,19 +61,20 @@ class TestCookiePersistence:
         cookie_file.write_text(json.dumps(state))
 
         session = SandboxBrowserSession(config=config)
-        mock_browser = AsyncMock()
         mock_context = AsyncMock()
         mock_page = AsyncMock()
-        mock_browser.new_context.return_value = mock_context
-        mock_context.new_page.return_value = mock_page
-        session._browser = mock_browser
-        session._context = AsyncMock()  # existing context to be closed
+        temp_page = AsyncMock()
+        mock_context.new_page.return_value = temp_page
+        session._browser = AsyncMock()
+        session._context = mock_context
+        session._page = mock_page
 
         result = await session.load_cookies("mysite")
         assert result is True
-        mock_browser.new_context.assert_called_once()
-        call_kwargs = mock_browser.new_context.call_args[1]
-        assert call_kwargs["storage_state"] == state
+        mock_context.clear_cookies.assert_called_once()
+        mock_context.add_cookies.assert_called_once_with(state["cookies"])
+        mock_context.new_page.assert_not_called()
+        temp_page.close.assert_not_called()
         assert session._page is mock_page
 
     @pytest.mark.asyncio

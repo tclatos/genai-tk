@@ -162,29 +162,15 @@ class SandboxBrowserSession:
         if not self.config.log_browser_console:
             return
         if self._page is not None:
-            self._page.on("console", self._on_console)
-            self._page.on("pageerror", self._on_page_error)
-            self._page.on("crash", self._on_page_crash)
-            self._page.on("close", self._on_page_close)
-            self._page.on("request", self._on_request)
-            self._page.on("response", self._on_response)
+            self._attach_page_debug_listeners(self._page)
         if self._browser is not None:
             self._browser.on("disconnected", self._on_browser_disconnected)
 
     def _detach_debug_listeners(self) -> None:
         """Remove previously attached event listeners."""
-        _page_handlers = {
-            "console": self._on_console,
-            "pageerror": self._on_page_error,
-            "crash": self._on_page_crash,
-            "close": self._on_page_close,
-            "request": self._on_request,
-            "response": self._on_response,
-        }
         try:
             if self._page is not None:
-                for evt, handler in _page_handlers.items():
-                    self._page.remove_listener(evt, handler)
+                self._detach_page_debug_listeners(self._page)
         except Exception:
             pass
         try:
@@ -192,6 +178,36 @@ class SandboxBrowserSession:
                 self._browser.remove_listener("disconnected", self._on_browser_disconnected)
         except Exception:
             pass
+
+    def _attach_page_debug_listeners(self, page: Page) -> None:
+        """Attach debug listeners to a page instance."""
+        _page_handlers = {
+            "console": self._on_console,
+            "pageerror": self._on_page_error,
+            "crash": self._on_page_crash,
+            "close": self._on_page_close,
+            "request": self._on_request,
+            "requestfailed": self._on_request_failed,
+            "response": self._on_response,
+            "framenavigated": self._on_frame_navigated,
+        }
+        for evt, handler in _page_handlers.items():
+            page.on(evt, handler)
+
+    def _detach_page_debug_listeners(self, page: Page) -> None:
+        """Detach debug listeners from a page instance."""
+        _page_handlers = {
+            "console": self._on_console,
+            "pageerror": self._on_page_error,
+            "crash": self._on_page_crash,
+            "close": self._on_page_close,
+            "request": self._on_request,
+            "requestfailed": self._on_request_failed,
+            "response": self._on_response,
+            "framenavigated": self._on_frame_navigated,
+        }
+        for evt, handler in _page_handlers.items():
+            page.remove_listener(evt, handler)
 
     def _log_event(self, level: str, message: str) -> None:
         """Append a timestamped entry to the in-memory event log and emit via loguru."""
@@ -240,23 +256,59 @@ class SandboxBrowserSession:
         self._log_event("ERROR", "Browser DISCONNECTED — CDP connection lost (container may have died)")
 
     def _on_request(self, request: object) -> None:
-        """Log main-frame navigations."""
+        """Log main-frame navigations and XHR/fetch requests."""
         url = getattr(request, "url", "")
+        method = getattr(request, "method", "GET")
+        resource_type = getattr(request, "resource_type", "")
         frame = getattr(request, "frame", None)
         is_navigation = getattr(request, "is_navigation_request", lambda: False)()
         if is_navigation and frame and getattr(frame, "parent_frame", None) is None:
             self._log_event("INFO", f"Navigation request → {url}")
+            return
+        if resource_type in {"xhr", "fetch"}:
+            self._log_event("INFO", f"{resource_type.upper()} request → {method} {url}")
+
+    def _on_request_failed(self, request: object) -> None:
+        """Log network request failures."""
+        url = getattr(request, "url", "")
+        resource_type = getattr(request, "resource_type", "unknown")
+        failure = getattr(request, "failure", None)
+        error_text = ""
+        if callable(failure):
+            details = failure()
+            if isinstance(details, dict):
+                error_text = str(details.get("errorText", ""))
+        elif isinstance(failure, dict):
+            error_text = str(failure.get("errorText", ""))
+        message = f"Request failed [{resource_type}] → {url}"
+        if error_text:
+            message += f" ({error_text})"
+        self._log_event("WARNING", message)
 
     def _on_response(self, response: object) -> None:
-        """Log non-2xx responses on main-frame navigations."""
+        """Log navigation responses and failing XHR/fetch requests."""
         status = getattr(response, "status", 0)
         url = getattr(response, "url", "")
         request = getattr(response, "request", None)
         is_navigation = request and getattr(request, "is_navigation_request", lambda: False)()
         frame = request and getattr(request, "frame", None)
         is_main = frame and getattr(frame, "parent_frame", None) is None
-        if is_navigation and is_main and status >= 400:
-            self._log_event("WARNING", f"HTTP {status} on navigation → {url}")
+        resource_type = getattr(request, "resource_type", "") if request else ""
+        if is_navigation and is_main:
+            level = "WARNING" if status >= 400 else "INFO"
+            self._log_event(level, f"Navigation response ← HTTP {status} {url}")
+            return
+        if resource_type in {"xhr", "fetch"}:
+            level = "WARNING" if status >= 400 else "INFO"
+            self._log_event(level, f"{resource_type.upper()} response ← HTTP {status} {url}")
+
+    def _on_frame_navigated(self, frame: object) -> None:
+        """Log completed main-frame navigations, including client-side route changes."""
+        if getattr(frame, "parent_frame", None) is not None:
+            return
+        url = getattr(frame, "url", "")
+        if url:
+            self._log_event("INFO", f"Main frame navigated ⇒ {url}")
 
     async def save_cookies(self, name: str) -> str:
         """Save the current browser context storage state to a JSON file.
@@ -278,9 +330,7 @@ class SandboxBrowserSession:
         return str(file_path)
 
     async def load_cookies(self, name: str) -> bool:
-        """Load a previously saved storage state into a new browser context.
-
-        Replaces the current context and page with a new one using the saved state.
+        """Load a previously saved storage state into the active browser context.
 
         Args:
             name: Cookie file identifier (must match a previous save).
@@ -295,23 +345,42 @@ class SandboxBrowserSession:
 
         if not self._browser:
             raise RuntimeError("Browser not connected")
+        if not self._context or not self._page:
+            raise RuntimeError("Browser session missing active context or page")
 
         state = json.loads(file_path.read_text())
+        await self._context.clear_cookies()
+        cookies = state.get("cookies", [])
+        if cookies:
+            await self._context.add_cookies(cookies)
 
-        # Close current context and create a new one with saved state
-        if self._context:
-            await self._context.close()
-
-        width = self.config.viewport_width + random.randint(-30, 30)
-        height = self.config.viewport_height + random.randint(-30, 30)
-        self._context = await self._browser.new_context(
-            viewport={"width": width, "height": height},
-            locale=self.config.locale,
-            ignore_https_errors=self.config.ignore_https_errors,
-            storage_state=state,
-        )
-
-        self._page = await self._context.new_page()
+        origins = state.get("origins", [])
+        if origins:
+            temp_page = await self._context.new_page()
+            try:
+                for origin_state in origins:
+                    origin = origin_state.get("origin")
+                    local_storage = origin_state.get("localStorage", [])
+                    if not origin:
+                        continue
+                    await temp_page.goto(
+                        origin,
+                        wait_until="domcontentloaded",
+                        timeout=self.config.default_timeout_ms,
+                    )
+                    await temp_page.evaluate(
+                        """
+                        storageItems => {
+                          window.localStorage.clear();
+                          for (const item of storageItems) {
+                            window.localStorage.setItem(item.name, item.value);
+                          }
+                        }
+                        """,
+                        local_storage,
+                    )
+            finally:
+                await temp_page.close()
         logger.info(f"Cookies loaded from {file_path}")
         return True
 

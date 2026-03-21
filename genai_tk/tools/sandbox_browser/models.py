@@ -18,6 +18,7 @@ class SandboxBrowserConfig(BaseModel):
     """
 
     locale: str = "fr-FR"
+    timezone_id: str = "Europe/Paris"
     viewport_width: int = 1920
     viewport_height: int = 1080
     default_timeout_ms: int = 30_000

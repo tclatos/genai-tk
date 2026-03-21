@@ -40,7 +40,24 @@ async def _page_summary(session: SandboxBrowserSession, max_text: int = 2000) ->
     except Exception:
         text = ""
     summary = PageSummary(url=url, title=title, text_snippet=text)
+    return _format_page_summary(summary)
+
+
+def _format_page_summary(summary: PageSummary) -> str:
+    """Format a page summary with URL and title headers."""
     return f"URL: {summary.url}\nTitle: {summary.title}\n\n{summary.text_snippet}"
+
+
+def _is_transient_liveness_error(exc: Exception) -> bool:
+    """Return whether a liveness failure looks like transient navigation churn."""
+    message = str(exc).lower()
+    transient_markers = (
+        "execution context was destroyed",
+        "cannot find context with specified id",
+        "inspected target navigated or closed",
+        "navigation",
+    )
+    return any(marker in message for marker in transient_markers)
 
 
 async def _human_type(session: SandboxBrowserSession, selector: str, text: str) -> None:
@@ -70,12 +87,18 @@ class _BrowserTool(BaseTool):
             await self.session.connect()
             return
         # Detect stale connection (browser/context closed by remote crash or timeout)
+        page = self.session.page
         try:
-            page = self.session.page
             # Quick liveness check — if the browser is dead this throws
             await page.evaluate("1")
-        except Exception:
+        except Exception as exc:
             from loguru import logger  # noqa: PLC0415
+            is_closed = getattr(page, "is_closed", None)
+            page_closed = is_closed() if callable(is_closed) else False
+            if not page_closed and _is_transient_liveness_error(exc):
+                logger.debug("Browser liveness check failed during navigation; skipping reconnect: {}", exc)
+                await asyncio.sleep(0.1)
+                return
 
             logger.warning("Browser context appears dead — reconnecting")
             try:
@@ -103,14 +126,14 @@ class BrowserNavigateTool(_BrowserTool):
         "Use this to go to websites, follow links, or load specific pages."
     )
 
-    def _run(self, url: str) -> str:
-        return asyncio.get_event_loop().run_until_complete(self._arun(url))
+    def _run(self, url: str, wait_until: str = "domcontentloaded") -> str:
+        return asyncio.get_event_loop().run_until_complete(self._arun(url=url, wait_until=wait_until))
 
-    async def _arun(self, url: str) -> str:
+    async def _arun(self, url: str, wait_until: str = "domcontentloaded") -> str:
         await self._ensure_connected()
         page = self.session.page
         try:
-            await page.goto(url, wait_until="domcontentloaded", timeout=self.session.config.default_timeout_ms)
+            await page.goto(url, wait_until=wait_until, timeout=self.session.config.default_timeout_ms)
         except Exception as exc:
             return f"Navigation failed: {exc}"
         return await _page_summary(self.session)
@@ -223,7 +246,7 @@ class BrowserReadPageTool(_BrowserTool):
     name: str = "browser_read_page"
     description: str = (
         "Read text content from the current page. Optionally provide a CSS selector "
-        "to read only a specific element. Returns the text content. "
+        "to read only a specific element. Returns the current URL, title, and text content. "
         "Without a selector, returns the full page body text (truncated to ~4000 chars)."
     )
 
@@ -241,11 +264,12 @@ class BrowserReadPageTool(_BrowserTool):
                 text = await element.inner_text()
             else:
                 text = await page.inner_text("body")
-            return PageSummary(
+            summary = PageSummary(
                 url=page.url,
                 title=await page.title(),
                 text_snippet=text,
-            ).text_snippet
+            )
+            return _format_page_summary(summary)
         except Exception as exc:
             return f"Read page failed: {exc}"
 
@@ -280,13 +304,22 @@ class BrowserWaitTool(_BrowserTool):
     name: str = "browser_wait"
     description: str = (
         "Wait for an element to appear on the page (by CSS selector), or wait a fixed number "
-        "of milliseconds. Useful after navigation or clicks that trigger async loading."
+        "of milliseconds. You can also wait for a browser load state like 'domcontentloaded', "
+        "'load', or 'networkidle'. Useful after navigation or clicks that trigger async loading."
     )
 
-    def _run(self, selector: str | None = None, timeout_ms: int = 10000) -> str:
-        return asyncio.get_event_loop().run_until_complete(self._arun(selector=selector, timeout_ms=timeout_ms))
+    def _run(self, selector: str | None = None, timeout_ms: int = 10000, load_state: str | None = None) -> str:
+        return asyncio.get_event_loop().run_until_complete(
+            self._arun(selector=selector, timeout_ms=timeout_ms, load_state=load_state)
+        )
 
-    async def _arun(self, selector: str | None = None, timeout_ms: int = 10000, **kwargs: Any) -> str:
+    async def _arun(
+        self,
+        selector: str | None = None,
+        timeout_ms: int = 10000,
+        load_state: str | None = None,
+        **kwargs: Any,
+    ) -> str:
         await self._ensure_connected()
         page = self.session.page
         if selector:
@@ -295,9 +328,14 @@ class BrowserWaitTool(_BrowserTool):
                 return f"Element '{selector}' appeared."
             except Exception:
                 return f"Timeout: element '{selector}' did not appear within {timeout_ms}ms."
-        else:
-            await asyncio.sleep(timeout_ms / 1000)
-            return f"Waited {timeout_ms}ms."
+        if load_state:
+            try:
+                await page.wait_for_load_state(load_state, timeout=timeout_ms)
+                return f"Load state '{load_state}' reached."
+            except Exception:
+                return f"Timeout: load state '{load_state}' not reached within {timeout_ms}ms."
+        await asyncio.sleep(timeout_ms / 1000)
+        return f"Waited {timeout_ms}ms."
 
 
 class BrowserSaveCookiesTool(_BrowserTool):

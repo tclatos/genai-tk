@@ -1,225 +1,313 @@
-# Sandbox Browser: Bot Detection Analysis
+# Sandbox Browser: Enedis Bot-Detection Investigation
 
-Status document for the Enedis `/indisponible` redirect issue.
+Status document for the Enedis `/indisponible` redirect issue in the Docker/OpenSandbox browser path.
+
+## Executive Summary
+
+The generic sandbox browser stack is in a much better state than at the start of the investigation:
+
+- cookie and storage restoration now apply to the active context
+- browser tools expose better URL/title/state diagnostics
+- reconnect logic no longer tears down sessions during normal navigation churn
+- the stale baked-in User-Agent override is cleared
+- locale and timezone are now propagated consistently from browser config into the sandbox browser environment
+
+Those fixes improved correctness and made the sandbox browser much closer to a real browser, but they did **not** stop Enedis from redirecting the sandbox/CDP path to `/indisponible`.
+
+The strongest current signal is architectural:
+
+1. A **local Playwright launch on the host** reaches the real Enedis login page and FriendlyCaptcha.
+2. The **current sandbox path** (`connect_over_cdp()` to the pre-launched sandbox browser) still goes to `/indisponible`.
+3. A **fresh browser launch inside the same sandbox image**, run directly in Docker outside the OpenSandbox control plane, can launch Chromium successfully on a blank page, but the real Enedis probe has not yet completed cleanly due command/session instability during the long run.
+
+Current best hypothesis: the remaining blocker is in the **sandbox browser/runtime architecture**, most likely the pre-launched browser + CDP attach path, or a closely related sandbox-specific runtime characteristic.
 
 ## Current Architecture
 
 ```
 ┌─────────────┐    HTTP     ┌──────────────────────┐     CDP      ┌────────────────┐
-│  Agent CLI   │ ──────────→│  OpenSandbox Server  │ ────────────→│ Chromium 135   │
-│  (host)      │            │  (Docker container)  │              │ (headful, X11) │
-└─────────────┘            └──────────────────────┘              └────────────────┘
-                                    │
-                               VNC viewer
+│  Agent CLI  │ ──────────→ │  OpenSandbox Server  │ ───────────→ │ Chromium 135   │
+│   (host)    │             │  (Docker sandbox)    │              │ pre-launched   │
+└─────────────┘             └──────────────────────┘              └────────────────┘
+                                   │
+                              VNC / canvas
 ```
 
-### Design Choices (settled)
+The important historical contrast is:
 
-| Decision | Rationale |
-|---|---|
-| **Reuse default browser context** | `new_context()` over CDP doesn't inherit Chromium launch flags (UA, `--disable-blink-features`). The default context is genuine. |
-| **No anti-bot JS injection** | `add_init_script()` uses CDP's `Page.addScriptToEvaluateOnNewDocument`, which is itself detectable. The headful Chromium already has real plugins/UA/webdriver=false. |
-| **No forced User-Agent** | Container runs Chromium 135; forcing Chrome/131 UA creates a mismatch with `navigator.userAgentData.brands`. |
-| **Only `--disable-blink-features=AutomationControlled`** | Prevents `navigator.webdriver = true`. This is the single Chromium flag we inject via `BROWSER_EXTRA_ARGS`. |
-| **Site-specific logic in SKILLs only** | `session.py` and `tools.py` are generic browser infrastructure. Anti-bot workarounds go in SKILL.md files via `browser_evaluate`. |
-| **`browser_evaluate` tool** | Lets SKILLs run arbitrary JS for site-specific DOM manipulation, diagnostics, or detection evasion. |
+- **old working Enedis flow**: Playwright launched and owned a fresh browser directly
+- **current failing flow**: Playwright attaches over CDP to a browser that the sandbox image has already started
 
-## Current Problem
+That distinction is now the center of the investigation.
 
-The Enedis portal (`mon-compte-particulier.enedis.fr`) redirects to `/indisponible`
-("Site fermé temporairement pour maintenance") when accessed from the sandbox.
-The same site works fine in a regular desktop browser.
+## Generic Changes Already Landed
 
-### What We Know
+These are generic infrastructure fixes, not Enedis-specific hacks:
 
-1. **Initial page loads fine** — `browser_navigate` to the root URL succeeds,
-   returns `Title: Espace Particulier`, page renders normally.
+### Browser/session fixes
 
-2. **Redirect happens after ANY interaction** — originally thought to be triggered
-   by the cookie consent click, but the last test proved otherwise: navigating
-   directly to `/auth/login` with no click also redirects to `/indisponible`.
+- `genai_tk/tools/sandbox_browser/session.py`
+  - restore cookies/localStorage into the active context
+  - richer logging for navigation, XHR/fetch, failed requests, and frame navigations
 
-3. **The redirect is server-side** — the URL changes to `/indisponible`, meaning
-   the server decided to redirect (likely via a 302 or SPA router redirect triggered
-   by a server response).
+- `genai_tk/tools/sandbox_browser/tools.py`
+  - `browser_read_page` now returns URL and title along with text
+  - `browser_wait` supports `load_state`
+  - `browser_navigate` supports `wait_until`
+  - `_ensure_connected()` now tolerates transient evaluate/navigation errors instead of reconnecting unnecessarily
 
-4. **The "hardcoded" version worked before** — an earlier version of the browser
-   agent (without LLM, with hardcoded navigation) reached the login page successfully.
-   This suggests the detection is not purely based on Chromium fingerprinting.
+### Sandbox browser environment fixes
 
-### Disproved Hypotheses
+- `genai_tk/agents/sandbox/aio_backend.py`
+  - clear baked-in `BROWSER_USER_AGENT` unless explicitly configured
+  - propagate locale/timezone through `TZ`, `LANG`, `LC_ALL`, `LANGUAGE`
+  - append `--lang=...` and `--time-zone-for-testing=...` only if not already present
+  - preserve generic webdriver suppression via `--disable-blink-features=AutomationControlled`
 
-| Hypothesis | Why disproved |
-|---|---|
-| Cookie consent click loads bot-detection scripts | Redirect still happens without clicking (direct `/auth/login` navigation) |
-| `navigator.webdriver = true` | We use `--disable-blink-features=AutomationControlled`; default context inherits it |
-| Mismatched User-Agent | Removed forced UA; Chromium uses its genuine Chromium/135 UA |
-| `add_init_script` is detectable | Removed all JS injection from default context |
-| `new_context()` doesn't inherit flags | Switched to reusing the default context |
-| `--ignore-certificate-errors` alters TLS fingerprint | Removed from `BROWSER_EXTRA_ARGS` |
+- `genai_tk/tools/sandbox_browser/models.py`
+  - add `timezone_id` to browser config
 
-### Remaining Hypotheses
+- `config/basic/sandbox.yaml`
+  - default timezone set to `Europe/Paris`
 
-#### H1: CDP connection itself is detectable
+- `docs/browser_control.md`
+  - document the sandbox browser timezone/locale behavior
 
-Playwright's `connect_over_cdp()` attaches a debugger to the browser. Sites can
-detect this via:
-- `Runtime.evaluate` CDP domain being active
-- Timing differences from CDP overhead
-- `window.__playwright` or other Playwright-injected globals
-- The DevTools protocol target list being non-empty
+### Enedis skill updates
 
-**Evidence for**: The "hardcoded" version may have used a different connection
-method or didn't use Playwright at all.
+- `skills/custom/enedis-portal/SKILL.md`
+  - keep Enedis-specific waits and diagnostics in the skill
+  - prefer `domcontentloaded` + explicit idle waits
+  - capture URL/title/body diagnostics instead of assuming login success
 
-**How to test**: Use `browser_evaluate` to check:
-```js
-JSON.stringify({
-  webdriver: navigator.webdriver,
-  plugins: navigator.plugins.length,
-  languages: navigator.languages,
-  hardwareConcurrency: navigator.hardwareConcurrency,
-  devtoolsOpen: window.outerHeight - window.innerHeight > 160,
-  __playwright: typeof window.__playwright,
-  __pw_manual: typeof window.__pw_manual,
-  cdcKeys: Object.keys(window).filter(k => k.startsWith('cdc_') || k.startsWith('__')),
-})
-```
+### Tests
 
-#### H2: Network/IP-level detection
+Relevant tests were added/updated under:
 
-The Docker container's network stack may differ from a regular browser:
-- **DNS resolution** — Docker uses its own DNS (127.0.0.11)
-- **TCP fingerprint** — Docker's network namespace creates different TCP/IP
-  characteristics (TTL, window size, etc.)
-- **IP reputation** — The host IP may be flagged if many automated requests
-  come from it, or the ISP's IP range may be in a datacenter range
+- `tests/unit_tests/tools/sandbox_browser/`
+- `tests/unit_tests/agents/langchain/`
 
-**How to test**: Check the outgoing IP from inside the container:
-```bash
-docker exec <container> curl -s https://httpbin.org/ip
-```
-Compare with the host's IP. If different, Docker networking is in play.
+The browser/session/backend tests for these fixes passed during the investigation.
 
-#### H3: TLS fingerprint (JA3/JA4)
+## Confirmed Findings
 
-Even without `--ignore-certificate-errors`, Chromium in Docker may have a
-different TLS fingerprint than regular Chrome:
-- Different cipher suite ordering
-- Missing or different TLS extensions
-- GREASE values being different
+### 1. Reconnect churn was real, but not the root cause
 
-Enedis likely uses Akamai or a similar CDN/WAF that checks JA3 fingerprints.
+Earlier runs showed `_ensure_connected()` reconnecting during critical Enedis navigation. That problem is fixed. The session now survives the `auth/XUI` transition properly.
 
-**How to test**: Visit a JA3 fingerprint checker from inside the sandbox:
-```
-browser_navigate to https://tls.browserleaks.com/json
-browser_read_page
-```
+Result: the redirect to `/indisponible` still happens.
 
-#### H4: Timing-based detection
+### 2. The stale User-Agent override was real, but not the root cause
 
-The server may detect automation based on:
-- Request timing patterns (too fast between page load and interaction)
-- Missing background requests that a real browser would make (fonts,
-  analytics, etc.)
-- The page loading without executing certain JS paths
+The sandbox image originally forced a desktop-Mac Chrome UA that no longer matched Chromium's real version and client hints.
 
-#### H5: SPA-level detection (Angular)
+After clearing that override:
 
-The Enedis portal is an Angular SPA. The `/indisponible` route may be
-triggered by Angular's router based on a flag set by a detection script
-that runs during initial bootstrap, not just on cookie consent.
+- `navigator.userAgent` and `userAgentData.brands` became consistent
+- the browser fingerprint became materially more believable
 
-**How to test**: Intercept network requests to see if there's an API call
-that returns a "blocked" status:
-```js
-// In browser_evaluate before navigating
-const origFetch = window.fetch;
-window.fetch = async (...args) => {
-  const resp = await origFetch(...args);
-  if (args[0]?.toString().includes('indisponible') || resp.url.includes('indisponible')) {
-    console.error('REDIRECT_DETECTED', args[0], resp.status, resp.url);
-  }
-  return resp;
-};
-```
+Result: Enedis still redirects to `/indisponible`.
 
-## Ideas to Move Forward
+### 3. Locale/timezone mismatch was real, but not the root cause
 
-### Approach A: Bypass CDP — use the container browser directly
+The sandbox browser previously exposed the wrong locale/timezone. After the environment propagation fixes, direct probes showed:
 
-Instead of connecting via CDP from the host, run a script **inside the
-container** that drives the browser locally. This eliminates all CDP
-artifacts.
+- `navigator.language = fr-FR`
+- `navigator.languages = [\"fr-FR\"]`
+- locale resolved to French
+- timezone resolved to `Europe/Paris`
 
-**Implementation**: Use the sandbox's `shell.exec_command()` to run a
-Python script inside the container that uses `subprocess` + `xdotool` or
-a local Playwright instance (not over CDP).
+Result: Enedis still redirects to `/indisponible`.
 
-**Pros**: No CDP connection = no debugger detection.
-**Cons**: Much more complex; loses Playwright's rich API; hard to get
-structured data back.
+### 4. Public IP mismatch is probably not the main explanation
 
-### Approach B: Use browser extensions instead of CDP
+Host and sandbox public IP checks matched during the investigation, so simple Docker NAT identity does not appear to explain the behavior by itself.
 
-Install a browser extension in the sandbox Chromium that receives
-navigation commands via native messaging or a local WebSocket.
-Extensions run in the browser's own context and are not detectable
-as automation.
+### 5. WebGL remains software-rendered, but that alone is unlikely to explain the block
 
-**Pros**: Completely invisible to bot detection.
-**Cons**: Significant development effort; extension API is limited.
+The sandbox renderer remains SwiftShader-based. Several launch-flag variants were tried, but they did not materially change the renderer or move the investigation forward.
 
-### Approach C: Diagnose first, then target
+This is still a possible weak signal, but it no longer looks like the best lead because:
 
-Before trying more fixes, use the existing `browser_evaluate` and
-`browser_get_logs` tools to gather hard data:
+- the host-local Playwright probe still reached the real Enedis login flow
+- that makes “any headless/SwiftShader browser is blocked” unlikely
 
-1. **Check fingerprint**: Navigate to `https://browserleaks.com/javascript`
-   or `https://bot.sannysoft.com/` and `browser_read_page` the results.
-   Compare with a real browser.
+### 6. Local Playwright works on Enedis
 
-2. **Check TLS**: Navigate to `https://tls.browserleaks.com/json` and
-   read the JA3 hash.
+This is the most important result so far.
 
-3. **Intercept the redirect**: Use `browser_evaluate` to hook
-   `window.location` setter and `fetch`/`XMLHttpRequest` to find exactly
-   what triggers the redirect to `/indisponible`.
+A local Playwright probe on the host reached the real Enedis auth flow:
 
-4. **Compare with the hardcoded version**: Find or recreate the original
-   code that worked and identify the exact difference.
+- final URL on the Enedis auth/XUI path
+- Enedis title
+- login email field present
+- FriendlyCaptcha text present
 
-### Approach D: Use network-level proxying
+This means Enedis is **not** simply blocking all automation, all Playwright, or all headless Chromium on this machine.
 
-Route the browser's traffic through a residential proxy or the host's
-network stack (instead of Docker's NAT) to eliminate network-level
-fingerprint differences.
+### 7. The current sandbox/CDP path still fails
 
-**Implementation**: `--network=host` in Docker or a SOCKS proxy.
+After all generic fixes, the sandbox browser flow still follows the same broad pattern:
 
-### Approach E: Accept the detection and use the Enedis API
+- initial page load
+- auth redirect
+- eventual `/indisponible`
+- no login form fields
 
-Enedis provides a data API (Enedis DataConnect / SGE API) for accessing
-consumption and production data programmatically. This would bypass the
-web portal entirely.
+### 8. OpenSandbox/browser docs align with the current suspicion
 
-**Pros**: More reliable, no bot detection, structured data.
-**Cons**: Requires API registration/authorization; different from the
-"browser agent" use case.
+The browser guide confirms that the normal sandbox integration pattern is to attach automation over CDP to the sandbox browser, and it explicitly calls out canvas/CDP as a path that may disconnect and require heartbeat management.
 
-## Recommended Next Step
+That matches two things seen in practice:
 
-**Approach C** (diagnose first) is the lowest effort and provides the data
-needed to pick the right fix. Specifically:
+- earlier reconnect/liveness instability in our own tooling
+- the broader fragility encountered while trying to run longer in-sandbox browser experiments through the sandbox command APIs
 
-1. Run the agent with a prompt like:
-   ```
-   Navigate to https://bot.sannysoft.com/ and read the full page content.
-   Then navigate to https://tls.browserleaks.com/json and read that too.
-   ```
+The same guide also documents alternative interaction styles such as VNC/GUI actions, which suggests the platform itself recognizes that CDP/browser-control is not equivalent to visual/manual interaction for all sites.
 
-2. Compare the results with a real browser visiting the same pages.
+## Latest Fresh-Browser Experiments
 
-3. The difference will point to the exact detection vector, which can then
-   be addressed with a targeted fix rather than guessing.
+### Attempt A: fresh browser inside OpenSandbox-managed sandbox
+
+Goal: install Playwright in the sandbox container and launch `/usr/bin/chromium-browser` directly from inside the container, bypassing the pre-launched browser/CDP path.
+
+What happened:
+
+- Playwright installation inside the sandbox succeeded
+- short direct command execution worked
+- longer browser-probe commands repeatedly failed due OpenSandbox/execd command-channel instability:
+  - `RemoteProtocolError`
+  - incomplete chunked read
+  - server disconnected without sending a response
+  - sandbox disappeared from the OpenSandbox server after failure
+
+Interpretation:
+
+- this did **not** produce a clean Enedis result
+- however, it did show that the command/control plane is unstable enough to obstruct the experiment itself
+
+### Attempt B: same sandbox image, launched directly under Docker
+
+To remove OpenSandbox from the equation, the exact sandbox image was launched directly with Docker and driven using `docker exec`.
+
+Results:
+
+1. Fresh Playwright + Chromium launch on `about:blank` worked successfully.
+2. Locale/timezone in that direct-container launch looked correct.
+3. The Enedis probe itself did not finish cleanly within the interactive run that was attempted, so the final Enedis outcome in this direct-image path is still unresolved.
+
+Interpretation:
+
+- launching a second/fresh Chromium in the sandbox image is possible
+- the image itself is not fundamentally incapable of running Playwright
+- the unresolved part is whether the Enedis site behaves differently in that direct fresh-image path than in the current CDP-attached path
+
+## What Is No Longer the Best Hypothesis
+
+These ideas are now lower priority:
+
+- cookie banner interaction as the trigger
+- `navigator.webdriver` alone
+- stale/mismatched UA alone
+- locale/timezone mismatch alone
+- reconnect churn alone
+- “all headless or all Playwright is blocked”
+
+## Current Best Hypotheses
+
+### H1: Pre-launched browser + CDP attach is the remaining detection vector
+
+This is the strongest current hypothesis.
+
+Reasons:
+
+- it is the main architectural difference from the old working flow
+- local Playwright with a fresh browser works
+- current sandbox flow still uses CDP attach to a pre-launched browser
+- the browser guide explicitly frames CDP/canvas as a more fragile path
+
+Possible reasons this matters:
+
+- debugger/CDP observability
+- state inherited from sandbox browser startup wrapper
+- differences between the default pre-launched context and a fresh Playwright-owned context
+- sandbox browser command-line / wrapper behavior that differs from a directly launched browser
+
+### H2: A deeper sandbox-runtime characteristic remains, but only in the managed sandbox path
+
+If a clean direct-container fresh-browser Enedis probe succeeds, then the remaining blocker is very likely specific to:
+
+- OpenSandbox-managed runtime behavior
+- the pre-launched browser wrapper
+- the CDP/browser-control path
+
+### H3: Network or TLS-level signals still matter, but need stronger evidence
+
+This is still possible, but it dropped in priority after the host-local Playwright success.
+
+It should only move back up if a direct fresh-browser run inside the sandbox image still fails even when CDP is removed from the picture.
+
+## Recommended Next Steps
+
+### Highest-priority next experiment
+
+Complete a **clean fresh-browser Enedis probe inside the sandbox image** and capture:
+
+- final URL
+- title
+- login/email field presence
+- body text
+- UA/client-hints basics
+- WebGL basics
+
+Do this in the most stable execution path available, preferably:
+
+1. direct Docker container using the same sandbox image, or
+2. a more reliable detached/background execution pattern that does not depend on long streaming responses from the OpenSandbox command API
+
+This single result is still the best discriminator.
+
+### Decision tree after that result
+
+#### If fresh browser in the sandbox image reaches login/FriendlyCaptcha
+
+Then the next generic infrastructure step should be:
+
+- move away from relying exclusively on the pre-launched browser + CDP attach model for sensitive sites
+
+Likely options:
+
+- support a generic “fresh browser launched inside sandbox” mode
+- keep Enedis-specific behavior in `SKILL.md`, but make the launch/control primitive generic
+
+#### If fresh browser in the sandbox image still goes to `/indisponible`
+
+Then investigate deeper sandbox/runtime characteristics:
+
+- network/TLS fingerprinting
+- proxy/interception differences
+- sandbox image startup wrapper side effects
+- other managed-runtime signals independent of CDP
+
+### Supporting follow-up experiments
+
+If time allows, gather these next:
+
+1. Compare `bot.sannysoft.com` and `tls.browserleaks.com/json` between:
+   - host-local Playwright fresh launch
+   - sandbox current CDP-attached path
+   - sandbox-image direct Docker fresh launch
+
+2. Compare the exact Chromium process args between:
+   - pre-launched sandbox browser
+   - fresh browser launched manually in the same image
+
+3. Check whether the OpenSandbox-managed browser path injects extra wrapper state, environment variables, or startup files not present in a direct browser launch.
+
+## Bottom Line
+
+The investigation has already removed several generic browser inconsistencies and improved the sandbox browser stack substantially.
+
+The remaining Enedis failure now looks much less like a simple “bad browser fingerprint” problem and much more like an **architectural difference between a fresh Playwright-owned browser and the current sandbox-managed pre-launched/CDP-attached browser path**.
+
+The most valuable next step is still to finish the clean fresh-browser-in-sandbox comparison and use that result to choose the next generic infrastructure change.

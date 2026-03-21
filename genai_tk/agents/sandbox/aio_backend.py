@@ -116,6 +116,39 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             logger.debug(f"Volume mount: {m.host_path} → {m.container_path} (ro={m.read_only})")
         return volumes
 
+    def _build_browser_env(self) -> dict[str, str]:
+        """Build browser-related environment variables for the sandbox container."""
+        from genai_tk.tools.sandbox_browser.factory import _load_browser_config  # noqa: PLC0415
+
+        browser_config = _load_browser_config()
+        locale_tag = browser_config.locale
+        locale_env = f"{locale_tag.replace('-', '_')}.UTF-8"
+        env = dict(self.config.env_vars)
+
+        # The sandbox image bakes in a desktop-Mac Chrome UA by default via
+        # BROWSER_USER_AGENT. That value can drift from the actual Chromium
+        # version and navigator.userAgentData brands, which is detectable.
+        # Clear it unless the caller explicitly opted into a custom UA.
+        env.setdefault("BROWSER_USER_AGENT", "")
+        env.setdefault("TZ", browser_config.timezone_id)
+        env.setdefault("LANG", locale_env)
+        env.setdefault("LC_ALL", locale_env)
+        env.setdefault("LANGUAGE", f"{locale_tag.replace('-', '_')}:{locale_tag.split('-')[0]}")
+
+        # The sandbox entrypoint appends BROWSER_EXTRA_ARGS to Chromium's
+        # command line. Keep our generic webdriver suppression flag, but do
+        # not inject TLS-altering flags such as --ignore-certificate-errors.
+        browser_extra_args = env.get("BROWSER_EXTRA_ARGS", "").strip()
+        if "--lang=" not in browser_extra_args:
+            browser_extra_args = f"{browser_extra_args} --lang={browser_config.locale}".strip()
+        if "--time-zone-for-testing=" not in browser_extra_args:
+            browser_extra_args = f"{browser_extra_args} --time-zone-for-testing={browser_config.timezone_id}".strip()
+        if "--disable-blink-features=AutomationControlled" not in browser_extra_args:
+            browser_extra_args = f"{browser_extra_args} --disable-blink-features=AutomationControlled".strip()
+        env["BROWSER_EXTRA_ARGS"] = browser_extra_args
+
+        return env
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -166,14 +199,8 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         # Build volume mounts from config + runtime additions
         volumes = self._build_volumes()
 
-        # Merge environment vars: inject browser flag to suppress automation signal.
-        # The sandbox container's entrypoint appends BROWSER_EXTRA_ARGS to Chromium's
-        # command line.  We only set --disable-blink-features=AutomationControlled to
-        # prevent navigator.webdriver=true.  IMPORTANT: Do NOT add --ignore-certificate-errors
-        # here — it alters the TLS fingerprint (JA3) and is detectable by WAFs.
-        env = dict(self.config.env_vars)
-        if "BROWSER_EXTRA_ARGS" not in env:
-            env["BROWSER_EXTRA_ARGS"] = "--disable-blink-features=AutomationControlled"
+        # Merge environment vars used by the sandbox browser entrypoint.
+        env = self._build_browser_env()
 
         logger.debug(f"Starting AIO sandbox via {server_url}")
         create_kwargs: dict[str, Any] = {

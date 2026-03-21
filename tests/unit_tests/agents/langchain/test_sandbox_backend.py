@@ -97,6 +97,49 @@ def started_backend(backend: AioSandboxBackend) -> AioSandboxBackend:
 def test_list_tools(backend: AioSandboxBackend) -> None:
     assert set(backend.list_tools()) == {"bash", "ls", "read_file", "write_file", "str_replace"}
 
+def test_build_browser_env_clears_image_default_user_agent(backend: AioSandboxBackend) -> None:
+    env = backend._build_browser_env()
+
+    assert env["BROWSER_USER_AGENT"] == ""
+    assert env["TZ"] == "Europe/Paris"
+    assert env["LANG"] == "fr_FR.UTF-8"
+    assert env["LC_ALL"] == "fr_FR.UTF-8"
+    assert env["LANGUAGE"] == "fr_FR:fr"
+    assert env["BROWSER_EXTRA_ARGS"] == (
+        "--lang=fr-FR --time-zone-for-testing=Europe/Paris --disable-blink-features=AutomationControlled"
+    )
+
+
+def test_build_browser_env_preserves_explicit_browser_overrides() -> None:
+    backend = AioSandboxBackend(
+        config=AioSandboxBackendConfig(
+            startup_timeout=1.0,
+            env_vars={
+                "BROWSER_USER_AGENT": "custom-agent",
+                "TZ": "UTC",
+                "LANG": "de_DE.UTF-8",
+                "LC_ALL": "de_DE.UTF-8",
+                "LANGUAGE": "de_DE:de",
+                "BROWSER_EXTRA_ARGS": (
+                    "--foo=bar --lang=de-DE --time-zone-for-testing=Europe/Berlin "
+                    "--disable-blink-features=AutomationControlled"
+                ),
+            },
+        )
+    )
+
+    env = backend._build_browser_env()
+
+    assert env["BROWSER_USER_AGENT"] == "custom-agent"
+    assert env["TZ"] == "UTC"
+    assert env["LANG"] == "de_DE.UTF-8"
+    assert env["LC_ALL"] == "de_DE.UTF-8"
+    assert env["LANGUAGE"] == "de_DE:de"
+    assert env["BROWSER_EXTRA_ARGS"] == (
+        "--foo=bar --lang=de-DE --time-zone-for-testing=Europe/Berlin "
+        "--disable-blink-features=AutomationControlled"
+    )
+
 
 @pytest.mark.asyncio
 async def test_execute_tool_not_started(backend: AioSandboxBackend) -> None:
