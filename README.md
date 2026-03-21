@@ -19,16 +19,10 @@ GenAI Toolkit provides reusable components, agents, and utilities for building s
 
 ## ✨ Recent Enhancements
 
-- **🤖 Unified LangChain Agents**: Single `cli agents langchain` command with YAML profiles for `react`, `deep`, and `custom` agent types
-- **📋 YAML-Driven Agent Config**: Middleware, checkpointer, LLM, tools, and MCP servers all configurable per profile with global defaults
-- **📍 Flexible Configuration Discovery**: Automatically finds config files by searching parent directories
-- **📁 Work from Anywhere**: Run commands from notebooks, subdirectories, or any project location
-- **⚙️ Dynamic Path Resolution**: Paths automatically adjust based on project structure
-- **🔄 Environment Switching**: Easy switching between development, testing, production configurations
-- **🔐 Optional Dependencies**: Graceful handling of missing packages (e.g., `langchain_postgres`)
-- **🛠️ Enhanced CLI**: Comprehensive command-line interface with framework-specific tools
-- **🧪 Modular Testing**: Organized unit and integration test structure
-- **🔧 Framework-Specific Tools**: Separate tool ecosystems for LangChain and SmolAgents
+- **Unified LangChain Agents** — `cli agents langchain` with YAML profiles for `react`, `deep`, and `custom` agent types
+- **Docker Sandbox** — `cli sandbox start/stop/status/pull` for zero-overhead sandboxed execution
+- **Browser Automation** — sandbox and direct (host Playwright) modes with credential hiding and SKILL.md support
+- **Deer-flow Integration** — in-process ByteDance multi-agent system with skills, MCP, and web UI
 
 ## Installation
 
@@ -120,39 +114,18 @@ config.select_config('production')
 
 ## Documentation
 
-Comprehensive documentation organized by topic:
+| Document | What it covers |
+|----------|---------------|
+| [docs/core.md](docs/core.md) | LLM Factory, Embeddings, Vector Stores, Caching, Configuration |
+| [docs/agents.md](docs/agents.md) | LangChain agents (react/deep/custom), profiles, middleware, checkpointing |
+| [docs/extra.md](docs/extra.md) | RAG pipelines, graphs, data loaders, retrievers, privacy tools |
+| [docs/mcp-servers.md](docs/mcp-servers.md) | Expose tools/agents as Model Context Protocol servers |
+| [docs/deer-flow.md](docs/deer-flow.md) | Deer-flow (ByteDance) integration — CLI, profiles, skills, embedded client |
+| [docs/sandbox_support.md](docs/sandbox_support.md) | Docker sandbox setup, `cli sandbox` commands, configuration |
+| [docs/browser_control.md](docs/browser_control.md) | Browser automation — sandbox vs direct mode, credentials, skills |
+| [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) | Unit/integration test patterns, fixtures, mocking |
 
-### Core Modules
-- **[Core Module](docs/core.md)** - LLM Factory, Embeddings, Vector Stores, Caching, Configuration, Models DB, Providers
-- **[Agents Module](docs/agents.md)** - LangChain Agents (ReAct, Deep, Custom), SmolAgents, Configuration, Profiles, Middleware, Checkpointing
-- **[Extra Module](docs/extra.md)** - Advanced Graphs (ReAct, SQL, Structured Output), RAG Systems, Data Loaders, Retrievers, Privacy Tools, Vector DB
-
-### Integration & Framework
-- **[MCP Servers](docs/mcp-servers.md)** - Model Context Protocol servers, tool exposure, CLI commands
-- **[Deer-flow Integration](docs/Deer_Flow_Integration.md)** - ByteDance multi-agent system, in-process client, architecture
-- **[Deep Agents CLI](docs/deepagents-cli_integration.md)** - Deepagents integration, TUI interface, persistent memory
-- **[Deer-flow Quick Reference](docs/deer_flow_quick_reference.md)** - Quick command reference
-- **[Deer-flow Skills](docs/deer_flow_skills_management.md)** - Skill library management
-- **[Deer-flow Input Box Patch](docs/deer_flow_input_box_patch.md)** - UI improvements
-
-### Advanced Features
-- **[Sandbox Support](docs/sandbox_support.md)** - OpenSandbox, sandboxed code execution, architecture, configuration
-- **[Browser Control](docs/browser_control.md)** - Authenticated web scraping, Playwright integration, session caching
-- **[Testing Guide](docs/TESTING_GUIDE.md)** - Unit testing patterns, fixtures, mocking, integration tests
-
-### Documentation Navigation
-**Starting Point:** Choose your task
-- **Getting Started?** → Start with [Core Module](docs/core.md) for basic usage
-- **Building Agents?** → See [Agents Module](docs/agents.md) for configuration and CLI
-- **Advanced Features?** → Check [Extra Module](docs/extra.md) for RAG, graphs, and utilities
-- **Integrating Tools?** → Read [MCP Servers](docs/mcp-servers.md) for external tool integration
-- **Running Code Safely?** → See [Sandbox Support](docs/sandbox_support.md)
-- **Web Automation?** → Check [Browser Control](docs/browser_control.md)
-- **Testing Code?** → Refer to [Testing Guide](docs/TESTING_GUIDE.md)
-- **Using Deer-flow?** → Start with [Deer-flow Integration](docs/Deer_Flow_Integration.md)
-
-### All Documentation Files
-All markdown documentation files are stored in the [`docs/`](docs/) directory. Use the links above for topic-based navigation.
+Design and investigation notes are in [`docs/design/`](docs/design/).
 
 ## Package Structure
 

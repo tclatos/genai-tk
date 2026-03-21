@@ -97,6 +97,7 @@ def started_backend(backend: AioSandboxBackend) -> AioSandboxBackend:
 def test_list_tools(backend: AioSandboxBackend) -> None:
     assert set(backend.list_tools()) == {"bash", "ls", "read_file", "write_file", "str_replace"}
 
+
 def test_build_browser_env_clears_image_default_user_agent(backend: AioSandboxBackend) -> None:
     env = backend._build_browser_env()
 
@@ -136,8 +137,7 @@ def test_build_browser_env_preserves_explicit_browser_overrides() -> None:
     assert env["LC_ALL"] == "de_DE.UTF-8"
     assert env["LANGUAGE"] == "de_DE:de"
     assert env["BROWSER_EXTRA_ARGS"] == (
-        "--foo=bar --lang=de-DE --time-zone-for-testing=Europe/Berlin "
-        "--disable-blink-features=AutomationControlled"
+        "--foo=bar --lang=de-DE --time-zone-for-testing=Europe/Berlin --disable-blink-features=AutomationControlled"
     )
 
 

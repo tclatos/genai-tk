@@ -1,80 +1,65 @@
-# Agent-Driven Browser Automation
+# Browser Control
 
-Browser automation using a deep agent that controls a real Chromium browser.
-Two tool suites are available:
+Agent-driven browser automation using a deep agent that controls a real Chromium browser.
+Two modes are available depending on the target site's bot-detection level.
 
-- **Sandbox** (`Browser Agent`): Browser runs inside an [AIO Sandbox](https://github.com/agent-infra/sandbox) Docker container.
-  Isolated and secure, but may trigger bot-detection on sites with deep fingerprinting.
-- **Direct** (`Browser Agent Direct`): Browser runs on the host via Playwright.
-  Uses real GPU, real platform UA, real network. Best for sites with aggressive
-  bot-detection (Enedis, SSO portals, paywall sites).
+## Modes
 
-Both suites expose **identical tool names** (`browser_navigate`, `browser_click`, etc.)
+| Mode | Profile | Browser location | When to use |
+|------|---------|-----------------|-------------|
+| **Sandbox** | `Browser Agent` | Inside Docker container (AIO) | Development, isolated environments |
+| **Direct** | `Browser Agent Direct` | Host machine via Playwright | Sites with aggressive bot-detection (Enedis, SSO portals) |
+
+Both modes expose **identical tool names** (`browser_navigate`, `browser_click`, etc.)
 so SKILL.md files work unchanged with either backend.
-
-The agent navigates websites, fills forms, handles authentication, and extracts
-data — guided by site-specific **SKILL.md** files.
 
 ## Architecture
 
+### Sandbox Mode
+
 ```
-User query: "Get my solar panel production from Enedis"
-     │
-     ▼
-┌───────────────────────────────────────────────┐
-│  Deep Agent (LangChain, type: deep)           │
-│  ├─ System prompt + browser skills            │
-│  ├─ Plans multi-step workflow                  │
-│  └─ Calls browser tools sequentially          │
-└──────────────┬────────────────────────────────┘
-               │  tool calls
-       ┌───────┴───────┐
-       ▼               ▼
-┌──────────────┐ ┌──────────────────────────────┐
-│ Direct Tools │ │  Sandbox Browser Tools       │
-│ (host PW)    │ │  (AIO Docker)                │
-│              │ │                              │
-│ Real GPU     │ │  CDP / fresh modes           │
-│ Real UA      │ │  VNC observation             │
-│ Real network │ │  Docker isolation            │
-└──────┬───────┘ └──────────────┬───────────────┘
-       │                        │
-       ▼                        ▼
-   Host Chromium           AIO Container Chromium
+User query
+    │
+    ▼
+Deep Agent (LLM, runs on host)
+    │  tool calls
+    ▼
+Sandbox Browser Tools  ←─ reads SKILL.md via AioSandboxBackend
+    │  Playwright CDP
+    ▼
+AioSandboxBackend (HTTP client)
+    │  HTTP
+    ▼
+OpenSandbox Server  ←─ manages container lifecycle + port allocation
+    │  Docker
+    ▼
+ghcr.io/agent-infra/sandbox container
+    └─ Chromium (VNC on :8080/vnc + CDP on :9222)
 ```
-User query: "Get my solar panel production from Enedis"
-     │
-     ▼
-┌─────────────────────────────────────────┐
-│  Deep Agent (LangChain, type: deep)     │
-│  ├─ System prompt + browser skills      │
-│  ├─ Plans multi-step workflow            │
-│  └─ Calls browser tools sequentially    │
-└──────────────┬──────────────────────────┘
-               │  tool calls
-               ▼
-┌─────────────────────────────────────────┐
-│  Sandbox Browser Tools (LangChain)      │
-│  browser_navigate, browser_click,       │
-│  browser_type, browser_fill_credential, │
-│  browser_screenshot, browser_read_page, │
-│  browser_scroll, browser_wait,          │
-│  browser_save_cookies,                  │
-│  browser_load_cookies                   │
-└──────────────┬──────────────────────────┘
-               │  Playwright CDP
-               ▼
-┌─────────────────────────────────────────┐
-│  AIO Sandbox Docker Container           │
-│  ├─ Real Chromium (VNC + CDP)           │
-│  ├─ Shared filesystem                   │
-│  └─ Shell, File, Jupyter services       │
-└─────────────────────────────────────────┘
+
+[OpenSandbox](https://github.com/alibaba/OpenSandbox) creates and manages the Docker
+container lifecycle. The `AioSandboxBackend` auto-starts `opensandbox-server` if it
+is not already running. See [Sandbox Support](sandbox_support.md) for setup and the
+`cli sandbox` commands.
+
+### Direct Mode
+
+```
+User query
+    │
+    ▼
+Deep Agent (LLM, runs on host)
+    │  tool calls
+    ▼
+Direct Browser Tools  ←─ reads SKILL.md from host filesystem
+    │  Playwright API
+    ▼
+Host Chromium (real GPU, real UA, real network)
 ```
 
 ## Quick Start
 
-### Direct Mode (Host-Local Playwright)
+### Direct Mode (recommended for bot-sensitive sites)
 
 ```bash
 # 1. Install Playwright
@@ -85,76 +70,75 @@ uv run playwright install chromium
 export ENEDIS_USERNAME="your_email@example.com"
 export ENEDIS_PASSWORD="your_password"
 
-# 3. Run the direct browser agent
+# 3. Run
 uv run cli agents langchain -p "Browser Agent Direct" \
-  "Get my solar panel production for this month from Enedis portal"
+  "Get my solar panel production for this month from Enedis"
 ```
 
-### Sandbox Mode (AIO Docker)
-
-### 1. Install Dependencies
+### Sandbox Mode
 
 ```bash
+# 1. Install dependencies
 uv sync --group browser-control
 uv run playwright install chromium
-```
 
-### 2. Start the AIO Sandbox
+# 2. Start sandbox server (once per session, survives CLI exit)
+uv run cli sandbox start
+uv run cli sandbox pull   # pre-pull image to avoid first-run delay (~20 s)
 
-```bash
-docker run --security-opt seccomp=unconfined --rm -it -p 8080:8080 \
-  ghcr.io/agent-infra/sandbox:latest
-```
-
-### 3. Set Credentials
-
-```bash
+# 3. Set credentials
 export ENEDIS_USERNAME="your_email@example.com"
 export ENEDIS_PASSWORD="your_password"
+
+# 4. Run the agent
+uv run cli agents langchain -p "Browser Agent" \
+  "Get my solar panel production for this month from Enedis"
+
+# 5. Optional: watch the browser live
+# http://localhost:8080/vnc/index.html?autoconnect=true
+
+# 6. Stop sandbox server when done
+uv run cli sandbox stop
 ```
 
-### 4. Run the Browser Agent
-
+Keep the sandbox warm across turns (avoids container startup overhead):
 ```bash
-uv run cli agents langchain -p "Browser Agent" --sandbox docker \
-  "Get my solar panel production for this month from Enedis portal"
+uv run cli agents langchain -p "Browser Agent" --keep-sandbox --chat "..."
 ```
-
-### 5. Watch (Optional)
-
-Open VNC to see the browser in real-time:
-`http://localhost:8080/vnc/index.html?autoconnect=true`
 
 ## Browser Tools Reference
 
-| Tool | Input | Returns |
-|---|---|---|
-| `browser_navigate` | `url` | Page title + URL + text snippet |
-| `browser_click` | `selector` | Page state after click |
-| `browser_type` | `selector`, `text` | Success confirmation |
-| `browser_fill_credential` | `selector`, `credential_env` | "Credential filled" (**value hidden**) |
-| `browser_screenshot` | *(none)* | Base64 PNG |
-| `browser_read_page` | `selector` (optional) | Page text content |
-| `browser_scroll` | `direction`, `amount` | Viewport state |
-| `browser_wait` | `selector`, `timeout_ms` | Success/timeout |
-| `browser_save_cookies` | `name` | File path |
-| `browser_load_cookies` | `name` | Success/failure |
-| `browser_get_logs` | `last_n` (optional) | Recent browser events |
-| `browser_evaluate` | `expression` | JavaScript result |
-| `browser_diagnose` | *(none)* | Browser fingerprint JSON + event log |
+| Tool | Purpose |
+|------|---------|
+| `browser_navigate` | Navigate to URL; returns title + URL + text snippet |
+| `browser_click` | Click element by CSS selector |
+| `browser_type` | Type text into element |
+| `browser_fill_credential` | Fill field from env var (**value never reaches LLM**) |
+| `browser_screenshot` | Capture page as base64 PNG |
+| `browser_read_page` | Extract text content (optional selector scope) |
+| `browser_scroll` | Scroll page up/down |
+| `browser_wait` | Wait for selector or load state |
+| `browser_save_cookies` | Persist session cookies to file |
+| `browser_load_cookies` | Restore session cookies from file |
+| `browser_get_logs` | Return recent browser events |
+| `browser_evaluate` | Execute JavaScript and return result |
+| `browser_diagnose` | Return browser fingerprint + event log (debugging) |
 
 ## Credential Security
 
-`browser_fill_credential` is the only way to enter credentials:
+`browser_fill_credential` is the **only** way to enter credentials:
 
-1. Agent calls: `browser_fill_credential(selector="#email", credential_env="ENEDIS_USERNAME")`
-2. Tool resolves `os.environ["ENEDIS_USERNAME"]` → types value into the field
-3. Returns only: `"Credential from $ENEDIS_USERNAME filled into '#email'."`
-4. The actual password/email **never appears** in the LLM context
+```
+agent → browser_fill_credential(selector="#email", credential_env="ENEDIS_USERNAME")
+tool  → resolves os.environ["ENEDIS_USERNAME"] inside the tool
+tool  → types value into field
+tool  → returns: "Credential from $ENEDIS_USERNAME filled into '#email'."
+```
 
-An **allowlist** in `config/basic/sandbox.yaml` restricts which env vars the
-tool can access, preventing the LLM from being tricked into exfiltrating other
-env vars:
+The actual value never appears in LLM context, conversation history, or logs.
+
+An allowlist in `config/basic/sandbox.yaml` restricts which env vars the tool can
+access, preventing prompt-injection attacks that try to exfiltrate other secrets:
 
 ```yaml
 sandbox_browser:
@@ -165,102 +149,24 @@ sandbox_browser:
     - SHAREPOINT_PASSWORD
 ```
 
-## Security Assessment
+## Session Caching
 
-This browser automation approach provides multiple independent layers of
-protection that make credential-based authentication safe to use with LLMs.
+Credentials are entered once per session:
+1. After successful login → `browser_save_cookies name="my_site"`
+2. Subsequent runs → `browser_load_cookies name="my_site"` (no re-authentication)
 
-### 1. Credential Isolation (LLM-Level)
+Saved sessions are stored in `data/sessions/`. Delete this directory after
+rotating credentials.
 
-**Credentials never reach the LLM context.**
+## Skills (Site-specific Knowledge)
 
-- The agent calls `browser_fill_credential` with only the **env var name**
-  (e.g. `ENEDIS_USERNAME`), not the actual value.
-- The credential is resolved via `os.environ` **only inside the tool**, in
-  server memory, and is never serialised into the conversation.
-- The tool returns only a confirmation string — the password never appears in
-  any LLM response, log line, or conversation turn.
-- The **allowlist** in `sandbox.yaml` ensures the LLM cannot be prompt-injected
-  into requesting arbitrary env vars (AWS keys, API tokens, etc.).
+Site knowledge is encoded in **SKILL.md** files, not Python code.
+Adding support for a new site = adding one file.
 
-### 2. Docker Sandboxing (Infrastructure-Level)
-
-The browser runs inside a Docker container (`ghcr.io/agent-infra/sandbox:latest`),
-isolated from:
-
-- **Host filesystem**: SSH keys, `.aws/config`, `~/.kube/config` are not
-  visible inside the container.
-- **Host network**: The container has its own network namespace — it cannot
-  sniff host traffic or reach other services directly.
-- **Host processes**: Kernel namespaces prevent container processes from
-  seeing or signalling host processes.
-- **Other containers**: Network and PID namespaces isolate containers from
-  each other.
-
-Even if malicious JavaScript in a webpage tried to exfiltrate data, it would
-be trapped inside the sandbox with no path to the host or other services.
-
-### 3. Open Sandbox (Transparency & Auditability)
-
-The AIO sandbox is **open-source**:
-
-- The exact browser environment is defined in code — no black-box behaviour.
-- Source can be audited to verify no telemetry or credential capture is
-  happening inside the container.
-- **VNC** (`http://localhost:8080/vnc`) lets authorised users watch the browser
-  in real-time, enabling human verification and audit trails — important for
-  regulated environments.
-
-### 4. Session Token Strategy
-
-Credentials are typed into the browser **only once** per session:
-
-- After a successful login, `browser_save_cookies` persists the session.
-- Subsequent agent runs use `browser_load_cookies` to restore the session
-  without re-entering credentials, minimising the credential exposure window.
-
-### 5. Real Browser (Anti-Bot Avoidance)
-
-The sandbox runs a **full Chromium** instance (not headless), which:
-
-- Avoids bot-detection rejections on SSO portals (SAP, SharePoint, Enedis).
-- Supports modern SPAs, WebSockets, and MFA dialogs that headless Chrome
-  struggles with.
-- Allows visual verification via VNC for unexpected prompts (CAPTCHA, MFA).
-
-### 6. Defense-in-Depth Summary
-
-| Layer | Mechanism | Protects Against |
-|---|---|---|
-| **Application** | Allowlist + credential hiding in `browser_fill_credential` | LLM exfiltration, prompt injection |
-| **System** | Docker kernel namespaces + network isolation | Host compromise, lateral movement |
-| **Operational** | Open-source sandbox + VNC visibility | Supply-chain risk, undetected malicious actions |
-
-A compromise at any single layer does not automatically expose credentials,
-because the other layers remain intact.
-
-### Recommended Production Practices
-
-- Store credentials in a secrets manager (Vault, AWS Secrets Manager) and
-  inject them as env vars at runtime — never commit to source control.
-- Keep `allowed_credential_envs` as short as possible; list only what is
-  strictly needed.
-- Enable Docker resource limits (`--memory`, `--cpus`) to prevent runaway
-  containers.
-- Rotate portal credentials regularly; invalidate saved session files after
-  rotation (`data/sessions/`).
-
-## Skills
-
-Site-specific knowledge is encoded as **SKILL.md** files, not Python code.
-Adding a new site = adding a new skill file.
-
-### Available Skills
-
-| Skill | Location | Purpose |
-|---|---|---|
-| `browser-automation` | `skills/custom/browser-automation/SKILL.md` | Generic browser patterns, CSS selectors, error recovery |
-| `enedis-portal` | `skills/custom/enedis-portal/SKILL.md` | Enedis solar production portal (login + data extraction) |
+| Skill | Path | Purpose |
+|-------|------|---------|
+| `browser-automation` | `skills/custom/browser-automation/SKILL.md` | Generic patterns, selectors, error recovery |
+| `enedis-portal` | `skills/custom/enedis-portal/SKILL.md` | Enedis solar production portal |
 | `sharepoint-sso` | `skills/custom/sharepoint-sso/SKILL.md` | SharePoint behind Microsoft SSO |
 | `sap-portal` | `skills/custom/sap-portal/SKILL.md` | SAP Fiori/WebGUI behind SSO |
 
@@ -290,16 +196,15 @@ description: Navigate my-site.com, handle login, and extract data
 5. browser_save_cookies name="my_site"
 ```
 
-Then add the credential env vars to the allowlist in `sandbox.yaml`.
+Then add the env var names to `allowed_credential_envs` in `sandbox.yaml`.
+
+In sandbox mode, skill directories are bind-mounted into the container at
+`/mnt/skills/` so the deep agent's `SkillsMiddleware` can read them through
+the container filesystem API.
 
 ## Configuration
 
-### Agent Profile (`config/basic/agents/langchain.yaml`)
-
-The `Browser Agent` profile is pre-configured with `type: deep`, planning
-enabled, and the `create_sandbox_browser_tools` factory.
-
-### Browser Settings (`config/basic/sandbox.yaml`)
+### Browser settings (`config/basic/sandbox.yaml`)
 
 ```yaml
 sandbox_browser:
@@ -310,65 +215,84 @@ sandbox_browser:
   default_timeout_ms: 30000
   slow_type_ms: 60
   cookies_dir: "data/sessions"
+  launch_mode: "cdp"   # "cdp" (default) or "fresh"
   allowed_credential_envs:
     - ENEDIS_USERNAME
     - ENEDIS_PASSWORD
 ```
 
+`launch_mode: fresh` kills the pre-launched container browser and starts a fresh
+Chromium with anti-detection flags before connecting. Use this if the default
+CDP-attach mode is detected by the target site.
+
+### Agent profiles (`config/basic/agents/langchain.yaml`)
+
+Both `Browser Agent` (sandbox) and `Browser Agent Direct` (host) profiles are
+pre-configured with `type: deep`, planning enabled, and the appropriate browser
+tool factory.
+
+## Security Summary
+
+| Layer | Mechanism | Protects against |
+|-------|-----------|-----------------|
+| Application | Allowlist + credential hiding | LLM exfiltration, prompt injection |
+| Container | Docker namespaces + network isolation | Host compromise, lateral movement |
+| Auditability | Open-source image + VNC visibility | Supply-chain risk, undetected actions |
+
+**Recommended practices:**
+- Store credentials in a secrets manager; inject as env vars at runtime.
+- Keep `allowed_credential_envs` as short as possible.
+- Enable Docker resource limits (`--memory`, `--cpus`).
+- Rotate credentials regularly; clear `data/sessions/` after rotation.
+
+## Choosing Between Sandbox and Direct Mode
+
+Investigation (see [design/sandbox_bot_detection.md](design/sandbox_bot_detection.md))
+found that Enedis and similar portals detect the AIO container due to the SwiftShader
+software GPU renderer and Docker network path. Host-local Playwright avoids these signals:
+
+| Signal | Sandbox | Direct |
+|--------|---------|--------|
+| GPU renderer | SwiftShader (software) | Real host GPU |
+| Platform | Linux container | Matches host |
+| Network path | Docker NAT | Direct |
+| Enedis portal | Blocked ❌ | Works ✅ |
+
+Use **Sandbox** for: isolated execution, untrusted pages, development/CI.  
+Use **Direct** for: sites with deep fingerprinting (Enedis, SSO portals, paywalls).
+
 ## Module Structure
 
 ```
 genai_tk/tools/sandbox_browser/    # AIO sandbox browser (Docker)
-├── __init__.py       # Public exports
 ├── models.py         # SandboxBrowserConfig, CredentialRef, PageSummary
 ├── session.py        # SandboxBrowserSession (Playwright CDP or fresh)
 ├── tools.py          # 13 LangChain tools
 └── factory.py        # create_sandbox_browser_tools()
 
 genai_tk/tools/direct_browser/     # Host-local Playwright browser
-├── __init__.py       # Public exports
 ├── models.py         # DirectBrowserConfig
 ├── session.py        # DirectBrowserSession (Playwright local launch)
 ├── tools.py          # 13 LangChain tools (same names as sandbox)
 └── factory.py        # create_direct_browser_tools()
 ```
 
-## Agent Profiles
-
-| Profile | Tool Suite | Use Case |
-|---|---|---|
-| `Browser Agent` | `sandbox_browser` | Generic automation, Docker isolation |
-| `Browser Agent Direct` | `direct_browser` | Bot-resistant sites, deep fingerprinting |
-
 ## Testing
 
 ```bash
-# Unit tests — both suites (68 tests)
+# Unit tests — both suites
 uv run pytest tests/unit_tests/tools/sandbox_browser/ tests/unit_tests/tools/direct_browser/ -v
 
-# Integration tests — direct browser against live sites (17 tests, requires playwright)
+# Integration tests — direct browser against live sites
 uv run pytest tests/integration_tests/tools/test_direct_browser_integration.py -v
-
-# All browser tests together (85 tests)
-uv run pytest tests/unit_tests/tools/sandbox_browser/ tests/unit_tests/tools/direct_browser/ \
-  tests/integration_tests/tools/test_direct_browser_integration.py -v
 
 # Fingerprint comparison probe
 uv run python scripts/browser_probe.py --fingerprint-only
 
-# CLI agent test — sandbox (requires running AIO sandbox)
-docker run --security-opt seccomp=unconfined --rm -d -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
-uv run cli agents langchain -p "Browser Agent" --sandbox docker "Navigate to example.com and read the page"
+# CLI test — sandbox (requires running sandbox server)
+uv run cli sandbox start
+uv run cli agents langchain -p "Browser Agent" "Navigate to example.com and read the page"
 
-# CLI agent test — direct
+# CLI test — direct
 uv run cli agents langchain -p "Browser Agent Direct" "Navigate to example.com and read the page"
 ```
-
-### Validated Sites (Direct Mode)
-
-| Site | URL | Result |
-|------|-----|--------|
-| example.com | `https://example.com` | Page read, fingerprint collected |
-| Le Monde | `https://www.lemonde.fr` | Headlines extracted from homepage |
-| Enedis portal | `https://mon-compte-particulier.enedis.fr` | **Login form visible** (not blocked) |
-| bot.sannysoft.com | `https://bot.sannysoft.com` | `webdriver: false`, anti-detection passes |

@@ -1,69 +1,138 @@
 # Development Guidelines for GenAI Toolkit
 
-## Build/Lint/Test Commands
+## Build Commands
 
-**Package Management:** Uses `uv` for dependency management
-- `make install-dev` - Install with development dependencies
-- `make fmt` - Format code with ruff (includes import sorting)
-- `make lint` - Lint code with ruff
-- `make test` - Run all tests (unit + integration)
-- `make test-unit` - Run unit tests only
-- `make test-integration` - Run integration tests only
-- `make check` - Run format, lint, and test sequentially
+```bash
+make install-dev   # install with development dependencies
+make fmt           # format with ruff (includes import sorting)
+make lint          # lint with ruff
+make test          # run all tests (unit + integration)
+make test-unit     # unit tests only
+make test-integration  # integration tests only
+make check         # fmt + lint + test
+```
 
-## Code and tools execution ##
-- Use 'uv' to run Python code, execute tests, install packages etc.
+Always use `uv` to run Python code, execute tests, and manage packages.
 
-## Code Style Guidelines
+## Code Style
 
-**Formatting & Linting:**
-- Line length: 120 characters
-- Use ruff for formatting and linting
-- Import sorting: isort rules (handled by ruff)
+**Formatting & linting:** ruff, line length 120, isort rules.
 
-## Documentation**
-- Rules for doctrings:
-    - Use Google style 
-    - Don't mention types 
-    - Don't mention raised exceptions 
-    - Use  ``` to format code in documentation (Fenced Code Blocks)
-   -  Don't repeat code examples in module description if they are already in function docstrings. 
-- Don't add comments for classes fields and arguments. Write only one line to describe the clas
+**Python version:** 3.12+ required.
+- Use `str | None` instead of `Optional[str]`
+- Use `list[str]` instead of `List[str]`
+- Avoid `Any` unless unavoidable
 
-**Type System:**
-- Python 3.12+ required
-- Use type hints extensively (pydantic models preferred)
-- Return types encouraged but not strictly required (ANN201/ANN202 ignored). 
-- Use 'None" type annotation when functions return nothing
-- Avoid 'Any' type except if its necessary.
-- Use Python 12 capabilities - Typically use '|' instead of 'Union', and '| None' instead of 'Optional'
-- Use Pydantic to define class whenener possible. Avoid __init__ methods, use model_post_init() instead.
+**Imports:** always absolute — never relative.
 
-**Naming Conventions:**
-- Classes: PascalCase (e.g., `LlmFactory`, `OmegaConfig`)
-- Functions/variables: snake_case (e.g., `get_llm`, `llm_config`)
-- Constants: UPPER_SNAKE_CASE (e.g., `APPLICATION_CONFIG_FILE`)
-- Private members: underscore prefix (e.g., `_internal_method`)
+```python
+# DO
+from genai_tk.core import LLMFactory
 
-**Import Organization:**
-- Prefer explicit imports over star imports
-- Alwary use absolute  imports for project modules.   Don't use relative imports
+# DON'T
+from ..core import LLMFactory
+```
 
-**Error Handling:**
-- Use structured logging with loguru
+**Naming:**
+- Classes: `PascalCase`
+- Functions/variables: `snake_case`
+- Constants: `UPPER_SNAKE_CASE`
+- Private: `_underscore_prefix`
+
+## Data Modeling
+
+Use **Pydantic v2** for all structured data — DTOs, configs, API models, results.
+
+```python
+from pydantic import BaseModel, Field
+
+class Result(BaseModel):
+    status: str
+    count: int
+    message: str | None = None
+    tags: list[str] = Field(default_factory=list)
+```
+
+- Use `model_config = {...}` instead of inner `class Config`
+- Use `model_post_init()` instead of `__init__`
+- Use `model_dump_json()` instead of `json.dumps(model.model_dump())`
+- Avoid `dataclass`, unnamed tuples, and untyped dicts for structured data
+
+## Error Handling & Logging
+
+- Use `loguru` for structured logging
 - Raise specific exceptions with descriptive messages
-- Use pydantic for data validation and error handling
-- Implement proper error boundaries in agent workflows
+- Use Pydantic validators for input validation at system boundaries
+- No defensive checks for internal invariants — trust the type system
 
-**Testing:**
-- Use pytest with asyncio support
+## Docstrings
+
+Google style. Do not mention types (they're in the signature). Do not list raised
+exceptions. Use fenced code blocks for examples. One line to describe the class —
+do not add docstrings to fields or constructor arguments.
+
+```python
+def get_llm(llm: str | None = None) -> BaseChatModel:
+    """Return a configured LLM instance.
+
+    Args:
+        llm: Model ID in `name@provider` format. Uses config default when omitted.
+
+    Returns:
+        Configured LangChain chat model.
+
+    Example:
+        ```python
+        model = get_llm("gpt_41mini@openai")
+        response = model.invoke("Hello")
+        ```
+    """
+```
+
+## Configuration
+
+- YAML-based with OmegaConf, env var substitution supported (`${MY_VAR}`)
+- Singleton pattern for global config access (`global_config()`)
+- Config auto-discovered by searching parent directories — works from any CWD
+
+## Testing
+
+- pytest with asyncio support (`pytest-asyncio`)
+- Unit tests in `tests/unit_tests/`, integration tests in `tests/integration_tests/`
 - Test files: `test_*.py` or `*_test.py`
-- Place unit tests in `tests/unit_tests/`
-- Place integration tests in `tests/integration_tests/`
-- Use faker for test data generation
+- Use `faker` for test data generation
+- No Docker required for unit tests; integration tests may require live services
 
-**Configuration:**
-- YAML-based configuration with OmegaConf
-- Environment variable substitution supported
-- Singleton pattern for global config access
-- Separate configs for different environments (dev, prod, etc.)
+## Agent and Tool Guidelines
+
+### Agents
+- Use `cli agents langchain --list` to inspect configured profiles
+- Agent type `react` is the default; use `deep` for multi-step planning + skills
+- Keep system prompts in YAML (`system_prompt:` field), not hardcoded in Python
+- Use `SkillsMiddleware` + SKILL.md files for domain knowledge — avoids bloating
+  system prompts and enables progressive disclosure
+
+### Tools
+- Define tools as LangChain `BaseTool` subclasses or `@tool`-decorated functions
+- Register via factory function (`create_*_tools()`) referenced in agent YAML
+- Use `browser_fill_credential` (never plain `browser_type`) for credentials
+- Tools that call external APIs must validate inputs at the boundary
+
+### Sandbox
+- `--sandbox docker` for isolated execution; `--sandbox local` for development
+- Run `cli sandbox start` + `cli sandbox pull` once per boot to pre-warm
+- Skill directories are automatically bind-mounted into the container (read-only)
+- See `docs/sandbox_support.md` for setup and `docs/browser_control.md` for the browser tooling
+
+### Skills (SKILL.md)
+- One SKILL.md per site or domain — kept in `skills/custom/<name>/SKILL.md`
+- Skills are read by the agent on demand, not injected into every prompt
+- Keep Enedis/site-specific waits and selectors in the skill file, not in Python
+
+## Documentation
+
+Keep docs in `docs/`. Organisation:
+- **User-facing features** — one file per major feature (`browser_control.md`, `sandbox_support.md`, etc.)
+- **Design notes, investigations, patches** — go in `docs/design/` (internal reference)
+- Do not add comments for obvious code; document *why*, not *what*
+- Do not duplicate code examples between module docstring and function docstring
