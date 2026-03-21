@@ -435,13 +435,29 @@ transparently at the session layer, and the agent performs login steps via brows
    other than 9222, the fresh launch on 9222 may not be reachable through `/cdp/`.
    May need to discover the original port and reuse it.
 
-### Next: Run the Probe
+### Resolution (2026-03-21)
 
-Run `scripts/enedis_probe.py` against a live AIO container to determine whether
-fresh mode reaches the Enedis login form.  That result drives the next decision:
+The investigation concluded with the **Direct Playwright** approach:
 
-- **Fresh mode works → `/indisponible` only in CDP mode**: Use `launch_mode: fresh` for
-  bot-sensitive sites.  The infrastructure is already in place.
-- **Both modes blocked**: Investigate deeper sandbox-runtime signals (TLS fingerprint,
-  network path, container metadata).
-- **Both modes work**: The original issue may have been transient or site-side.
+| Mode | Enedis Result |
+|------|---------------|
+| AIO Sandbox (CDP attach) | Blocked → `/indisponible` |
+| AIO Sandbox (fresh launch) | Blocked → `/indisponible` |
+| **Host-local Playwright (Direct)** | **Login form visible** |
+
+**Root cause**: The AIO sandbox container exposes detectable signals (SwiftShader
+GPU renderer, container-specific TLS fingerprint, network path indicators) that
+Enedis's bot-detection identifies.  Host-local Playwright on the real host avoids
+all of these.
+
+**Solution implemented**: A parallel `direct_browser` tool suite was created with
+identical 13 tools, configured as the `"Browser Agent Direct"` CLI profile.  This
+mode uses host-local Playwright with anti-detection flags (`--disable-blink-features=AutomationControlled`),
+locale/timezone propagation, and cookie persistence.
+
+Validated sites in Direct mode:
+- **Enedis** — login form loads, FriendlyCaptcha visible, not blocked
+- **Le Monde** — homepage headlines extracted successfully
+- **bot.sannysoft.com** — `webdriver: false`, anti-detection passes
+
+See `docs/browser_control.md` for architecture and usage details.

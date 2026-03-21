@@ -1,6 +1,7 @@
 ---
 name: enedis-portal
 description: Navigate the Enedis customer portal to retrieve solar photovoltaic production data, handling authentication, cookie consent, and data extraction
+browser_backend: direct
 ---
 
 # Enedis Solar Production Portal
@@ -10,10 +11,15 @@ Retrieve solar panel production data from the Enedis "Mon Compte Particulier" po
 ## Prerequisites
 
 - Environment variables: `ENEDIS_USERNAME` (email) and `ENEDIS_PASSWORD`
-- Sandbox browser configured with `launch_mode: fresh` (avoids bot-detection)
+- **Recommended: use "Browser Agent Direct" profile** (host-local Playwright).
+  Enedis has aggressive bot-detection that blocks the AIO sandbox browser
+  (SwiftShader GPU, Mac-on-Linux platform mismatch). The direct browser uses
+  the host GPU and real platform, which passes Enedis fingerprinting.
+- If using sandbox: configure `launch_mode: fresh` (avoids pre-launched CDP detection)
 - Browser tools: `browser_navigate`, `browser_read_page`, `browser_wait`,
   `browser_load_cookies`, `browser_save_cookies`, `browser_screenshot`,
-  `browser_evaluate`, `browser_fill_credential`, `browser_get_logs`
+  `browser_evaluate`, `browser_fill_credential`, `browser_get_logs`,
+  `browser_diagnose`
 
 ## Workflow
 

@@ -1,6 +1,7 @@
 ---
 name: sap-portal
 description: Navigate SAP web portals (Fiori, WebGUI) behind SSO, handling authentication and data extraction
+browser_backend: sandbox
 ---
 
 # SAP Portal Access
@@ -11,7 +12,8 @@ behind corporate Single Sign-On.
 ## Prerequisites
 
 - Environment variables: `SAP_USERNAME` and `SAP_PASSWORD`
-- Browser tools available
+- Browser tools available (works with both "Browser Agent" and "Browser Agent Direct" profiles)
+- If SSO uses aggressive fingerprinting, prefer "Browser Agent Direct"
 - The SAP portal URL (provided by the user)
 
 ## Authentication Flow

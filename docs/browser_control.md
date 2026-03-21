@@ -1,12 +1,46 @@
 # Agent-Driven Browser Automation
 
-Browser automation using a deep agent that controls a real Chromium browser
-inside an [AIO Sandbox](https://github.com/agent-infra/sandbox) container.
+Browser automation using a deep agent that controls a real Chromium browser.
+Two tool suites are available:
+
+- **Sandbox** (`Browser Agent`): Browser runs inside an [AIO Sandbox](https://github.com/agent-infra/sandbox) Docker container.
+  Isolated and secure, but may trigger bot-detection on sites with deep fingerprinting.
+- **Direct** (`Browser Agent Direct`): Browser runs on the host via Playwright.
+  Uses real GPU, real platform UA, real network. Best for sites with aggressive
+  bot-detection (Enedis, SSO portals, paywall sites).
+
+Both suites expose **identical tool names** (`browser_navigate`, `browser_click`, etc.)
+so SKILL.md files work unchanged with either backend.
+
 The agent navigates websites, fills forms, handles authentication, and extracts
 data — guided by site-specific **SKILL.md** files.
 
 ## Architecture
 
+```
+User query: "Get my solar panel production from Enedis"
+     │
+     ▼
+┌───────────────────────────────────────────────┐
+│  Deep Agent (LangChain, type: deep)           │
+│  ├─ System prompt + browser skills            │
+│  ├─ Plans multi-step workflow                  │
+│  └─ Calls browser tools sequentially          │
+└──────────────┬────────────────────────────────┘
+               │  tool calls
+       ┌───────┴───────┐
+       ▼               ▼
+┌──────────────┐ ┌──────────────────────────────┐
+│ Direct Tools │ │  Sandbox Browser Tools       │
+│ (host PW)    │ │  (AIO Docker)                │
+│              │ │                              │
+│ Real GPU     │ │  CDP / fresh modes           │
+│ Real UA      │ │  VNC observation             │
+│ Real network │ │  Docker isolation            │
+└──────┬───────┘ └──────────────┬───────────────┘
+       │                        │
+       ▼                        ▼
+   Host Chromium           AIO Container Chromium
 ```
 User query: "Get my solar panel production from Enedis"
      │
@@ -39,6 +73,24 @@ User query: "Get my solar panel production from Enedis"
 ```
 
 ## Quick Start
+
+### Direct Mode (Host-Local Playwright)
+
+```bash
+# 1. Install Playwright
+uv sync --group browser-control
+uv run playwright install chromium
+
+# 2. Set credentials
+export ENEDIS_USERNAME="your_email@example.com"
+export ENEDIS_PASSWORD="your_password"
+
+# 3. Run the direct browser agent
+uv run cli agents langchain -p "Browser Agent Direct" \
+  "Get my solar panel production for this month from Enedis portal"
+```
+
+### Sandbox Mode (AIO Docker)
 
 ### 1. Install Dependencies
 
@@ -87,6 +139,9 @@ Open VNC to see the browser in real-time:
 | `browser_wait` | `selector`, `timeout_ms` | Success/timeout |
 | `browser_save_cookies` | `name` | File path |
 | `browser_load_cookies` | `name` | Success/failure |
+| `browser_get_logs` | `last_n` (optional) | Recent browser events |
+| `browser_evaluate` | `expression` | JavaScript result |
+| `browser_diagnose` | *(none)* | Browser fingerprint JSON + event log |
 
 ## Credential Security
 
@@ -263,21 +318,57 @@ sandbox_browser:
 ## Module Structure
 
 ```
-genai_tk/tools/sandbox_browser/
+genai_tk/tools/sandbox_browser/    # AIO sandbox browser (Docker)
 ├── __init__.py       # Public exports
 ├── models.py         # SandboxBrowserConfig, CredentialRef, PageSummary
-├── session.py        # SandboxBrowserSession (Playwright CDP connection)
-├── tools.py          # All 10 LangChain tools
+├── session.py        # SandboxBrowserSession (Playwright CDP or fresh)
+├── tools.py          # 13 LangChain tools
 └── factory.py        # create_sandbox_browser_tools()
+
+genai_tk/tools/direct_browser/     # Host-local Playwright browser
+├── __init__.py       # Public exports
+├── models.py         # DirectBrowserConfig
+├── session.py        # DirectBrowserSession (Playwright local launch)
+├── tools.py          # 13 LangChain tools (same names as sandbox)
+└── factory.py        # create_direct_browser_tools()
 ```
+
+## Agent Profiles
+
+| Profile | Tool Suite | Use Case |
+|---|---|---|
+| `Browser Agent` | `sandbox_browser` | Generic automation, Docker isolation |
+| `Browser Agent Direct` | `direct_browser` | Bot-resistant sites, deep fingerprinting |
 
 ## Testing
 
 ```bash
-# Unit tests
-uv run pytest tests/unit_tests/tools/sandbox_browser/ -v
+# Unit tests — both suites (68 tests)
+uv run pytest tests/unit_tests/tools/sandbox_browser/ tests/unit_tests/tools/direct_browser/ -v
 
-# Integration test (requires running AIO sandbox)
+# Integration tests — direct browser against live sites (17 tests, requires playwright)
+uv run pytest tests/integration_tests/tools/test_direct_browser_integration.py -v
+
+# All browser tests together (85 tests)
+uv run pytest tests/unit_tests/tools/sandbox_browser/ tests/unit_tests/tools/direct_browser/ \
+  tests/integration_tests/tools/test_direct_browser_integration.py -v
+
+# Fingerprint comparison probe
+uv run python scripts/browser_probe.py --fingerprint-only
+
+# CLI agent test — sandbox (requires running AIO sandbox)
 docker run --security-opt seccomp=unconfined --rm -d -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
 uv run cli agents langchain -p "Browser Agent" --sandbox docker "Navigate to example.com and read the page"
+
+# CLI agent test — direct
+uv run cli agents langchain -p "Browser Agent Direct" "Navigate to example.com and read the page"
 ```
+
+### Validated Sites (Direct Mode)
+
+| Site | URL | Result |
+|------|-----|--------|
+| example.com | `https://example.com` | Page read, fingerprint collected |
+| Le Monde | `https://www.lemonde.fr` | Headlines extracted from homepage |
+| Enedis portal | `https://mon-compte-particulier.enedis.fr` | **Login form visible** (not blocked) |
+| bot.sannysoft.com | `https://bot.sannysoft.com` | `webdriver: false`, anti-detection passes |

@@ -88,3 +88,30 @@ sandbox_browser:
     - SHAREPOINT_PASSWORD
     - SAP_USERNAME
     - SAP_PASSWORD
+
+# ── Direct Browser Tools ───────────────────────────────────────────────────
+# Settings for the host-local Playwright browser (genai_tk.tools.direct_browser).
+# Unlike sandbox_browser, this launches Chromium directly on the host using
+# the real GPU, real platform UA, and real network stack.  Best for sites with
+# deep fingerprinting that detect the AIO sandbox environment (SwiftShader,
+# platform mismatch, CDP-attach signals).
+direct_browser:
+  locale: "fr-FR"
+  timezone_id: "Europe/Paris"
+  headless: false
+  viewport_width: 1920
+  viewport_height: 1080
+  default_timeout_ms: 30000
+  slow_type_ms: 60
+  ignore_https_errors: true
+  log_browser_console: true
+  cookies_dir: "data/sessions"
+  user_data_dir: null          # optional persistent Chromium profile path
+  extra_args: []               # additional Chromium launch flags
+  allowed_credential_envs:
+    - ENEDIS_USERNAME
+    - ENEDIS_PASSWORD
+    - SHAREPOINT_USERNAME
+    - SHAREPOINT_PASSWORD
+    - SAP_USERNAME
+    - SAP_PASSWORD

@@ -1,6 +1,7 @@
 ---
 name: sharepoint-sso
 description: Navigate SharePoint sites behind Microsoft OAuth/SSO, handling MSAL login flows and document access
+browser_backend: sandbox
 ---
 
 # SharePoint SSO Portal
@@ -10,7 +11,9 @@ This skill guides you to access SharePoint sites behind Microsoft Single Sign-On
 ## Prerequisites
 
 - Environment variables: `SHAREPOINT_USERNAME` (email) and `SHAREPOINT_PASSWORD`
-- Browser tools available
+- Browser tools available (works with both "Browser Agent" and "Browser Agent Direct" profiles)
+- If Microsoft SSO uses device-trust or conditional access that blocks sandboxed browsers,
+  prefer "Browser Agent Direct"
 
 ## Authentication Flow
 

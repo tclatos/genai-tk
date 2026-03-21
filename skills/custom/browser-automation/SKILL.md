@@ -1,11 +1,15 @@
 ---
 name: browser-automation
-description: Generic browser automation patterns for navigating websites, filling forms, handling authentication, and extracting data using the sandbox browser tools
+description: Generic browser automation patterns for navigating websites, filling forms, handling authentication, and extracting data using browser tools (sandbox or direct Playwright)
 ---
 
 # Browser Automation Skill
 
-You control a real browser running inside an AIO sandbox using these tools:
+You control a real Chromium browser using these tools. The tools work identically
+whether running inside an AIO sandbox container ("Browser Agent" profile) or as
+a host-local Playwright browser ("Browser Agent Direct" profile).
+
+**Available tools:**
 - `browser_navigate` — go to a URL
 - `browser_click` — click elements (CSS selector or text)
 - `browser_type` — type into form fields
@@ -16,6 +20,15 @@ You control a real browser running inside an AIO sandbox using these tools:
 - `browser_wait` — wait for an element or a duration
 - `browser_save_cookies` — persist session to disk
 - `browser_load_cookies` — restore a saved session
+- `browser_get_logs` — retrieve browser event log for debugging
+- `browser_evaluate` — execute JavaScript in the page
+- `browser_diagnose` — collect browser fingerprint diagnostics (UA, platform, WebGL, timezone)
+
+**Choosing a browser backend:**
+- **Sandbox** (`Browser Agent`): Runs in Docker container. Isolated, secure.
+  Good for general automation. May fail on sites with deep fingerprinting.
+- **Direct** (`Browser Agent Direct`): Runs on host. Real GPU, real platform.
+  Best for sites with aggressive bot-detection (Enedis, SSO portals).
 
 ## Core Workflow
 
