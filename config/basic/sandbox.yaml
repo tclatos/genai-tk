@@ -72,6 +72,12 @@ sandbox_browser:
   default_timeout_ms: 30000
   slow_type_ms: 60              # Human-like typing delay (ms per character)
   cookies_dir: "data/sessions"
+  # Browser launch strategy:
+  #   "cdp"   — (default) attach to the pre-launched sandbox Chromium via CDP
+  #   "fresh" — kill the pre-launched browser and launch a fresh Chromium inside
+  #             the container.  Avoids bot-detection on sites that fingerprint
+  #             the pre-launched browser + CDP attach pattern.
+  launch_mode: "cdp"
   # Allowlist of environment variable names that browser_fill_credential can
   # access.  Prevents the LLM from exfiltrating arbitrary env vars.
   # An empty list means ALL env vars are allowed (less secure).

@@ -63,7 +63,13 @@ class SandboxBrowserSession:
         return f"{self._sandbox_url}/vnc/index.html?autoconnect=true"
 
     async def connect(self) -> None:
-        """Connect to the sandbox browser via CDP and create a page."""
+        """Connect to the sandbox browser via CDP and create a page.
+
+        When ``config.launch_mode`` is ``"fresh"``, kills the pre-launched
+        sandbox browser and launches a new Chromium instance inside the
+        container with bot-detection-resistant flags. The agent then
+        connects to this fresh instance via CDP.
+        """
         if self._connected:
             return
 
@@ -76,14 +82,32 @@ class SandboxBrowserSession:
         except ImportError as exc:
             raise RuntimeError("playwright is required: uv add playwright") from exc
 
+        if self.config.launch_mode == "fresh":
+            await self._connect_fresh(Sandbox, async_playwright)
+        else:
+            await self._connect_cdp(Sandbox, async_playwright)
+
+        # Set viewport on whichever page we ended up with
+        width = self.config.viewport_width + random.randint(-30, 30)
+        height = self.config.viewport_height + random.randint(-30, 30)
+        await self._page.set_viewport_size({"width": width, "height": height})
+
+        self._connected = True
+
+        # Attach browser-level event listeners for debugging
+        self._attach_debug_listeners()
+        logger.info("Sandbox browser session connected")
+
+    async def _connect_cdp(self, sandbox_cls: type, async_playwright_fn: object) -> None:
+        """Attach to the pre-launched sandbox browser over CDP (default mode)."""
         # Get CDP URL from sandbox API
-        client = Sandbox(base_url=self._sandbox_url)
+        client = sandbox_cls(base_url=self._sandbox_url)
         browser_info = client.browser.get_info().data
         cdp_url = browser_info.cdp_url
         logger.info(f"Connecting to sandbox browser via CDP: {cdp_url}")
 
         # Connect Playwright over CDP
-        pw = await async_playwright().start()
+        pw = await async_playwright_fn().start()
         self._playwright = pw
         self._browser = await pw.chromium.connect_over_cdp(cdp_url)
 
@@ -112,16 +136,99 @@ class SandboxBrowserSession:
             self._owns_context = True
             self._page = await self._context.new_page()
 
-        # Set viewport on whichever page we ended up with
+    async def _connect_fresh(self, sandbox_cls: type, async_playwright_fn: object) -> None:
+        """Kill the pre-launched browser, launch a fresh Chromium, and connect via CDP.
+
+        This bypasses the pre-launched browser + CDP attach path that some
+        sites detect as bot traffic.  The fresh browser runs with explicit
+        anti-detection flags and the agent reconnects via CDP to control it.
+
+        The method first discovers the CDP port used by the pre-launched browser
+        (via the sandbox API) and reuses it so the sandbox nginx proxy continues
+        to route ``/cdp/`` traffic correctly.
+        """
+        import asyncio as _aio  # noqa: PLC0415
+        from urllib.parse import urlparse  # noqa: PLC0415
+
+        from agent_sandbox import AsyncSandbox  # noqa: PLC0415
+
+        logger.info("Fresh-launch mode: killing pre-launched browser and starting a new one")
+
+        # Discover the CDP port the pre-launched browser uses so we reuse it.
+        # The sandbox nginx proxy routes /cdp/ to this port — we must keep it.
+        sync_client = sandbox_cls(base_url=self._sandbox_url)
+        try:
+            browser_info = sync_client.browser.get_info().data
+            original_cdp_url = browser_info.cdp_url
+            parsed = urlparse(original_cdp_url)
+            cdp_port = parsed.port or 9222
+        except Exception:
+            cdp_port = 9222
+        logger.info(f"Pre-launched browser CDP port: {cdp_port}")
+
+        client = AsyncSandbox(base_url=self._sandbox_url)
+
+        # Kill the pre-launched Chromium to free the CDP port
+        kill_cmd = "pkill -f chromium || pkill -f chrome || true"
+        await client.shell.exec_command(command=kill_cmd)
+        await _aio.sleep(2)  # let the process die
+
+        # Launch a fresh Chromium with anti-detection flags and remote debugging
+        locale_tag = self.config.locale
+        tz = self.config.timezone_id
+        launch_cmd = (
+            "nohup /usr/bin/chromium-browser"
+            " --no-first-run --no-default-browser-check"
+            " --disable-blink-features=AutomationControlled"
+            f" --lang={locale_tag}"
+            f" --time-zone-for-testing={tz}"
+            " --remote-debugging-address=0.0.0.0"
+            f" --remote-debugging-port={cdp_port}"
+            " --headless=new"
+            f" --window-size={self.config.viewport_width},{self.config.viewport_height}"
+            " about:blank"
+            " > /tmp/chromium-fresh.log 2>&1 &"
+        )
+        await client.shell.exec_command(command=launch_cmd)
+
+        # Wait for the new browser to be ready
+        cdp_url = None
+        for _attempt in range(15):
+            await _aio.sleep(1)
+            try:
+                import httpx  # noqa: PLC0415
+
+                async with httpx.AsyncClient(trust_env=False) as hc:
+                    resp = await hc.get(f"{self._sandbox_url}/cdp/json/version", timeout=3.0)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        cdp_url = data.get("webSocketDebuggerUrl", "")
+                        if cdp_url:
+                            break
+            except Exception:
+                continue
+
+        if not cdp_url:
+            raise RuntimeError("Fresh Chromium did not start within 15s — check container logs")
+
+        logger.info(f"Fresh browser ready, connecting via CDP: {cdp_url}")
+
+        # Connect Playwright over CDP to the fresh browser
+        pw = await async_playwright_fn().start()
+        self._playwright = pw
+        self._browser = await pw.chromium.connect_over_cdp(cdp_url)
+
+        # With a fresh browser we own the context fully
         width = self.config.viewport_width + random.randint(-30, 30)
         height = self.config.viewport_height + random.randint(-30, 30)
-        await self._page.set_viewport_size({"width": width, "height": height})
-
-        self._connected = True
-
-        # Attach browser-level event listeners for debugging
-        self._attach_debug_listeners()
-        logger.info("Sandbox browser session connected")
+        self._context = await self._browser.new_context(
+            viewport={"width": width, "height": height},
+            locale=self.config.locale,
+            timezone_id=self.config.timezone_id,
+            ignore_https_errors=self.config.ignore_https_errors,
+        )
+        self._owns_context = True
+        self._page = await self._context.new_page()
 
     async def close(self) -> None:
         """Close the browser session and release resources."""

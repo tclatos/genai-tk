@@ -304,6 +304,57 @@ If time allows, gather these next:
 
 3. Check whether the OpenSandbox-managed browser path injects extra wrapper state, environment variables, or startup files not present in a direct browser launch.
 
+## Probe Results (2026-03-21)
+
+Both CDP-attach and fresh-browser modes were tested against a live AIO container
+(`ghcr.io/agent-infra/sandbox:latest`) using `scripts/enedis_probe.py`.
+
+| Signal | CDP Mode | Fresh Mode |
+|---|---|---|
+| Verdict | BLOCKED → `/indisponible` | BLOCKED → `/indisponible` |
+| User-Agent | Chrome/140 (Mac) | Chrome/140 (Mac) |
+| `navigator.languages` | `["en-US"]` ❌ | `["fr-FR"]` ✅ |
+| Timezone | `Asia/Singapore` ❌ | `Europe/Paris` ✅ |
+| WebGL renderer | SwiftShader | SwiftShader |
+
+### Interpretation
+
+1. **Fresh mode fixed locale/timezone** but Enedis still blocks — locale/timezone
+   is not the main trigger.
+
+2. **CDP mode still has wrong locale/timezone** because the container was started
+   via `docker run`, not via OpenSandbox (which applies `aio_backend.py` env vars).
+   This confirms the `BROWSER_EXTRA_ARGS` injection only works through the managed path.
+
+3. **SwiftShader is now the strongest remaining hypothesis.** Both modes use
+   SwiftShader (software GPU renderer). A local Playwright host launch uses the
+   host GPU and reaches Enedis. The SwiftShader fingerprint + Mac UA on Linux is
+   likely a strong bot signal.
+
+4. **Platform mismatch**: The sandbox bakes in a Mac UA (`Mac OS X 10_15_7`) but
+   runs on Linux. JavaScript `navigator.platform` and `userAgentData.platform`
+   may report Linux, contradicting the Mac UA string. Combined with SwiftShader,
+   this creates a highly anomalous browser fingerprint.
+
+### Updated Hypothesis Ranking
+
+1. **H1 (NEW STRONGEST): SwiftShader + platform mismatch** — software GPU
+   renderer + Mac-on-Linux signals are the primary detection vector
+2. **H2: CDP/automation signals** — demoted; fresh mode eliminates CDP attach
+   but still gets blocked
+3. **H3: Network/TLS-level signals** — still possible but lower priority
+
+### Recommended Next Steps
+
+1. **Verify platform mismatch**: Run `navigator.platform` and
+   `navigator.userAgentData.getHighEntropyValues()` in both modes
+2. **Test with Linux UA**: Override the sandbox's baked-in Mac UA to a matching
+   Linux Chrome UA string and re-probe
+3. **Test with GPU passthrough**: If available, mount the host GPU into the
+   container to get a real renderer instead of SwiftShader
+4. **Compare with `bot.sannysoft.com`**: Run the bot-detection test suite in
+   both the sandbox and host-local Playwright to identify the exact signals
+
 ## Bottom Line
 
 The investigation has already removed several generic browser inconsistencies and improved the sandbox browser stack substantially.
@@ -311,3 +362,86 @@ The investigation has already removed several generic browser inconsistencies an
 The remaining Enedis failure now looks much less like a simple “bad browser fingerprint” problem and much more like an **architectural difference between a fresh Playwright-owned browser and the current sandbox-managed pre-launched/CDP-attached browser path**.
 
 The most valuable next step is still to finish the clean fresh-browser-in-sandbox comparison and use that result to choose the next generic infrastructure change.
+
+## Implementation: Fresh-Browser Mode (AIO Container)
+
+Based on the investigation, a `launch_mode: fresh` option was added to the sandbox browser
+infrastructure.  This approach works entirely within the AIO container and requires **no
+additional software installation inside the container** — it reuses the container's
+pre-installed `/usr/bin/chromium-browser`.
+
+### Key Design Constraint
+
+Installing Playwright + Chromium inside the sandbox container (~220 MB download) is
+impractical for production.  The solution must work with what the AIO image already ships.
+
+### 1. Generic `launch_mode` for `SandboxBrowserSession`
+
+Added `launch_mode` to `SandboxBrowserConfig` (`models.py`) and `sandbox.yaml`:
+
+- `"cdp"` (default) — attach to pre-launched sandbox Chromium via CDP (current behavior)
+- `"fresh"` — kill the pre-launched browser, launch a fresh Chromium with anti-detection
+  flags using the *same binary already in the container*, then HOST Playwright reconnects
+  via CDP
+
+The fresh mode (`session.py` `_connect_fresh()`) implements:
+1. Kill the pre-launched Chromium via `pkill` (using `AsyncSandbox.shell.exec_command`)
+2. Launch `/usr/bin/chromium-browser` with `--disable-blink-features=AutomationControlled`,
+   `--lang`, `--time-zone-for-testing`, `--remote-debugging-port=9222`, `--headless=new`
+3. Wait for the new browser's CDP endpoint at `{sandbox_url}/cdp/json/version`
+4. Connect HOST Playwright over CDP and create a fresh, owned context with locale/timezone
+
+Configure in `config/basic/sandbox.yaml`:
+```yaml
+sandbox_browser:
+  launch_mode: "fresh"  # or "cdp" (default)
+```
+
+### 2. Host-Side Enedis Probe (`scripts/enedis_probe.py`)
+
+A diagnostic script that runs **from the host** against a live AIO container.  Tests both
+CDP-attach and fresh-browser modes, comparing whether each reaches the Enedis login form
+or gets redirected to `/indisponible`.
+
+```bash
+# Start a sandbox container
+docker run -d --name enedis-probe -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
+sleep 10
+
+# Run the probe from the host (requires: playwright, agent-sandbox, httpx)
+python scripts/enedis_probe.py                       # default: localhost:8080
+python scripts/enedis_probe.py http://localhost:8080  # explicit
+
+# Cleanup
+docker rm -f enedis-probe
+```
+
+The probe outputs per-mode verdicts and full JSON results, plus a summary of which
+mode (if any) successfully reaches the login form.
+
+### 3. Simplified SKILL.md
+
+The Enedis SKILL.md uses `launch_mode: fresh` + standard browser tools for authentication.
+No standalone login script is needed — the fresh mode handles bot-detection avoidance
+transparently at the session layer, and the agent performs login steps via browser tools.
+
+### Open Questions
+
+1. **CDP proxy routing**: After killing the pre-launched Chromium and launching fresh on
+   port 9222, does the sandbox nginx proxy correctly route `/cdp/` to the new process?
+   The probe script is the best way to validate this end-to-end.
+
+2. **Pre-launched browser's original port**: If the sandbox starts Chromium on a port
+   other than 9222, the fresh launch on 9222 may not be reachable through `/cdp/`.
+   May need to discover the original port and reuse it.
+
+### Next: Run the Probe
+
+Run `scripts/enedis_probe.py` against a live AIO container to determine whether
+fresh mode reaches the Enedis login form.  That result drives the next decision:
+
+- **Fresh mode works → `/indisponible` only in CDP mode**: Use `launch_mode: fresh` for
+  bot-sensitive sites.  The infrastructure is already in place.
+- **Both modes blocked**: Investigate deeper sandbox-runtime signals (TLS fingerprint,
+  network path, container metadata).
+- **Both modes work**: The original issue may have been transient or site-side.

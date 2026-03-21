@@ -7,6 +7,7 @@ allowlist used by ``browser_fill_credential``.
 from __future__ import annotations
 
 import os
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -27,6 +28,7 @@ class SandboxBrowserConfig(BaseModel):
     log_browser_console: bool = True
     cookies_dir: str = "data/sessions"
     allowed_credential_envs: list[str] = Field(default_factory=list)
+    launch_mode: Literal["cdp", "fresh"] = "cdp"
 
 
 class CredentialRef(BaseModel):
