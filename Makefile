@@ -1,65 +1,178 @@
-# Makefile for GenAI Toolkit (genai-tk)
-# Provides commands for development, testing, and maintenance
+# cSpell: disable
+# GenAI Toolkit -- development and testing Makefile.
+# Standalone: no external genai-* project dependencies.
+# Downstream projects vendor the shared targets via tk_makefile.mk.
 
-.PHONY: help install install-dev fmt lint test test-unit test-integration test-full clean check
+##############################
+##  Settings
+##############################
+PKG_NAME = genai_tk
 
-# Default target
-help:
-	@echo "Available targets:"
-	@echo "  install      - Install the package and dependencies"
-	@echo "  install-dev  - Install with development dependencies"
-	@echo "  fmt          - Format code with ruff"
-	@echo "  lint         - Lint code with ruff"
-	@echo "  test         - Run all tests (unit + integration, fake models)"
-	@echo "  test-unit    - Run unit tests only"
-	@echo "  test-integration - Run integration tests only"
-	@echo "  test-full    - Run ALL tests including real LLM (requires API keys)"
-	@echo "  test-install - Quick test of package installation"
-	@echo "  clean        - Clean Python cache files"
-	@echo "  check        - Run format, lint, and test"
+MAKEFLAGS += --warn-undefined-variables
+SHELL     := bash -euo pipefail -c
 
-install: ## Install the package
+##############################
+##  .env discovery (walk up to find .env)
+##############################
+ENV_FILE := $(shell \
+	if   [ -f ".env" ];       then echo "$(CURDIR)/.env"; \
+	elif [ -f "../.env" ];    then echo "$(CURDIR)/../.env"; \
+	elif [ -f "../../.env" ]; then echo "$(CURDIR)/../../.env"; \
+	else echo ""; fi)
+ifneq ($(ENV_FILE),)
+include $(ENV_FILE)
+else
+$(warning .env file not found in current or parent directories)
+endif
+
+all: help
+
+##############################
+##  Guards
+##############################
+.PHONY: .uv .pre-commit
+
+.uv:  ## Check that uv is installed
+	@uv -V || echo 'Please install uv: curl -LsSf https://astral.sh/uv/install.sh | sh'
+
+.pre-commit: .uv  ## Check that pre-commit is installed
+	@uv run pre-commit -V || uv pip install pre-commit
+
+##############################
+##  Install
+##############################
+.PHONY: check-uv install install-dev
+
+check-uv:  ## Check if uv is installed, install if missing
+	@if command -v uv >/dev/null 2>&1; then \
+		echo "uv is already installed"; \
+	else \
+		echo "Installing uv..."; \
+		curl -LsSf https://astral.sh/uv/install.sh | sh; \
+		. $$HOME/.local/bin/env; \
+	fi
+
+install: check-uv  ## Install package (no dev dependencies)
 	uv sync --no-dev
 
-install-dev: ## Install with development dependencies  
+install-dev: check-uv  ## Install with development dependencies
 	uv sync
 
-fmt: ## Format code with ruff
+
+##############################
+##  Testing Install
+##############################
+.PHONY: test-install
+
+test-install:  ## Quick smoke-test: call a fake LLM via the CLI
+	@if [ -z "$(PYTHONPATH)" ]; then \
+		echo -e "\033[33mWarning: PYTHONPATH is not set.\033[0m"; \
+	else \
+		echo -e "\033[32mPYTHONPATH=$(PYTHONPATH)\033[0m"; \
+	fi
+ ## Quick smoke-test: verify basic package imports
+	@echo "Testing $(PKG_NAME) imports..."
+	@uv run python -c "import genai_tk.core;  print('ok genai_tk.core')"  || echo "FAIL genai_tk.core"
+	@uv run python -c "import genai_tk.extra; print('ok genai_tk.extra')" || echo "FAIL genai_tk.extra"
+	@uv run python -c "import genai_tk.utils; print('ok genai_tk.utils')" || echo "FAIL genai_tk.utils"
+# test Echo LLM
+	@echo -e "\033[3m\033[36mExpected output: '"Human: Tell me a joke on {'topic': 'bears\\n'}"'\032[0m"
+	echo bears | PYTHONPATH=$(DEV_PYTHONPATH) uv run cli core run joke -m parrot_local@fake | \
+		while IFS= read -r line; do echo -e "\033[32m$$line\033[0m"; done
+
+##############################
+##  Code Quality
+##############################
+.PHONY: fmt lint quality check
+
+
+lint:  ## format (imports + style) and lint code with ruff (fix safe issues)
 	uv run ruff format .
 	uv run ruff check --select I --fix .
+	uv run ruff check --fix --exclude $(PKG_NAME)/wip $(PKG_NAME) 
 
-lint: ## Lint code with ruff
-	uv run ruff check --fix genai_tk
 
-test: ## Run all tests
+
+##############################
+##  Testing
+##############################
+.PHONY: test test-unit test-integration test-full test-install
+
+test:  ## Run unit and integration tests
 	uv run pytest tests/unit_tests/ tests/integration_tests/
 
-test-unit: ## Run unit tests only
+test-unit:  ## Run unit tests only
 	uv run pytest tests/unit_tests/
 
-test-integration: ## Run integration tests only
+test-integration:  ## Run integration tests only
 	uv run pytest tests/integration_tests/
 
-test-full: ## Run ALL tests including real LLM calls (requires API keys and fast model tag)
-	@echo "Running full test suite including real LLM tests..."
-	@echo "Requires: valid API key for the 'fast_model' tag (cheap/fast model)"
+test-full:  ## Run ALL tests including real LLM calls (requires API keys)
+	@echo "Requires a valid API key for the 'fast_model' tag."
 	uv run pytest tests/unit_tests/ tests/integration_tests/ \
-		--include-real-models \
-		-m "not slow" \
-		-v
+		--include-real-models -m "not slow" -v
 
-test-install: ## Quick test of package installation - tests basic imports
-	@echo "Testing genai_tk package imports..."
-	@uv run python -c "import genai_tk.core; print('✓ genai_tk.core imported successfully')" || echo "✗ Failed to import genai_tk.core"
-	@uv run python -c "import genai_tk.extra; print('✓ genai_tk.extra imported successfully')" || echo "✗ Failed to import genai_tk.extra" 
-	@uv run python -c "import genai_tk.utils; print('✓ genai_tk.utils imported successfully')" || echo "✗ Failed to import genai_tk.utils"
-	@echo "✓ Basic package structure test completed"
 
-clean: ## Clean Python cache files
-	find . -type f -name "*.py[co]" -delete
-	find . -type d -name "__pycache__" -delete
-	find . -type d -name ".ruff_cache" -delete
-	find . -type d -name ".mypy_cache" -delete
-	find . -type d -name ".pytest_cache" -delete
 
-check: fmt lint test ## Run format, lint, and test
+##############################
+##  Maintenance
+##############################
+.PHONY: clean clean-notebooks clean-history
+
+clean:  ## Clean Python bytecode and cache files
+	uv cache prune
+	find . \( -name "*.py[co]" -o -name "__pycache__" \
+	         -o -name ".ruff_cache" -o -name ".mypy_cache" \
+	         -o -name ".pytest_cache" \) \
+		-exec rm -rf {} + 2>/dev/null || true
+
+clean-notebooks:  ## Clear Jupyter notebook outputs
+	@find . -path "./.venv" -prune -o -name "*.ipynb" -print | while read -r nb; do \
+		echo "Cleaning: $$nb"; \
+		uv run --with nbconvert python -m nbconvert --clear-output --inplace "$$nb"; \
+	done
+
+clean-history:  ## Remove duplicates and noise from ~/.bash_history
+	@if [ -f ~/.bash_history ]; then \
+		awk '!/^(ls|cat|hgrep|h|cd|p|m|ll|pwd|code|mkdir|export|rmdir|uv tree|make)( |$$)/ \
+		      && !seen[$$0]++' ~/.bash_history > ~/.bash_history_unique && \
+		mv ~/.bash_history_unique ~/.bash_history; \
+		echo "Done. Run 'history -c; history -r' to reload."; \
+	else \
+		echo "No ~/.bash_history found"; \
+	fi
+
+##############################
+##  Help
+##############################
+.PHONY: help
+
+help:
+	@echo "Available targets:"
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*?##/ \
+		{ printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2 }' \
+		$(MAKEFILE_LIST) | sort -u
+
+
+##############################
+##  Deer-flow Integration
+##############################
+DEER_FLOW_REPO = https://github.com/bytedance/deer-flow.git
+DEER_FLOW_DIR  = ext/deer-flow
+
+.PHONY: deer-flow-sync deer-flow-install
+
+deer-flow-sync:  ## Clone or update Deer-flow repository
+	@if [ -d "$(DEER_FLOW_DIR)" ]; then \
+		echo "Updating Deer-flow..."; \
+		cd $(DEER_FLOW_DIR) && git pull --rebase; \
+	else \
+		echo "Cloning Deer-flow..."; \
+		mkdir -p ext; \
+		git clone --depth 1 $(DEER_FLOW_REPO) $(DEER_FLOW_DIR); \
+	fi
+	@echo "Deer-flow synced at $(DEER_FLOW_DIR)"
+
+deer-flow-install: deer-flow-sync  ## Sync Deer-flow and install dependencies
+	uv sync --group deerflow
+	@echo "Deer-flow ready. Backend: $(DEER_FLOW_DIR)/backend"

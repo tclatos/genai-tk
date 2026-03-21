@@ -179,6 +179,11 @@ default-groups = ["dev", "postgres", "browser-control"]
 
 package = true
 
+[tool.uv.sources]
+# Patched wheel: removes the spurious volcengine-python-sdk dependency (never used at runtime).
+# Regenerate with: python scripts/patch_agent_sandbox_wheel.py
+agent-sandbox = { path = "vendor/agent_sandbox-0.0.26-py2.py3-none-any.whl" }
+
 [tool.hatch.metadata]
 allow-direct-references = true
 

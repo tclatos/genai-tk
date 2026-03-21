@@ -6,15 +6,36 @@ into **command groups** that are discovered dynamically from the application con
 
 ## Quick Start
 
+`uv run cli` invokes the `cli` script entry point defined in `pyproject.toml` (`[project.scripts]`):
+
+```toml
+cli = "genai_tk.main.cli:main"
+```
+
+**Optional:** Create a shell alias to avoid typing `uv run` each time:
+
+```bash
+alias cli='uv run cli'
+```
+
+Then use `cli` directly instead of `uv run cli`:
+
+```bash
+# Show all command groups (no arguments)
+cli
+
+# Show commands within a group
+cli core --help
+```
+
+Or with the full `uv run` prefix:
+
 ```bash
 # Show all command groups (no arguments)
 uv run cli
 
 # Show commands within a group
 uv run cli core --help
-
-# Enable verbose logging globally
-uv run cli --logging DEBUG info config
 ```
 
 ---
