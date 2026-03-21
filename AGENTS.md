@@ -136,3 +136,19 @@ Keep docs in `docs/`. Organisation:
 - **Design notes, investigations, patches** — go in `docs/design/` (internal reference)
 - Do not add comments for obvious code; document *why*, not *what*
 - Do not duplicate code examples between module docstring and function docstring
+
+Current docs index:
+
+| File | Topic |
+|------|-------|
+| `docs/cli.md` | All CLI command groups, sub-commands, and how to add new commands |
+| `docs/core.md` | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, `LlmCache`, `ChainRegistry` |
+| `docs/extra.md` | Agent graphs, RAG, data loaders, anonymization, image analysis, KV store |
+| `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |
+| `docs/prefect.md` | Prefect flows — ephemeral vs. server mode, available flows, writing new flows |
+| `docs/agents.md` | LangChain / SmolAgents / DeerFlow / DeepAgents profiles and config |
+| `docs/mcp-servers.md` | MCP server configuration, CLI, and standalone scripts |
+| `docs/browser_control.md` | Browser automation (sandbox vs. direct Playwright) |
+| `docs/sandbox_support.md` | OpenSandbox Docker container setup and integration |
+| `docs/deer-flow.md` | DeerFlow integration — profiles, modes, chat commands |
+| `docs/TESTING_GUIDE.md` | Pytest fixtures, fake LLM/embeddings, async tests |

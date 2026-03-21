@@ -141,20 +141,23 @@ Retrieval-Augmented Generation pipeline components.
 
 ### RAG Commands (`commands_rag.py`)
 
-CLI commands for RAG operations.
+CLI commands for RAG operations. See [cli.md](cli.md) for the full CLI reference.
 
 ```bash
-# Create vector index from documents
-cli rag create-index ./my_documents/
+# Ingest documents into the default vector store
+uv run cli rag ingest ./my_documents/
 
 # Query the vector index
-cli rag query "What are the main features?"
+uv run cli rag query "What are the main features?"
+
+# Create a named index
+uv run cli rag create-index ./my_documents/
 
 # Add documents to existing index
-cli rag add-documents ./new_docs/
+uv run cli rag add-documents ./new_docs/
 
 # List available indexes
-cli rag list-indexes
+uv run cli rag list-indexes
 ```
 
 ### Markdown Chunking (`markdown_chunking.py`)
@@ -189,23 +192,24 @@ for doc in documents:
 ### RAG Prefect Flow (`rag_prefect_flow.py`)
 
 Orchestrated RAG pipeline using Prefect for scheduling and monitoring.
+See [prefect.md](prefect.md) for the complete Prefect integration guide including
+ephemeral vs. deployed server modes and how to write your own flows.
 
 **Features:**
-- Document loading and processing
-- Embedding generation
-- Vector database updates
-- Scheduled indexing
+- Document loading and deduplication (hash-based)
+- Markdown-aware chunking
+- Embedding generation and vector-store upsert
+- Incremental processing (unchanged files are skipped)
 
 **Usage:**
 ```python
-from genai_tk.extra.rag.rag_prefect_flow import rag_pipeline
+from genai_tk.extra.prefect.runtime import run_flow_ephemeral
+from genai_tk.extra.rag.rag_prefect_flow import rag_ingest_flow
 
-# Run RAG pipeline
-result = rag_pipeline.run(
-    docs_path="/path/to/documents",
-    index_name="my_documents",
-    chunk_size=1024,
-    model="gpt_4o@openai"
+run_flow_ephemeral(
+    rag_ingest_flow,
+    source_dir="./documents",
+    force=False,
 )
 ```
 
@@ -449,6 +453,47 @@ store.add_documents(documents)
 
 # Search
 results = store.similarity_search("query", k=5)
+```
+
+## Structured Extraction (`extra.structured`)
+
+BAML-powered structured output extraction.  See **[baml.md](baml.md)** for the complete guide
+covering setup, CLI commands, programmatic API, and troubleshooting.
+
+**Quick reference:**
+
+```bash
+# Single extraction
+uv run cli baml run ExtractResume -i "John Smith; SW engineer"
+
+# Batch extraction from a directory of Markdown files
+uv run cli baml extract ./docs ./output --recursive --function ExtractRainbow
+```
+
+```python
+from genai_tk.extra.structured.baml_processor import BamlStructuredProcessor
+from baml_client.types import Resume
+
+processor = BamlStructuredProcessor[Resume](
+    function_name="ExtractResume",
+    llm="gpt_4o@openai",
+)
+results = await processor.abatch_analyze_documents(ids, markdown_texts)
+```
+
+## Document Conversion (`extra.tools`)
+
+See **[prefect.md](prefect.md)** for the complete Prefect integration guide.
+
+```bash
+# Convert PDF / DOCX / PPTX to Markdown
+uv run cli tools markdownize ./input ./output --recursive
+
+# High-quality PDF extraction via Mistral OCR
+uv run cli tools markdownize ./pdfs ./output --mistral-ocr
+
+# Convert presentations to PDF
+uv run cli tools ppt2pdf ./slides ./pdfs --recursive
 ```
 
 ## Advanced Patterns
