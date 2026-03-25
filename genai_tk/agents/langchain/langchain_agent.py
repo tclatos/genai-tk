@@ -154,13 +154,18 @@ class LangchainAgent(BaseModel):
         await run_langchain_agent_shell(self)
 
     async def close(self) -> None:
-        """Stop any running backend (e.g. Docker sandbox).
+        """Stop any running backend (e.g. Docker sandbox) and close browser sessions.
 
         When ``keep_sandbox`` is True the container and server are left running;
         references are detached so GC won't kill them.
         """
         if self._agent is None:
             return
+
+        # Close any browser sessions owned by tools to prevent event-loop-closed
+        # errors from Playwright's subprocess transport during GC.
+        await self._close_browser_sessions()
+
         backend = getattr(self._agent, "_backend", None)
         if backend is not None:
             if self.keep_sandbox and hasattr(backend, "detach"):
@@ -172,6 +177,27 @@ class LangchainAgent(BaseModel):
             elif hasattr(backend, "stop"):
                 await backend.stop()
         self._agent = None
+
+    async def _close_browser_sessions(self) -> None:
+        """Find and close any browser sessions owned by tools in the compiled graph."""
+        tools_node = None
+        # LangGraph stores tools in nodes; try to find them.
+        nodes = getattr(self._agent, "nodes", {})
+        for node in nodes.values():
+            bound = getattr(node, "bound", None) or node
+            tool_list = getattr(bound, "tools_by_name", None)
+            if tool_list:
+                tools_node = tool_list
+                break
+        if not tools_node:
+            return
+        for tool in tools_node.values():
+            session = getattr(tool, "session", None)
+            if session and hasattr(session, "close") and getattr(session, "connected", False):
+                try:
+                    await session.close()
+                except Exception as exc:
+                    logger.debug(f"Error closing browser session: {exc}")
 
     # Context-manager support
     async def __aenter__(self) -> LangchainAgent:

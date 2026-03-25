@@ -10,18 +10,19 @@ import typer
 from loguru import logger
 from typer import Option
 
-from genai_tk.utils.config_mngr import paths_config
-
 if TYPE_CHECKING:
     from rich.console import Console
 
     from genai_tk.agents.langchain.config import AgentProfileConfig
 
 
-def _get_config_path() -> str:
-    """Return the path to the unified langchain.yaml config file."""
-    config_dir = paths_config().config
-    return str(config_dir / "agents" / "langchain.yaml")
+def _get_config_path() -> str | None:
+    """Return the path to the langchain config (directory or file).
+
+    Returns None to use load_unified_config()'s default detection logic,
+    which checks for langchain/ directory first, then langchain.yaml file.
+    """
+    return None
 
 
 def _list_profiles() -> None:

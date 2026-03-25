@@ -108,6 +108,14 @@ async def create_langchain_agent(
             if isinstance(mw, RichToolCallMiddleware):
                 mw._details = True
 
+    # Always prepend the empty-response retry guard so reasoning models that
+    # produce thinking tokens but no visible output are retried automatically.
+    # Inserted at position 0 (outermost) so it wraps before RichToolCallMiddleware.
+    from genai_tk.agents.langchain.middleware.empty_response_retry import EmptyResponseRetryMiddleware  # noqa: PLC0415
+
+    if not any(isinstance(mw, EmptyResponseRetryMiddleware) for mw in middlewares):
+        middlewares.insert(0, EmptyResponseRetryMiddleware(max_retries=1))
+
     # 7. Backend (deep agents only; ignored for react/custom with a warning)
     backend_cfg = profile.backend or BackendConfig(type="none")
     if backend_cfg.type != "none" and profile.type != "deep":

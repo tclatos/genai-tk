@@ -1,0 +1,62 @@
+# Unified LangChain Agents Configuration - Defaults and Settings
+#
+# This file contains the global defaults and configuration structure for all LangChain agents.
+# Specific agent profiles are defined in separate files:
+#   - simple.yaml: React agents for demos (simple, filesystem, weather, Chinook)
+#   - text2sql.yaml: Text-to-SQL agent for database queries
+#   - browser.yaml: Browser automation agents (sandboxed and direct)
+#   - deep.yaml: Deep agents with planning and file system (research, coding, etc.)
+#
+# Profile fields:
+#   name:              Display name (used in --profile CLI option)
+#   type:              Agent engine: react | deep | custom  (default: react)
+#   description:       Short description for --list display
+#   llm:               LLM identifier (ID like 'gpt_41mini@openai' or tag like 'fast_model').
+#                      Null = use global default LLM.
+#   system_prompt:     Full system instructions for the agent
+#   pre_prompt:        Short context prepended to user query (react shorthand)
+#   tools:             LangChain tools via factory/class/function patterns
+#   mcp_servers:       MCP server names from config/mcp_servers.yaml
+#   middlewares:       List of middleware (replaces defaults). Each entry has a
+#                      'class: module:Class' key plus optional constructor kwargs.
+#   checkpointer:      Checkpointer config (type: none | memory | class)
+#   backend:           Backend config (type: none | aio_sandbox | class)
+#                        none        – no backend (default)
+#                        aio_sandbox – built-in Docker-based AioSandboxBackend.
+#                                      Any AioSandboxBackendConfig field can be
+#                                      set as a sibling key (host_port, work_dir,
+#                                      startup_timeout, env_vars, …).
+#                        class       – any deepagents BackendProtocol loaded via
+#                                      qualified 'module:Class' path.
+#                                      Pass constructor args under 'kwargs:'.
+#                      Only meaningful for type: deep agents; ignored (with a
+#                      warning) on react/custom profiles.
+# Deep-agent-specific fields (type: deep only; warn if set on react/custom):
+#   skill_directories: Directories containing SKILL.md files
+#   enable_planning:   Enable write_todos planning tool [default: true]
+#   enable_file_system: Enable file read/write/edit tools [default: true]
+#   subagents:         Specialized sub-agents for task delegation
+# UI / docs:
+#   features:          Feature badges (displayed in --list)
+#   examples:          Sample queries
+
+langchain_agents:
+  # Default profile (used when --profile is not specified)
+  default_profile: "simple"
+
+  # Global defaults — inherited by all profiles unless overridden
+  defaults:
+    type: react
+    llm: null  # null = use global default LLM from config
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
+    checkpointer:
+      type: none  # chat mode always forces memory; use 'memory' to persist across invocations
+    backend:
+      type: none  # set to 'aio_sandbox' or 'class' in deep-agent profiles that need a backend
+    enable_planning: true
+    enable_file_system: true
+    skills:
+      directories:
+        - ${paths.project}/skills
+      trace_loading: true

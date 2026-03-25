@@ -316,8 +316,45 @@ class SandboxBrowserSession:
         for evt, handler in _page_handlers.items():
             page.remove_listener(evt, handler)
 
-    def _log_event(self, level: str, message: str) -> None:
-        """Append a timestamped entry to the in-memory event log and emit via loguru."""
+    # Domains whose XHR/FETCH traffic is pure noise (ads, analytics, telemetry).
+    _NOISY_DOMAINS: frozenset[str] = frozenset(
+        {
+            "play.google.com",
+            "ogads-pa.clients6.google.com",
+            "pagead2.googlesyndication.com",
+            "ep1.adtrafficquality.google",
+            "ep2.adtrafficquality.google",
+            "consent.google.com",
+            "px.ads.linkedin.com",
+            "analytics.soeps.be",
+            "www.gstatic.com",
+            "adservice.google.com",
+        }
+    )
+
+    @staticmethod
+    def _truncate_url(url: str, max_len: int = 120) -> str:
+        """Shorten a URL for display, keeping the meaningful prefix."""
+        return url[:max_len] + "…" if len(url) > max_len else url
+
+    @staticmethod
+    def _url_domain(url: str) -> str:
+        """Extract the domain from a URL without importing urllib."""
+        try:
+            after_scheme = url.split("://", 1)[1] if "://" in url else url
+            return after_scheme.split("/", 1)[0].split(":", 1)[0]
+        except (IndexError, ValueError):
+            return ""
+
+    def _log_event(self, level: str, message: str, *, console: bool = True) -> None:
+        """Append a timestamped entry to the in-memory event log and emit via loguru.
+
+        Args:
+            level: Log level string (INFO, WARNING, ERROR, DEBUG).
+            message: The event message.
+            console: If False the event is only stored in the ring-buffer
+                     (useful for high-volume low-value traffic).
+        """
         from datetime import datetime, timezone
 
         ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
@@ -325,7 +362,8 @@ class SandboxBrowserSession:
         # Keep last 200 entries to bound memory
         if len(self._event_log) > 200:
             self._event_log = self._event_log[-200:]
-        getattr(logger, level.lower(), logger.debug)(message)
+        if console:
+            getattr(logger, level.lower(), logger.debug)(message)
 
     def get_event_log(self, last_n: int = 50) -> str:
         """Return the last *last_n* browser events as a newline-separated string.
@@ -348,7 +386,7 @@ class SandboxBrowserSession:
 
     def _on_page_error(self, error: object) -> None:
         """Log uncaught JavaScript exceptions."""
-        self._log_event("ERROR", f"Browser page error: {error}")
+        self._log_event("ERROR", f"Browser page error: {str(error)[:300]}")
 
     def _on_page_crash(self, _: object) -> None:
         """Log page (renderer) crash events."""
@@ -370,10 +408,16 @@ class SandboxBrowserSession:
         frame = getattr(request, "frame", None)
         is_navigation = getattr(request, "is_navigation_request", lambda: False)()
         if is_navigation and frame and getattr(frame, "parent_frame", None) is None:
-            self._log_event("INFO", f"Navigation request → {url}")
+            self._log_event("INFO", f"Navigation request → {self._truncate_url(url)}")
             return
         if resource_type in {"xhr", "fetch"}:
-            self._log_event("INFO", f"{resource_type.upper()} request → {method} {url}")
+            domain = self._url_domain(url)
+            noisy = domain in self._NOISY_DOMAINS
+            self._log_event(
+                "DEBUG" if noisy else "INFO",
+                f"{resource_type.upper()} request → {method} {self._truncate_url(url)}",
+                console=not noisy,
+            )
 
     def _on_request_failed(self, request: object) -> None:
         """Log network request failures."""
@@ -387,10 +431,12 @@ class SandboxBrowserSession:
                 error_text = str(details.get("errorText", ""))
         elif isinstance(failure, dict):
             error_text = str(failure.get("errorText", ""))
-        message = f"Request failed [{resource_type}] → {url}"
+        domain = self._url_domain(url)
+        noisy = domain in self._NOISY_DOMAINS
+        message = f"Request failed [{resource_type}] → {self._truncate_url(url)}"
         if error_text:
             message += f" ({error_text})"
-        self._log_event("WARNING", message)
+        self._log_event("WARNING" if not noisy else "DEBUG", message, console=not noisy)
 
     def _on_response(self, response: object) -> None:
         """Log navigation responses and failing XHR/fetch requests."""
@@ -403,11 +449,17 @@ class SandboxBrowserSession:
         resource_type = getattr(request, "resource_type", "") if request else ""
         if is_navigation and is_main:
             level = "WARNING" if status >= 400 else "INFO"
-            self._log_event(level, f"Navigation response ← HTTP {status} {url}")
+            self._log_event(level, f"Navigation response ← HTTP {status} {self._truncate_url(url)}")
             return
         if resource_type in {"xhr", "fetch"}:
-            level = "WARNING" if status >= 400 else "INFO"
-            self._log_event(level, f"{resource_type.upper()} response ← HTTP {status} {url}")
+            domain = self._url_domain(url)
+            noisy = domain in self._NOISY_DOMAINS
+            level = "WARNING" if status >= 400 and not noisy else ("DEBUG" if noisy else "INFO")
+            self._log_event(
+                level,
+                f"{resource_type.upper()} response ← HTTP {status} {self._truncate_url(url)}",
+                console=not noisy,
+            )
 
     def _on_frame_navigated(self, frame: object) -> None:
         """Log completed main-frame navigations, including client-side route changes."""
@@ -415,7 +467,7 @@ class SandboxBrowserSession:
             return
         url = getattr(frame, "url", "")
         if url:
-            self._log_event("INFO", f"Main frame navigated ⇒ {url}")
+            self._log_event("INFO", f"Main frame navigated ⇒ {self._truncate_url(url)}")
 
     async def save_cookies(self, name: str) -> str:
         """Save the current browser context storage state to a JSON file.

@@ -192,14 +192,53 @@ class DirectBrowserSession:
             return "(no browser events recorded)"
         return "\n".join(entries)
 
-    def _log_event(self, level: str, message: str) -> None:
+    # Domains whose XHR/FETCH traffic is pure noise (ads, analytics, telemetry).
+    _NOISY_DOMAINS: frozenset[str] = frozenset(
+        {
+            "play.google.com",
+            "ogads-pa.clients6.google.com",
+            "pagead2.googlesyndication.com",
+            "ep1.adtrafficquality.google",
+            "ep2.adtrafficquality.google",
+            "consent.google.com",
+            "px.ads.linkedin.com",
+            "analytics.soeps.be",
+            "www.gstatic.com",
+            "adservice.google.com",
+        }
+    )
+
+    @staticmethod
+    def _truncate_url(url: str, max_len: int = 120) -> str:
+        """Shorten a URL for display, keeping the meaningful prefix."""
+        return url[:max_len] + "…" if len(url) > max_len else url
+
+    @staticmethod
+    def _url_domain(url: str) -> str:
+        """Extract the domain from a URL without importing urllib."""
+        try:
+            after_scheme = url.split("://", 1)[1] if "://" in url else url
+            return after_scheme.split("/", 1)[0].split(":", 1)[0]
+        except (IndexError, ValueError):
+            return ""
+
+    def _log_event(self, level: str, message: str, *, console: bool = True) -> None:
+        """Append to in-memory log; optionally emit to the loguru console.
+
+        Args:
+            level: Log level string (INFO, WARNING, ERROR, DEBUG).
+            message: The event message.
+            console: If False the event is only stored in the ring-buffer
+                     (useful for high-volume low-value traffic).
+        """
         from datetime import datetime, timezone
 
         ts = datetime.now(timezone.utc).strftime("%H:%M:%S")
         self._event_log.append(f"[{ts}] {level}: {message}")
         if len(self._event_log) > 200:
             self._event_log = self._event_log[-200:]
-        getattr(logger, level.lower(), logger.debug)(message)
+        if console:
+            getattr(logger, level.lower(), logger.debug)(message)
 
     def _attach_debug_listeners(self) -> None:
         if not self.config.log_browser_console:
@@ -249,7 +288,7 @@ class DirectBrowserSession:
             self._log_event("DEBUG", f"Browser console [{msg_type}]: {text[:300]}")
 
     def _on_page_error(self, error: object) -> None:
-        self._log_event("ERROR", f"Browser page error: {error}")
+        self._log_event("ERROR", f"Browser page error: {str(error)[:300]}")
 
     def _on_page_crash(self, _: object) -> None:
         self._log_event("ERROR", "Browser page CRASHED — renderer process died")
@@ -266,11 +305,17 @@ class DirectBrowserSession:
         frame = getattr(request, "frame", None)
         is_navigation = getattr(request, "is_navigation_request", lambda: False)()
         if is_navigation and frame and getattr(frame, "parent_frame", None) is None:
-            self._log_event("INFO", f"Navigation request → {url}")
+            self._log_event("INFO", f"Navigation request → {self._truncate_url(url)}")
             return
         if resource_type in {"xhr", "fetch"}:
             method = getattr(request, "method", "GET")
-            self._log_event("INFO", f"{resource_type.upper()} request → {method} {url}")
+            domain = self._url_domain(url)
+            noisy = domain in self._NOISY_DOMAINS
+            self._log_event(
+                "DEBUG" if noisy else "INFO",
+                f"{resource_type.upper()} request → {method} {self._truncate_url(url)}",
+                console=not noisy,
+            )
 
     def _on_request_failed(self, request: object) -> None:
         url = getattr(request, "url", "")
@@ -283,10 +328,12 @@ class DirectBrowserSession:
                 error_text = str(details.get("errorText", ""))
         elif isinstance(failure, dict):
             error_text = str(failure.get("errorText", ""))
-        message = f"Request failed [{resource_type}] → {url}"
+        domain = self._url_domain(url)
+        noisy = domain in self._NOISY_DOMAINS
+        message = f"Request failed [{resource_type}] → {self._truncate_url(url)}"
         if error_text:
             message += f" ({error_text})"
-        self._log_event("WARNING", message)
+        self._log_event("WARNING" if not noisy else "DEBUG", message, console=not noisy)
 
     def _on_response(self, response: object) -> None:
         status = getattr(response, "status", 0)
@@ -294,16 +341,22 @@ class DirectBrowserSession:
         request = getattr(response, "request", None)
         is_navigation = request and getattr(request, "is_navigation_request", lambda: False)()
         if is_navigation:
-            self._log_event("INFO", f"Navigation response ← {status} {url}")
+            self._log_event("INFO", f"Navigation response ← {status} {self._truncate_url(url)}")
         elif status >= 400:
             resource_type = getattr(request, "resource_type", "unknown") if request else "unknown"
-            self._log_event("WARNING", f"HTTP {status} [{resource_type}] ← {url}")
+            domain = self._url_domain(url)
+            noisy = domain in self._NOISY_DOMAINS
+            self._log_event(
+                "WARNING" if not noisy else "DEBUG",
+                f"HTTP {status} [{resource_type}] ← {self._truncate_url(url)}",
+                console=not noisy,
+            )
 
     def _on_frame_navigated(self, frame: object) -> None:
         parent = getattr(frame, "parent_frame", None)
         if parent is None:
             url = getattr(frame, "url", "")
-            self._log_event("INFO", f"Main frame navigated ⇒ {url}")
+            self._log_event("INFO", f"Main frame navigated ⇒ {self._truncate_url(url)}")
 
     async def __aenter__(self) -> DirectBrowserSession:
         await self.connect()

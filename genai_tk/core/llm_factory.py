@@ -894,17 +894,12 @@ class LlmFactory(BaseModel):
                 **llm_params,
             )
         elif self.info.provider == "edenai":
-            from langchain_community.chat_models.edenai import ChatEdenAI
-
-            provider, _, model = self.info.model.partition("/")
-            _ = llm_params.pop("seed")
-            _ = llm_params.pop("json_object", None)
-            _ = llm_params.pop("max_retries")
-
-            llm = ChatEdenAI(
-                provider=provider,
-                model=model,
-                edenai_api_key=api_key,
+            # EdenAI v3: OpenAI-compatible endpoint — model string is "provider/model"
+            # e.g. "openai/gpt-4.1-mini-2025-04-14", "anthropic/claude-sonnet-4-5"
+            llm = ChatOpenAI(
+                base_url="https://api.edenai.run/v3/llm",
+                model=self.info.model,
+                api_key=api_key,
                 **llm_params,
             )
 

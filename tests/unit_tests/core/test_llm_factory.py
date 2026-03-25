@@ -17,6 +17,7 @@ from langchain_core.messages.human import HumanMessage
 
 from genai_tk.core.llm_factory import (
     LlmFactory,
+    LlmInfo,
     configurable,
     get_llm,
     get_llm_info,
@@ -284,3 +285,36 @@ def test_field_validator_cache() -> None:
 
     with pytest.raises(ValidationError, match="'memory', 'sqlite' or 'no_cache'"):
         LlmFactory(llm_id=FAKE_LLM_ID, cache="invalid_cache")
+
+
+def test_edenai_v3_uses_openai_compatible_endpoint() -> None:
+    """EdenAI v3: factory must use ChatOpenAI with the v3 base URL and provider/model string."""
+    from unittest.mock import MagicMock, patch
+
+    mock_llm = MagicMock()
+    mock_chat_openai = MagicMock(return_value=mock_llm)
+
+    factory = LlmFactory.__new__(LlmFactory)
+    object.__setattr__(factory, "json_mode", False)
+    object.__setattr__(factory, "streaming", False)
+    object.__setattr__(factory, "reasoning", None)
+    object.__setattr__(factory, "cache", None)
+    object.__setattr__(factory, "llm_params", {})
+    object.__setattr__(factory, "llm_id", "gpt41mini@edenai")
+    object.__setattr__(factory, "llm", "gpt41mini@edenai")
+    object.__setattr__(
+        factory,
+        "_resolved_llm_info",
+        LlmInfo(id="gpt41mini@edenai", provider="edenai", model="openai/gpt-4.1-mini-2025-04-14"),
+    )
+
+    with (
+        patch("genai_tk.core.llm_factory.get_provider_api_key", return_value="test-key"),
+        patch("langchain_openai.ChatOpenAI", mock_chat_openai),
+    ):
+        factory.model_factory()
+
+    call_kwargs = mock_chat_openai.call_args.kwargs
+    assert call_kwargs["base_url"] == "https://api.edenai.run/v3/llm"
+    assert call_kwargs["model"] == "openai/gpt-4.1-mini-2025-04-14"
+    assert call_kwargs["api_key"] == "test-key"

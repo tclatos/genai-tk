@@ -60,7 +60,7 @@ def register(cli_app: typer.Typer) -> None:
         from genai_tk.agents.langchain.setup import setup_langchain
         from genai_tk.core.llm_factory import LlmFactory
         from genai_tk.tools.smolagents.config_loader import (
-            CONF_YAML_FILE,
+            _default_smolagents_path,
             create_demo_from_config,
         )
 
@@ -84,7 +84,7 @@ def register(cli_app: typer.Typer) -> None:
         if config:
             demo = create_demo_from_config(config)
             if demo is None:
-                print(f"❌ Error: Configuration '{config}' not found in {CONF_YAML_FILE}")
+                print(f"❌ Error: Configuration '{config}' not found in {_default_smolagents_path()}")
                 print()
                 from genai_tk.cli.config_display import display_smolagents_configs
 

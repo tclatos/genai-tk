@@ -123,18 +123,21 @@ class BrowserNavigateTool(_BrowserTool):
 
     name: str = "browser_navigate"
     description: str = (
-        "Navigate the browser to a URL. Returns the page title, URL, and a text snippet. "
+        "Navigate the browser to a URL. The 'url' argument is required. "
+        "Returns the page title, URL, and a text snippet. "
         "Use this to go to websites, follow links, or load specific pages."
     )
 
-    def _run(self, url: str, wait_until: str = "domcontentloaded") -> str:
+    def _run(self, url: str = "", wait_until: str = "domcontentloaded") -> str:
         return asyncio.get_event_loop().run_until_complete(self._arun(url=url, wait_until=wait_until))
 
-    async def _arun(self, url: str, wait_until: str = "domcontentloaded") -> str:
+    async def _arun(self, url: str = "", wait_until: str = "domcontentloaded") -> str:
+        if not url or not url.strip():
+            return "Error: 'url' argument is required. Provide the full URL to navigate to."
         await self._ensure_connected()
         page = self.session.page
         try:
-            await page.goto(url, wait_until=wait_until, timeout=self.session.config.default_timeout_ms)
+            await page.goto(url.strip(), wait_until=wait_until, timeout=self.session.config.default_timeout_ms)
         except Exception as exc:
             return f"Navigation failed: {exc}"
         return await _page_summary(self.session)
@@ -150,10 +153,12 @@ class BrowserClickTool(_BrowserTool):
         "Returns the page state after clicking."
     )
 
-    def _run(self, selector: str) -> str:
+    def _run(self, selector: str = "") -> str:
         return asyncio.get_event_loop().run_until_complete(self._arun(selector))
 
-    async def _arun(self, selector: str) -> str:
+    async def _arun(self, selector: str = "") -> str:
+        if not selector:
+            return "Error: 'selector' argument is required."
         await self._ensure_connected()
         page = self.session.page
         try:
@@ -171,13 +176,18 @@ class BrowserTypeTool(_BrowserTool):
     name: str = "browser_type"
     description: str = (
         "Type text into a form field identified by CSS selector. "
-        "Uses human-like typing delays. For credentials, use browser_fill_credential instead."
+        "Uses human-like typing delays. For credentials, use browser_fill_credential instead. "
+        "Do NOT use this to type into search engines — use browser_navigate to a search URL instead."
     )
 
-    def _run(self, selector: str, text: str) -> str:
+    def _run(self, selector: str = "", text: str = "") -> str:
         return asyncio.get_event_loop().run_until_complete(self._arun(selector=selector, text=text))
 
-    async def _arun(self, selector: str, text: str) -> str:
+    async def _arun(self, selector: str = "", text: str = "") -> str:
+        if not selector:
+            return "Error: 'selector' argument is required."
+        if not text:
+            return "Error: 'text' argument is required."
         await self._ensure_connected()
         try:
             await _human_type(self.session, selector, text)

@@ -1,0 +1,97 @@
+# Browser Automation Agents - Web Browser and Form Interaction
+#
+# This file contains Deep Agents specialized in autonomous web browser automation,
+# including authenticated access, form filling, and data extraction from websites.
+
+langchain_agents:
+  profiles:
+
+    # ------------------------------------------------------------------
+    # Browser Agent — agent-driven browser automation in AIO sandbox
+    # ------------------------------------------------------------------
+    - name: "Browser Agent"
+      type: deep
+      description: "Autonomous web browser agent that navigates websites, fills forms, handles authentication, and extracts data from a real browser running in an AIO sandbox"
+      system_prompt: |
+        You are a browser automation agent with full control of a real Chromium browser
+        running inside a sandbox environment.
+
+        IMPORTANT RULES:
+        1. ALWAYS use browser_fill_credential for passwords and usernames — never use browser_type for credentials
+        2. Check loaded skills for site-specific instructions before navigating unknown sites
+        3. Try browser_load_cookies first to restore saved sessions and skip re-authentication
+        4. Use browser_read_page after every navigation or click to understand the page state
+        5. Use browser_screenshot only when text extraction is insufficient (charts, visual verification)
+        6. Save cookies after every successful authentication with browser_save_cookies
+        7. Verify domains before filling credentials — check the URL is correct
+        8. If you encounter a CAPTCHA, take a screenshot and ask the user to solve it on VNC
+
+        Workflow: plan → load cookies → navigate → interact → extract → report → save cookies
+
+      tools:
+        - factory: genai_tk.tools.sandbox_browser.factory:create_sandbox_browser_tools
+
+      skill_directories:
+        - ${paths.project}/skills
+
+      enable_planning: true
+      enable_file_system: true
+
+      features:
+        - "🌐 Website Navigation"
+        - "🔐 Authenticated Access"
+        - "📊 Data Extraction"
+        - "🍪 Session Management"
+
+      examples:
+        - "Get my solar panel production data from Enedis portal"
+        - "Download the latest report from SharePoint"
+        - "Navigate to my SAP dashboard and extract maintenance data"
+
+    # ------------------------------------------------------------------
+    # Browser Agent Direct — host-local Playwright (no Docker sandbox)
+    # ------------------------------------------------------------------
+    # Uses the host GPU, real platform UA, and real network stack.
+    # Best for sites with deep fingerprinting (Enedis, SSO portals)
+    # that detect the AIO sandbox environment.
+    - name: "Browser Agent Direct"
+      type: deep
+      description: "Autonomous web browser agent using host-local Playwright — bypasses sandbox fingerprinting for sites with aggressive bot-detection"
+      system_prompt: |
+        You are a browser automation agent with full control of a real Chromium browser
+        running directly on the host machine (not in a sandbox container).
+
+        This mode uses the host GPU, real platform, and real network — it avoids
+        bot-detection that targets sandboxed/containerised browsers.
+
+        IMPORTANT RULES:
+        1. ALWAYS use browser_fill_credential for passwords and usernames — never use browser_type for credentials
+        2. Check loaded skills for site-specific instructions before navigating unknown sites
+        3. Try browser_load_cookies first to restore saved sessions and skip re-authentication
+        4. Use browser_read_page after every navigation or click to understand the page state
+        5. Use browser_screenshot only when text extraction is insufficient (charts, visual verification)
+        6. Save cookies after every successful authentication with browser_save_cookies
+        7. Verify domains before filling credentials — check the URL is correct
+        8. If you encounter a CAPTCHA, take a screenshot and inform the user
+
+        Workflow: plan → load cookies → navigate → interact → extract → report → save cookies
+
+      tools:
+        - factory: genai_tk.tools.direct_browser.factory:create_direct_browser_tools
+
+      skill_directories:
+        - ${paths.project}/skills
+
+      enable_planning: true
+      enable_file_system: true
+
+      features:
+        - "🌐 Website Navigation"
+        - "🔐 Authenticated Access (anti-bot resilient)"
+        - "📊 Data Extraction"
+        - "🍪 Session Management"
+
+      examples:
+        - "Get my solar panel production data from Enedis portal"
+        - "Log in to Le Monde and read the latest articles"
+        - "Access my corporate SAP portal behind SSO"

@@ -42,7 +42,7 @@ dependencies = [
     "langchain-anthropic>=1.3.4",    # Anthropic Claude models integration
     "langchain-google-genai>=4.2.1", # Google Gemini models integration
     "openai>=1.80.0",                # Official OpenAI Python client
-    "litellm>=1.74,<2",              # Unified LLM API (100+ models)
+    "litellm==1.82.5",                # Unified LLM API (100+ models) # FIXED because of bug
     "mistralai>=1.7.0",              # Official Mistral AI client
     # ============================================
     # Agent Frameworks
@@ -68,7 +68,7 @@ dependencies = [
     # NLP & Text Processing
     # ============================================
     "tokenizers>=0.21.0",                                                                                                                     # Hugging Face fast tokenizers
-    "spacy>=3.7.4",                                                                                                                           # Industrial-strength NLP library
+    "spacy>=3.8.0",                                                                                                                           # Industrial-strength NLP library
     "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", # Small English model
     "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl", # Large English model with word vectors
     "abbreviations>=0.2.5",                                                                                                                   # Abbreviation detection and expansion
