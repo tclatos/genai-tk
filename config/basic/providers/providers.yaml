@@ -79,7 +79,7 @@ providers:
     use: langchain_openai:ChatOpenAI
     api_key_env_var: EDENAI_API_KEY
     api_base: https://api.edenai.run/v3/llm
-    litellm_prefix: edenai
+    #litellm_prefix: edenai
 
   azure:
     use: langchain_openai:AzureChatOpenAI

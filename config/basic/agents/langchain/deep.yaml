@@ -23,7 +23,7 @@ langchain_agents:
       # Custom deepagents BackendProtocol:
       # backend:
       #   type: class
-      #   class: my_package.backends:MyBackend
+      #   class_path: my_package.backends:MyBackend
       #   kwargs:
       #     some_option: value
       system_prompt: |

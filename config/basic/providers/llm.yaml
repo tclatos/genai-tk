@@ -80,3 +80,7 @@ llm:
     - model_id: mistral-small  
       providers:
         - edenai: mistral/mistral-small-latest 
+
+    - model_id: kimi-2.5  
+      providers:
+        - edenai: amazon/moonshotai.kimi-k2.5

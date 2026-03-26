@@ -702,7 +702,17 @@ class LlmFactory(BaseModel):
                 pass
 
         # Build a helpful error: show fuzzy matches from known_items + available config tags
-        close_ids = [m for m, _ in _fuzzy_match(llm, LlmFactory.known_items(), n=5, cutoff=0.3)]
+        # Include all YAML-defined IDs (even those with missing keys/modules) as fuzzy candidates
+        yaml_all_ids = [item.id for item in LlmFactory.known_list()]
+        all_candidates = sorted(set(LlmFactory.known_items()) | set(yaml_all_ids))
+        matches = _fuzzy_match(llm, all_candidates, n=5, cutoff=0.3)
+        close_ids = [m for m, _ in matches]
+
+        # Auto-resolve if the top match is high-confidence
+        if matches and matches[0][1] >= 0.8:
+            best_match = matches[0][0]
+            logger.info(f"Auto-resolved '{llm}' → '{best_match}' (score {matches[0][1]:.2f})")
+            return best_match
         try:
             tags = _llm_section().models.all_tags()
             tags.pop("default", None)
@@ -1105,14 +1115,26 @@ def get_llm(
     elif llm == "default" and llm_tag is not None:
         resolved_llm = llm_tag
 
-    factory = LlmFactory(
-        llm=resolved_llm,
-        json_mode=json_mode,
-        streaming=streaming,
-        reasoning=reasoning,
-        cache=cache,
-        llm_params=kwargs,
-    )
+    try:
+        factory = LlmFactory(
+            llm=resolved_llm,
+            json_mode=json_mode,
+            streaming=streaming,
+            reasoning=reasoning,
+            cache=cache,
+            llm_params=kwargs,
+        )
+    except Exception as e:
+        # Provide helpful error message for LLM validation errors
+        if "Unknown" in str(e) or "provider" in str(e).lower():
+            # Try to get a helpful error message from resolve_llm_identifier
+            try:
+                LlmFactory.resolve_llm_identifier(resolved_llm)
+            except ValueError as ve:
+                # This error has suggestions, re-raise it
+                raise ve from None
+        # Re-raise the original error if we can't improve it
+        raise
     info = f"get LLM:'{factory.llm_id}'"
     info += " -streaming" if streaming else ""
     info += " -json_mode" if json_mode else ""

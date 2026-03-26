@@ -136,7 +136,7 @@ class BackendConfig(BaseModel):
         ```yaml
         backend:
           type: class
-          class: my_package.backends:MyBackend
+          class_path: my_package.backends:MyBackend
           kwargs:
             some_option: value
         ```
@@ -147,10 +147,10 @@ class BackendConfig(BaseModel):
     )
     root_dir: str | None = Field(None, description="Root directory for the filesystem backend")
     class_path: QualifiedClassName | None = Field(
-        None, alias="class", description="Qualified class name for custom backends (module.path:ClassName)"
+        None, description="Qualified class name for custom backends (module.path:ClassName)"
     )
     kwargs: dict[str, Any] = Field(default_factory=dict, description="Extra constructor kwargs for the class backend")
-    model_config = ConfigDict(populate_by_name=True, extra="allow")
+    model_config = ConfigDict(extra="allow")
 
     @property
     def extra_kwargs(self) -> dict[str, Any]:
@@ -172,7 +172,7 @@ class CheckpointerConfig(BaseModel):
 
     checkpointer:
       type: class           # any LangGraph-compatible saver
-      class: langgraph.checkpoint.sqlite:SqliteSaver
+      class_path: langgraph.checkpoint.sqlite:SqliteSaver
       kwargs:
         conn_string: "data/checkpoints.db"
     ```
@@ -182,10 +182,9 @@ class CheckpointerConfig(BaseModel):
         "none", description="Checkpointer type: none (no persistence), memory (in-process), or class (custom)"
     )
     class_path: QualifiedClassName | None = Field(
-        None, alias="class", description="Qualified class name for custom checkpointers (module.path:ClassName)"
+        None, description="Qualified class name for custom checkpointers (module.path:ClassName)"
     )
     kwargs: dict[str, Any] = Field(default_factory=dict, description="Constructor kwargs for the class checkpointer")
-    model_config = ConfigDict(populate_by_name=True)
 
 
 # ============================================================================
@@ -553,7 +552,11 @@ async def create_backend(config: BackendConfig | None) -> BackendProtocol | None
     Returns:
         A started ``BackendProtocol`` instance, or ``None`` when ``type`` is ``none``.
     """
+    from typing import cast
+
     backend = await instantiate_backend(config)
-    if backend is not None and hasattr(backend, "start"):
-        await backend.start()
+    if backend is not None:
+        start_method = getattr(backend, "start", None)
+        if callable(start_method):
+            await cast(Any, start_method)()
     return backend

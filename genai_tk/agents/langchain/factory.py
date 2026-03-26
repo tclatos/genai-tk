@@ -93,7 +93,7 @@ async def create_langchain_agent(
     logger.info(f"Creating '{profile.name}' agent (type={profile.type}) with {len(all_tools)} tools")
 
     # 5. Checkpointer
-    checkpointer_cfg = profile.checkpointer or CheckpointerConfig(type="none")
+    checkpointer_cfg = profile.checkpointer or CheckpointerConfig(type="none", class_path=None, kwargs={})
     checkpointer = create_checkpointer(checkpointer_cfg, force_memory=force_memory_checkpointer)
 
     # 6. Middleware
@@ -117,7 +117,7 @@ async def create_langchain_agent(
         middlewares.insert(0, EmptyResponseRetryMiddleware(max_retries=1))
 
     # 7. Backend (deep agents only; ignored for react/custom with a warning)
-    backend_cfg = profile.backend or BackendConfig(type="none")
+    backend_cfg = profile.backend or BackendConfig(type="none", root_dir=None, class_path=None, kwargs={})
     if backend_cfg.type != "none" and profile.type != "deep":
         logger.warning(
             f"Profile '{profile.name}' (type={profile.type}) has a backend configured "

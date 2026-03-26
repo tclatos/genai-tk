@@ -287,7 +287,12 @@ def register(cli_app: typer.Typer) -> None:
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted.[/yellow]")
             raise typer.Exit(0) from None
+        except ValueError as e:
+            # ValueError with helpful suggestions (e.g., for unknown LLM)
+            console.print(f"\n[red]Error:[/red] {e}")
+            raise typer.Exit(1) from e
         except Exception as e:
+            # Other exceptions - show error and traceback for debugging
             console.print(f"\n[red]Error:[/red] {e}")
             logger.exception("Agent error")
             raise typer.Exit(1) from e
