@@ -1,12 +1,16 @@
 """Prefect-powered markdown conversion for various file formats.
 
 This module provides a Prefect flow that processes documents (PDF, DOCX, PPTX, etc.)
-and converts them to Markdown, with optional Mistral OCR processing for PDFs.
+and converts them to Markdown, with support for three converter backends:
+- ``markitdown`` (default): supports PDF, DOCX, PPTX, and image formats
+- ``mistral``: Mistral OCR API, PDFs only (falls back to markitdown for other formats)
+- ``edgeparse``: fast Rust-native engine, PDFs only (falls back to markitdown for other formats)
+
 Results are written to output directory with a manifest file to track processing.
 
 Typical usage from the CLI:
 ```bash
-uv run cli tools markdownize ./docs ./output --recursive --mistral-ocr --force
+uv run cli tools markdownize ./docs ./output --recursive --converter edgeparse --force
 ```
 """
 
@@ -362,11 +366,11 @@ def _prepare_files(
 
 
 def _is_markdownize_compatible(file_path: UPath) -> bool:
-    """Check if file is compatible with markitdown or Mistral OCR."""
+    """Check if file is compatible with any supported converter."""
     suffix = file_path.suffix.lower()
     # markitdown formats
     markitdown_formats = {".pdf", ".docx", ".pptx"}
-    # Mistral OCR formats
+    # Image formats (markitdown only)
     ocr_formats = {".jpeg", ".jpg", ".png", ".gif", ".bmp"}
     return suffix in (markitdown_formats | ocr_formats)
 
@@ -376,7 +380,7 @@ async def _process_single_file_task(
     file_info: _FileToProcess,
     output_dir: str,
     root_dir: str,
-    use_mistral_ocr: bool = False,
+    converter: str = "markitdown",
 ) -> tuple[str, MarkdownizeManifestEntry]:
     """Process a single file and save markdown output.
 
@@ -404,8 +408,18 @@ async def _process_single_file_task(
 
     content = None
 
-    # Try Mistral OCR for PDFs if enabled
-    if use_mistral_ocr and upath.suffix.lower() == ".pdf":
+    # Try edgeparse for PDFs if selected
+    if converter == "edgeparse" and upath.suffix.lower() == ".pdf":
+        try:
+            import edgeparse
+
+            logger.info(f"Processing {upath.name} with edgeparse")
+            content = edgeparse.convert(str(upath), format="markdown")
+        except Exception as e:
+            logger.warning(f"edgeparse failed for {upath.name}: {str(e)}. Falling back to markitdown.")
+
+    # Try Mistral OCR for PDFs if selected
+    elif converter == "mistral" and upath.suffix.lower() == ".pdf":
         try:
             from genai_tk.extra.loaders.mistral_ocr import mistral_ocr as mistral_ocr_func
 
@@ -420,9 +434,6 @@ async def _process_single_file_task(
                 content_parts.append("\n\n")
 
             content = "".join(content_parts)
-
-            # TODO: Download and save linked JPEG/HTML assets from OCR response
-            # This requires handling ocr_response.pages[*].images and document structure
 
         except Exception as e:
             logger.warning(f"Mistral OCR failed for {upath.name}: {str(e)}. Falling back to markitdown.")
@@ -472,7 +483,7 @@ def markdownize_flow(
     recursive: bool = False,
     batch_size: int = 5,
     force: bool = False,
-    use_mistral_ocr: bool = False,
+    converter: str = "markitdown",
 ) -> MarkdownizeManifest:
     """Run markdownize as a Prefect flow.
 
@@ -484,7 +495,8 @@ def markdownize_flow(
         recursive: Search recursively in subdirectories
         batch_size: Number of files to process concurrently per batch
         force: Reprocess files even if unchanged in manifest
-        use_mistral_ocr: Use Mistral OCR for PDF processing
+        converter: Converter backend — ``"markitdown"`` (default), ``"mistral"``, or ``"edgeparse"``.
+            ``"mistral"`` and ``"edgeparse"`` only process PDFs; other formats fall back to markitdown.
 
     Returns:
         Updated manifest with processing results
@@ -537,17 +549,17 @@ def markdownize_flow(
 
     all_entries: dict[str, MarkdownizeManifestEntry] = dict(manifest.entries)
 
-    # Handle Mistral OCR batch processing separately if enabled
-    pdf_files = [f for f in to_process if f.path.suffix.lower() == ".pdf"] if use_mistral_ocr else []
-
-    if use_mistral_ocr and pdf_files:
-        try:
-            _ocr_processor = MistralOCRBatchProcessor(batch_size=batch_size)  # noqa: F841 - reserved for future use
-            logger.info(f"Processing {len(pdf_files)} PDF files with Mistral OCR batch processor")
-            # Note: In practice, this would be called within a task for better Prefect integration
-            # For now, we use the single-file fallback in _process_single_file_task
-        except Exception as e:
-            logger.warning(f"Could not initialize Mistral OCR batch processor: {e}. Using single-file OCR.")
+    # For Mistral converter, log batch info (individual tasks handle the actual OCR calls)
+    if converter == "mistral":
+        pdf_files = [f for f in to_process if f.path.suffix.lower() == ".pdf"]
+        if pdf_files:
+            try:
+                _ocr_processor = MistralOCRBatchProcessor(batch_size=batch_size)  # noqa: F841 - reserved for future use
+                logger.info(f"Processing {len(pdf_files)} PDF files with Mistral OCR batch processor")
+                # Note: In practice, this would be called within a task for better Prefect integration
+                # For now, we use the single-file fallback in _process_single_file_task
+            except Exception as e:
+                logger.warning(f"Could not initialize Mistral OCR batch processor: {e}. Using single-file OCR.")
 
     # Process in batches
     for batch in _chunked(to_process, batch_size):
@@ -556,7 +568,7 @@ def markdownize_flow(
                 file_info,
                 output_dir=str(output_upath),
                 root_dir=root_dir,
-                use_mistral_ocr=use_mistral_ocr,
+                converter=converter,
             )
             for file_info in batch
         ]

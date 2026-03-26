@@ -29,7 +29,7 @@ def test_markdownize_flow_creates_manifest(tmp_path, monkeypatch) -> None:
     pdf_file = input_dir / "sample.pdf"
     pdf_file.write_bytes(b"%PDF-1.4\ncontent")
 
-    def fake_submit(file_info, output_dir, root_dir, use_mistral_ocr):
+    def fake_submit(file_info, output_dir, root_dir, converter):
         entry = MarkdownizeManifestEntry(
             source_hash=file_info.content_hash,
             output_path=f"{file_info.path.stem}.md",
@@ -47,7 +47,7 @@ def test_markdownize_flow_creates_manifest(tmp_path, monkeypatch) -> None:
         recursive=False,
         batch_size=1,
         force=False,
-        use_mistral_ocr=False,
+        converter="markitdown",
     )
 
     assert isinstance(manifest, MarkdownizeManifest)
@@ -69,7 +69,7 @@ def test_markdownize_flow_skips_unchanged(tmp_path, monkeypatch) -> None:
     pdf_file = input_dir / "sample.pdf"
     pdf_file.write_bytes(b"%PDF-1.4\ncontent")
 
-    def fake_submit(file_info, output_dir, root_dir, use_mistral_ocr):
+    def fake_submit(file_info, output_dir, root_dir, converter):
         entry = MarkdownizeManifestEntry(
             source_hash=file_info.content_hash,
             output_path=f"{file_info.path.stem}.md",
@@ -87,7 +87,7 @@ def test_markdownize_flow_skips_unchanged(tmp_path, monkeypatch) -> None:
         recursive=False,
         batch_size=1,
         force=False,
-        use_mistral_ocr=False,
+        converter="markitdown",
     )
 
     manifest2 = markdownize_flow.fn(
@@ -97,7 +97,7 @@ def test_markdownize_flow_skips_unchanged(tmp_path, monkeypatch) -> None:
         recursive=False,
         batch_size=1,
         force=False,
-        use_mistral_ocr=False,
+        converter="markitdown",
     )
 
     assert len(manifest1.entries) == 1

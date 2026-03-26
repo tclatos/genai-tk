@@ -98,9 +98,13 @@ class ExtraCommands(CliTopCommand):
             recursive: bool = typer.Option(False, help="Search for files recursively"),
             batch_size: int = typer.Option(5, help="Number of files to process concurrently in each batch"),
             force: bool = typer.Option(False, "--force", help="Reprocess files even if unchanged in manifest"),
-            mistral_ocr: bool = typer.Option(False, "--mistral-ocr", help="Use Mistral OCR for PDF processing"),
+            converter: str = typer.Option(
+                "markitdown",
+                "--converter",
+                help="Converter to use: 'markitdown' (default), 'mistral' (Mistral OCR, PDFs only), 'edgeparse' (fast Rust engine, PDFs only)",
+            ),
         ) -> None:
-            """Convert documents to Markdown using markitdown or Mistral OCR.
+            """Convert documents to Markdown using markitdown, Mistral OCR, or edgeparse.
 
             Processes files from root directory using glob patterns and saves markdown
             output plus a manifest file for incremental processing. Supports parallel
@@ -110,7 +114,9 @@ class ExtraCommands(CliTopCommand):
                 ```bash
                 cli tools markdownize ./docs ./output --recursive
 
-                cli tools markdownize ./data ./output --include '*.pdf' --include '*.docx' --mistral-ocr
+                cli tools markdownize ./data ./output --include '*.pdf' --converter mistral
+
+                cli tools markdownize ./data ./output --include '*.pdf' --converter edgeparse
 
                 cli tools markdownize '${paths.data}' '${paths.markdown}' --recursive --force --batch-size 10
 
@@ -134,7 +140,7 @@ class ExtraCommands(CliTopCommand):
                     recursive=recursive,
                     batch_size=batch_size,
                     force=force,
-                    use_mistral_ocr=mistral_ocr,
+                    converter=converter,
                 )
             except Exception as exc:
                 logger.error(f"Markdownize conversion failed: {exc}")

@@ -183,7 +183,7 @@ def test_markdownize_flow_basic(temp_dir: Path, sample_files: list[Path], monkey
     output_dir = temp_dir / "output"
     output_dir.mkdir()
 
-    def fake_submit(file_info, output_dir, root_dir, use_mistral_ocr):
+    def fake_submit(file_info, output_dir, root_dir, converter):
         entry = MarkdownizeManifestEntry(
             source_hash=file_info.content_hash,
             output_path=f"{file_info.path.stem}.md",
@@ -205,13 +205,91 @@ def test_markdownize_flow_basic(temp_dir: Path, sample_files: list[Path], monkey
         recursive=False,
         batch_size=2,
         force=False,
-        use_mistral_ocr=False,
+        converter="markitdown",
     )
 
     assert isinstance(manifest, MarkdownizeManifest)
     assert len(manifest.entries) == 2
     manifest_path = UPath(output_dir) / "manifest.json"
     assert manifest_path.exists()
+
+
+def test_markdownize_flow_edgeparse_converter(temp_dir: Path, sample_files: list[Path], monkeypatch) -> None:
+    """Test markdownize flow with edgeparse converter passes the converter param correctly."""
+    from datetime import datetime, timezone
+
+    output_dir = temp_dir / "output"
+    output_dir.mkdir()
+
+    received_converters: list[str] = []
+
+    def fake_submit(file_info, output_dir, root_dir, converter):
+        received_converters.append(converter)
+        entry = MarkdownizeManifestEntry(
+            source_hash=file_info.content_hash,
+            output_path=f"{file_info.path.stem}.md",
+            processed_at=datetime.now(timezone.utc),
+        )
+        return _FakeFuture((str(file_info.path), entry))
+
+    monkeypatch.setattr(mod._process_single_file_task, "submit", fake_submit)
+    monkeypatch.setattr(
+        mod,
+        "resolve_files",
+        lambda *args, **kwargs: [str(p) for p in sample_files],
+    )
+
+    manifest = markdownize_flow.fn(
+        root_dir=str(temp_dir),
+        output_dir=str(output_dir),
+        include_patterns=["*.pdf"],
+        recursive=False,
+        batch_size=2,
+        force=False,
+        converter="edgeparse",
+    )
+
+    assert isinstance(manifest, MarkdownizeManifest)
+    assert all(c == "edgeparse" for c in received_converters)
+
+
+def test_markdownize_flow_mistral_converter(temp_dir: Path, sample_files: list[Path], monkeypatch) -> None:
+    """Test markdownize flow with mistral converter passes the converter param correctly."""
+    from datetime import datetime, timezone
+
+    output_dir = temp_dir / "output"
+    output_dir.mkdir()
+
+    received_converters: list[str] = []
+
+    def fake_submit(file_info, output_dir, root_dir, converter):
+        received_converters.append(converter)
+        entry = MarkdownizeManifestEntry(
+            source_hash=file_info.content_hash,
+            output_path=f"{file_info.path.stem}.md",
+            processed_at=datetime.now(timezone.utc),
+        )
+        return _FakeFuture((str(file_info.path), entry))
+
+    monkeypatch.setattr(mod._process_single_file_task, "submit", fake_submit)
+    monkeypatch.setattr(
+        mod,
+        "resolve_files",
+        lambda *args, **kwargs: [str(p) for p in sample_files],
+    )
+
+    manifest = markdownize_flow.fn(
+        root_dir=str(temp_dir),
+        output_dir=str(output_dir),
+        include_patterns=["*.pdf"],
+        recursive=False,
+        batch_size=2,
+        force=False,
+        converter="mistral",
+    )
+
+    assert isinstance(manifest, MarkdownizeManifest)
+    assert all(c == "mistral" for c in received_converters)
 
 
 def test_manifest_persistence(temp_dir: Path, sample_files: list[Path], monkeypatch) -> None:
@@ -223,7 +301,7 @@ def test_manifest_persistence(temp_dir: Path, sample_files: list[Path], monkeypa
 
     call_count = {"n": 0}
 
-    def fake_submit(file_info, output_dir, root_dir, use_mistral_ocr):
+    def fake_submit(file_info, output_dir, root_dir, converter):
         call_count["n"] += 1
         entry = MarkdownizeManifestEntry(
             source_hash=file_info.content_hash,
@@ -243,7 +321,7 @@ def test_manifest_persistence(temp_dir: Path, sample_files: list[Path], monkeypa
         "recursive": False,
         "batch_size": 1,
         "force": False,
-        "use_mistral_ocr": False,
+        "converter": "markitdown",
     }
     manifest1 = markdownize_flow.fn(**run_kwargs)
     assert len(manifest1.entries) == 1
