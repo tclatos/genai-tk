@@ -405,18 +405,16 @@ class InfoCommands(CliTopCommand):
                 # If not found in known items, search across models.dev database
                 if llm_info is None:
                     db = get_models_db()
-                    cross_provider_matches: list[
-                        tuple[str, str, float]
-                    ] = []  # (provider, model_name, score)
+                    cross_provider_matches: list[tuple[str, str, float]] = []  # (provider, model_name, score)
 
                     for provider_id, models_dict in db._providers.items():
                         prov_info = PROVIDER_INFO.get(provider_id)
-                        
+
                         # Only include providers with available API keys
                         has_key = False
                         if prov_info and prov_info.api_key_env_var:
                             has_key = bool(os.environ.get(prov_info.api_key_env_var))
-                        
+
                         if not has_key:
                             continue  # Skip providers without API keys
 
@@ -426,7 +424,7 @@ class InfoCommands(CliTopCommand):
                             lookup_name = model_name
                             if prov_info and prov_info.gateway and "/" in model_name:
                                 lookup_name = model_name.split("/", 1)[1]
-                            
+
                             score = SequenceMatcher(None, model_id.lower(), lookup_name.lower()).ratio()
                             if score > 0.5:  # slightly higher threshold for gateway provider matching
                                 cross_provider_matches.append((provider_id, model_name, score))
