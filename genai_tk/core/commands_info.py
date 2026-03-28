@@ -401,56 +401,72 @@ class InfoCommands(CliTopCommand):
                         if model_part.lower() == model_id.lower():
                             llm_info = item
                             break
-                
+
                 # If not found in known items, search across models.dev database
                 if llm_info is None:
                     db = get_models_db()
-                    cross_provider_matches: list[tuple[str, str, float, bool]] = []  # (provider, model_name, score, has_api_key)
-                    
+                    cross_provider_matches: list[
+                        tuple[str, str, float]
+                    ] = []  # (provider, model_name, score)
+
                     for provider_id, models_dict in db._providers.items():
                         prov_info = PROVIDER_INFO.get(provider_id)
+                        
+                        # Only include providers with available API keys
                         has_key = False
                         if prov_info and prov_info.api_key_env_var:
                             has_key = bool(os.environ.get(prov_info.api_key_env_var))
                         
+                        if not has_key:
+                            continue  # Skip providers without API keys
+
                         # Get models for this provider
                         for model_name, model_entry in models_dict.items():
-                            score = SequenceMatcher(None, model_id.lower(), model_name.lower()).ratio()
-                            if score > 0.4:  # reasonable threshold for cross-provider matching
-                                cross_provider_matches.append((provider_id, model_name, score, has_key))
-                    
-                    # Sort by score descending, then by has_api_key (True first)
-                    cross_provider_matches.sort(key=lambda x: (-x[2], -x[3]))
-                    
+                            # For gateway providers, extract the model name part (after /)
+                            lookup_name = model_name
+                            if prov_info and prov_info.gateway and "/" in model_name:
+                                lookup_name = model_name.split("/", 1)[1]
+                            
+                            score = SequenceMatcher(None, model_id.lower(), lookup_name.lower()).ratio()
+                            if score > 0.5:  # slightly higher threshold for gateway provider matching
+                                cross_provider_matches.append((provider_id, model_name, score))
+
+                    # Sort by score descending
+                    cross_provider_matches.sort(key=lambda x: -x[2])
+
                     if cross_provider_matches:
                         # Display cross-provider fuzzy matches
                         console.print()
                         console.print(Rule(f"[bold cyan]{model_id}[/bold cyan]", style="cyan"))
                         console.print()
-                        
+
                         match_table = Table(
-                            title="[bold yellow]Fuzzy matches across all providers[/bold yellow]",
+                            title="[bold yellow]Available matches (providers with API keys)[/bold yellow]",
                             show_header=True,
                             header_style="bold yellow",
                             box=None,
                             padding=(0, 1),
                         )
                         match_table.add_column("Rank", style="dim", width=3)
-                        match_table.add_column("Provider", style="cyan", width=15)
-                        match_table.add_column("Model name", style="green", width=30)
+                        match_table.add_column("Model ID (model@provider)", style="cyan", width=40)
                         match_table.add_column("Score", style="white", width=6)
-                        match_table.add_column("API Key", style="yellow", width=12)
-                        
-                        for rank, (prov, mname, score, has_key) in enumerate(cross_provider_matches[:10], start=1):
-                            api_key_status = "[green]✓[/green]" if has_key else "[dim]—[/dim]"
-                            match_table.add_row(str(rank), prov, mname, f"{score:.2f}", api_key_status)
-                        
+
+                        for rank, (prov, mname, score) in enumerate(cross_provider_matches[:10], start=1):
+                            # Format as model_name@provider or extract from vendor-prefixed name
+                            prov_info_display = PROVIDER_INFO.get(prov)
+                            if prov_info_display and prov_info_display.gateway and "/" in mname:
+                                display_model = mname.split("/", 1)[1]
+                            else:
+                                display_model = mname
+                            display_id = f"{display_model}@{prov}"
+                            match_table.add_row(str(rank), display_id, f"{score:.2f}")
+
                         console.print(match_table)
                         console.print()
-                        console.print("[dim]Try: [bold]cli info llm-profile <model_name>@<provider>[/bold][/dim]")
+                        console.print("[dim]Try: [bold]cli info llm-profile <model_id>[/bold][/dim]")
                         return
                     else:
-                        # No matches found
+                        # No matches found with API keys
                         lc_model_name = model_id
                         lc_provider = "openai"
 
