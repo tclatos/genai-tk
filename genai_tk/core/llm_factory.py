@@ -54,7 +54,6 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, compu
 from genai_tk.core.cache import CacheMethod, LlmCache
 from genai_tk.core.models_db import ModelEntry, get_models_db
 from genai_tk.core.providers import (
-    OPENROUTER_API_BASE,
     PROVIDER_INFO,
     ProviderInfo,
     get_provider_api_env_var,
@@ -834,9 +833,16 @@ class LlmFactory(BaseModel):
         return llm
 
     def model_factory(self) -> BaseChatModel:
-        """Model factory, according to the model class."""
+        """Model factory, according to the model class.
+
+        This method supports two main paths:
+        1. OpenAI-compatible API: Handles most modern providers using ChatOpenAI as base class.
+           Configuration is mostly in YAML (api_base, extra_body, seed handling, etc.)
+        2. Provider-specific classes: For APIs with truly different interfaces
+           (anthropic, google, azure, ollama, litellm, mistral, huggingface, together, deepseek)
+        3. Fake: For testing
+        """
         from langchain_core.globals import get_llm_cache
-        from langchain_openai import ChatOpenAI
 
         if self.cache:
             lc_cache = LlmCache.from_value(self.cache)
@@ -849,90 +855,115 @@ class LlmFactory(BaseModel):
             "max_retries": DEFAULT_MAX_RETRIES,
             "streaming": self.streaming,
         }
-        api_key = get_provider_api_key(self.info.provider)
+        api_key = get_provider_api_key(self.provider)
         llm_params = common_params | self.llm_params
         if self.json_mode:
             llm_params |= {"response_format": {"type": "json_object"}}
 
-        # Providers that require custom implementation (not supported by init_chat_model or need special handling)
-        CUSTOM_IMPLEMENTATION_PROVIDERS = {
-            "deepinfra",
-            "edenai",
-            "google",
-            "azure",
-            "openrouter",
-            "github",
-            "huggingface",
-            "litellm",
-            "custom",
-            "ollama",
-            "fake",
-            "mistral",
+        # Get provider info for configuration details
+        provider_info = self.info.get_provider_info()
+
+        # --- Route 1: OpenAI-compatible API (default for most providers) ---
+        if provider_info.is_openai_compatible():
+            return self._create_openai_compatible_llm(provider_info, llm_params, api_key)
+
+        # --- Route 2: Fake model (testing) ---
+        if self.provider == "fake":
+            return self._create_fake_llm()
+
+        # --- Route 3: Provider-specific LangChain classes ---
+        return self._create_specialized_llm(provider_info, llm_params, api_key)
+
+    def _create_openai_compatible_llm(
+        self, provider_info: ProviderInfo, llm_params: dict[str, Any], api_key: SecretStr | None
+    ) -> "BaseChatModel":
+        """Create an LLM using OpenAI-compatible API.
+
+        This handles providers using ChatOpenAI or compatible endpoints, with configuration
+        from YAML (api_base, extra_body, seed location, etc).
+        """
+        from langchain_openai import ChatOpenAI
+
+        # Handle seed parameter placement
+        if provider_info.seed_param_location == "model_kwargs":
+            # Groq and similar: seed goes in model_kwargs
+            llm_params = llm_params.copy()
+            seed = llm_params.pop("seed", SEED)
+            llm_params.setdefault("model_kwargs", {})["seed"] = seed
+        elif provider_info.seed_param_location is None or provider_info.seed_param_location == "omit":
+            # Provider doesn't support seed
+            llm_params = llm_params.copy()
+            llm_params.pop("seed", None)
+
+        # Handle special case: openrouter - add quantization preferences for non-major vendors
+        extra_body = None
+        if provider_info.extra_body:
+            extra_body = provider_info.extra_body.copy()
+            if self.provider == "openrouter":
+                openrouter_vendor = self.info.model.partition("/")[0]
+                if openrouter_vendor not in ["openai", "anthropic", "mistralai"]:
+                    default_quantization = extra_body.pop("default_quantization", [])
+                    if default_quantization:
+                        extra_body = {"provider": {"quantizations": default_quantization}}
+                    else:
+                        extra_body = None
+
+        # Get custom headers if configured
+        custom_headers = provider_info.custom_headers.copy() if provider_info.custom_headers else {}
+
+        # Create the LLM instance with resolved parameters
+        create_params = {
+            "model": self.info.model,
+            "api_key": api_key,
+            **llm_params,
         }
+        if provider_info.api_base:
+            create_params["base_url"] = provider_info.api_base
+        if extra_body:
+            create_params["extra_body"] = extra_body
+        if custom_headers:
+            create_params["default_headers"] = custom_headers
 
-        # case for most "standard" providers -> we use LangChain factory
-        if self.info.provider not in CUSTOM_IMPLEMENTATION_PROVIDERS:
-            from langchain.chat_models import init_chat_model
+        llm = ChatOpenAI(**create_params)
+        return llm
 
-            # Some parameters are handled differently between provider. Here some workaround:
-            if self.info.provider == "groq":
-                seed = llm_params.pop("seed")
-                llm_params |= {"model_kwargs": {"seed": seed}}
-            llm = init_chat_model(
-                model=self.info.model, model_provider=self.info.provider, api_key=api_key, **llm_params
-            )
+    def _create_fake_llm(self) -> "BaseChatModel":
+        """Create a fake LLM for testing."""
+        from langchain_core.language_models.fake_chat_models import ParrotFakeChatModel
 
-        elif self.info.provider == "mistral":
+        if self.info.model == "parrot":
+            return ParrotFakeChatModel()
+        raise ValueError(f"unsupported fake model {self.info.model}")
+
+    def _create_specialized_llm(
+        self, provider_info: ProviderInfo, llm_params: dict[str, Any], api_key: SecretStr | None
+    ) -> "BaseChatModel":
+        """Create an LLM using provider-specific LangChain classes.
+
+        Handles providers with non-OpenAI-compatible APIs: anthropic, google, azure, ollama,
+        litellm, mistral, huggingface, together, deepseek, and others via init_chat_model.
+        """
+        provider = self.provider
+
+        # --- Mistral: ChatMistralAI ---
+        if provider == "mistral":
             from langchain_mistralai import ChatMistralAI
 
+            llm_params = llm_params.copy()
             llm_params.pop("seed", None)  # MistralAI does not accept seed
-            llm = ChatMistralAI(
-                model=self.info.model,
-                api_key=api_key,
-                **llm_params,
-            )
+            return ChatMistralAI(model_name=self.info.model, api_key=api_key, **llm_params)
 
-        elif self.info.provider == "deepinfra":
-            # Use ChatOpenAI with DeepInfra's OpenAI-compatible endpoint.
-            # ChatDeepInfra (langchain_community) encodes the model name in the URL path
-            # (/v1/inference/{model}), which breaks vendor-prefixed names like
-            # "MiniMaxAI/MiniMax-M2.1" (the slash becomes a path separator → 403).
-            llm = ChatOpenAI(
-                base_url="https://api.deepinfra.com/v1/openai",
-                model=self.info.model,
-                api_key=api_key,
-                **llm_params,
-            )
-        elif self.info.provider == "edenai":
-            # EdenAI v3: OpenAI-compatible endpoint — model string is "provider/model"
-            # e.g. "openai/gpt-4.1-mini-2025-04-14", "anthropic/claude-sonnet-4-5"
-            llm = ChatOpenAI(
-                base_url="https://api.edenai.run/v3/llm",
-                model=self.info.model,
-                api_key=api_key,
-                **llm_params,
-            )
-
-        elif self.info.provider == "google":
-            from langchain_google_vertexai import ChatVertexAI  # type: ignore  # noqa: I001
-
-            llm = ChatVertexAI(
-                model=self.info.model,
-                project="prj-p-eden",  # TODO : set it in config
-                convert_system_message_to_human=True,
-                **llm_params,
-            )  # type: ignore
-            assert not self.json_mode, "json_mode not supported or coded"
-
-        elif self.info.provider == "azure":
+        # --- Azure: Special handling for model name parsing ---
+        if provider == "azure":
             from langchain_openai import AzureChatOpenAI
 
+            llm_params = llm_params.copy()
             name, _, api_version = self.info.model.partition("/")
-            # When model has no "/" the api_version is ""; fall back to env vars.
-            # AzureChatOpenAI reads OPENAI_API_VERSION natively; many setups use
-            # AZURE_OPENAI_API_VERSION instead, so we map it explicitly.
+            # Fall back to environment variables if no api_version in model string
             if not api_version:
-                api_version = os.environ.get("AZURE_OPENAI_API_VERSION") or os.environ.get("OPENAI_API_VERSION") or ""
+                special_env = provider_info.get_special_env_vars()
+                api_version = special_env.get("api_version") or os.environ.get("OPENAI_API_VERSION") or ""
+
             llm = AzureChatOpenAI(
                 name=name,
                 azure_deployment=name,
@@ -945,85 +976,25 @@ class LlmFactory(BaseModel):
                 from langchain_core.language_models.base import BaseLanguageModel
 
                 llm = cast(BaseLanguageModel, llm.bind(response_format={"type": "json_object"}))
-        elif self.info.provider == "openrouter":
-            # See https://openrouter.ai/docs/parameters
+            return llm  # type: ignore
 
-            # _ = llm_params.pop("response_format", None) or {}
-            # Not sure.  See https://openrouter.ai/docs/structured-outputs
-
-            #  Attempt to avoid fp4 quantization.  But might not work for all cases
-            openrouter_provider = self.info.model.partition("/")[0]
-            extra_body = None
-            if openrouter_provider not in ["openai", "anthropic", "mistralai"]:
-                extra_body = {"provider": {"quantizations": ["fp8", "unknown", "fp16", "fp32", "bf16"]}}
-
-            llm = ChatOpenAI(
-                base_url=OPENROUTER_API_BASE,
-                model=self.info.model,
-                api_key=api_key,
-                extra_body=extra_body,
-                **llm_params,
-            )
-        elif self.info.provider == "github":
-            # GitHub Models API - See https://github.com/marketplace/models
-            llm = ChatOpenAI(
-                base_url="https://models.github.ai/inference",
-                model=self.info.model,
-                api_key=api_key,
-                **llm_params,
-            )
-        elif self.info.provider == "huggingface":
-            # NOT WELL TESTED
-            # Also consider : https://huggingface.co/blog/inference-providers
-            # see https://huggingface.co/blog/langchain
-            from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint  # type: ignore
-
-            llm = HuggingFaceEndpoint(
-                repo_id=self.info.model,
-                task="text-generation",
-                do_sample=False,
-            )  # type: ignore
-            return ChatHuggingFace(llm=llm)
-        elif self.info.provider == "litellm":
-            from langchain_litellm import ChatLiteLLM
-
-            llm = ChatLiteLLM(
-                model=self.info.model,
-                **llm_params,
-            )
-        elif self.info.provider == "custom":
-            # to be used for vLLM and other providers that comply with OpenAI API
-
-            if not self.info.llm_args.get("model"):
-                raise ValueError("'custom' provider should have a 'model' key")
-
-            api_key_str = self.info.llm_args.get("api_key") or "dummy-key"
-            llm = ChatOpenAI(
-                model=self.info.model,
-                api_key=SecretStr(api_key_str),
-                **self.info.llm_args,
-                **llm_params,
-            )
-
-        elif self.info.provider == "ollama":
+        # --- Ollama: Special proxy handling for localhost ---
+        if provider == "ollama":
             from langchain_ollama import ChatOllama
 
-            # Temporarily disable proxy environment variables for localhost connections
-            # This is necessary because Ollama runs locally and shouldn't go through corporate proxies
+            # Temporarily disable proxy environment variables for localhost
             original_proxy_env = {}
             proxy_vars = ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"]
-
             for var in proxy_vars:
                 if var in os.environ:
                     original_proxy_env[var] = os.environ[var]
                     del os.environ[var]
 
             try:
-                # Set reasoning parameter based on factory setting
-                # Default to False for cleaner output unless explicitly enabled
                 reasoning_enabled = self.reasoning if self.reasoning is not None else False
-
-                llm = ChatOllama(
+                llm_params = llm_params.copy()
+                llm_params.pop("seed", None)  # Ollama doesn't accept seed in all versions
+                return ChatOllama(
                     model=self.info.model,
                     base_url="http://localhost:11434",
                     reasoning=reasoning_enabled,
@@ -1033,21 +1004,34 @@ class LlmFactory(BaseModel):
                 # Restore original proxy settings
                 for var, value in original_proxy_env.items():
                     os.environ[var] = value
-        elif self.info.provider == "fake":
-            from langchain_core.language_models.fake_chat_models import ParrotFakeChatModel
 
-            if self.info.model == "parrot":
-                llm = ParrotFakeChatModel()
-            else:
-                raise ValueError(f"unsupported fake model {self.info.model}")
+        # --- LiteLLM: Router to multiple providers ---
+        if provider == "litellm":
+            from langchain_litellm import ChatLiteLLM
 
-        else:
-            if self.info.provider in LlmFactory.known_items():
-                raise EnvironmentError(f"No API key found for LLM: {self.info.provider}")
-            else:
-                raise ValueError(f"unsupported LLM class {self.info.provider}")
+            return ChatLiteLLM(model=self.info.model, **llm_params)
 
-        return llm  # type: ignore
+        # --- HuggingFace: Uses ChatHuggingFace wrapper ---
+        if provider == "huggingface":
+            from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint  # type: ignore
+
+            llm = HuggingFaceEndpoint(
+                repo_id=self.info.model,
+                task="text-generation",
+                do_sample=False,
+            )  # type: ignore
+            return ChatHuggingFace(llm=llm)
+
+        # --- All others: Use LangChain's init_chat_model() factory ---
+        # This covers: anthropic, google, together, deepseek, and other standard providers
+        from langchain.chat_models import init_chat_model
+
+        return init_chat_model(
+            model=self.info.model,
+            model_provider=provider,
+            api_key=api_key,
+            **llm_params,
+        )
 
 
 def get_llm(

@@ -44,7 +44,6 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 from genai_tk.extra.kv_store_registry import KvStoreRegistry
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.core.providers import (
-    OPENROUTER_API_BASE,
     get_provider_api_env_var,
     get_provider_api_key,
     get_provider_info,
@@ -500,7 +499,7 @@ class EmbeddingsFactory(BaseModel):
             emb = OpenAIEmbeddings(
                 model=self.info.model,
                 api_key=api_key,
-                base_url=OPENROUTER_API_BASE,
+                base_url=self.info.get_api_base(),
             )
         elif self.info.provider == "fake":
             from langchain_community.embeddings import DeterministicFakeEmbedding

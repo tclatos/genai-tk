@@ -405,7 +405,9 @@ class InfoCommands(CliTopCommand):
                 # If not found in known items, search across models.dev database
                 if llm_info is None:
                     db = get_models_db()
-                    cross_provider_matches: list[tuple[str, str, float]] = []  # (provider, model_name, score)
+                    cross_provider_matches: list[
+                        tuple[str, str, float]
+                    ] = []  # (provider, model_name, score)
 
                     for provider_id, models_dict in db._providers.items():
                         prov_info = PROVIDER_INFO.get(provider_id)
@@ -419,7 +421,7 @@ class InfoCommands(CliTopCommand):
                             continue  # Skip providers without API keys
 
                         # Get models for this provider
-                        for model_name, model_entry in models_dict.items():
+                        for model_name, _ in models_dict.items():
                             # For gateway providers, extract the model name part (after /)
                             lookup_name = model_name
                             if prov_info and prov_info.gateway and "/" in model_name:

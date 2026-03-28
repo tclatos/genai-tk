@@ -8,14 +8,13 @@ managing API keys across different AI service providers.
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field, SecretStr
 
 from genai_tk.utils.config_mngr import QualifiedClassName, get_module_from_qualified, get_object_name_from_qualified
 
-OPENROUTER_BASE = "https://openrouter.ai"
-OPENROUTER_API_BASE = f"{OPENROUTER_BASE}/api/v1"
 DEEPSEEK_API_BASE = "https://api.deepseek.com"
 
 
@@ -28,6 +27,11 @@ class ProviderInfo(BaseModel):
         api_base: Optional API base URL for OpenAI-compatible providers
         litellm_prefix: LiteLLM provider prefix; null means no prefix (openai-style)
         gateway: True for providers that accept vendor-prefixed model names
+        extra_body: Optional extra fields to pass to API (e.g. for OpenRouter quantization)
+        special_env_vars: Additional environment variables needed (e.g. AZURE_OPENAI_API_VERSION)
+        openai_compatible: True if provider uses OpenAI-compatible API (defaults to detecting from 'use')
+        seed_param_location: Where to place seed parameter ('root' for root params, 'model_kwargs' for groq, None to omit)
+        custom_headers: Custom headers to send with API requests
     """
 
     use: QualifiedClassName = Field(..., description="Module and class in format 'module.path:ClassName'")
@@ -35,8 +39,29 @@ class ProviderInfo(BaseModel):
     api_base: str | None = None
     litellm_prefix: str | None = None
     gateway: bool = False
+    extra_body: dict[str, Any] | None = None
+    special_env_vars: dict[str, str] | None = None
+    openai_compatible: bool | None = None
+    seed_param_location: str | None = "root"
+    custom_headers: dict[str, str] | None = None
 
     model_config = {"frozen": True}
+
+    def is_openai_compatible(self) -> bool:
+        """Check if provider uses OpenAI-compatible API."""
+        if self.openai_compatible is not None:
+            return self.openai_compatible
+        # Auto-detect: if using ChatOpenAI or has api_base, it's OpenAI-compatible
+        return "ChatOpenAI" in self.langchain_class or self.api_base is not None
+
+    def get_special_env_vars(self) -> dict[str, str]:
+        """Get special environment variables needed for this provider."""
+        result = {}
+        if self.special_env_vars:
+            for key, env_var in self.special_env_vars.items():
+                if env_var in os.environ:
+                    result[key] = os.environ[env_var]
+        return result
 
     @property
     def module(self) -> str:
@@ -73,6 +98,11 @@ def _load_provider_info_from_yaml() -> dict[str, ProviderInfo]:
             api_base=info.get("api_base"),
             litellm_prefix=info.get("litellm_prefix"),
             gateway=info.get("gateway", False),
+            extra_body=info.get("extra_body"),
+            special_env_vars=info.get("special_env_vars"),
+            openai_compatible=info.get("openai_compatible"),
+            seed_param_location=info.get("seed_param_location", "root"),
+            custom_headers=info.get("custom_headers"),
         )
 
     return providers
