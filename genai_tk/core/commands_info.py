@@ -307,14 +307,18 @@ class InfoCommands(CliTopCommand):
         @cli_app.command("llm-profile")
         def llm_profile(
             model_id: Annotated[
-                str,
+                str | None,
                 typer.Argument(
                     help=(
                         "Model ID from registry (e.g. gpt_41mini@openai, gpt_oss120@openrouter) "
-                        "or a raw provider model name (e.g. gpt-4o-mini)"
+                        "or a raw provider model name (e.g. gpt-4o-mini). "
+                        "Optional when --reload is used alone."
                     )
                 ),
-            ],
+            ] = None,
+            reload: bool = typer.Option(
+                False, "--reload", help="Re-download models.dev database before looking up the profile"
+            ),
         ) -> None:
             """Display the LangChain ModelProfile for a model.
 
@@ -322,10 +326,13 @@ class InfoCommands(CliTopCommand):
             the models.dev database via the LangChain ModelProfile registry, then overlays
             any overrides defined in the local llm.yaml configuration.
 
+            When called with only ``--reload`` (no MODEL_ID), refreshes the local database and exits.
+
             Examples:
                 ```bash
+                uv run cli info llm-profile --reload
                 uv run cli info llm-profile gpt_41mini@openai
-                uv run cli info llm-profile gpt_oss120@openrouter
+                uv run cli info llm-profile gpt_oss120@openrouter --reload
                 uv run cli info llm-profile gpt-4o-mini
                 ```
             """
@@ -336,9 +343,21 @@ class InfoCommands(CliTopCommand):
             from rich.text import Text
 
             from genai_tk.core.llm_factory import LlmFactory, lookup_model_entry, resolve_model
+            from genai_tk.core.models_db import get_models_db, invalidate_models_db
             from genai_tk.core.providers import PROVIDER_INFO
 
             console = Console()
+
+            if reload:
+                console.print("[cyan]Reloading models.dev database…[/cyan]")
+                invalidate_models_db()
+                get_models_db().fetch()
+                invalidate_models_db()  # reload from freshly saved file
+                get_models_db()
+                console.print("[green]✓ Database updated.[/green]")
+
+            if model_id is None:
+                return
 
             # --- Resolve LlmInfo: exact match first, then fuzzy ---
             llm_info = None
@@ -554,7 +573,7 @@ class InfoCommands(CliTopCommand):
                 no_profile_text.append(f"{lc_model_name!r}", style="bold")
                 no_profile_text.append(f" (provider: {lc_provider}). ", style="dim")
                 no_profile_text.append("Run ", style="dim")
-                no_profile_text.append("cli info llm-refresh --reload", style="bold")
+                no_profile_text.append("cli info llm-profile --reload", style="bold")
                 no_profile_text.append(" to refresh, or add caps to llm.yaml.", style="dim")
                 console.print(Panel(no_profile_text, border_style="yellow", expand=False))
                 if llm_info is not None and llm_info.effective_capabilities:
@@ -562,248 +581,6 @@ class InfoCommands(CliTopCommand):
                         f"[cyan]Effective capabilities (yaml override):[/cyan] "
                         f"{', '.join(llm_info.effective_capabilities)}"
                     )
-
-        @cli_app.command("llm-refresh")
-        def llm_refresh(
-            apply: bool = typer.Option(
-                False, "--apply", help="Write changes to llm.yaml, removing redundant/outdated overrides"
-            ),
-            reload: bool = typer.Option(
-                False, "--reload", help="Re-download models.dev database before running the review"
-            ),
-        ) -> None:
-            """Inspect and refresh llm.yaml exceptions against the local models.dev database.
-
-            For each exception entry, looks up the models.dev ModelEntry and reports whether
-            yaml overrides are redundant (database already provides same data),
-            outdated (database has more capabilities than yaml lists), or intentional
-            (yaml value differs from database — kept as override).
-
-            Use ``--reload`` to download the latest models.dev database before running.
-
-            Examples:
-                ```bash
-                uv run cli info llm-refresh                    # report only
-                uv run cli info llm-refresh --reload           # refresh DB then report
-                uv run cli info llm-refresh --apply            # update llm.yaml
-                uv run cli info llm-refresh --reload --apply   # both
-                ```
-            """
-            import os
-            from pathlib import Path
-
-            from rich.console import Console
-            from rich.rule import Rule
-            from rich.table import Table
-            from rich.text import Text
-            from ruamel.yaml import YAML
-
-            from genai_tk.core.llm_factory import lookup_model_entry
-            from genai_tk.core.models_db import get_models_db, invalidate_models_db
-            from genai_tk.core.providers import PROVIDER_INFO
-
-            console = Console()
-
-            console.print()
-            console.print(Rule("[bold bright_blue]llm.yaml Exception Review[/bold bright_blue]", style="bright_blue"))
-
-            if reload:
-                console.print("\n[cyan]Reloading models.dev database…[/cyan]")
-                invalidate_models_db()
-                get_models_db().fetch()
-                invalidate_models_db()  # reload from freshly saved file
-                get_models_db()
-                console.print("[green]✓ Database updated.[/green]")
-
-            # DB summary
-            db = get_models_db()
-            provider_count = len(db._providers)
-            model_count = len(db._index)
-            console.print(
-                f"\n[dim]models.dev local DB: [bold]{model_count:,}[/bold] models across "
-                f"[bold]{provider_count}[/bold] providers[/dim]"
-            )
-
-            llm_yaml_path = Path(__file__).parent.parent.parent / "config" / "basic" / "providers" / "llm.yaml"
-
-            ruamel = YAML()
-            ruamel.preserve_quotes = True
-            with open(llm_yaml_path, encoding="utf-8") as f:
-                ruamel_data = ruamel.load(f)
-
-            exceptions = ruamel_data.get("llm", {}).get("exceptions", [])
-
-            table = Table(
-                show_header=True,
-                header_style="bold magenta",
-                show_lines=True,
-            )
-            table.add_column("model_id", style="cyan", width=22, no_wrap=True)
-            table.add_column("Provider", style="white", width=10, no_wrap=True)
-            table.add_column("Key", width=22, no_wrap=True)
-            table.add_column("Field", style="white", width=16)
-            table.add_column("YAML value", style="dim white", width=26)
-            table.add_column("Profile value", style="dim white", width=26)
-            table.add_column("Action", width=12)
-
-            # (entry_idx, field_name) for fields that --apply should delete
-            removals: list[tuple[int, str]] = []
-
-            for idx, entry in enumerate(exceptions):
-                model_id = entry.get("model_id", "?")
-
-                # Find first provider/model with a profile
-                profile = None
-                profile_provider = ""
-                first_provider_id = ""
-                for provider_item in entry.get("providers", []):
-                    if not isinstance(provider_item, dict):
-                        continue
-                    for provider, model in provider_item.items():
-                        if not isinstance(model, str):
-                            continue
-                        if not first_provider_id:
-                            first_provider_id = provider
-                        p = lookup_model_entry(model, provider)
-                        if p:
-                            profile = p
-                            profile_provider = f"{provider}/{model}"
-                            if not first_provider_id:
-                                first_provider_id = provider
-                            break
-                    if profile:
-                        break
-
-                # Provider info columns (shown on first row of each entry)
-                pinfo = PROVIDER_INFO.get(first_provider_id) if first_provider_id else None
-                if pinfo:
-                    ptype_str = (
-                        Text("gateway", style="dim cyan") if pinfo.gateway else Text("direct", style="dim green")
-                    )
-                    if pinfo.api_key_env_var:
-                        key_set = bool(os.environ.get(pinfo.api_key_env_var))
-                        key_str = (
-                            Text(f"✓ {pinfo.api_key_env_var}", style="green")
-                            if key_set
-                            else Text(f"✗ {pinfo.api_key_env_var}", style="red")
-                        )
-                    else:
-                        key_str = Text("not required", style="dim")
-                else:
-                    ptype_str = Text(first_provider_id or "?", style="dim")
-                    key_str = Text("?", style="dim")
-
-                yaml_caps = list(entry.get("capabilities", []) or [])
-                yaml_max_tokens = entry.get("max_tokens")
-                yaml_context_window = entry.get("context_window")
-                has_any_override = bool(yaml_caps or yaml_max_tokens is not None or yaml_context_window is not None)
-
-                if profile:
-                    profile_caps = profile.capabilities
-                    profile_max_out = profile.output
-                    profile_max_in = profile.context
-
-                    row_model = model_id
-                    row_ptype = ptype_str
-                    row_key = key_str
-
-                    # --- capabilities ---
-                    if yaml_caps:
-                        yaml_set = set(yaml_caps)
-                        prof_set = set(profile_caps)
-                        caps_yaml_str = ", ".join(sorted(yaml_set))
-                        caps_prof_str = ", ".join(sorted(prof_set)) if prof_set else "—"
-                        if yaml_set == prof_set:
-                            action = Text("REMOVE", style="bold green")
-                            removals.append((idx, "capabilities"))
-                        elif yaml_set.issubset(prof_set):
-                            action = Text("OUTDATED", style="bold red")
-                            removals.append((idx, "capabilities"))
-                        else:
-                            action = Text("OVERRIDE", style="bold yellow")
-                        table.add_row(
-                            row_model, row_ptype, row_key, "capabilities", caps_yaml_str, caps_prof_str, action
-                        )
-                        row_model = ""
-                        row_ptype = ""
-                        row_key = ""
-
-                    # --- max_tokens ---
-                    if yaml_max_tokens is not None:
-                        prof_str = f"{profile_max_out:,}" if profile_max_out else "—"
-                        yaml_str = f"{yaml_max_tokens:,}"
-                        if profile_max_out and yaml_max_tokens == profile_max_out:
-                            action = Text("REMOVE", style="bold green")
-                            removals.append((idx, "max_tokens"))
-                        else:
-                            action = Text("OVERRIDE", style="bold yellow")
-                        table.add_row(row_model, row_ptype, row_key, "max_tokens", yaml_str, prof_str, action)
-                        row_model = ""
-                        row_ptype = ""
-                        row_key = ""
-
-                    # --- context_window ---
-                    if yaml_context_window is not None:
-                        prof_str = f"{profile_max_in:,}" if profile_max_in else "—"
-                        yaml_str = f"{yaml_context_window:,}"
-                        if profile_max_in and yaml_context_window == profile_max_in:
-                            action = Text("REMOVE", style="bold green")
-                            removals.append((idx, "context_window"))
-                        else:
-                            action = Text("OVERRIDE", style="bold yellow")
-                        table.add_row(row_model, row_ptype, row_key, "context_window", yaml_str, prof_str, action)
-                        row_model = ""
-                        row_ptype = ""
-                        row_key = ""
-
-                    if not has_any_override:
-                        table.add_row(
-                            model_id,
-                            ptype_str,
-                            key_str,
-                            "—",
-                            "—",
-                            f"from {profile_provider}",
-                            Text("OK", style="dim green"),
-                        )
-                else:
-                    # No profile available — all yaml values are necessary
-                    table.add_row(
-                        model_id,
-                        ptype_str,
-                        key_str,
-                        "all",
-                        ", ".join(yaml_caps) or "—",
-                        "[dim]no profile[/dim]",
-                        Text("KEEP", style="dim"),
-                    )
-
-            console.print()
-            console.print(table)
-
-            if not removals:
-                console.print(
-                    "\n[green]✓ Nothing to remove — all overrides are intentional or no profile available.[/green]"
-                )
-                return
-
-            total = len(removals)
-            console.print(f"\n[bold]{total}[/bold] redundant/outdated field(s) found.")
-
-            if not apply:
-                console.print("[dim]Run with [bold]--apply[/bold] to remove them from llm.yaml.[/dim]")
-                return
-
-            # Apply: remove fields using ruamel (preserves all comments and formatting)
-            for entry_idx, field in removals:
-                entry = exceptions[entry_idx]
-                if field in entry:
-                    del entry[field]
-
-            with open(llm_yaml_path, "w", encoding="utf-8") as f:
-                ruamel.dump(ruamel_data, f)
-
-            console.print(f"[bold green]✓ Removed {total} field(s) from {llm_yaml_path.name}[/bold green]")
 
         @cli_app.command("mcp-tools")
         def mcp_tools(

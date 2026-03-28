@@ -253,6 +253,8 @@ async def _prepare_profile(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1) from e
 
+    os.environ["LANGSMITH_PROJECT"] = f"DeerFlow-tk-{profile.name}"
+
     try:
         if mode_override:
             profile.mode = validate_mode(mode_override)
@@ -357,6 +359,59 @@ async def _ensure_server(
 # ---------------------------------------------------------------------------
 # Apply skills from profile
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# LangSmith trace URL helper
+# ---------------------------------------------------------------------------
+
+
+def _try_get_last_trace_url(project_name: str, run_start: float) -> str | None:
+    """Return the LangSmith URL for the most recently completed root run.
+
+    Builds the project URL with ``?peek=<run_id>&peeked_trace=<run_id>`` so that
+    the link opens the trace in the side-panel — the same behaviour as clicking a
+    run row in the LangSmith UI.
+
+    Returns ``None`` silently when tracing is disabled, auth fails, or no run
+    was flushed yet.
+
+    Args:
+        project_name: LangSmith project name (``LANGSMITH_PROJECT`` value).
+        run_start: Epoch time just before the run started — used to filter runs
+            so we only match runs that began after this point.
+    """
+    try:
+        from datetime import datetime, timezone
+
+        from langsmith.utils import get_api_url, get_host_url, tracing_is_enabled
+
+        if not tracing_is_enabled() or not project_name:
+            return None
+
+        import langsmith as _ls
+
+        _ls_client = _ls.Client()
+        _start_dt = datetime.fromtimestamp(run_start, tz=timezone.utc)
+        runs = list(
+            _ls_client.list_runs(
+                project_name=project_name,
+                is_root=True,
+                start_time=_start_dt,
+                limit=1,
+                select=["id", "session_id", "name", "status", "start_time"],
+            )
+        )
+        if runs:
+            run_id = str(runs[0].id)
+            proj_obj = _ls_client.read_project(project_name=project_name)
+            tid = _ls_client._get_optional_tenant_id()
+            host = get_host_url(None, get_api_url(None))
+            project_base = f"{host}/o/{tid}/projects/p/{proj_obj.id}"
+            return f"{project_base}?peek={run_id}&peeked_trace={run_id}"
+    except Exception:
+        pass
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -776,6 +831,7 @@ async def _run_chat_mode(
     current_mode = profile.mode
     effective_subagent = subagent_enabled if subagent_enabled is not None else profile.subagent_enabled
     effective_plan_mode = plan_mode if plan_mode is not None else profile.plan_mode
+    last_trace_url: str | None = None  # URL of the most recently completed LangSmith trace
 
     if profile.sandbox == "docker":
         _cleanup_stale_sandbox_containers()
@@ -783,6 +839,7 @@ async def _run_chat_mode(
     with console.status("Loading deer-flow agent...", spinner="dots"):
         client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
     thread_id = _stable_thread_id()
+    client.clear_thread(thread_id)
     from prompt_toolkit import PromptSession
     from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
     from prompt_toolkit.history import FileHistory
@@ -849,6 +906,73 @@ async def _run_chat_mode(
             continue
         elif cmd == "/info":
             skills_display = ", ".join(profile.skills) if profile.skills else "(all enabled)"
+            available_models = [m.get("name", "?") for m in client.list_models()]
+            available_skills = [s.get("name", "?") for s in client.list_skills()]
+            # Resolve the skills mount path for diagnostics
+            try:
+                from omegaconf import OmegaConf as _OC
+
+                from genai_tk.utils.config_mngr import get_raw_config, paths_config
+
+                _raw = get_raw_config()
+                _dirs = _OC.select(_raw, "deerflow.skills.directories")
+                if _dirs:
+                    _p = list(_dirs)[0]
+                    if "${paths.project}" in _p:
+                        _p = _p.replace("${paths.project}", str(paths_config().project))
+                    skills_path_display = _p
+                else:
+                    skills_path_display = "(not configured)"
+            except Exception:
+                skills_path_display = "(unknown)"
+            # Build LangSmith section when tracing is enabled
+            langsmith_line = ""
+            try:
+                from langsmith.utils import get_api_url, get_host_url, get_tracer_project, tracing_is_enabled
+
+                if tracing_is_enabled():
+                    import langsmith as _ls
+
+                    _ls_project = get_tracer_project()
+                    _ls_host = get_host_url(None, get_api_url(None))
+                    try:
+                        _ls_client = _ls.Client()
+                        _ls_proj_obj = _ls_client.read_project(project_name=_ls_project)
+                        _ls_tid = _ls_client._get_optional_tenant_id()
+                        if _ls_tid and _ls_proj_obj.id:
+                            _ls_project_base = f"{_ls_host}/o/{_ls_tid}/projects/p/{_ls_proj_obj.id}"
+                        else:
+                            _ls_project_base = f"{_ls_host}/projects"
+                        # Last run: build project URL with ?peek=<id>&peeked_trace=<id>
+                        # which opens the trace in a side-panel — same as clicking a run
+                        # in the LangSmith UI.
+                        _ls_run_id: str | None = None
+                        try:
+                            _ls_runs = list(
+                                _ls_client.list_runs(
+                                    project_name=_ls_project,
+                                    is_root=True,
+                                    limit=1,
+                                    select=["id", "session_id", "name", "status", "start_time"],
+                                )
+                            )
+                            if _ls_runs:
+                                _ls_run_id = str(_ls_runs[0].id)
+                        except Exception:
+                            pass
+                        if _ls_run_id:
+                            _ls_url = f"{_ls_project_base}?peek={_ls_run_id}&peeked_trace={_ls_run_id}"
+                        else:
+                            _ls_url = _ls_project_base
+                    except Exception:
+                        _ls_project_base = f"{_ls_host}/projects"
+                        _ls_url = last_trace_url or _ls_project_base
+                    _label = "Last trace" if _ls_run_id else "Project"
+                    langsmith_line = (
+                        f"LangSmith  : [link={_ls_url}]{_label} ↗[/link]  [dim](project: {_ls_project})[/dim]\n"
+                    )
+            except Exception:
+                pass
             console.print(
                 Panel(
                     f"Profile   : {profile.name}\n"
@@ -857,11 +981,15 @@ async def _run_chat_mode(
                     f"Tools     : {tools_display}\n"
                     f"Sandbox   : {profile.sandbox}\n"
                     f"Skills    : {skills_display}\n"
+                    f"Skills dir: {skills_path_display}\n"
                     f"MCP       : {', '.join(profile.mcp_servers) or 'none'}\n"
                     f"Thread    : {thread_id}\n"
                     f"Subagent  : {effective_subagent}\n"
                     f"Plan mode : {effective_plan_mode}\n"
-                    f"Trace     : {'ON' if show_trace else 'OFF'}",
+                    f"Trace     : {'ON' if show_trace else 'OFF'}\n"
+                    + langsmith_line
+                    + f"Models    : {', '.join(available_models) or 'none'}\n"
+                    f"Avail skills: {', '.join(available_skills) or 'none'}",
                     title="[bold cyan]Agent Configuration[/bold cyan]",
                     border_style="cyan",
                 )
@@ -889,6 +1017,7 @@ async def _run_chat_mode(
 
         try:
             console.print(Panel(user_input, title="[bold blue]You[/bold blue]", border_style="blue"))
+            _run_start = time.time()
             await _stream_message(
                 client,
                 thread_id,
@@ -899,6 +1028,10 @@ async def _run_chat_mode(
                 subagent_enabled=effective_subagent,
                 plan_mode=effective_plan_mode,
             )
+            # Capture the LangSmith trace URL for the run that just completed.
+            last_trace_url = _try_get_last_trace_url(os.environ.get("LANGSMITH_PROJECT", ""), _run_start)
+            if last_trace_url:
+                console.print(f"[dim]🔗 [link={last_trace_url}]Open trace ↗[/link][/dim]")
             console.print()
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted. Use /quit to exit.[/yellow]")

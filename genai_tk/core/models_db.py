@@ -5,7 +5,7 @@ lookup of model metadata — capabilities, context limits, pricing — without r
 on any third-party LangChain provider packages.
 
 The database is stored in ``data/models_dev.json`` relative to the workspace root.
-Use ``cli info llm-refresh --reload`` to update to the latest version from models.dev.
+Use ``cli info llm-profile <model_id> --reload`` to refresh the database before looking up a model.
 
 Example:
     ```python

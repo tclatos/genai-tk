@@ -98,6 +98,7 @@ dependencies = [
     "pgembed>=0.2.0",
     "opensandbox>=0.1.5",
     "opensandbox-server>=0.1.7",
+    "edgeparse>=0.2.2",
 ]
 
 [project.urls]

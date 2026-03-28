@@ -32,6 +32,42 @@ from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.core.providers import PROVIDER_INFO
 
 
+def _check_external_symlinks(skills_path: Path, sandbox: str) -> None:
+    """Warn when skills path contains symlinks to targets outside the directory.
+
+    Docker bind-mounts cannot follow symlinks whose targets live outside the
+    mounted tree, so any ``public/`` or ``custom/`` entry that is a symlink to
+    an external path will appear as a broken link inside the container.
+
+    Args:
+        skills_path: Resolved skills root directory.
+        sandbox: Sandbox type (warning only relevant for ``"docker"``).
+    """
+    if sandbox != "docker":
+        return
+    external: list[str] = []
+    for category in ("public", "custom"):
+        cat_dir = skills_path / category
+        if not cat_dir.exists():
+            continue
+        for item in cat_dir.iterdir():
+            if item.is_symlink():
+                try:
+                    item.resolve().relative_to(skills_path)
+                except ValueError:
+                    external.append(f"{category}/{item.name}")
+    if external:
+        shown = ", ".join(external[:5])
+        suffix = f" … ({len(external)} total)" if len(external) > 5 else f" ({len(external)} total)"
+        logger.warning(
+            f"Docker sandbox: skills dir '{skills_path}' contains symlinks to external paths: "
+            f"{shown}{suffix}. "
+            "Docker cannot follow these — those skill files will return 404 in the container. "
+            "Fix: set 'deerflow.skills.directories[0]' to a directory with real files "
+            "(e.g. '${paths.project}/ext/deer-flow/skills')."
+        )
+
+
 def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
     """Discover all skills under the given directories.
 
@@ -244,6 +280,7 @@ def write_deer_flow_config(
     config_dir: str | None = None,
     sandbox: str = "local",
     selected_llm: str | None = None,
+    skills_path: str | None = None,
 ) -> Path:
     """Write a complete Deer-flow config.yaml.
 
@@ -254,6 +291,9 @@ def write_deer_flow_config(
         sandbox: Sandbox provider: ``"local"`` (no Docker) or ``"docker"``
             (requires AioSandboxProvider image).
         selected_llm: Resolved GenAI-tk model ID; when set only that model is written.
+        skills_path: Explicit skills root directory to mount in the sandbox.  When
+            provided this takes precedence over ``deerflow.skills.directories`` in
+            the global config (which is not merged at startup).
 
     Returns:
         Path to the written config.yaml.
@@ -281,16 +321,21 @@ def write_deer_flow_config(
         tool_groups = ["web", "file:read", "file:write", "bash"]
 
     config = get_raw_config()
-    # Read skills directories from config (deerflow.skills.directories list)
-    skills_dirs_cfg = OmegaConf.select(config, "deerflow.skills.directories")
-    if skills_dirs_cfg:
-        # Use the first configured directory as the deer-flow skills path
-        skills_path_str = list(skills_dirs_cfg)[0]
-        if "${paths.project}" in skills_path_str:
-            project_path = paths_config().project
-            skills_path_str = skills_path_str.replace("${paths.project}", str(project_path))
+    # Resolve skills path — prefer the explicitly passed value, then fall back to
+    # deerflow.skills.directories in the global config (NOTE: agents/deerflow.yaml
+    # is loaded on-demand and is NOT merged into get_raw_config(), so the config
+    # lookup returns None unless the caller passes the resolved value explicitly).
+    if skills_path is not None:
+        skills_path_str = skills_path
     else:
-        skills_path_str = str(Path.cwd() / "skills")
+        skills_dirs_cfg = OmegaConf.select(config, "deerflow.skills.directories")
+        if skills_dirs_cfg:
+            skills_path_str = list(skills_dirs_cfg)[0]
+            if "${paths.project}" in skills_path_str:
+                project_path = paths_config().project
+                skills_path_str = skills_path_str.replace("${paths.project}", str(project_path))
+        else:
+            skills_path_str = str(Path.cwd() / "skills")
     skills_container_path = OmegaConf.select(config, "deerflow.skills.container_path", default="/mnt/skills")
     trace_loading = OmegaConf.select(config, "deerflow.skills.trace_loading", default=True)
 
@@ -309,6 +354,8 @@ def write_deer_flow_config(
                     logger.debug(f"Available {label} skills: {preview}{suffix}")
         else:
             logger.warning(f"Skills directory not found: {skills_path}")
+
+    _check_external_symlinks(skills_path, sandbox)
 
     # Build sandbox config based on requested provider
     if sandbox == "docker":
@@ -473,7 +520,30 @@ def setup_deer_flow_config(
                 config_dir,
             )
 
-    config_path = write_deer_flow_config(config_dir=config_dir, sandbox=sandbox, selected_llm=selected_llm)
+    # Resolve the first skills directory so write_deer_flow_config can use it as the
+    # Docker volume mount path.  agents/deerflow.yaml is NOT merged into get_raw_config(),
+    # so the path must be threaded through explicitly.
+    resolved_skills_path: str | None = None
+    effective_skill_dirs = skill_directories or []
+    if not effective_skill_dirs:
+        from genai_tk.utils.config_mngr import get_raw_config as _get_raw
+        from genai_tk.utils.config_mngr import paths_config as _paths
+
+        _cfg = _get_raw()
+        _default_dirs = OmegaConf.select(_cfg, "deerflow.skills.directories")
+        if _default_dirs:
+            effective_skill_dirs = list(_default_dirs)
+    if effective_skill_dirs:
+        _first = effective_skill_dirs[0]
+        if "${paths.project}" in _first:
+            from genai_tk.utils.config_mngr import paths_config as _paths
+
+            _first = _first.replace("${paths.project}", str(_paths().project))
+        resolved_skills_path = str(Path(_first).expanduser().resolve())
+
+    config_path = write_deer_flow_config(
+        config_dir=config_dir, sandbox=sandbox, selected_llm=selected_llm, skills_path=resolved_skills_path
+    )
 
     # Also copy config.yaml to the deer-flow root directory (required by deer-flow docs)
     if deer_flow_root is not None:
@@ -488,10 +558,8 @@ def setup_deer_flow_config(
     if skill_directories:
         skills_to_enable = load_skills_from_directories(skill_directories)
     elif not enabled_skills:
-        config = get_raw_config()
-        default_dirs = OmegaConf.select(config, "deerflow.skills.directories")
-        if default_dirs:
-            skills_to_enable = load_skills_from_directories(list(default_dirs))
+        if effective_skill_dirs:
+            skills_to_enable = load_skills_from_directories(effective_skill_dirs)
 
     if skills_to_enable:
         config = get_raw_config()

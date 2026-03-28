@@ -31,9 +31,17 @@
 # ============================================================================
 deerflow:
   # Skills configuration
+  # IMPORTANT: the FIRST entry is volume-mounted into the Docker sandbox at
+  # container_path.  It must contain real files (not symlinks to external paths)
+  # because Docker bind-mounts cannot follow out-of-tree symlinks.
+  # ${paths.project}/ext/deer-flow/skills contains the bundled public skills with
+  # real files.  Project-specific custom skills in skills/custom/ are also listed
+  # below for skill-discovery (enabling) but are NOT auto-mounted in Docker.
   skills:
     directories:
-      - ${paths.project}/skills
+      - ${paths.project}/ext/deer-flow/skills  # Docker mount — real files, no external symlinks
+#      - ${paths.project}/skills/custom          # Custom project skills (enabling only, not Docker-mounted)
+
     container_path: /mnt/skills
     trace_loading: true
   
@@ -94,7 +102,8 @@ deerflow_agents:
     mcp_servers:
       - tavily-mcp
     skill_directories:
-      - ${paths.project}/skills  # Load all skills recursively
+      - ${paths.project}/ext/deer-flow/skills  # Public skills (Docker-accessible)
+     # - ${paths.project}/skills/custom          # Project custom skills
     features:
       - "🌐 Web Search"
       - "📊 Data Analysis"
@@ -142,7 +151,8 @@ deerflow_agents:
           tool_description: "Query the Chinook music database for information about artists, albums, tracks, customers, and invoices"
           top_k: 15
     skill_directories:
-      - ${paths.project}/skills  # Load all skills recursively
+      - ${paths.project}/ext/deer-flow/skills
+      - ${paths.project}/skills/custom
     features:
       - "🗄️ SQL Database"
       - "🔍 Web Search"

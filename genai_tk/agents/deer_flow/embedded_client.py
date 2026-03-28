@@ -366,6 +366,10 @@ class EmbeddedDeerFlowClient:
     # Skills / memory / MCP delegation
     # ------------------------------------------------------------------
 
+    def list_models(self) -> list[dict]:
+        """Return all available models from configuration."""
+        return self._client.list_models().get("models", [])
+
     def list_skills(self) -> list[dict]:
         """Return all skills with their enabled state."""
         return self._client.list_skills().get("skills", [])
