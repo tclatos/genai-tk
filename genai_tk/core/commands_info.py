@@ -336,6 +336,9 @@ class InfoCommands(CliTopCommand):
                 uv run cli info llm-profile gpt-4o-mini
                 ```
             """
+            import os
+            from difflib import SequenceMatcher
+
             from rich.console import Console, Group
             from rich.panel import Panel
             from rich.rule import Rule
@@ -388,6 +391,68 @@ class InfoCommands(CliTopCommand):
                             llm_info = LlmInfo(id=model_id, provider=provider_id, model=canon)
                     except ValueError as e:
                         console.print(f"[yellow]Could not fuzzy-resolve '{model_id}': {e}[/yellow]")
+            else:
+                # No provider specified: search across all providers
+                # Check exact known items first
+                known_dict = LlmFactory.known_items_dict()
+                for key, item in known_dict.items():
+                    if "@" in key:
+                        model_part = key.split("@")[0]
+                        if model_part.lower() == model_id.lower():
+                            llm_info = item
+                            break
+                
+                # If not found in known items, search across models.dev database
+                if llm_info is None:
+                    db = get_models_db()
+                    cross_provider_matches: list[tuple[str, str, float, bool]] = []  # (provider, model_name, score, has_api_key)
+                    
+                    for provider_id, models_dict in db._providers.items():
+                        prov_info = PROVIDER_INFO.get(provider_id)
+                        has_key = False
+                        if prov_info and prov_info.api_key_env_var:
+                            has_key = bool(os.environ.get(prov_info.api_key_env_var))
+                        
+                        # Get models for this provider
+                        for model_name, model_entry in models_dict.items():
+                            score = SequenceMatcher(None, model_id.lower(), model_name.lower()).ratio()
+                            if score > 0.4:  # reasonable threshold for cross-provider matching
+                                cross_provider_matches.append((provider_id, model_name, score, has_key))
+                    
+                    # Sort by score descending, then by has_api_key (True first)
+                    cross_provider_matches.sort(key=lambda x: (-x[2], -x[3]))
+                    
+                    if cross_provider_matches:
+                        # Display cross-provider fuzzy matches
+                        console.print()
+                        console.print(Rule(f"[bold cyan]{model_id}[/bold cyan]", style="cyan"))
+                        console.print()
+                        
+                        match_table = Table(
+                            title="[bold yellow]Fuzzy matches across all providers[/bold yellow]",
+                            show_header=True,
+                            header_style="bold yellow",
+                            box=None,
+                            padding=(0, 1),
+                        )
+                        match_table.add_column("Rank", style="dim", width=3)
+                        match_table.add_column("Provider", style="cyan", width=15)
+                        match_table.add_column("Model name", style="green", width=30)
+                        match_table.add_column("Score", style="white", width=6)
+                        match_table.add_column("API Key", style="yellow", width=12)
+                        
+                        for rank, (prov, mname, score, has_key) in enumerate(cross_provider_matches[:10], start=1):
+                            api_key_status = "[green]✓[/green]" if has_key else "[dim]—[/dim]"
+                            match_table.add_row(str(rank), prov, mname, f"{score:.2f}", api_key_status)
+                        
+                        console.print(match_table)
+                        console.print()
+                        console.print("[dim]Try: [bold]cli info llm-profile <model_name>@<provider>[/bold][/dim]")
+                        return
+                    else:
+                        # No matches found
+                        lc_model_name = model_id
+                        lc_provider = "openai"
 
             # --- Determine model_name / provider for profile lookup ---
             if llm_info is not None:
