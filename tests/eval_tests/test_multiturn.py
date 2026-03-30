@@ -170,7 +170,7 @@ async def test_agent_app_wrapper_with_mocked_graph() -> None:
         ]
     }
 
-    agent = LangchainAgent(llm="parrot_local@fake")
+    agent = LangchainAgent("eval-test", llm="parrot_local@fake")
     agent._agent = mock_graph
 
     # Wrap the async agent.arun() as a synchronous callable for the sync simulator.
@@ -225,7 +225,7 @@ def test_real_agent_multiturn_calculator_conversation(judge_llm) -> None:
     from genai_tk.agents.langchain.langchain_agent import LangchainAgent
     from tests.eval_tests.conftest import calculator, echo
 
-    agent = LangchainAgent(llm="fast_model", agent_type="react", tools=[calculator, echo])
+    agent = LangchainAgent("eval-test", llm="fast_model", agent_type="react", tools=[calculator, echo])
 
     def agent_app(message: dict[str, Any], *, thread_id: str | None = None, **kwargs) -> dict[str, Any]:
         content = message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")

@@ -282,7 +282,7 @@ async def test_extract_message_trajectory_format() -> None:
     mock_graph = AsyncMock()
     mock_graph.ainvoke.return_value = {"messages": [human, ai_with_tool, tool_result, final]}
 
-    agent = LangchainAgent(llm="parrot_local@fake")
+    agent = LangchainAgent("eval-test", llm="parrot_local@fake")
     agent._agent = mock_graph  # Inject mock to skip real compilation
 
     trajectory = await extract_message_trajectory(agent, "What is 6 * 7?")
@@ -326,7 +326,7 @@ async def test_extract_message_trajectory_passes_superset_eval() -> None:
     mock_graph = AsyncMock()
     mock_graph.ainvoke.return_value = {"messages": [human, ai_with_tool, tool_result, final]}
 
-    agent = LangchainAgent(llm="parrot_local@fake")
+    agent = LangchainAgent("eval-test", llm="parrot_local@fake")
     agent._agent = mock_graph
 
     trajectory = await extract_message_trajectory(agent, "What is 6 * 7?")
@@ -394,7 +394,7 @@ async def test_react_agent_calls_calculator_with_real_model(eval_agent) -> None:
     from genai_tk.agents.langchain.trajectory import extract_message_trajectory
     from tests.eval_tests.conftest import calculator, echo
 
-    agent = LangchainAgent(llm="fast_model", agent_type="react", tools=[calculator, echo])
+    agent = LangchainAgent("eval-test", llm="fast_model", agent_type="react", tools=[calculator, echo])
     trajectory = await extract_message_trajectory(agent, "What is 23 * 7? Use the calculator tool.")
 
     reference = [

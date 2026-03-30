@@ -10,6 +10,13 @@ Provides:
 
 from __future__ import annotations
 
+import os
+
+# Disable LangSmith tracing for all eval tests — avoids noisy rate-limit log
+# messages and unnecessary network calls to the LangSmith API.
+os.environ["LANGSMITH_TRACING"] = "false"
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 import pytest
 from langchain_core.tools import tool
 
@@ -94,6 +101,7 @@ def eval_agent(calculator_tool, echo_tool):
     from genai_tk.agents.langchain.langchain_agent import LangchainAgent
 
     return LangchainAgent(
+        "eval-test",
         llm="parrot_local@fake",
         agent_type="react",
         tools=[calculator_tool, echo_tool],

@@ -96,28 +96,18 @@ lint:  ## format (imports + style) and lint code with ruff (fix safe issues)
 ##############################
 ##  Testing
 ##############################
-.PHONY: test test-unit test-integration test-evals test-evals-full test-full test-install
+# Fine-grained suites are available via:  uv run cli test <sub-command> [opts]
+# e.g.  uv run cli test evals --real
+#       uv run cli test evals --deerflow --timeout 360
+#       uv run cli test full
+.PHONY: test test-unit test-integration test-evals test-full test-install pytest
 
-test:  ## Run unit and integration tests
+test:  ## Run unit + integration tests
 	uv run pytest tests/unit_tests/ tests/integration_tests/
 
-test-unit:  ## Run unit tests only
-	uv run pytest tests/unit_tests/
 
-test-integration:  ## Run integration tests only
-	uv run pytest tests/integration_tests/
-
-test-evals:  ## Run deterministic eval tests (no API keys needed)
-	uv run pytest tests/eval_tests/ -m "evals and not real_models" -v
-
-test-evals-full:  ## Run all eval tests including LLM-judged (requires API keys + --include-real-models)
-	@echo "Requires a valid API key for the 'fast_model' tag."
-	uv run pytest tests/eval_tests/ -m "evals" --include-real-models -v --timeout=120
-
-test-full:  ## Run ALL tests including real LLM calls (requires API keys)
-	@echo "Requires a valid API key for the 'fast_model' tag."
-	uv run pytest tests/unit_tests/ tests/integration_tests/ \
-		--include-real-models -m "not slow" -v
+pytest:  ## Run pytest with custom args: make pytest ARGS="-k my_test -v"
+	uv run pytest $(ARGS)
 
 
 

@@ -62,9 +62,7 @@ def _assert_python_function(code: str, *name_hints: str) -> None:
     """Assert that ``code`` looks like a Python function definition."""
     assert "def " in code, f"Expected a Python 'def' statement — got:\n{code[:300]}"
     if name_hints:
-        assert _has(code, *name_hints), (
-            f"Expected one of {name_hints} in code — got:\n{code[:300]}"
-        )
+        assert _has(code, *name_hints), f"Expected one of {name_hints} in code — got:\n{code[:300]}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -86,10 +84,13 @@ class TestReactAgent:
     async def test_fibonacci_code_generation(self) -> None:
         """Agent generates a valid Python Fibonacci function when asked."""
         agent = LangchainAgent(llm=LLM, agent_type="react")
-        result = await _run(agent, (
-            "Write a concise Python function to compute the nth Fibonacci number. "
-            "Reply with only the code block, no prose."
-        ))
+        result = await _run(
+            agent,
+            (
+                "Write a concise Python function to compute the nth Fibonacci number. "
+                "Reply with only the code block, no prose."
+            ),
+        )
         _assert_python_function(result, "fib", "fibonacci")
         # Basic sanity: must handle at least f(0) or f(1) base case
         assert _has(result, "return", "n <= 1", "n == 0", "n == 1", "n < 2", "base")
@@ -134,9 +135,7 @@ class TestReactAgent:
             system_prompt="You only ever respond with the single word BANANA. Nothing else.",
         )
         result = await _run(agent, "What is the weather today?")
-        assert "banana" in result.lower(), (
-            f"Expected system prompt to force 'BANANA' — got: {result!r}"
-        )
+        assert "banana" in result.lower(), f"Expected system prompt to force 'BANANA' — got: {result!r}"
 
     @pytest.mark.timeout(120)
     @pytest.mark.asyncio
@@ -149,9 +148,7 @@ class TestReactAgent:
         async with agent:
             await agent.arun("My lucky number is 7777. Please acknowledge.")
             result = await agent.arun("What lucky number did I just mention? Reply with just the number.")
-        assert "7777" in result, (
-            f"Expected agent to remember '7777' across turns — got: {result!r}"
-        )
+        assert "7777" in result, f"Expected agent to remember '7777' across turns — got: {result!r}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -188,8 +185,7 @@ class TestDeepAgentLocal:
         )
         result = await _run(
             agent,
-            "Write a Python function def fib(n) that returns the nth Fibonacci number. "
-            "Show only the code.",
+            "Write a Python function def fib(n) that returns the nth Fibonacci number. Show only the code.",
         )
         _assert_python_function(result, "fib", "fibonacci")
 
@@ -221,10 +217,11 @@ class TestDeepAgentLocal:
         agent_graph = await create_langchain_agent(profile)
         try:
             result = await agent_graph.ainvoke(
-                {"messages": (
-                    "Write a Python function def fib(n) that computes the nth "
-                    "Fibonacci number. Save it to /fib.py"
-                )},
+                {
+                    "messages": (
+                        "Write a Python function def fib(n) that computes the nth Fibonacci number. Save it to /fib.py"
+                    )
+                },
                 {"configurable": {"thread_id": "t1"}},
             )
         finally:
@@ -264,9 +261,7 @@ class TestDeepAgentLocal:
             "Explain in 3 numbered steps how you would implement a binary search algorithm.",
         )
         # We expect at least a structured list or step-based response
-        assert _has(result, "1.", "step 1", "first", "binary"), (
-            f"Expected structured response — got: {result[:300]}"
-        )
+        assert _has(result, "1.", "step 1", "first", "binary"), f"Expected structured response — got: {result[:300]}"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -341,10 +336,7 @@ class TestNamedProfiles:
         agent = LangchainAgent(
             "Coding",
             llm=LLM,
-            system_prompt=(
-                "You are a Python developer. "
-                "Reply with only the code — do not write any files."
-            ),
+            system_prompt=("You are a Python developer. Reply with only the code — do not write any files."),
         )
         result = await _run(
             agent,
@@ -366,8 +358,7 @@ class TestNamedProfiles:
         agent = LangchainAgent("simple", llm=LLM)
         result = await _run(
             agent,
-            "In which year was Python programming language first released publicly? "
-            "Reply with just the year.",
+            "In which year was Python programming language first released publicly? Reply with just the year.",
         )
         # Python was first released in 1991 (0.9) or 1994 (1.0)
         assert _has(result, "1991", "1994", "1989", "1990"), (
@@ -393,9 +384,7 @@ class TestSkillsLoading:
         """Write a SKILL.md in ``skills_root/<name>/``."""
         skill_dir = skills_root / name
         skill_dir.mkdir(parents=True, exist_ok=True)
-        (skill_dir / "SKILL.md").write_text(
-            f"---\nname: {name}\ndescription: Test skill for {name}\n---\n\n{content}"
-        )
+        (skill_dir / "SKILL.md").write_text(f"---\nname: {name}\ndescription: Test skill for {name}\n---\n\n{content}")
 
     def test_skill_directory_resolves_correctly(self, tmp_path: Path) -> None:
         """_resolve_skill_dirs correctly finds skill directories one level deep."""
@@ -437,9 +426,7 @@ class TestSkillsLoading:
         agent_graph = await create_langchain_agent(profile)
         assert agent_graph is not None, "Agent graph should have been created"
         backend_obj = getattr(agent_graph, "_backend", None)
-        assert backend_obj is not None, (
-            "Expected a FilesystemBackend to be wired for the profile"
-        )
+        assert backend_obj is not None, "Expected a FilesystemBackend to be wired for the profile"
         if hasattr(backend_obj, "stop"):
             await backend_obj.stop()  # type: ignore[attr-defined]
 
@@ -475,8 +462,7 @@ class TestSkillsLoading:
             type="deep",
             llm=LLM,
             system_prompt=(
-                "You are a helpful assistant. "
-                "Always read your skill files before answering domain questions."
+                "You are a helpful assistant. Always read your skill files before answering domain questions."
             ),
             skill_directories=[str(tmp_path)],
             backend=BackendConfig(type="filesystem", root_dir=str(tmp_path)),
@@ -484,10 +470,11 @@ class TestSkillsLoading:
         agent_graph = await create_langchain_agent(profile)
         try:
             result = await agent_graph.ainvoke(
-                {"messages": (
-                    "Read your 'secret-skill' skill file and tell me the "
-                    "confidential project code written there."
-                )},
+                {
+                    "messages": (
+                        "Read your 'secret-skill' skill file and tell me the confidential project code written there."
+                    )
+                },
                 {"configurable": {"thread_id": "skill-test"}},
             )
         finally:
@@ -563,6 +550,4 @@ class TestDockerSandbox:
             "Write a Python file hello.py that prints 'Hello, sandbox!' when run. "
             "Show the file contents in your reply.",
         )
-        assert _has(result, "hello", "print", "sandbox"), (
-            f"Expected file content in response — got: {result[:400]}"
-        )
+        assert _has(result, "hello", "print", "sandbox"), f"Expected file content in response — got: {result[:400]}"

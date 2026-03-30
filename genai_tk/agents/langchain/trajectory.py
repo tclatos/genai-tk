@@ -119,9 +119,9 @@ def _get_role(msg: Any) -> str:
         return "user"
     if class_name in ("AIMessage", "AIMessageChunk"):
         return "assistant"
-    if class_name in ("ToolMessage",):
+    if class_name == "ToolMessage":
         return "tool"
-    if class_name in ("SystemMessage",):
+    if class_name == "SystemMessage":
         return "system"
     # Generic fallback — use the ``type`` attribute if present
     return getattr(msg, "type", "assistant")

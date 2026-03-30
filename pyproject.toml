@@ -185,7 +185,7 @@ evals = [
 ]
 
 [tool.uv]
-default-groups = ["dev", "postgres", "browser-control"]
+default-groups = ["dev", "postgres", "browser-control", "evals"]
 
 package = true
 
@@ -283,6 +283,8 @@ filterwarnings = [
     "ignore:Previously imported packages.*",
     # Suppress langsmith's deprecated Pydantic v1 API usage
     "ignore:The `dict` method is deprecated.*",
+    # Suppress Pydantic serialization warning from deer-flow's RunnableConfig.context field
+    "ignore:Pydantic serializer warnings.*",
 ]
 beartype_packages = [
     # Core infrastructure — fully checked
@@ -307,6 +309,7 @@ markers = [
     "fake_models: marks tests that use fake/mock models only",
     "real_models: marks tests that call real AI models (opt-in via --include-real-models)",
     "evals: marks eval tests (trajectory match, LLM-judged, multi-turn simulation)",
+    "deerflow: marks tests that require DEER_FLOW_PATH and a running deer-flow backend",
 ]
 
 

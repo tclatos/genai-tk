@@ -78,7 +78,6 @@ def test_correct_arithmetic_answer_scores_high(judge_llm) -> None:
     from openevals.llm import create_llm_as_judge
     from openevals.prompts import CORRECTNESS_PROMPT
 
-
     judge = judge_llm
     evaluator = create_llm_as_judge(prompt=CORRECTNESS_PROMPT, judge=judge)
 
@@ -97,7 +96,6 @@ def test_wrong_arithmetic_answer_scores_low(judge_llm) -> None:
     """A factually wrong answer receives a failing score."""
     from openevals.llm import create_llm_as_judge
     from openevals.prompts import CORRECTNESS_PROMPT
-
 
     judge = judge_llm
     evaluator = create_llm_as_judge(prompt=CORRECTNESS_PROMPT, judge=judge)
@@ -123,7 +121,6 @@ def test_concise_answer_scores_high(judge_llm) -> None:
     from openevals.llm import create_llm_as_judge
     from openevals.prompts import CONCISENESS_PROMPT
 
-
     judge = judge_llm
     evaluator = create_llm_as_judge(prompt=CONCISENESS_PROMPT, judge=judge)
 
@@ -141,7 +138,6 @@ def test_verbose_answer_scores_low_for_conciseness(judge_llm) -> None:
     """An excessively padded answer receives a failing conciseness score."""
     from openevals.llm import create_llm_as_judge
     from openevals.prompts import CONCISENESS_PROMPT
-
 
     judge = judge_llm
     evaluator = create_llm_as_judge(prompt=CONCISENESS_PROMPT, judge=judge)
@@ -176,7 +172,6 @@ def test_trajectory_accuracy_correct_tool_call(judge_llm) -> None:
     import json
 
     from agentevals.trajectory.llm import TRAJECTORY_ACCURACY_PROMPT, create_trajectory_llm_as_judge
-
 
     judge = judge_llm
     evaluator = create_trajectory_llm_as_judge(
@@ -223,7 +218,6 @@ def test_trajectory_accuracy_wrong_tool_scores_low(judge_llm) -> None:
     import json
 
     from agentevals.trajectory.llm import TRAJECTORY_ACCURACY_PROMPT, create_trajectory_llm_as_judge
-
 
     judge = judge_llm
     evaluator = create_trajectory_llm_as_judge(
@@ -293,7 +287,7 @@ async def test_real_agent_calculator_output_correctness(judge_llm) -> None:
     from tests.eval_tests.conftest import calculator, echo
     from tests.eval_tests.helpers import get_final_response
 
-    agent = LangchainAgent(llm="fast_model", agent_type="react", tools=[calculator, echo])
+    agent = LangchainAgent("eval-test", llm="fast_model", agent_type="react", tools=[calculator, echo])
     trajectory = await extract_message_trajectory(agent, "What is 23 * 7? Use the calculator tool.")
     final_answer = get_final_response(trajectory)
 

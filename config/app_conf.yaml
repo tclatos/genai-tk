@@ -17,7 +17,8 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
   # load_all_demos_from_config) — no need to merge them globally here.
  
 :env:
-  LOGURU_LEVEL: info 
+  LOGURU_LEVEL: INFO
+  LANGCHAIN_TRACING_V2: "false"  # Disable LangChain v2 tracing by default (can be enabled in overrides or env)
 
 paths:
   home: ${oc.env:HOME}
@@ -32,6 +33,7 @@ cli:
   commands:  # List modules:functions or modules:classes to register CLI commands
     - genai_tk.core.commands_core:CoreCommands
     - genai_tk.core.commands_info:InfoCommands
+    - genai_tk.core.commands_test:TestCommands
     - genai_tk.extra.commands_extra:ExtraCommands
     - genai_tk.agents.commands_agents:AgentCommands
     - genai_tk.agents.sandbox.cli_commands:SandboxCommands

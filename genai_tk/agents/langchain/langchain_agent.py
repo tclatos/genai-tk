@@ -1,19 +1,13 @@
 """High-level agent interface for creating and running LangChain-based agents.
 
 Wraps the low-level factory and config machinery into a simple, production-friendly
-class that works with or without a YAML profile.
+class that works with a named YAML profile.
 
 Example:
 ```python
 # From a YAML profile
 agent = LangchainAgent("Research")
 result = agent.run("Summarize recent AI news")
-
-# Ad-hoc (no profile needed)
-from langchain_community.tools.tavily_search import TavilySearchResults
-
-agent = LangchainAgent(llm="fast_model", tools=[TavilySearchResults()])
-result = agent.run("What happened today in tech?")
 
 # Async
 result = await agent.arun("Explain quantum computing")
@@ -46,20 +40,17 @@ SandboxType = Literal["local", "docker"]
 class LangchainAgent(BaseModel):
     """Production-friendly interface for LangChain-based agents (react and deep).
 
-    Can be created from a named YAML profile, ad-hoc from raw parameters, or a
-    combination of both (ad-hoc params overlay the profile).
+    Requires a named YAML profile (defined in ``langchain.yaml``). Ad-hoc
+    parameters such as ``llm``, ``system_prompt``, and ``mcp_servers`` overlay
+    the resolved profile values.
 
     Args:
-        profile_name: Name of a profile in ``langchain.yaml``. When omitted an
-            ad-hoc react agent is built entirely from the other parameters.
+        profile_name: Name of a profile in ``langchain.yaml``. Required.
         llm: LLM identifier (e.g. ``"gpt_41mini@openai"`` or a tag like
             ``"fast_model"``). Overrides the profile's ``llm`` field.
-        tools: Pre-built ``BaseTool`` instances appended to (or replacing) the
-            profile's tool list.
+        tools: Pre-built ``BaseTool`` instances appended to the profile's tool list.
         agent_type: Override the profile's agent type (``"react"`` or ``"deep"``).
-        system_prompt: Override or provide a system prompt.
-        mcp_servers: Additional MCP server names to enable.
-        checkpointer: When ``True`` a ``MemorySaver`` is attached so the agent
+        system_prompt: Override the profile's system prompt.
             remembers conversation history across turns.
         details: When ``True`` the ``RichToolCallMiddleware`` shows full panels
             for every LLM call and tool call instead of the compact summary.
@@ -91,11 +82,21 @@ class LangchainAgent(BaseModel):
 
     @model_validator(mode="after")
     def _resolve_profile(self) -> LangchainAgent:
-        """Build the resolved AgentProfileConfig eagerly (sync-safe)."""
-        if self.profile_name:
-            self._profile = self._load_profile()
-        else:
+        """Build the resolved AgentProfileConfig eagerly (sync-safe).
+
+        When no ``profile_name`` is given but an ``llm`` is provided, an ad-hoc
+        profile named ``"adhoc"`` is created inline without touching ``langchain.yaml``.
+        """
+        if not self.profile_name:
+            if not self.llm:
+                raise ValueError(
+                    "Either a profile_name or an llm identifier is required. "
+                    "Define a profile in langchain.yaml and pass its name, e.g. LangchainAgent('Research'), "
+                    "or supply an llm directly, e.g. LangchainAgent(llm='gpt_41mini@openai')."
+                )
             self._profile = self._build_adhoc_profile()
+        else:
+            self._profile = self._load_profile()
         return self
 
     # ------------------------------------------------------------------
@@ -262,6 +263,18 @@ class LangchainAgent(BaseModel):
 
         return self._agent
 
+    def _build_adhoc_profile(self) -> AgentProfileConfig:
+        """Build a minimal in-memory profile from the ad-hoc constructor args."""
+        from genai_tk.agents.langchain.config import AgentProfileConfig
+
+        return AgentProfileConfig(
+            name="adhoc",
+            type=self.agent_type or "react",
+            llm=self.llm,
+            system_prompt=self.system_prompt,
+            mcp_servers=list(self.mcp_servers),
+        )
+
     def _load_profile(self) -> AgentProfileConfig:
         """Load and merge a named profile from ``langchain.yaml``."""
         from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
@@ -282,16 +295,6 @@ class LangchainAgent(BaseModel):
             profile = profile.model_copy(update=overrides)
 
         return profile
-
-    def _build_adhoc_profile(self) -> AgentProfileConfig:
-        """Build a minimal AgentProfileConfig from ad-hoc parameters (no YAML needed)."""
-        return AgentProfileConfig(
-            name="adhoc",
-            type=self.agent_type or "react",
-            llm=self.llm,
-            system_prompt=self.system_prompt,
-            mcp_servers=list(self.mcp_servers),
-        )
 
 
 # ---------------------------------------------------------------------------

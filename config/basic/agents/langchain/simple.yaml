@@ -28,6 +28,11 @@ langchain_agents:
       examples:
         - "What are the configuration files in current directory"
 
+    - name: "eval-test"
+      type: react
+      description: "Minimal profile for evaluation tests — no tools, no LLM (both injected at test time)"
+      system_prompt: "You are a helpful assistant."
+
     - name: "Weather"
       type: react
       description: "Weather assistant with web search"
