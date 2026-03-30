@@ -16,13 +16,16 @@ if TYPE_CHECKING:
     from genai_tk.agents.langchain.config import AgentProfileConfig
 
 
-def _get_config_path() -> str | None:
-    """Return the path to the langchain config (directory or file).
+def _get_config_path() -> str:
+    """Return the path to the langchain agents config (directory or file).
 
-    Returns None to use load_unified_config()'s default detection logic,
-    which checks for langchain/ directory first, then langchain.yaml file.
+    Checks for ``{paths.config}/agents/langchain/`` (directory) first,
+    then falls back to ``{paths.config}/agents/langchain.yaml``.
     """
-    return None
+    from genai_tk.utils.config_mngr import paths_config
+
+    agents_dir = paths_config().config / "agents"
+    return str(agents_dir / "langchain.yaml")
 
 
 def _list_profiles() -> None:

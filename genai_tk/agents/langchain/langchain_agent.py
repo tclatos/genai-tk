@@ -30,7 +30,7 @@ await agent.arun_shell()
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Mapping
 from typing import Any, Literal
 
 from langchain_core.messages import BaseMessage
@@ -183,6 +183,8 @@ class LangchainAgent(BaseModel):
         tools_node = None
         # LangGraph stores tools in nodes; try to find them.
         nodes = getattr(self._agent, "nodes", {})
+        if not isinstance(nodes, Mapping):
+            return
         for node in nodes.values():
             bound = getattr(node, "bound", None) or node
             tool_list = getattr(bound, "tools_by_name", None)

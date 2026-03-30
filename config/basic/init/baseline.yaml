@@ -5,8 +5,8 @@ llm:
     default: gpt_oss120@openrouter
     fake: parrot_local@fake 
     
-    cheap_model: gpt-oss-20b@openrouter
-    fast_model: gpt-oss-20b@openrouter
+    cheap_model: claude-haiku@openrouter
+    fast_model: claude-haiku@openrouter
   cache: sqlite
   cache_path: data/llm_cache/langchain.db
 

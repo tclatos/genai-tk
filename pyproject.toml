@@ -42,7 +42,7 @@ dependencies = [
     "langchain-anthropic>=1.3.4",    # Anthropic Claude models integration
     "langchain-google-genai>=4.2.1", # Google Gemini models integration
     "openai>=1.80.0",                # Official OpenAI Python client
-    "litellm==1.82.5",                # Unified LLM API (100+ models) # FIXED because of bug
+    "litellm==1.82.5",               # Unified LLM API (100+ models) # FIXED because of bug
     "mistralai>=1.7.0",              # Official Mistral AI client
     # ============================================
     # Agent Frameworks
@@ -175,6 +175,15 @@ dev = [
     "pytest-cov>=7.0.0",
 ]
 
+# ============================================
+# Agent Evaluation
+# ============================================
+evals = [
+    "openevals>=0.1.3",    # General LLM output evaluators (correctness, conciseness, trajectory judge)
+    "agentevals>=0.0.9",   # Agent trajectory evaluators (match, graph trajectory, LLM-as-judge)
+    "pytest-timeout>=2.3", # Per-test wall-clock timeout to prevent hanging LLM calls
+]
+
 [tool.uv]
 default-groups = ["dev", "postgres", "browser-control"]
 
@@ -269,6 +278,12 @@ reportTypedDictNotRequiredAccess = false
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
+filterwarnings = [
+    # Suppress beartype warning about already-imported packages
+    "ignore:Previously imported packages.*",
+    # Suppress langsmith's deprecated Pydantic v1 API usage
+    "ignore:The `dict` method is deprecated.*",
+]
 beartype_packages = [
     # Core infrastructure — fully checked
     "genai_tk.core",
@@ -291,6 +306,7 @@ markers = [
     "network: marks tests that require network access",
     "fake_models: marks tests that use fake/mock models only",
     "real_models: marks tests that call real AI models (opt-in via --include-real-models)",
+    "evals: marks eval tests (trajectory match, LLM-judged, multi-turn simulation)",
 ]
 
 

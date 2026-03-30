@@ -147,10 +147,10 @@ class BackendConfig(BaseModel):
     )
     root_dir: str | None = Field(None, description="Root directory for the filesystem backend")
     class_path: QualifiedClassName | None = Field(
-        None, description="Qualified class name for custom backends (module.path:ClassName)"
+        None, alias="class", description="Qualified class name for custom backends (module.path:ClassName)"
     )
     kwargs: dict[str, Any] = Field(default_factory=dict, description="Extra constructor kwargs for the class backend")
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
 
     @property
     def extra_kwargs(self) -> dict[str, Any]:
@@ -182,9 +182,10 @@ class CheckpointerConfig(BaseModel):
         "none", description="Checkpointer type: none (no persistence), memory (in-process), or class (custom)"
     )
     class_path: QualifiedClassName | None = Field(
-        None, description="Qualified class name for custom checkpointers (module.path:ClassName)"
+        None, alias="class", description="Qualified class name for custom checkpointers (module.path:ClassName)"
     )
     kwargs: dict[str, Any] = Field(default_factory=dict, description="Constructor kwargs for the class checkpointer")
+    model_config = ConfigDict(populate_by_name=True)
 
 
 # ============================================================================
@@ -300,6 +301,11 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
         path: Path = dir_path if dir_path.is_dir() else agents_dir / "langchain.yaml"
     else:
         path = Path(config_path)
+        # When a yaml path is given but missing, fall back to its directory counterpart
+        if path.suffix in (".yaml", ".yml") and not path.is_file():
+            dir_path = path.with_suffix("")
+            if dir_path.is_dir():
+                path = dir_path
 
     return load_yaml_configs(path, "langchain_agents", list_merge_keys=["profiles"], model=LangchainAgentsConfig)  # type: ignore[return-value]
 
