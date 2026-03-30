@@ -252,6 +252,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "slow: mark test as slow running")
     config.addinivalue_line("markers", "network: mark test as requiring network access")
     config.addinivalue_line("markers", "fake_models: mark test as using fake models only")
+    config.addinivalue_line("markers", "docker: mark test as requiring Docker (use --include-docker to run)")
 
 
 # Skip tests that require real models unless explicitly requested
@@ -263,6 +264,12 @@ def pytest_collection_modifyitems(config, items):
             if "real_models" in item.keywords:
                 item.add_marker(skip_real_models)
 
+    if not config.getoption("--include-docker"):
+        skip_docker = pytest.mark.skip(reason="Test requires Docker. Use --include-docker to run.")
+        for item in items:
+            if "docker" in item.keywords:
+                item.add_marker(skip_docker)
+
 
 def pytest_addoption(parser):
     """Add custom command line options."""
@@ -271,6 +278,12 @@ def pytest_addoption(parser):
         action="store_true",
         default=False,
         help="Include tests that require real AI models (may incur costs and require API keys)",
+    )
+    parser.addoption(
+        "--include-docker",
+        action="store_true",
+        default=False,
+        help="Include tests that require Docker (starts real containers)",
     )
     parser.addoption(
         "--performance-tests", action="store_true", default=False, help="Include performance benchmark tests"

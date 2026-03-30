@@ -500,6 +500,72 @@ config = load_unified_config()
 print(config.model_dump_json(indent=2))
 ```
 
+## Testing LangchainAgent
+
+The integration test suite is in
+`tests/integration_tests/agents/test_langchain_agent_real.py` and covers four
+areas:
+
+| Area | What is tested | Requires |
+|---|---|---|
+| React agents | Code generation, Q&A, streaming, multi-turn memory | `--include-real-models` |
+| Deep agents (local) | Code generation, file writes via `FilesystemBackend` | `--include-real-models` |
+| Named profiles | Field types, `enable_*` flags, profile resolution | (structural — no LLM) |
+| Skills loading | SKILL.md discovery, backend wiring, content access | `--include-real-models` |
+| Docker sandbox | Full container run, file writes in container | `--include-real-models --include-docker` |
+
+### Running the tests
+
+```bash
+# Fast structural checks (no LLM, no API keys)
+uv run pytest tests/integration_tests/agents/test_langchain_agent_real.py \
+    -k "profile_is or profile_loads or skill_directory_resolves" -v
+
+# All agent tests with real model
+uv run pytest tests/integration_tests/agents/test_langchain_agent_real.py \
+    -v --include-real-models --timeout=180
+
+# Include Docker sandbox tests (requires Docker daemon)
+uv run pytest tests/integration_tests/agents/test_langchain_agent_real.py \
+    -v --include-real-models --include-docker
+```
+
+### Writing new agent tests
+
+The file provides a small helper set to keep new tests concise:
+
+```python
+from tests.integration_tests.agents.test_langchain_agent_real import _run, _has, LLM
+
+@pytest.mark.integration
+@pytest.mark.real_models
+@pytest.mark.asyncio
+@pytest.mark.timeout(120)
+async def test_my_new_agent() -> None:
+    agent = LangchainAgent(llm=LLM, agent_type="react")
+    result = await _run(agent, "Your query here")
+    assert _has(result, "expected", "keyword")
+```
+
+Key patterns:
+
+- Use `_run(agent, query)` — creates the agent, runs it, and always closes it.
+- Use `_has(text, *words)` — case-insensitive substring check, returns `True` if any word matches.
+- Use `LLM = "fast_model"` throughout — resolves to `claude-haiku@openrouter` (cheap and reliable).
+- Use `pytest.importorskip("deepagents")` in deep-agent tests — auto-skip if package is missing.
+- Mark flaky or environment-dependent tests with `pytest.xfail(...)` rather than removing them.
+- Use `async with agent: ...` (or `_run`) to guarantee `close()` is called on every code path.
+
+### Test tiers
+
+```
+tests/integration_tests/agents/
+├── test_langchain_agent_integration.py  — basic lifecycle (fake + 1 real-model test)
+├── test_langchain_agent_real.py         — full functional suite (this file)
+├── test_langchain_sandbox_integration.py — sandbox mechanics (all mocked)
+└── test_sandbox_backend_integration.py  — AioSandboxBackend Docker tests
+```
+
 ## See Also
 
 - [Core Module](core.md) - LLM Factory and configuration
@@ -510,3 +576,4 @@ print(config.model_dump_json(indent=2))
 - [Deep Agents CLI](deepagents-cli_integration.md) - Deepagents integration
 - [Deer-flow Integration](Deer_Flow_Integration.md) - ByteDance agent framework
 - [Testing Guide](TESTING_GUIDE.md) - Testing patterns
+- [Evaluation Testing](evaluation_testing.md) - LLM quality evaluation with openevals
