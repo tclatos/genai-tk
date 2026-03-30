@@ -207,6 +207,11 @@ build-backend = "hatchling.build"
 [tool.ruff]
 builtins = ["ic", "debug"]
 line-length = 120
+exclude = [
+    "ext/",          # Third-party vendor code
+    "notebooks/",    # Jupyter notebooks (may have parse errors)
+    ".venv/",
+]
 
 [tool.ruff.format]
 docstring-code-format = true # Formats code blocks in docstrings

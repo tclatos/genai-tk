@@ -84,7 +84,7 @@ def sample_documents():
             cached_retriever = BM25FastRetriever.from_index_file(index_file=cache_path, k=3)
 
             # Both should return similar results
-            original_results = retriever.invoke("fox")
+            retriever.invoke("fox")
             cached_results = cached_retriever.invoke("fox")
 
             # Note: cached retriever doesn't store docs, so we only test it doesn't crash

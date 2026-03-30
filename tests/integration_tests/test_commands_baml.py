@@ -80,7 +80,6 @@ class TestBamlInvokeFunction:
         assert len(result.skills) > 0
 
         # Verify content relates to input
-        name_lower = result.name.lower()
         assert any(
             skill.lower() in ["python", "machine learning", "data", "statistics", "sql"] for skill in result.skills
         )

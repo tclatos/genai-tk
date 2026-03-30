@@ -405,9 +405,7 @@ class InfoCommands(CliTopCommand):
                 # If not found in known items, search across models.dev database
                 if llm_info is None:
                     db = get_models_db()
-                    cross_provider_matches: list[
-                        tuple[str, str, float]
-                    ] = []  # (provider, model_name, score)
+                    cross_provider_matches: list[tuple[str, str, float]] = []  # (provider, model_name, score)
 
                     for provider_id, models_dict in db._providers.items():
                         prov_info = PROVIDER_INFO.get(provider_id)

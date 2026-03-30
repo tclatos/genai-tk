@@ -8,6 +8,7 @@ from unittest import TestCase
 from genai_tk.utils.config_exceptions import (
     ConfigFileNotFoundError,
     ConfigKeyNotFoundError,
+    ConfigParseError,
     ConfigTypeError,
     ConfigValidationError,
 )
@@ -311,7 +312,7 @@ additional_env:
         invalid_path = Path(self.temp_dir.name) / "invalid.yaml"
         invalid_path.write_text("invalid: yaml: content: [")
 
-        with self.assertRaises(Exception):
+        with self.assertRaises(ConfigParseError):
             OmegaConfig.create(invalid_path)
 
     def test_missing_config_section(self) -> None:

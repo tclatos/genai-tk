@@ -183,7 +183,7 @@ async def test_docker_sandbox_uses_shared_config_image() -> None:
         # Simulate the backend being created inside create_langchain_agent
         from genai_tk.agents.langchain.config import create_backend
 
-        backend = await create_backend(profile.backend)
+        await create_backend(profile.backend)
         return fake_agent
 
     with (

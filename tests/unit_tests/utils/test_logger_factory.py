@@ -17,7 +17,9 @@ class TestLoggingConfig:
         assert cfg.level == "DEBUG"
 
     def test_invalid_level_raises(self) -> None:
-        with pytest.raises(Exception):
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
             LoggingConfig(level="INVALID")  # type: ignore
 
     def test_extra_fields_allowed(self) -> None:

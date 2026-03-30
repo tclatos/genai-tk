@@ -30,8 +30,6 @@ SPURIOUS_DEP = "volcengine-python-sdk"
 
 def patch_wheel(src: Path, dst: Path) -> None:
     """Copy *src* wheel to *dst*, removing the spurious dependency from METADATA and RECORD."""
-    pkg_base = src.stem.replace("-py2.py3-none-any", "").replace("-py3-none-any", "")
-    # Handle both naming conventions
     with zipfile.ZipFile(src) as z:
         dist_info = next(n for n in z.namelist() if n.endswith(".dist-info/METADATA"))
         dist_info_dir = dist_info.rsplit("/", 1)[0]
@@ -43,7 +41,7 @@ def patch_wheel(src: Path, dst: Path) -> None:
         raw_meta = z.read(metadata_path).decode("utf-8")
 
     patched_lines = [
-        l for l in raw_meta.splitlines(keepends=True) if not l.startswith(f"Requires-Dist: {SPURIOUS_DEP}")
+        line for line in raw_meta.splitlines(keepends=True) if not line.startswith(f"Requires-Dist: {SPURIOUS_DEP}")
     ]
     patched_meta = "".join(patched_lines).encode("utf-8")
 
@@ -71,7 +69,7 @@ def patch_wheel(src: Path, dst: Path) -> None:
     # Verify
     with zipfile.ZipFile(dst) as z:
         content = z.read(metadata_path).decode()
-        remaining = [l for l in content.splitlines() if l.startswith("Requires-Dist")]
+        remaining = [line for line in content.splitlines() if line.startswith("Requires-Dist")]
     assert not any(SPURIOUS_DEP in r for r in remaining), "Patch failed — dep still present!"
     print(f"Patched wheel written to: {dst}")
     print(f"Remaining deps: {remaining}")

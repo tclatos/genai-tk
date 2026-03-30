@@ -105,6 +105,11 @@ lint:  ## format (imports + style) and lint code with ruff (fix safe issues)
 test:  ## Run unit + integration tests
 	uv run pytest tests/unit_tests/ tests/integration_tests/
 
+test-unit:  ## Run unit tests only
+	uv run pytest tests/unit_tests/
+
+test-integration:  ## Run integration tests only
+	uv run pytest tests/integration_tests/
 
 pytest:  ## Run pytest with custom args: make pytest ARGS="-k my_test -v"
 	uv run pytest $(ARGS)

@@ -1,5 +1,6 @@
 """Tests for the Prefect-based BAML structured extraction flow."""
 
+# ruff: noqa: F821  # File is fully skipped; names were removed during refactoring
 from __future__ import annotations
 
 import pytest
