@@ -20,6 +20,7 @@ Quickstart:
 
 from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
 from genai_tk.agents.deer_flow.embedded_client import (
+    ClarificationEvent,
     EmbeddedDeerFlowClient,
     ErrorEvent,
     NodeEvent,
@@ -60,6 +61,7 @@ __all__ = [
     "ToolCallEvent",
     "ToolResultEvent",
     "ErrorEvent",
+    "ClarificationEvent",
     # Server lifecycle (--web only)
     "DeerFlowServerManager",
     # Config generation

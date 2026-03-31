@@ -51,20 +51,15 @@ wheels = [
 [[package]]
 name = "agent-sandbox"
 version = "0.0.26"
-source = { path = "vendor/agent_sandbox-0.0.26-py2.py3-none-any.whl" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx", extra = ["socks"] },
     { name = "pydantic" },
+    { name = "volcengine-python-sdk" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/3f/68/931c61b5e28ee344b5c2301bf56739f7fc90767da007c9e44a9b0a1ea937/agent_sandbox-0.0.26.tar.gz", hash = "sha256:67ec87e58794d017f6be321fc46913d76e84453d0cfe426a5f4b9bf8f5bd619b", size = 98635, upload-time = "2026-03-02T08:47:24.853Z" }
 wheels = [
-    { filename = "agent_sandbox-0.0.26-py2.py3-none-any.whl", hash = "sha256:abc8110bfc7f96a1c36af776ffd8b23485bd7e523b3f70b9a51d03da7a011e6c" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", extras = ["socks"], specifier = ">=0.23.0,<1" },
-    { name = "pydantic", specifier = ">=1.9.0,<3" },
-    { name = "typing-extensions", marker = "python_full_version < '3.10'", specifier = ">=4.0.0" },
+    { url = "https://files.pythonhosted.org/packages/26/b5/2748e86137ee757b749d2fb7f5504e039f780c9346be798870ae01ee1559/agent_sandbox-0.0.26-py2.py3-none-any.whl", hash = "sha256:6421fc4eb6144f10ddfdd2668c6644e132056eaeb6ab89d76a0b2e4bcf327a0a", size = 216489, upload-time = "2026-03-02T08:47:23.351Z" },
 ]
 
 [[package]]
@@ -1532,7 +1527,7 @@ transformers = [
 [package.metadata]
 requires-dist = [
     { name = "abbreviations", specifier = ">=0.2.5" },
-    { name = "agent-sandbox", path = "vendor/agent_sandbox-0.0.26-py2.py3-none-any.whl" },
+    { name = "agent-sandbox", specifier = ">=0.0.24" },
     { name = "baml-cli", specifier = ">=0.1.0" },
     { name = "baml-lib", specifier = ">=0.42.0" },
     { name = "beartype", specifier = ">=0.21.0" },
@@ -1603,11 +1598,11 @@ autogen = [
     { name = "autogen-openaiext-client", specifier = ">=0.0.3" },
 ]
 browser-control = [
-    { name = "agent-sandbox", path = "vendor/agent_sandbox-0.0.26-py2.py3-none-any.whl" },
+    { name = "agent-sandbox", specifier = ">=0.0.24" },
     { name = "playwright", specifier = ">=1.51.0" },
 ]
 deer-flow = []
-deer-flow-docker = [{ name = "agent-sandbox", path = "vendor/agent_sandbox-0.0.26-py2.py3-none-any.whl" }]
+deer-flow-docker = [{ name = "agent-sandbox", specifier = ">=0.0.19" }]
 dev = [
     { name = "faker", specifier = ">=25.0.0" },
     { name = "ipykernel", specifier = ">=6.29.4" },
@@ -5677,6 +5672,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/5f/6f/e62b4dfc7ad6518e7eff2516f680d02a0f6eb62c0c212e152ca708a0085e/uvloop-0.22.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7b5b1ac819a3f946d3b2ee07f09149578ae76066d70b44df3fa990add49a82e4", size = 4426307, upload-time = "2025-10-16T22:16:32.917Z" },
     { url = "https://files.pythonhosted.org/packages/90/60/97362554ac21e20e81bcef1150cb2a7e4ffdaf8ea1e5b2e8bf7a053caa18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:e047cc068570bac9866237739607d1313b9253c3051ad84738cbb095be0537b2", size = 4131970, upload-time = "2025-10-16T22:16:34.015Z" },
     { url = "https://files.pythonhosted.org/packages/99/39/6b3f7d234ba3964c428a6e40006340f53ba37993f46ed6e111c6e9141d18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:512fec6815e2dd45161054592441ef76c830eddaad55c8aa30952e6fe1ed07c0", size = 4296343, upload-time = "2025-10-16T22:16:35.149Z" },
+]
+
+[[package]]
+name = "volcengine-python-sdk"
+version = "5.0.21"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "python-dateutil" },
+    { name = "six" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0a/5e/1d1c1ffc27cd552df55bd75e43b5160d5a5224c2459f8cafe04982921340/volcengine_python_sdk-5.0.21.tar.gz", hash = "sha256:324eded08082fcc65c55c304aca62f5bf1bc5dc472d8ed0bb9b50bdffb768a9b", size = 8283723, upload-time = "2026-03-26T12:08:00.654Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/0e/4fdb25614ba83c42135b5eeb5d182ac22493bd7c221dd3477090c3c15897/volcengine_python_sdk-5.0.21-py2.py3-none-any.whl", hash = "sha256:a478bdf3036d8b2e42c19b04c9b708018316a4daac8d8cd58b882074e9d03546", size = 32571307, upload-time = "2026-03-26T12:07:54.046Z" },
 ]
 
 [[package]]

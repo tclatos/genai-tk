@@ -134,4 +134,5 @@ skills/public/*
 
 # Deer Flow and Blueprint artifacts
 .deer-flow/
+ext/deer-flow/
 .blueprint*

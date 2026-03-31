@@ -114,8 +114,23 @@ class ErrorEvent:
     message: str = ""
 
 
+@dataclass
+class ClarificationEvent:
+    """DeerFlow paused and is asking the user a clarifying question.
+
+    The agent has called ``ask_clarification`` and halted.  The caller should
+    display ``question`` to the user, collect a reply, and send it as the next
+    message on the same ``thread_id``.
+    """
+
+    kind: str = "clarification"
+    question: str = ""
+    clarification_type: str = "missing_info"
+    context: str = ""
+
+
 # Union type alias matching the HTTP client's public API
-StreamEvent = TokenEvent | NodeEvent | ToolCallEvent | ToolResultEvent | ErrorEvent
+StreamEvent = TokenEvent | NodeEvent | ToolCallEvent | ToolResultEvent | ErrorEvent | ClarificationEvent
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +196,7 @@ _DEER_FLOW_SUPPRESS_PREFIXES = (
     "Generated thread title",
     "Failed to read file",
     "Failed to list directory",
+    "[ClarificationMiddleware]",
 )
 
 
@@ -441,10 +457,16 @@ def _translate_event(ev: Any) -> list[StreamEvent]:
             return results
 
         if msg_type == "tool":
+            tool_name = data.get("name", "")
+            content = str(data.get("content", ""))
+            # ask_clarification is intercepted by ClarificationMiddleware and halts
+            # the graph — surface it as a dedicated event so callers can implement HITL.
+            if tool_name == "ask_clarification":
+                return [ClarificationEvent(question=content)]
             return [
                 ToolResultEvent(
-                    tool_name=data.get("name", ""),
-                    content=str(data.get("content", ""))[:500],
+                    tool_name=tool_name,
+                    content=content[:500],
                     call_id=data.get("tool_call_id", ""),
                 )
             ]
