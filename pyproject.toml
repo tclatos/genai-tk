@@ -208,8 +208,8 @@ build-backend = "hatchling.build"
 builtins = ["ic", "debug"]
 line-length = 120
 exclude = [
-    "ext/",          # Third-party vendor code
-    "notebooks/",    # Jupyter notebooks (may have parse errors)
+    "ext/",       # Third-party vendor code
+    "notebooks/", # Jupyter notebooks (may have parse errors)
     ".venv/",
 ]
 
