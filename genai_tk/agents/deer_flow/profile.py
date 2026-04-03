@@ -77,24 +77,23 @@ def resolve_middlewares(qualified_names: list[str]) -> list[Any]:
         List of instantiated middleware objects.
 
     Raises:
-        ImportError: If a module cannot be imported.
-        AttributeError: If the class is not found in the module.
-        TypeError: If the class cannot be instantiated without arguments.
+        ImportError: If the module cannot be imported or class is not found.
     """
     middlewares = []
     for qname in qualified_names:
         if "." not in qname:
-            raise ImportError(f"Middleware '{qname}' must be a fully-qualified class name (module.ClassName).")
+            raise ValueError(f"Middleware '{qname}' must be fully-qualified: module.ClassName")
+
         module_path, class_name = qname.rsplit(".", 1)
         try:
             module = importlib.import_module(module_path)
-        except ImportError as exc:
-            raise ImportError(f"Cannot import middleware module '{module_path}': {exc}") from exc
-        cls = getattr(module, class_name, None)
-        if cls is None:
-            raise AttributeError(f"Class '{class_name}' not found in module '{module_path}'.")
+            cls = getattr(module, class_name)
+        except (ImportError, AttributeError) as exc:
+            raise ImportError(f"Cannot load middleware '{qname}': {exc}") from exc
+
         middlewares.append(cls())
         logger.debug(f"Loaded middleware: {qname}")
+
     return middlewares
 
 

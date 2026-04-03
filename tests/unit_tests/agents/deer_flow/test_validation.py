@@ -297,11 +297,11 @@ class TestResolveMiddlewares:
         """ImportError raised when module path does not exist."""
         from genai_tk.agents.deer_flow.profile import resolve_middlewares
 
-        with pytest.raises(ImportError, match="Cannot import middleware module"):
+        with pytest.raises(ImportError, match="Cannot load middleware"):
             resolve_middlewares(["nonexistent_module_xyz.MyClass"])
 
     def test_raises_on_missing_class(self, tmp_path, monkeypatch):
-        """AttributeError raised when class name is not in the module."""
+        """ImportError raised when class name is not in the module."""
         import sys
         import types
 
@@ -311,14 +311,14 @@ class TestResolveMiddlewares:
 
         from genai_tk.agents.deer_flow.profile import resolve_middlewares
 
-        with pytest.raises(AttributeError, match="not found in module"):
+        with pytest.raises(ImportError, match="Cannot load middleware"):
             resolve_middlewares(["_test_mw_mod2.NonExistentClass"])
 
     def test_raises_on_unqualified_name(self):
-        """ImportError raised when name has no module separator."""
+        """ValueError raised when name has no module separator."""
         from genai_tk.agents.deer_flow.profile import resolve_middlewares
 
-        with pytest.raises(ImportError, match="fully-qualified class name"):
+        with pytest.raises(ValueError, match="fully-qualified"):
             resolve_middlewares(["JustAClassName"])
 
     def test_multiple_middlewares_instantiated_in_order(self, monkeypatch):
