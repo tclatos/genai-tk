@@ -285,9 +285,9 @@ available_skills:
 
 ```python
 from genai_tk.agents.deer_flow import EmbeddedDeerFlowClient
-from genai_tk.agents.deer_flow import resolve_middlewares
+from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
-middlewares = resolve_middlewares(["mypackage.middleware.LoggingMiddleware"])
+middlewares = instantiate_from_qualified_names(["mypackage.middleware.LoggingMiddleware"])
 client = EmbeddedDeerFlowClient(
     config_path="/path/to/config.yaml",
     middlewares=middlewares,

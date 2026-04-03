@@ -264,13 +264,13 @@ class TestDockerSandboxValidation:
 
 
 class TestResolveMiddlewares:
-    """Tests for the resolve_middlewares helper."""
+    """Tests for the instantiate_from_qualified_names helper."""
 
     def test_empty_list_returns_empty(self):
         """Empty list of qualified names returns empty list."""
-        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+        from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
-        assert resolve_middlewares([]) == []
+        assert instantiate_from_qualified_names([]) == []
 
     def test_resolves_real_class_by_qualified_name(self, tmp_path, monkeypatch):
         """A valid qualified class name is imported and instantiated."""
@@ -287,18 +287,18 @@ class TestResolveMiddlewares:
         sys.modules["_test_mw_mod"] = mod
         monkeypatch.setitem(sys.modules, "_test_mw_mod", mod)
 
-        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+        from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
-        result = resolve_middlewares(["_test_mw_mod._MW"])
+        result = instantiate_from_qualified_names(["_test_mw_mod._MW"])
         assert len(result) == 1
         assert isinstance(result[0], _MW)
 
     def test_raises_on_missing_module(self):
         """ImportError raised when module path does not exist."""
-        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+        from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
-        with pytest.raises(ImportError, match="Cannot load middleware"):
-            resolve_middlewares(["nonexistent_module_xyz.MyClass"])
+        with pytest.raises(ImportError, match="Cannot load class"):
+            instantiate_from_qualified_names(["nonexistent_module_xyz.MyClass"])
 
     def test_raises_on_missing_class(self, tmp_path, monkeypatch):
         """ImportError raised when class name is not in the module."""
@@ -309,17 +309,17 @@ class TestResolveMiddlewares:
         sys.modules["_test_mw_mod2"] = mod
         monkeypatch.setitem(sys.modules, "_test_mw_mod2", mod)
 
-        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+        from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
-        with pytest.raises(ImportError, match="Cannot load middleware"):
-            resolve_middlewares(["_test_mw_mod2.NonExistentClass"])
+        with pytest.raises(ImportError, match="Cannot load class"):
+            instantiate_from_qualified_names(["_test_mw_mod2.NonExistentClass"])
 
     def test_raises_on_unqualified_name(self):
         """ValueError raised when name has no module separator."""
-        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+        from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
         with pytest.raises(ValueError, match="fully-qualified"):
-            resolve_middlewares(["JustAClassName"])
+            instantiate_from_qualified_names(["JustAClassName"])
 
     def test_multiple_middlewares_instantiated_in_order(self, monkeypatch):
         """Multiple middleware classes are instantiated and returned in list order."""
@@ -342,9 +342,9 @@ class TestResolveMiddlewares:
         sys.modules["_test_mw_multi"] = mod
         monkeypatch.setitem(sys.modules, "_test_mw_multi", mod)
 
-        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+        from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
-        result = resolve_middlewares(["_test_mw_multi._MW1", "_test_mw_multi._MW2"])
+        result = instantiate_from_qualified_names(["_test_mw_multi._MW1", "_test_mw_multi._MW2"])
         assert len(result) == 2
         assert call_order == ["MW1", "MW2"]
 

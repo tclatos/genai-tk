@@ -603,7 +603,7 @@ async def _run_single_shot(
         sandbox_override: Override sandbox type (None = use profile setting).
     """
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
-    from genai_tk.agents.deer_flow.profile import resolve_middlewares
+    from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
     profile, model_name, config_path = await _prepare_profile(
         profile_name, llm_override, extra_mcp, mode_override, verbose, sandbox_override=sandbox_override
@@ -623,7 +623,7 @@ async def _run_single_shot(
         _cleanup_stale_sandbox_containers()
 
     with console.status("Loading deer-flow agent...", spinner="dots"):
-        middlewares = resolve_middlewares(profile.middlewares)
+        middlewares = instantiate_from_qualified_names(profile.middlewares, logger=logger)
         available_skills = set(profile.available_skills) if profile.available_skills is not None else None
         client = EmbeddedDeerFlowClient(
             config_path=config_path,
@@ -750,7 +750,7 @@ async def _run_chat_mode(
         sandbox_override: Override sandbox type (None = use profile setting).
     """
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
-    from genai_tk.agents.deer_flow.profile import resolve_middlewares
+    from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
     profile, model_name, config_path = await _prepare_profile(
         profile_name, llm_override, extra_mcp, mode_override, verbose, sandbox_override=sandbox_override
@@ -779,7 +779,7 @@ async def _run_chat_mode(
         _cleanup_stale_sandbox_containers()
 
     with console.status("Loading deer-flow agent...", spinner="dots"):
-        middlewares = resolve_middlewares(profile.middlewares)
+        middlewares = instantiate_from_qualified_names(profile.middlewares, logger=logger)
         available_skills = set(profile.available_skills) if profile.available_skills is not None else None
         client = EmbeddedDeerFlowClient(
             config_path=config_path,

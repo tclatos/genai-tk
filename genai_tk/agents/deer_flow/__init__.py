@@ -40,7 +40,6 @@ from genai_tk.agents.deer_flow.profile import (
     get_available_modes,
     get_available_profile_names,
     load_deer_flow_profiles,
-    resolve_middlewares,
     validate_mcp_servers,
     validate_profile_name,
 )
@@ -55,7 +54,6 @@ __all__ = [
     "get_available_profile_names",
     "validate_profile_name",
     "validate_mcp_servers",
-    "resolve_middlewares",
     # Embedded client + events
     "EmbeddedDeerFlowClient",
     "TokenEvent",

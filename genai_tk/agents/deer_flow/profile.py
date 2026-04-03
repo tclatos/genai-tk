@@ -5,9 +5,8 @@ Defines the Pydantic profile loaded from config/agents/deerflow.yaml.
 
 from __future__ import annotations
 
-import importlib
 from pathlib import Path
-from typing import Any, Literal, cast, get_args
+from typing import Literal, cast, get_args
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -54,51 +53,12 @@ class DeerFlowProfile(BaseModel):
     # Custom middlewares to inject: list of Python qualified class names,
     # e.g. ``["mypackage.middleware.LoggingMiddleware"]``.
     # Each class is imported and instantiated (no constructor arguments) at
-    # runtime via :func:`resolve_middlewares`.
+    # runtime via :func:`genai_tk.utils.import_utils.instantiate_from_qualified_names`.
     middlewares: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
-# Middleware resolution
-# ---------------------------------------------------------------------------
-
-
-def resolve_middlewares(qualified_names: list[str]) -> list[Any]:
-    """Import and instantiate middleware classes by their Python qualified names.
-
-    Each entry in *qualified_names* must be a fully-qualified class path such as
-    ``mypackage.module.MyMiddleware``.  The class is imported via
-    :mod:`importlib` and instantiated with no constructor arguments.
-
-    Args:
-        qualified_names: List of ``module.ClassName`` strings.
-
-    Returns:
-        List of instantiated middleware objects.
-
-    Raises:
-        ImportError: If the module cannot be imported or class is not found.
-    """
-    middlewares = []
-    for qname in qualified_names:
-        if "." not in qname:
-            raise ValueError(f"Middleware '{qname}' must be fully-qualified: module.ClassName")
-
-        module_path, class_name = qname.rsplit(".", 1)
-        try:
-            module = importlib.import_module(module_path)
-            cls = getattr(module, class_name)
-        except (ImportError, AttributeError) as exc:
-            raise ImportError(f"Cannot load middleware '{qname}': {exc}") from exc
-
-        middlewares.append(cls())
-        logger.debug(f"Loaded middleware: {qname}")
-
-    return middlewares
-
-
-# ---------------------------------------------------------------------------
-# Exceptions
+# Profile exceptions
 # ---------------------------------------------------------------------------
 
 

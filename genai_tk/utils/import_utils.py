@@ -143,6 +143,54 @@ class ImportResolver:
         except AttributeError as e:
             raise AttributeError(f"Cannot find class '{obj_name}' in module '{mod_path}': {e}") from e
 
+    @staticmethod
+    def instantiate_from_qualified_names(
+        qualified_names: list[str],
+        logger: object | None = None,
+    ) -> list[object]:
+        """Import and instantiate classes from a list of qualified names.
+
+        Each entry in *qualified_names* must be a fully-qualified class path such as
+        ``mypackage.module.MyClass``.  Classes are imported via :mod:`importlib` and
+        instantiated with no constructor arguments.
+
+        Args:
+            qualified_names: List of ``module.ClassName`` strings.
+            logger: Optional logger for debug output (must have ``.debug()`` method).
+
+        Returns:
+            List of instantiated objects in the same order as input.
+
+        Raises:
+            ValueError: If a name is not fully-qualified.
+            ImportError: If a module cannot be imported or class is not found.
+
+        Example:
+            ```python
+            middlewares = ImportResolver.instantiate_from_qualified_names([
+                "mymod.LoggingMiddleware",
+                "mymod.ValidatingMiddleware",
+            ])
+            ```
+        """
+        instances = []
+        for qname in qualified_names:
+            if "." not in qname:
+                raise ValueError(f"'{qname}' must be fully-qualified: module.ClassName")
+
+            module_path, class_name = qname.rsplit(".", 1)
+            try:
+                module = importlib.import_module(module_path)
+                cls = getattr(module, class_name)
+            except (ImportError, AttributeError) as exc:
+                raise ImportError(f"Cannot load class '{qname}': {exc}") from exc
+
+            instances.append(cls())
+            if logger is not None:
+                logger.debug(f"Instantiated: {qname}")
+
+        return instances
+
 
 # ---------------------------------------------------------------------------
 # Module-level convenience aliases (backward-compatible with old config_mngr exports)
@@ -167,3 +215,8 @@ def get_object_name_from_qualified(qualified_name: str) -> str:
 def import_from_qualified(qualified_name: str) -> Callable:
     """Alias for ``ImportResolver.import_from_qualified()``."""
     return ImportResolver.import_from_qualified(qualified_name)
+
+
+def instantiate_from_qualified_names(qualified_names: list[str], logger: object | None = None) -> list[object]:
+    """Alias for ``ImportResolver.instantiate_from_qualified_names()``."""
+    return ImportResolver.instantiate_from_qualified_names(qualified_names, logger=logger)
