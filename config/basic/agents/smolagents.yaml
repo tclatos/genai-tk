@@ -8,12 +8,12 @@ paths:
 smolagents_codeact:
   - name: "from_HG"
     tools: 
-      - class: smolagents:WebSearchTool
-      - class: smolagents:VisitWebpageTool
+      - class: smolagents.WebSearchTool
+      - class: smolagents.VisitWebpageTool
 
         
-      - class: smolagents:WebSearchTool
-      - class: smolagents:VisitWebpageTool
+      - class: smolagents.WebSearchTool
+      - class: smolagents.VisitWebpageTool
     authorized_imports: ["pandas", "matplotlib.*", "sklearn.*"]
     examples:
       - "What is the proportion of female passengers that survived?"
@@ -27,10 +27,10 @@ smolagents_codeact:
 
   - name: "Data Analyst"
     tools:
-      - class: ${paths.smolagent_custom_tools}.dataframe_tools:DataFrameTool
+      - class: ${paths.smolagent_custom_tools}.dataframe_tools.DataFrameTool
         name: "data_reader"
         description: "Read and analyze data files"
-      - class: smolagents:WebSearchTool
+      - class: smolagents.WebSearchTool
     authorized_imports: ["pandas", "matplotlib.*", "numpy", "sklearn.*"]
     pre_prompt: "You are a professional data analyst. Always analyze data thoroughly, provide insights, and suggest visualizations when appropriate. Explain your reasoning step by step."
     examples:

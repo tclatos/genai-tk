@@ -71,7 +71,7 @@ langchain_agents:
         Be thorough, objective, and always cite your sources.
 
       tools:
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
 
       mcp_servers:
         - tavily-mcp
@@ -180,7 +180,7 @@ langchain_agents:
         Be thorough in your analysis and clearly communicate findings.
 
       tools:
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
 
       mcp_servers:
         - tavily-mcp
@@ -220,8 +220,8 @@ langchain_agents:
         Use the file system to organize your research notes and findings.
 
       tools:
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_webpage_tool
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_webpage_tool
 
       mcp_servers:
         - playwright
@@ -278,7 +278,7 @@ langchain_agents:
         Always ensure documentation is up-to-date, accurate, and helpful for users.
 
       tools:
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
 
       mcp_servers:
         - tavily-mcp
@@ -318,10 +318,10 @@ langchain_agents:
         Use the file system to organize your analysis and maintain research notes.
 
       tools:
-        - function: genai_tk.tools.smolagents.yfinance_tools:get_stock_info
-        - function: genai_tk.tools.smolagents.yfinance_tools:get_historical_price
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_webpage_tool
+        - function: genai_tk.tools.smolagents.yfinance_tools.get_stock_info
+        - function: genai_tk.tools.smolagents.yfinance_tools.get_historical_price
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_webpage_tool
 
       mcp_servers:
         - tavily-mcp

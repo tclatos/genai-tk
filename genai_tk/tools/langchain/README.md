@@ -88,7 +88,7 @@ SQL tool configurations are defined in `config/agents/langchain.yaml` as part of
 langchain_agents:
   - name: "Chinook Music Database"
     tools:
-      - factory: src.ai_tools_langchain.sql_tool_factory:create_sql_tool_from_config
+      - factory: src.ai_tools_langchain.sql_tool_factory.create_sql_tool_from_config
         config:
           database_uri: "sqlite:///use_case_data/other/Chinook.db"
           tool_name: "query_chinook"

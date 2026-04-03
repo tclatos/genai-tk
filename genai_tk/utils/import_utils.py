@@ -1,13 +1,12 @@
 """Dynamic import utilities for loading functions and classes by qualified name.
 
-Qualified names follow the ``module.path:ObjectName`` convention used throughout
-the configuration system.
+Qualified names follow the ``module.path.ObjectName`` convention (dot-separated).
 
 Example:
     ```python
     from genai_tk.utils.import_utils import ImportResolver
 
-    fn = ImportResolver.import_from_qualified("mymodule.sub:my_func")
+    fn = ImportResolver.import_from_qualified("mymodule.sub.my_func")
     result = fn(arg1, arg2)
 
     # Short-name lookup (searches the project for a unique class definition)
@@ -32,15 +31,25 @@ class ImportResolver:
 
     @staticmethod
     def split_qualified_name(qualified_name: str) -> tuple[str, str]:
-        """Split a qualified name into ``(module_path, object_name)``.
+        """Split a qualified name into ``(module_path, object_name)`` at the last dot.
+
+        Splits at the last ``.`` by convention: the final segment is the
+        object name (class or function) and everything before is the module path.
+        This is a static split that does not require the module to be importable.
 
         Args:
-            qualified_name: Name in ``module.path:ObjectName`` format.
+            qualified_name: Name in ``module.path.ObjectName`` format (dot-separated).
+
+        Returns:
+            Tuple of (module_path, object_name).
         """
-        module_path, sep, object_name = qualified_name.partition(":")
-        if not sep or not module_path or not object_name:
-            raise ValueError(f"Invalid qualified name '{qualified_name}'. Expected format 'module.path:ObjectName'.")
-        return module_path, object_name
+        parts = qualified_name.split(".")
+        if len(parts) < 2:
+            raise ValueError(
+                f"Invalid qualified name '{qualified_name}'. "
+                "Expected format 'module.path.ObjectName' with at least 2 dot-separated parts."
+            )
+        return ".".join(parts[:-1]), parts[-1]
 
     @staticmethod
     def get_module(qualified_name: str) -> str:
@@ -60,33 +69,46 @@ class ImportResolver:
 
         The name can be:
 
-        - Fully qualified: ``'module.submodule:FunctionOrClassName'``
+        - Fully qualified: ``'module.submodule.FunctionOrClassName'``
         - Short class name: ``'ClassName'`` — scans the project for a unique match.
 
         Short-name lookup raises ``ValueError`` when zero or multiple matches are found.
 
         Examples:
             ```python
-            fn = ImportResolver.import_from_qualified("mymod.utils:helper_func")
+            fn = ImportResolver.import_from_qualified("mymod.utils.helper_func")
             result = fn(arg1)
 
             cls = ImportResolver.import_from_qualified("MyUniqueClass")
             obj = cls()
             ```
         """
-        if ":" not in qualified_name:
+        if "." not in qualified_name:
             return ImportResolver._import_from_short_name(qualified_name)
 
         module_path, object_name = ImportResolver.split_qualified_name(qualified_name)
-        try:
-            module = importlib.import_module(module_path)
-            return getattr(module, object_name)
-        except ImportError as e:
-            raise ImportError(f"Cannot import module '{module_path}' for '{qualified_name}': {e}") from e
-        except AttributeError as e:
-            raise AttributeError(
-                f"Cannot find '{object_name}' in module '{module_path}' for '{qualified_name}': {e}"
-            ) from e
+        parts = qualified_name.split(".")
+        # Try progressively shorter module paths (left-to-right) to handle cases
+        # where the last segment is not importable as a module (e.g. ClassName)
+        for i in range(len(parts) - 1, 0, -1):
+            mod = ".".join(parts[:i])
+            obj_path = parts[i:]
+            try:
+                module = importlib.import_module(mod)
+                obj = module
+                for attr in obj_path:
+                    obj = getattr(obj, attr)
+                return obj
+            except ImportError:
+                continue
+            except AttributeError as e:
+                raise AttributeError(
+                    f"Cannot find '{'.'.join(obj_path)}' in module '{mod}' for '{qualified_name}': {e}"
+                ) from e
+        raise ImportError(
+            f"Cannot import any module for '{qualified_name}': "
+            f"tried module paths {['.'.join(parts[:i]) for i in range(len(parts) - 1, 0, -1)]}"
+        )
 
     @staticmethod
     def _import_from_short_name(class_name: str) -> Callable:
@@ -126,10 +148,10 @@ class ImportResolver:
         if not matches:
             raise ValueError(
                 f"No class named '{class_name}' found in the project. "
-                "Use the fully qualified format 'module.path:ClassName'."
+                "Use the fully qualified format 'module.path.ClassName'."
             )
         if len(matches) > 1:
-            details = "\n".join(f"  - {m[0]}:{m[1]} (in {m[2]})" for m in matches)
+            details = "\n".join(f"  - {m[0]}.{m[1]} (in {m[2]})" for m in matches)
             raise ValueError(
                 f"Multiple classes named '{class_name}' found:\n{details}\n"
                 "Use the fully qualified format to select the right one."
@@ -167,10 +189,12 @@ class ImportResolver:
 
         Example:
             ```python
-            middlewares = ImportResolver.instantiate_from_qualified_names([
-                "mymod.LoggingMiddleware",
-                "mymod.ValidatingMiddleware",
-            ])
+            middlewares = ImportResolver.instantiate_from_qualified_names(
+                [
+                    "mymod.LoggingMiddleware",
+                    "mymod.ValidatingMiddleware",
+                ]
+            )
             ```
         """
         instances = []

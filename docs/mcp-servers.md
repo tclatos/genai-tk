@@ -22,7 +22,7 @@ mcp_expose_servers:
   - name: "search"
     description: "Web search tools exposed as MCP"
     tools:
-      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+      - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
         verbose: false
     agent:
       enabled: true

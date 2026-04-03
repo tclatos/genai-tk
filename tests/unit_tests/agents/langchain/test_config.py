@@ -56,15 +56,15 @@ def _write_yaml(tmp_path: Path, data: dict[str, Any]) -> Path:
 
 class TestMiddlewareConfig:
     def test_alias_class_field(self) -> None:
-        cfg = MiddlewareConfig(**{"class": "some.module:SomeClass"})
-        assert cfg.class_path == "some.module:SomeClass"
+        cfg = MiddlewareConfig(**{"class": "some.module.SomeClass"})
+        assert cfg.class_path == "some.module.SomeClass"
 
     def test_extra_kwargs_captured(self) -> None:
-        cfg = MiddlewareConfig(**{"class": "mod:Cls", "limit": 10, "model": "gpt4"})
+        cfg = MiddlewareConfig(**{"class": "mod.Cls", "limit": 10, "model": "gpt4"})
         assert cfg.extra_kwargs == {"limit": 10, "model": "gpt4"}
 
     def test_no_extras(self) -> None:
-        cfg = MiddlewareConfig(**{"class": "mod:Cls"})
+        cfg = MiddlewareConfig(**{"class": "mod.Cls"})
         assert cfg.extra_kwargs == {}
 
 
@@ -86,10 +86,10 @@ class TestCheckpointerConfig:
 
     def test_class_type_with_alias(self) -> None:
         cfg = CheckpointerConfig(
-            **{"type": "class", "class": "langgraph.checkpoint.sqlite:SqliteSaver", "kwargs": {"conn": "db"}}
+            **{"type": "class", "class": "langgraph.checkpoint.sqlite.SqliteSaver", "kwargs": {"conn": "db"}}
         )
         assert cfg.type == "class"
-        assert cfg.class_path == "langgraph.checkpoint.sqlite:SqliteSaver"
+        assert cfg.class_path == "langgraph.checkpoint.sqlite.SqliteSaver"
         assert cfg.kwargs == {"conn": "db"}
 
 
@@ -165,7 +165,7 @@ class TestLoadUnifiedConfig:
     def test_middleware_in_defaults(self, tmp_path: Path) -> None:
         data = {
             "langchain_agents": {
-                "defaults": {"middlewares": [{"class": "mod:RichMiddleware"}]},
+                "defaults": {"middlewares": [{"class": "mod.RichMiddleware"}]},
                 "default_profile": "",
                 "profiles": [],
             }
@@ -173,7 +173,7 @@ class TestLoadUnifiedConfig:
         cfg_file = _write_yaml(tmp_path, data)
         cfg = load_unified_config(str(cfg_file))
         assert len(cfg.defaults.middlewares) == 1
-        assert cfg.defaults.middlewares[0].class_path == "mod:RichMiddleware"
+        assert cfg.defaults.middlewares[0].class_path == "mod.RichMiddleware"
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +235,7 @@ class TestResolveProfile:
     def test_middleware_inherited(self, tmp_path: Path) -> None:
         data = {
             "langchain_agents": {
-                "defaults": {"middlewares": [{"class": "mod:DefaultMiddleware"}]},
+                "defaults": {"middlewares": [{"class": "mod.DefaultMiddleware"}]},
                 "default_profile": "p",
                 "profiles": [{"name": "p"}],  # no middlewares
             }
@@ -244,21 +244,21 @@ class TestResolveProfile:
         cfg = load_unified_config(str(cfg_file))
         profile = resolve_profile(cfg, "p")
         assert len(profile.middlewares) == 1
-        assert profile.middlewares[0].class_path == "mod:DefaultMiddleware"
+        assert profile.middlewares[0].class_path == "mod.DefaultMiddleware"
 
     def test_profile_middleware_overrides_default(self, tmp_path: Path) -> None:
         data = {
             "langchain_agents": {
-                "defaults": {"middlewares": [{"class": "mod:DefaultMiddleware"}]},
+                "defaults": {"middlewares": [{"class": "mod.DefaultMiddleware"}]},
                 "default_profile": "p",
-                "profiles": [{"name": "p", "middlewares": [{"class": "mod:ProfileMiddleware"}]}],
+                "profiles": [{"name": "p", "middlewares": [{"class": "mod.ProfileMiddleware"}]}],
             }
         }
         cfg_file = _write_yaml(tmp_path, data)
         cfg = load_unified_config(str(cfg_file))
         profile = resolve_profile(cfg, "p")
         assert len(profile.middlewares) == 1
-        assert profile.middlewares[0].class_path == "mod:ProfileMiddleware"
+        assert profile.middlewares[0].class_path == "mod.ProfileMiddleware"
 
     def test_deep_field_on_react_emits_warning(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         data = {
@@ -317,7 +317,7 @@ class TestCreateCheckpointer:
         # Use a real class from langgraph to avoid complex mocking
         from langgraph.checkpoint.memory import MemorySaver
 
-        cfg = CheckpointerConfig(**{"type": "class", "class": "langgraph.checkpoint.memory:MemorySaver"})
+        cfg = CheckpointerConfig(**{"type": "class", "class": "langgraph.checkpoint.memory.MemorySaver"})
         result = create_checkpointer(cfg)
         assert isinstance(result, MemorySaver)
 
@@ -345,13 +345,13 @@ class TestInstantiateMiddlewares:
             MiddlewareConfig(**{"class": "no_colon_here"})
 
     def test_import_failure_skipped(self) -> None:
-        cfg = MiddlewareConfig(**{"class": "nonexistent.module:SomeClass"})
+        cfg = MiddlewareConfig(**{"class": "nonexistent.module.SomeClass"})
         result = instantiate_middlewares([cfg], "react")
         assert result == []  # import error → warning, no crash
 
     def test_deepagents_middleware_with_non_deep_emits_warning(self, capsys: pytest.CaptureFixture) -> None:
         # Just ensure no exception; warning goes to Rich console (not capsys)
-        cfg = MiddlewareConfig(**{"class": "deepagents.middleware.summarization:SummarizationMiddleware"})
+        cfg = MiddlewareConfig(**{"class": "deepagents.middleware.summarization.SummarizationMiddleware"})
         # This will fail on import since deepagents may not be installed, but
         # the compatibility warning path should be exercised first
         instantiate_middlewares([cfg], "react")
@@ -374,9 +374,9 @@ class TestBackendConfig:
         assert cfg.type == "aio_sandbox"
 
     def test_class_type_with_alias(self) -> None:
-        cfg = BackendConfig(**{"type": "class", "class": "my_pkg.backends:MyBackend", "kwargs": {"opt": 1}})
+        cfg = BackendConfig(**{"type": "class", "class": "my_pkg.backends.MyBackend", "kwargs": {"opt": 1}})
         assert cfg.type == "class"
-        assert cfg.class_path == "my_pkg.backends:MyBackend"
+        assert cfg.class_path == "my_pkg.backends.MyBackend"
         assert cfg.kwargs == {"opt": 1}
 
     def test_extra_kwargs_for_aio_sandbox(self) -> None:
@@ -432,12 +432,12 @@ class TestResolveProfileBackend:
         cfg = self._make_config_with_backend(
             tmp_path,
             {"type": "aio_sandbox"},
-            {"type": "class", "class": "my_pkg:MyBackend"},
+            {"type": "class", "class": "my_pkg.MyBackend"},
         )
         profile = resolve_profile(cfg, "p")
         assert profile.backend is not None
         assert profile.backend.type == "class"
-        assert profile.backend.class_path == "my_pkg:MyBackend"
+        assert profile.backend.class_path == "my_pkg.MyBackend"
 
     def test_backend_none_in_default_and_profile(self, tmp_path: Path) -> None:
         cfg = self._make_config_with_backend(tmp_path, {"type": "none"}, None)
@@ -533,7 +533,7 @@ class TestCreateBackend:
         mock_cls = MagicMock(return_value=mock_backend)
 
         with patch("genai_tk.agents.langchain.config.import_from_qualified", return_value=mock_cls):
-            cfg = BackendConfig(**{"type": "class", "class": "my_pkg:MyBackend", "kwargs": {"opt": 1}})
+            cfg = BackendConfig(**{"type": "class", "class": "my_pkg.MyBackend", "kwargs": {"opt": 1}})
             backend = await create_backend(cfg)
 
         mock_cls.assert_called_once_with(opt=1)
@@ -549,7 +549,7 @@ class TestCreateBackend:
         mock_cls = MagicMock(return_value=mock_backend)
 
         with patch("genai_tk.agents.langchain.config.import_from_qualified", return_value=mock_cls):
-            cfg = BackendConfig(**{"type": "class", "class": "my_pkg:MyBackend"})
+            cfg = BackendConfig(**{"type": "class", "class": "my_pkg.MyBackend"})
             backend = await create_backend(cfg)
 
         assert backend is mock_backend

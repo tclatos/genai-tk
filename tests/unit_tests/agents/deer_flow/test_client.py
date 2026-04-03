@@ -453,7 +453,7 @@ def test_generate_deer_flow_models_uses_known_items_dict() -> None:
     prov = MagicMock()
     prov.api_key_env_var = "OPENAI_API_KEY"
     prov.api_base = None
-    prov.get_use_string.return_value = "langchain_openai:ChatOpenAI"
+    prov.get_use_string.return_value = "langchain_openai.ChatOpenAI"
     mock_info.get_provider_info.return_value = prov
 
     with (

@@ -13,7 +13,7 @@ langchain_agents:
       description: "Simple agents with web search"
       pre_prompt: "You are an agent having access to the Web."
       tools:
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
           verbose: true
 
     - name: "filesystem"
@@ -21,7 +21,7 @@ langchain_agents:
       description: "File system manipulation agent"
       pre_prompt: "You have the ability to manipulate the file system. If the user asks something else, refuse politely."
       tools:
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
           verbose: true
       mcp_servers:
         - "filesystem"
@@ -37,7 +37,7 @@ langchain_agents:
       type: react
       description: "Weather assistant with web search"
       tools:
-        - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
           verbose: true
       mcp_servers:
         - "filesystem"

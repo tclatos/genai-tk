@@ -10,7 +10,7 @@ tools:
   - class: my.pkg:MyTool        # ClassToolSpec – extra keys become extra_params
     timeout: 30
   - function: my.pkg:my_func    # FunctionToolSpec
-  - factory: my.pkg:make_tools  # FactoryToolSpec – extra keys become extra_params
+  - factory: my.pkg.make_tools  # FactoryToolSpec – extra keys become extra_params
     param1: value
 ```
 """

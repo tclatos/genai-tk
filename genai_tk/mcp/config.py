@@ -9,7 +9,7 @@ Example YAML:
       - name: "search"
         description: "Web search tools exposed as MCP"
         tools:
-          - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+          - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
             config:
               verbose: false
         agent:
@@ -42,10 +42,10 @@ class MCPToolConfig(BaseModel):
     Example:
         ```yaml
         # Flat kwargs (search tool)
-        - factory: mod:create_search_function
+        - factory: mod.create_search_function
           verbose: false
         # Nested config kwarg (SQL tool)
-        - factory: mod:create_sql_tool_from_config
+        - factory: mod.create_sql_tool_from_config
           config:
             database_uri: sqlite:///data.db
         ```

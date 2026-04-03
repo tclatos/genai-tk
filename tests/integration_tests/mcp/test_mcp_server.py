@@ -32,7 +32,7 @@ async def test_list_tools_from_yaml(tmp_path: Path) -> None:
     defn = MCPServerDefinition(
         name="echo",
         description="Echo server",
-        tools=[MCPToolConfig(factory="tests.integration_tests.mcp.fixtures:create_echo_tool")],
+        tools=[MCPToolConfig(factory="tests.integration_tests.mcp.fixtures.create_echo_tool")],
     )
     server = build_mcp_server(defn)
     tools = await server.list_tools()
@@ -50,7 +50,7 @@ async def test_call_tool_returns_string(tmp_path: Path) -> None:
     defn = MCPServerDefinition(
         name="echo",
         description="Echo server",
-        tools=[MCPToolConfig(factory="tests.integration_tests.mcp.fixtures:create_echo_tool")],
+        tools=[MCPToolConfig(factory="tests.integration_tests.mcp.fixtures.create_echo_tool")],
     )
     server = build_mcp_server(defn)
     result = await server.call_tool("echo_text", {"input": "ping"})
@@ -70,8 +70,8 @@ async def test_multi_tool_server(tmp_path: Path) -> None:
         name="multi",
         description="Multi-tool server",
         tools=[
-            MCPToolConfig(factory="tests.integration_tests.mcp.fixtures:create_echo_tool"),
-            MCPToolConfig(factory="tests.integration_tests.mcp.fixtures:create_reverse_tool"),
+            MCPToolConfig(factory="tests.integration_tests.mcp.fixtures.create_echo_tool"),
+            MCPToolConfig(factory="tests.integration_tests.mcp.fixtures.create_reverse_tool"),
         ],
     )
     server = build_mcp_server(defn)
@@ -91,7 +91,7 @@ async def test_tool_with_structured_schema(tmp_path: Path) -> None:
     defn = MCPServerDefinition(
         name="adder",
         description="Addition server",
-        tools=[MCPToolConfig(factory="tests.integration_tests.mcp.fixtures:create_add_tool")],
+        tools=[MCPToolConfig(factory="tests.integration_tests.mcp.fixtures.create_add_tool")],
     )
     server = build_mcp_server(defn)
     tools = await server.list_tools()
@@ -112,7 +112,7 @@ async def test_structured_tool_invocation() -> None:
     defn = MCPServerDefinition(
         name="adder",
         description="Addition server",
-        tools=[MCPToolConfig(factory="tests.integration_tests.mcp.fixtures:create_add_tool")],
+        tools=[MCPToolConfig(factory="tests.integration_tests.mcp.fixtures.create_add_tool")],
     )
     server = build_mcp_server(defn)
     result = await server.call_tool("add_numbers", {"a": 7, "b": 3})
@@ -137,7 +137,7 @@ def test_cli_mcp_list_runs(tmp_path: Path) -> None:
               - name: "smoke"
                 description: "Smoke test server"
                 tools:
-                  - factory: tests.integration_tests.mcp.fixtures:create_echo_tool
+                  - factory: tests.integration_tests.mcp.fixtures.create_echo_tool
             """
         )
     )

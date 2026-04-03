@@ -8,7 +8,7 @@
 # name        : Unique identifier used with ``uv run cli mcp serve --name <name>``
 # description : Human-readable description shown in ``mcp list`` and server instructions
 # tools       : List of LangChain tool factory entries (same syntax as langchain.yaml)
-#   factory   : "module.path:factory_function"
+#   factory   : "module.path.factory_function"
 #   config    : kwargs forwarded to the factory (optional)
 # agent       : Optional – wraps ALL resolved tools inside a ReAct/DeepAgent
 #               and exposes it as a single MCP tool called ``agent.name``
@@ -39,7 +39,7 @@ mcp_expose_servers:
   - name: "search"
     description: "Web search tools exposed as MCP"
     tools:
-      - factory: genai_tk.tools.langchain.search_tools_factory:create_search_function
+      - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
         verbose: false
     agent:
       enabled: true
@@ -56,7 +56,7 @@ mcp_expose_servers:
   - name: "chinook"
     description: "Natural-language SQL queries over the Chinook music datastore database"
     tools:
-      - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_tool_from_config
+      - factory: genai_tk.tools.langchain.sql_tool_factory.create_sql_tool_from_config
         config:
           database_uri: "sqlite:///${paths.project}/../genai-tk/tests/data/Chinook.sqlite"
           tool_name: "query_chinook"

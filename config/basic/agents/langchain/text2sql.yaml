@@ -30,12 +30,12 @@ langchain_agents:
         For complex questions, use write_todos to plan your approach.
 
       middlewares:
-        - class: genai_tk.agents.langchain.middleware.empty_response_retry:EmptyResponseRetryMiddleware
+        - class: genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware
           max_retries: 2
           fallback_llm: claude-haiku@openrouter
 
       tools:
-        - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_toolkit_tools
+        - factory: genai_tk.tools.langchain.sql_tool_factory.create_sql_toolkit_tools
           database_uri: sqlite:///${paths.project}/tests/data/Chinook.sqlite
 
       skill_directories:
@@ -63,7 +63,7 @@ langchain_agents:
       type: react
       description: "SQL agent for querying the Chinook music store database"
       tools:
-        - factory: genai_tk.tools.langchain.sql_tool_factory:create_sql_tool_from_config
+        - factory: genai_tk.tools.langchain.sql_tool_factory.create_sql_tool_from_config
           config:
             database_uri: sqlite:///${paths.project}/tests/data/Chinook.sqlite
             tool_name: "query_chinook"

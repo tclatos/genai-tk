@@ -18,7 +18,7 @@
 #   tools:             LangChain tools via factory/class/function patterns
 #   mcp_servers:       MCP server names from config/mcp_servers.yaml
 #   middlewares:       List of middleware (replaces defaults). Each entry has a
-#                      'class: module:Class' key plus optional constructor kwargs.
+#                      'class: module.Class' key plus optional constructor kwargs.
 #   checkpointer:      Checkpointer config (type: none | memory | class)
 #   backend:           Backend config (type: none | aio_sandbox | class)
 #                        none        – no backend (default)
@@ -27,7 +27,7 @@
 #                                      set as a sibling key (host_port, work_dir,
 #                                      startup_timeout, env_vars, …).
 #                        class       – any deepagents BackendProtocol loaded via
-#                                      qualified 'module:Class' path.
+#                                      qualified 'module.Class' path.
 #                                      Pass constructor args under 'kwargs:'.
 #                      Only meaningful for type: deep agents; ignored (with a
 #                      warning) on react/custom profiles.
@@ -49,7 +49,7 @@ langchain_agents:
     type: react
     llm: null  # null = use global default LLM from config
     middlewares:
-      - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
+      - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
     checkpointer:
       type: none  # chat mode always forces memory; use 'memory' to persist across invocations
     backend:

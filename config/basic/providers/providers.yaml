@@ -1,7 +1,7 @@
 # Provider configuration for LLM and Embeddings factories
 # 
 # Each provider specifies:
-#   - use: Module and class in format 'module.path:ClassName'
+#   - use: Module and class in format 'module.path.ClassName'
 #   - api_key_env_var: Environment variable for API key (empty string if not required)
 #   - api_base: Optional API base URL for OpenAI-compatible providers
 #   - litellm_prefix: LiteLLM provider prefix string; null means no prefix (openai-style)
@@ -15,7 +15,7 @@
 providers:
   # --- Standard OpenAI API ---
   openai:
-    use: langchain_openai:ChatOpenAI
+    use: langchain_openai.ChatOpenAI
     api_key_env_var: OPENAI_API_KEY
     litellm_prefix: null
     openai_compatible: true
@@ -23,19 +23,19 @@ providers:
   # --- Non-OpenAI APIs (use LangChain provider-specific classes) ---
 
   anthropic:
-    use: langchain_anthropic:ChatAnthropic
+    use: langchain_anthropic.ChatAnthropic
     api_key_env_var: ANTHROPIC_API_KEY
     litellm_prefix: anthropic
     openai_compatible: false
 
   google:
-    use: langchain_google_genai:ChatGoogleGenerativeAI
+    use: langchain_google_genai.ChatGoogleGenerativeAI
     api_key_env_var: GOOGLE_API_KEY
     litellm_prefix: google
     openai_compatible: false
 
   mistral:
-    use: langchain_mistralai:ChatMistralAI
+    use: langchain_mistralai.ChatMistralAI
     api_key_env_var: MISTRAL_API_KEY
     litellm_prefix: mistralai
     openai_compatible: false
@@ -44,7 +44,7 @@ providers:
   # --- OpenAI-compatible providers ---
 
   groq:
-    use: langchain_openai:ChatOpenAI
+    use: langchain_openai.ChatOpenAI
     api_key_env_var: GROQ_API_KEY
     api_base: https://api.groq.com/openai/v1
     litellm_prefix: groq
@@ -52,7 +52,7 @@ providers:
     seed_param_location: model_kwargs  # Groq expects seed in model_kwargs
 
   deepinfra:
-    use: langchain_openai:ChatOpenAI
+    use: langchain_openai.ChatOpenAI
     api_key_env_var: DEEPINFRA_API_TOKEN
     api_base: https://api.deepinfra.com/v1/openai
     litellm_prefix: deepinfra
@@ -61,7 +61,7 @@ providers:
     # DeepInfra uses OpenAI-compatible API with vendor-prefixed model names
 
   edenai:
-    use: langchain_openai:ChatOpenAI
+    use: langchain_openai.ChatOpenAI
     api_key_env_var: EDENAI_API_KEY
     api_base: https://api.edenai.run/v3/llm
     openai_compatible: true
@@ -69,7 +69,7 @@ providers:
     # EdenAI v3: accepts vendor/model format (e.g. openai/gpt-4, anthropic/claude-sonnet)
 
   openrouter:
-    use: langchain_openai:ChatOpenAI
+    use: langchain_openai.ChatOpenAI
     api_key_env_var: OPENROUTER_API_KEY
     api_base: https://openrouter.ai/api/v1
     litellm_prefix: openrouter
@@ -81,7 +81,7 @@ providers:
       default_quantization: ["fp8", "unknown", "fp16", "fp32", "bf16"]
 
   github:
-    use: langchain_openai:ChatOpenAI
+    use: langchain_openai.ChatOpenAI
     api_key_env_var: GITHUB_PRO_PAM
     api_base: https://models.github.ai/inference
     litellm_prefix: github
@@ -92,19 +92,19 @@ providers:
   # --- Other providers ---
 
   fake:
-    use: langchain_core.language_models.fake_chat_models:ParrotFakeChatModel
+    use: langchain_core.language_models.fake_chat_models.ParrotFakeChatModel
     api_key_env_var: ""
     openai_compatible: false
 
   ollama:
-    use: langchain_ollama:ChatOllama
+    use: langchain_ollama.ChatOllama
     api_key_env_var: ""
     litellm_prefix: ollama
     openai_compatible: false
     # Note: Ollama runs locally; requires special proxy handling in code
 
   azure:
-    use: langchain_openai:AzureChatOpenAI
+    use: langchain_openai.AzureChatOpenAI
     api_key_env_var: AZURE_OPENAI_API_KEY
     litellm_prefix: null
     openai_compatible: false  # Uses custom AzureChatOpenAI class
@@ -113,32 +113,32 @@ providers:
     # Azure OpenAI requires special model name parsing (name/version format)
 
   together:
-    use: langchain_together:ChatTogether
+    use: langchain_together.ChatTogether
     api_key_env_var: TOGETHER_API_KEY
     litellm_prefix: together
     openai_compatible: false
 
   deepseek:
-    use: langchain_deepseek:ChatDeepSeek
+    use: langchain_deepseek.ChatDeepSeek
     api_key_env_var: DEEPSEEK_API_KEY
     litellm_prefix: deepseek
     openai_compatible: false
 
   huggingface:
-    use: langchain_huggingface:ChatHuggingFace
+    use: langchain_huggingface.ChatHuggingFace
     api_key_env_var: HUGGINGFACEHUB_API_TOKEN
     litellm_prefix: huggingface
     openai_compatible: false
 
   custom:
-    use: langchain_openai:ChatOpenAI
+    use: langchain_openai.ChatOpenAI
     api_key_env_var: ""
     openai_compatible: true
     # For vLLM and other OpenAI-compatible providers;
     # base_url and other params should be set in llm.yaml exceptions
 
   litellm:
-    use: langchain_litellm:ChatLiteLLM
+    use: langchain_litellm.ChatLiteLLM
     api_key_env_var: ""
     litellm_prefix: null
     openai_compatible: false
@@ -147,7 +147,7 @@ providers:
 
   # NOT TESTED:
   bedrock:
-    use: langchain_aws:ChatBedrock
+    use: langchain_aws.ChatBedrock
     api_key_env_var: AWS_ACCESS_KEY_ID
     litellm_prefix: bedrock
     openai_compatible: false

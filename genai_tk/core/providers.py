@@ -22,7 +22,7 @@ class ProviderInfo(BaseModel):
     """Structured information about an LLM provider.
 
     Attributes:
-        use: Combined module:ClassName string (e.g., 'langchain_openai:ChatOpenAI')
+        use: Combined module.ClassName string (e.g., 'langchain_openai.ChatOpenAI')
         api_key_env_var: Environment variable name for API key
         api_base: Optional API base URL for OpenAI-compatible providers
         litellm_prefix: LiteLLM provider prefix; null means no prefix (openai-style)
@@ -34,7 +34,7 @@ class ProviderInfo(BaseModel):
         custom_headers: Custom headers to send with API requests
     """
 
-    use: QualifiedClassName = Field(..., description="Module and class in format 'module.path:ClassName'")
+    use: QualifiedClassName = Field(..., description="Module and class in format 'module.path.ClassName'")
     api_key_env_var: str
     api_base: str | None = None
     litellm_prefix: str | None = None

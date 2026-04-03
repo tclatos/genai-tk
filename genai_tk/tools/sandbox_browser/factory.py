@@ -4,7 +4,7 @@ Compatible with the ``factory:`` tool-spec pattern used in
 ``config/basic/agents/langchain.yaml``::
 
     tools:
-      - factory: genai_tk.tools.sandbox_browser.factory:create_sandbox_browser_tools
+      - factory: genai_tk.tools.sandbox_browser.factory.create_sandbox_browser_tools
         sandbox_url: http://localhost:8080  # optional, defaults to sandbox config
 
 Example:

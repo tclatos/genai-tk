@@ -11,9 +11,9 @@ Public API:
 
 QualifiedCallable type annotations for YAML fields holding qualified names:
 ```python
-QualifiedCallable  # 'module.path:callable'  (generic)
-QualifiedClassName  # 'module.path:ClassName'
-QualifiedFunctionName  # 'module.path:function_name'
+QualifiedCallable  # 'module.path.callable'  (generic)
+QualifiedClassName  # 'module.path.ClassName'
+QualifiedFunctionName  # 'module.path.function_name'
 ```
 """
 
@@ -57,16 +57,16 @@ M = TypeVar("M", bound=BaseModel)
 # ---------------------------------------------------------------------------
 # Qualified callable type annotations
 # ---------------------------------------------------------------------------
-_QUALIFIED_PATTERN = r"^[\w.]+:[\w]+$"
+_QUALIFIED_PATTERN = r"^[\w]+([.][\w]+)+$"
 
 QualifiedCallable = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
-"""Qualified name of any callable - format: ``'module.path:callable'``."""
+"""Qualified name of any callable - format: ``'module.path.callable'``."""
 
 QualifiedClassName = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
-"""Qualified class name -format: ``'module.path:ClassName'``."""
+"""Qualified class name - format: ``'module.path.ClassName'``."""
 
 QualifiedFunctionName = Annotated[str, StringConstraints(pattern=_QUALIFIED_PATTERN)]
-"""Qualified function name - format: ``'module.path:function_name'``."""
+"""Qualified function name - format: ``'module.path.function_name'``."""
 
 
 # ---------------------------------------------------------------------------
