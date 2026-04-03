@@ -32,6 +32,18 @@ from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.core.providers import PROVIDER_INFO
 
 
+def _deer_flow_module_prefix() -> str:
+    """Return the Python module prefix for deer-flow tool/sandbox imports.
+
+    Modern deer-flow (post-harness refactor) uses ``deerflow.`` while the
+    legacy layout uses ``src.``.
+    """
+    df_path = os.environ.get("DEER_FLOW_PATH", "")
+    if df_path and (Path(df_path) / "backend" / "packages" / "harness").exists():
+        return "deerflow"
+    return "src"
+
+
 def _check_external_symlinks(skills_path: Path, sandbox: str) -> None:
     """Warn when skills path contains symlinks to targets outside the directory.
 
@@ -188,6 +200,10 @@ def generate_deer_flow_models(
         model_id = model_info.id
         provider_name = model_info.provider
         model_name = model_info.model
+
+        # Fake/test-only providers don't support bind_tools and are useless in DeerFlow
+        if provider_name == "fake":
+            continue
 
         try:
             provider_info = model_info.get_provider_info()
@@ -357,18 +373,20 @@ def write_deer_flow_config(
 
     _check_external_symlinks(skills_path, sandbox)
 
+    pfx = _deer_flow_module_prefix()
+
     # Build sandbox config based on requested provider
     if sandbox == "docker":
         from genai_tk.agents.sandbox.config import get_docker_aio_settings
 
         aio = get_docker_aio_settings()
         sandbox_cfg: dict[str, Any] = {
-            "use": "src.community.aio_sandbox.aio_sandbox_provider:AioSandboxProvider",
+            "use": f"{pfx}.community.aio_sandbox.aio_sandbox_provider:AioSandboxProvider",
             "image": aio.image,
             "opensandbox_server_url": aio.opensandbox_server_url,
         }
     else:
-        sandbox_cfg = {"use": "src.sandbox.local:LocalSandboxProvider"}
+        sandbox_cfg = {"use": f"{pfx}.sandbox.local:LocalSandboxProvider"}
 
     cfg: dict[str, Any] = {
         "models": models,
@@ -377,45 +395,45 @@ def write_deer_flow_config(
             {
                 "name": "web_search",
                 "group": "web",
-                "use": "src.community.tavily.tools:web_search_tool",
+                "use": f"{pfx}.community.tavily.tools:web_search_tool",
                 "max_results": 5,
             },
             {
                 "name": "web_fetch",
                 "group": "web",
-                "use": "src.community.jina_ai.tools:web_fetch_tool",
+                "use": f"{pfx}.community.jina_ai.tools:web_fetch_tool",
                 "timeout": 10,
             },
             {
                 "name": "image_search",
                 "group": "web",
-                "use": "src.community.image_search.tools:image_search_tool",
+                "use": f"{pfx}.community.image_search.tools:image_search_tool",
                 "max_results": 5,
             },
             {
                 "name": "ls",
                 "group": "file:read",
-                "use": "src.sandbox.tools:ls_tool",
+                "use": f"{pfx}.sandbox.tools:ls_tool",
             },
             {
                 "name": "read_file",
                 "group": "file:read",
-                "use": "src.sandbox.tools:read_file_tool",
+                "use": f"{pfx}.sandbox.tools:read_file_tool",
             },
             {
                 "name": "write_file",
                 "group": "file:write",
-                "use": "src.sandbox.tools:write_file_tool",
+                "use": f"{pfx}.sandbox.tools:write_file_tool",
             },
             {
                 "name": "str_replace",
                 "group": "file:write",
-                "use": "src.sandbox.tools:str_replace_tool",
+                "use": f"{pfx}.sandbox.tools:str_replace_tool",
             },
             {
                 "name": "bash",
                 "group": "bash",
-                "use": "src.sandbox.tools:bash_tool",
+                "use": f"{pfx}.sandbox.tools:bash_tool",
             },
         ],
         "sandbox": sandbox_cfg,

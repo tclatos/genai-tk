@@ -176,5 +176,5 @@ deer-flow-sync:  ## Clone or update Deer-flow repository
 	@echo "Deer-flow synced at $(DEER_FLOW_DIR)"
 
 deer-flow-install: deer-flow-sync  ## Sync Deer-flow and install dependencies
-	uv sync --group deerflow
+	uv sync --group deer-flow
 	@echo "Deer-flow ready. Backend: $(DEER_FLOW_DIR)/backend"

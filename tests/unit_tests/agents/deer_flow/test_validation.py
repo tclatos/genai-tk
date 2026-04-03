@@ -256,3 +256,123 @@ class TestDockerSandboxValidation:
     def test_check_agent_sandbox_importable_real(self):
         """agent-sandbox should be importable (we just installed it)."""
         assert _check_agent_sandbox_importable() is True
+
+
+# ---------------------------------------------------------------------------
+# resolve_middlewares tests
+# ---------------------------------------------------------------------------
+
+
+class TestResolveMiddlewares:
+    """Tests for the resolve_middlewares helper."""
+
+    def test_empty_list_returns_empty(self):
+        """Empty list of qualified names returns empty list."""
+        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+
+        assert resolve_middlewares([]) == []
+
+    def test_resolves_real_class_by_qualified_name(self, tmp_path, monkeypatch):
+        """A valid qualified class name is imported and instantiated."""
+        import sys
+        import types
+
+        # Build a tiny in-memory module with a no-arg class
+        mod = types.ModuleType("_test_mw_mod")
+
+        class _MW:
+            pass
+
+        mod._MW = _MW  # type: ignore[attr-defined]
+        sys.modules["_test_mw_mod"] = mod
+        monkeypatch.setitem(sys.modules, "_test_mw_mod", mod)
+
+        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+
+        result = resolve_middlewares(["_test_mw_mod._MW"])
+        assert len(result) == 1
+        assert isinstance(result[0], _MW)
+
+    def test_raises_on_missing_module(self):
+        """ImportError raised when module path does not exist."""
+        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+
+        with pytest.raises(ImportError, match="Cannot import middleware module"):
+            resolve_middlewares(["nonexistent_module_xyz.MyClass"])
+
+    def test_raises_on_missing_class(self, tmp_path, monkeypatch):
+        """AttributeError raised when class name is not in the module."""
+        import sys
+        import types
+
+        mod = types.ModuleType("_test_mw_mod2")
+        sys.modules["_test_mw_mod2"] = mod
+        monkeypatch.setitem(sys.modules, "_test_mw_mod2", mod)
+
+        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+
+        with pytest.raises(AttributeError, match="not found in module"):
+            resolve_middlewares(["_test_mw_mod2.NonExistentClass"])
+
+    def test_raises_on_unqualified_name(self):
+        """ImportError raised when name has no module separator."""
+        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+
+        with pytest.raises(ImportError, match="fully-qualified class name"):
+            resolve_middlewares(["JustAClassName"])
+
+    def test_multiple_middlewares_instantiated_in_order(self, monkeypatch):
+        """Multiple middleware classes are instantiated and returned in list order."""
+        import sys
+        import types
+
+        mod = types.ModuleType("_test_mw_multi")
+        call_order: list[str] = []
+
+        class _MW1:
+            def __init__(self) -> None:
+                call_order.append("MW1")
+
+        class _MW2:
+            def __init__(self) -> None:
+                call_order.append("MW2")
+
+        mod._MW1 = _MW1  # type: ignore[attr-defined]
+        mod._MW2 = _MW2  # type: ignore[attr-defined]
+        sys.modules["_test_mw_multi"] = mod
+        monkeypatch.setitem(sys.modules, "_test_mw_multi", mod)
+
+        from genai_tk.agents.deer_flow.profile import resolve_middlewares
+
+        result = resolve_middlewares(["_test_mw_multi._MW1", "_test_mw_multi._MW2"])
+        assert len(result) == 2
+        assert call_order == ["MW1", "MW2"]
+
+
+# ---------------------------------------------------------------------------
+# DeerFlowProfile new fields
+# ---------------------------------------------------------------------------
+
+
+def test_profile_available_skills_none_by_default():
+    """available_skills defaults to None (all skills available)."""
+    p = DeerFlowProfile(name="test")
+    assert p.available_skills is None
+
+
+def test_profile_available_skills_list():
+    """available_skills can be set to a list of skill names."""
+    p = DeerFlowProfile(name="test", available_skills=["public/deep-research", "custom/my-skill"])
+    assert p.available_skills == ["public/deep-research", "custom/my-skill"]
+
+
+def test_profile_middlewares_empty_by_default():
+    """middlewares defaults to empty list."""
+    p = DeerFlowProfile(name="test")
+    assert p.middlewares == []
+
+
+def test_profile_middlewares_list():
+    """middlewares can be set to a list of qualified class names."""
+    p = DeerFlowProfile(name="test", middlewares=["mymod.MyMiddleware"])
+    assert p.middlewares == ["mymod.MyMiddleware"]

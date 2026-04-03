@@ -16,6 +16,10 @@ Usage:
     async for event in client.stream_message(thread_id, "What is RAG?", mode="pro"):
         if isinstance(event, TokenEvent):
             print(event.data, end="", flush=True)
+
+    # Access any upstream DeerFlowClient API directly:
+    print(client.client.list_skills())
+    print(client.client.get_memory_status())
     ```
 """
 
@@ -155,7 +159,10 @@ def _mode_flags(mode: str) -> dict[str, bool]:
 
 
 def _ensure_deer_flow_on_path() -> Path:
-    """Add ``DEER_FLOW_PATH/backend`` to :data:`sys.path` if absent.
+    """Add the DeerFlow package directory to :data:`sys.path` if absent.
+
+    Supports both the legacy layout (``DEER_FLOW_PATH/backend/src/``) and the
+    modern workspace layout (``DEER_FLOW_PATH/backend/packages/harness/``).
 
     Returns:
         Resolved backend directory path.
@@ -166,26 +173,75 @@ def _ensure_deer_flow_on_path() -> Path:
     backend_path = Path(df_path) / "backend"
     if not backend_path.exists():
         raise RuntimeError(f"DEER_FLOW_PATH/backend not found: {backend_path}")
-    backend_str = str(backend_path)
-    if backend_str not in sys.path:
-        sys.path.insert(0, backend_str)
-        logger.debug(f"Added {backend_str} to sys.path")
+
+    # Modern layout: backend/packages/harness/deerflow/
+    harness_path = backend_path / "packages" / "harness"
+    if harness_path.exists():
+        pkg_str = str(harness_path)
+        if pkg_str not in sys.path:
+            sys.path.insert(0, pkg_str)
+            logger.debug(f"Added {pkg_str} to sys.path (modern layout)")
+    else:
+        # Legacy layout: backend/src/
+        backend_str = str(backend_path)
+        if backend_str not in sys.path:
+            sys.path.insert(0, backend_str)
+            logger.debug(f"Added {backend_str} to sys.path (legacy layout)")
+
     _patch_deer_flow_print()
     _suppress_deer_flow_logging()
+    _patch_deer_flow_config_caching()
+    _check_deer_flow_compatibility()
     return backend_path
+
+
+def _patch_deer_flow_config_caching() -> None:
+    """Fix upstream config caching so explicit config_path is honoured.
+
+    When ``reload_app_config(config_path)`` is called with an explicit path,
+    the subsequent ``get_app_config()`` call must NOT re-resolve from CWD.
+    Upstream sets ``_app_config_is_custom = False`` unconditionally — we
+    patch ``_load_and_cache_app_config`` to set it to ``True`` when an
+    explicit path is given.
+
+    This is a no-op if the upstream code is already fixed.
+    """
+    try:
+        try:
+            import deerflow.config.app_config as _cfg_mod  # type: ignore[import]
+        except ImportError:
+            import src.config as _cfg_mod  # type: ignore[import]
+
+        _orig = getattr(_cfg_mod, "_load_and_cache_app_config", None)
+        if _orig is None or getattr(_cfg_mod, "_genai_tk_patched", False):
+            return
+
+        def _patched(config_path: str | None = None):  # type: ignore[override]
+            result = _orig(config_path)
+            if config_path is not None:
+                _cfg_mod._app_config_is_custom = True
+            return result
+
+        _cfg_mod._load_and_cache_app_config = _patched
+        _cfg_mod._genai_tk_patched = True
+        logger.debug("Patched deer-flow _load_and_cache_app_config for explicit config_path support")
+    except Exception as exc:
+        logger.debug(f"Could not patch deer-flow config caching (non-critical): {exc}")
 
 
 def _suppress_deer_flow_logging() -> None:
     """Raise DeerFlow's standard-library loggers to CRITICAL.
 
     DeerFlow modules use ``logging.getLogger(__name__)`` under the ``src``
-    namespace. Their INFO/ERROR messages (e.g. sandbox file-not-found 404s,
-    agent internals) are not actionable for CLI users and clutter the output.
-    Tool errors are already surfaced via ``ToolResultEvent``.
+    or ``deerflow`` namespace. Their INFO/ERROR messages (e.g. sandbox
+    file-not-found 404s, agent internals) are not actionable for CLI users
+    and clutter the output. Tool errors are already surfaced via
+    ``ToolResultEvent``.
     """
     import logging as _std_logging
 
     _std_logging.getLogger("src").setLevel(_std_logging.CRITICAL)
+    _std_logging.getLogger("deerflow").setLevel(_std_logging.CRITICAL)
 
 
 _DEER_FLOW_SUPPRESS_PREFIXES = (
@@ -234,6 +290,133 @@ def _get_checkpointer_db_path() -> Path:
 
 
 # ---------------------------------------------------------------------------
+# Compatibility checks
+# ---------------------------------------------------------------------------
+
+_compat_checked = False
+
+
+def _check_deer_flow_compatibility() -> None:
+    """Run once to detect common deer-flow compatibility issues and warn early.
+
+    Checks performed:
+    - Clone age (warn if git HEAD is older than 30 days)
+    - DeerFlowClient constructor parameters (middlewares, available_skills)
+    - Module layout consistency (DEER_FLOW_PATH points to modern vs. legacy)
+    - AgentMiddleware availability (required for custom middleware injection)
+
+    All issues are logged as warnings — nothing is fatal here.
+    """
+    global _compat_checked  # noqa: PLW0603
+    if _compat_checked:
+        return
+    _compat_checked = True
+
+    df_path = os.environ.get("DEER_FLOW_PATH", "")
+    if not df_path:
+        return
+
+    issues: list[str] = []
+    root = Path(df_path)
+
+    # --- Clone freshness ---
+    try:
+        import subprocess
+
+        result = subprocess.run(
+            ["git", "log", "-1", "--format=%ct"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            import time
+
+            commit_ts = int(result.stdout.strip())
+            age_days = (time.time() - commit_ts) / 86400
+            if age_days > 30:
+                issues.append(
+                    f"Deer-flow clone is {int(age_days)} days old. "
+                    "Run 'make deer-flow-install' to pull the latest version."
+                )
+    except Exception:
+        pass
+
+    # --- Layout detection ---
+    harness_path = root / "backend" / "packages" / "harness"
+    legacy_src = root / "backend" / "src"
+    is_modern = harness_path.exists()
+    is_legacy = legacy_src.exists() and not is_modern
+
+    if is_legacy:
+        issues.append(
+            "Deer-flow clone uses the legacy backend/src/ layout. "
+            "The modern layout (backend/packages/harness/) adds middleware and "
+            "skill filtering support. Run 'make deer-flow-install' to upgrade."
+        )
+
+    # --- DeerFlowClient API checks ---
+    try:
+        if is_modern:
+            from deerflow.client import DeerFlowClient as _Cls  # type: ignore[import]
+        else:
+            from src.client import DeerFlowClient as _Cls  # type: ignore[import]
+
+        import inspect
+
+        params = set(inspect.signature(_Cls.__init__).parameters)
+        for expected in ("middlewares", "available_skills"):
+            if expected not in params:
+                issues.append(
+                    f"DeerFlowClient.__init__ is missing '{expected}' parameter. "
+                    "Tests using this feature will be skipped. "
+                    "Pull the latest deer-flow or check the PR that adds it."
+                )
+    except ImportError:
+        issues.append(
+            "Could not import DeerFlowClient — deer-flow dependencies may not be installed. "
+            "Run 'make deer-flow-install'."
+        )
+
+    # --- AgentMiddleware availability ---
+    try:
+        from langchain.agents.middleware import AgentMiddleware  # noqa: F401
+    except ImportError:
+        issues.append(
+            "langchain.agents.middleware.AgentMiddleware is not available. "
+            "Custom middleware injection requires langchain >= 0.3.x. "
+            "Run 'uv sync --group deer-flow' to update."
+        )
+
+    # --- Config module prefix consistency ---
+    # Detect if config_bridge would use the wrong prefix
+    try:
+        from genai_tk.agents.deer_flow.config_bridge import _deer_flow_module_prefix
+
+        pfx = _deer_flow_module_prefix()
+        if is_modern and pfx == "src":
+            issues.append(
+                "Module prefix mismatch: deer-flow uses the modern layout but config_bridge "
+                "resolved 'src' prefix. Generated config.yaml tool paths will be wrong."
+            )
+        elif is_legacy and pfx == "deerflow":
+            issues.append(
+                "Module prefix mismatch: deer-flow uses the legacy layout but config_bridge "
+                "resolved 'deerflow' prefix. Generated config.yaml tool paths will be wrong."
+            )
+    except ImportError:
+        pass
+
+    if issues:
+        header = "Deer-flow compatibility check detected potential issues:"
+        details = "\n".join(f"  • {issue}" for issue in issues)
+        logger.warning(f"{header}\n{details}")
+    else:
+        logger.debug("Deer-flow compatibility check passed (no issues detected)")
+
+
+# ---------------------------------------------------------------------------
 # Embedded client
 # ---------------------------------------------------------------------------
 
@@ -246,6 +429,10 @@ class EmbeddedDeerFlowClient:
     translates DeerFlow ``StreamEvent`` objects into genai-tk typed events.
 
     No LangGraph Server or Gateway API processes are required.
+
+    The underlying :class:`src.client.DeerFlowClient` instance is
+    available via the :attr:`client` property for direct access to all
+    upstream APIs (memory, skills, MCP config, file uploads, etc.).
     """
 
     def __init__(
@@ -253,6 +440,8 @@ class EmbeddedDeerFlowClient:
         config_path: str | Path,
         *,
         model_name: str | None = None,
+        middlewares: list | None = None,
+        available_skills: set[str] | None = None,
     ) -> None:
         """Initialize the embedded client.
 
@@ -260,6 +449,10 @@ class EmbeddedDeerFlowClient:
             config_path: Path to the deer-flow ``config.yaml`` written by
                 ``setup_deer_flow_config()``.
             model_name: Default model name override passed to DeerFlow.
+            middlewares: Optional list of instantiated middleware objects to
+                inject into the agent (forwarded to ``DeerFlowClient``).
+            available_skills: Optional set of skill names to make available.
+                ``None`` means all discovered skills are available (default).
         """
         _ensure_deer_flow_on_path()
 
@@ -284,15 +477,52 @@ class EmbeddedDeerFlowClient:
                 "Install with: uv add langgraph-checkpoint-sqlite"
             )
 
-        from src.client import DeerFlowClient as _DeerFlowClient  # type: ignore[import]
+        try:
+            from deerflow.client import DeerFlowClient as _DeerFlowClient  # type: ignore[import]
+        except ImportError:
+            from src.client import DeerFlowClient as _DeerFlowClient  # type: ignore[import]
 
         self._checkpointer = checkpointer
-        self._client = _DeerFlowClient(
-            config_path=str(config_path),
-            checkpointer=self._checkpointer,
-            model_name=model_name,
-        )
+
+        # Build kwargs dynamically — the upstream DeerFlowClient evolves; pass
+        # only parameters whose names appear in the constructor signature so
+        # this wrapper works with both older and newer deer-flow installs.
+        import inspect
+
+        _supported = set(inspect.signature(_DeerFlowClient.__init__).parameters)
+        _upstream_kwargs: dict[str, Any] = {
+            "config_path": str(config_path),
+            "checkpointer": self._checkpointer,
+            "model_name": model_name,
+        }
+        if "middlewares" in _supported:
+            _upstream_kwargs["middlewares"] = middlewares or []
+        elif middlewares:
+            logger.warning(
+                "This deer-flow version does not support the 'middlewares' parameter — ignoring. "
+                "Update your deer-flow clone to enable middleware injection."
+            )
+        if "available_skills" in _supported:
+            _upstream_kwargs["available_skills"] = available_skills
+        elif available_skills is not None:
+            logger.warning(
+                "This deer-flow version does not support the 'available_skills' parameter — ignoring. "
+                "Update your deer-flow clone to enable skill filtering."
+            )
+
+        self._client = _DeerFlowClient(**_upstream_kwargs)
+        self._middlewares_supported = "middlewares" in _supported
+        self._available_skills_supported = "available_skills" in _supported
         logger.debug(f"EmbeddedDeerFlowClient ready — config={config_path}")
+
+    @property
+    def client(self):
+        """Direct access to the underlying ``DeerFlowClient`` instance.
+
+        Use this to call any upstream API not wrapped by this adapter:
+        memory management, skill installation, file uploads, MCP config, etc.
+        """
+        return self._client
 
     def clear_thread(self, thread_id: str) -> None:
         """Delete all checkpointer data for a thread so the next run starts fresh.
@@ -373,7 +603,8 @@ class EmbeddedDeerFlowClient:
             if item is _SENTINEL:
                 break
             if isinstance(item, Exception):
-                yield ErrorEvent(message=str(item))
+                msg = str(item) or f"{type(item).__name__} (no message)"
+                yield ErrorEvent(message=msg)
                 break
             for translated in _translate_event(item):
                 yield translated
@@ -407,11 +638,6 @@ class EmbeddedDeerFlowClient:
         self._client.reset_agent()
 
 
-# ---------------------------------------------------------------------------
-# Event translation
-# ---------------------------------------------------------------------------
-
-
 # Cached reference to DeerFlow's StreamEvent class (populated on first use).
 _DFStreamEvent: type | None = None
 
@@ -428,11 +654,14 @@ def _translate_event(ev: Any) -> list[StreamEvent]:
     global _DFStreamEvent  # noqa: PLW0603
     if _DFStreamEvent is None:
         try:
-            from src.client import StreamEvent as _cls  # type: ignore[import]
-
-            _DFStreamEvent = _cls
+            from deerflow.client import StreamEvent as _cls  # type: ignore[import]
         except ImportError:
-            return []
+            try:
+                from src.client import StreamEvent as _cls  # type: ignore[import]
+            except ImportError:
+                return []
+
+        _DFStreamEvent = _cls
 
     if not isinstance(ev, _DFStreamEvent):
         return []

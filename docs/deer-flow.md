@@ -20,8 +20,8 @@ cli agents deerflow -p "Research Assistant" --chat
 # Override LLM at runtime
 cli agents deerflow -p "Coder" -m gpt_41@openai --chat
 
-# Start with web UI (Next.js + LangGraph backend)
-cli agents deerflow -p "Research Assistant" --web
+# Generate native DeerFlow config files + start instructions for web UI
+cli agents deerflow -p "Research Assistant" --generate-config
 
 # List configured profiles
 cli agents deerflow --list
@@ -41,7 +41,7 @@ echo "Summarise this text: ..." | cli agents deerflow
 | `--mode MODE` | | Override mode: `flash` `thinking` `pro` `ultra` |
 | `--trace` | | Show graph node names as the agent works |
 | `--list` | | Print profile table and exit |
-| `--web` | | Start Deer-flow backend + Next.js web UI (localhost:3000) |
+| `--generate-config` | `-G` | Generate config files + print launch instructions for native DeerFlow web UI |
 | `--verbose` | `-v` | Enable DEBUG logging |
 
 ### Chat Commands
@@ -102,15 +102,16 @@ No external servers are required for terminal mode.
 │       │                                            │
 │  EmbeddedDeerFlowClient  ←─ sys.path injection    │
 │       │                    (DEER_FLOW_PATH/backend) │
-│  DeerFlowClient (in-process, no HTTP)             │
-│       │                                            │
-│  config_bridge.py  ──► generates config.yaml      │
+│  src.client.DeerFlowClient (in-process)            │
+│       ├── middlewares (injected from profile)      │
+│       ├── available_skills (filtered from profile) │
 │       └── SqliteSaver at data/kv_store/...        │
 │                                                    │
-│  [--web only]:                                     │
-│       ├─► LangGraph Server :2024                  │
-│       └─► Gateway API :8001                       │
-│           ↑ Next.js frontend @ localhost:3000      │
+│  config_bridge.py  ──► generates config.yaml      │
+│                                                    │
+│  [--generate-config]:                              │
+│       ├─► config.yaml + extensions_config.json    │
+│       └─► prints: langgraph dev / pnpm dev        │
 └────────────────────────────────────────────────────┘
 ```
 
@@ -132,7 +133,13 @@ deerflow_agents:
       - tavily-mcp
     skill_directories:
       - ${paths.project}/skills
-    auto_start: true
+    # Skill filtering: only expose these skills to the agent (omit for all)
+    available_skills:
+      - public/deep-research
+      - public/data-analysis
+    # Custom middlewares (Python qualified class name, no-arg constructor)
+    middlewares:
+      - mypackage.middleware.LoggingMiddleware
 
   - name: Coder
     description: Code analysis and generation
@@ -157,13 +164,80 @@ deerflow:
 | `llm` | `null` | LLM override (genai-tk ID or tag) |
 | `mcp_servers` | `[]` | MCP server names from `mcp_servers.yaml` |
 | `skill_directories` | `[]` | Directories to auto-discover skills from |
-| `auto_start` | `true` | Auto-start servers when using `--web` |
+| `available_skills` | `null` | Restricts agent to these skill names only (null = all) |
+| `middlewares` | `[]` | Python qualified class names to inject as agent middlewares |
+
+## Middlewares
+
+Middlewares allow injecting custom logic into the DeerFlow agent pipeline
+(e.g. logging, guardrails, token tracking, audit trails).
+
+### Writing a middleware
+
+Middlewares must implement DeerFlow's `AgentMiddleware` interface:
+
+```python
+from langchain.agents.middleware import AgentMiddleware
+
+class LoggingMiddleware(AgentMiddleware):
+    """Records each agent invocation for auditing."""
+
+    def on_agent_action(self, action, **kwargs):
+        print(f"[AUDIT] Action: {action.tool} args={action.tool_input}")
+        return action
+
+    def on_agent_finish(self, finish, **kwargs):
+        print(f"[AUDIT] Done: {finish.return_values}")
+        return finish
+```
+
+Place this in a Python module on `sys.path`, then reference it in the profile:
+
+```yaml
+middlewares:
+  - mypackage.middleware.LoggingMiddleware
+```
+
+The class is instantiated with no arguments at startup. Multiple middlewares
+are stacked in list order.
+
+### Skill filtering
+
+`available_skills` limits which skills the agent may use:
+
+```yaml
+available_skills:
+  - public/deep-research
+  - custom/my-skill
+```
+
+When omitted (or `null`), all discovered skills are available.
+
+## Native DeerFlow Web UI
+
+Use `--generate-config` to export the DeerFlow-native config files then launch
+the standard upstream DeerFlow stack (LangGraph backend + Next.js frontend):
+
+```bash
+# Generate config.yaml + extensions_config.json
+cli agents deerflow -p "Research Assistant" --generate-config
+
+# Terminal 1 — backend
+cd $DEER_FLOW_PATH/backend
+langgraph dev
+
+# Terminal 2 — frontend
+cd $DEER_FLOW_PATH/frontend
+pnpm dev
+```
+
+Then open `http://localhost:3000`.
 
 ## Skills
 
 Skills are Deer-flow "task templates" that extend what the agent can do (chart
 generation, PPT creation, deep research, etc.). They are SKILL.md files loaded
-by the Gateway server.
+at startup.
 
 ### Directory structure
 
@@ -171,23 +245,16 @@ by the Gateway server.
 skills/
 ├── public/       # Symlinks to deer-flow public skills
 │   ├── chart-visualization -> $DEER_FLOW_PATH/skills/public/chart-visualization
-│   ├── data-analysis
-│   └── ... (15 total)
+│   └── ...
 └── custom/       # Your own skills
-    └── README.md
+    └── my-skill/
+        └── SKILL.md
 ```
 
 Link the public skills from your Deer-flow clone:
 ```bash
 ln -s $DEER_FLOW_PATH/skills/public skills/public
 ```
-
-### Available public skills
-
-`chart-visualization`, `consulting-analysis`, `data-analysis`, `deep-research`,
-`find-skills`, `frontend-design`, `github-deep-research`, `image-generation`,
-`podcast-generation`, `ppt-generation`, `skill-creator`, `surprise-me`,
-`vercel-deploy-claimable`, `video-generation`, `web-design-guidelines`.
 
 ### Creating a custom skill
 
@@ -207,26 +274,40 @@ description: Brief description for the LLM
 Instructions for the agent...
 ```
 
-Enable in profile:
+Reference in profile:
 ```yaml
-skills:
-  - custom/my-skill   # custom/ prefix for custom skills
-  - deep-research     # public skills need no prefix
+available_skills:
+  - custom/my-skill
+  - public/deep-research
 ```
-
-Skills not found on the server are silently skipped (logged at DEBUG level).
 
 ## Embedded Client API
 
 ```python
-from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+from genai_tk.agents.deer_flow import EmbeddedDeerFlowClient
+from genai_tk.agents.deer_flow import resolve_middlewares
 
-client = EmbeddedDeerFlowClient(config_path="/path/to/config.yaml")
+middlewares = resolve_middlewares(["mypackage.middleware.LoggingMiddleware"])
+client = EmbeddedDeerFlowClient(
+    config_path="/path/to/config.yaml",
+    middlewares=middlewares,
+    available_skills={"public/deep-research", "custom/my-skill"},
+)
 thread_id = "session-1"
 
 async for event in client.stream_message(thread_id, "Explain transformer attention"):
     if isinstance(event, TokenEvent):
         print(event.data, end="", flush=True)
+```
+
+Access the upstream `DeerFlowClient` directly for memory, skills management, and MCP:
+
+```python
+# Direct upstream API access
+client.client.get_memory_status()
+client.client.list_skills()
+client.client.update_skill("deep-research", enabled=True)
+client.client.update_mcp_config({"tavily": {...}})
 ```
 
 Multi-turn conversations reuse the same `thread_id`:
@@ -239,29 +320,25 @@ await client.stream_message("user-123", "How does it compare to fine-tuning?")
 
 | Event | When emitted |
 |-------|-------------|
-| `TokenEvent(data)` | New text token from the AI |
+| `TokenEvent(data)` | New text from the AI |
 | `NodeEvent(node)` | Graph node activated (Planner, Researcher, Coder, Reporter) |
 | `ToolCallEvent(tool_name, args, call_id)` | Agent called a tool |
 | `ToolResultEvent(tool_name, content, call_id)` | Tool returned a result |
+| `ClarificationEvent(question)` | Agent paused to ask a clarifying question |
 | `ErrorEvent(message)` | An error occurred |
 
 ## Troubleshooting
 
 **ImportError: cannot import DeerFlowClient**
 - Verify `DEER_FLOW_PATH` is set and `$DEER_FLOW_PATH/backend/src/client.py` exists.
+- Run `uv sync` in `$DEER_FLOW_PATH/backend`.
 
 **ModuleNotFoundError: No module named 'readabilipy'**
 - `uv add readabilipy` (required by Deer-flow's web_fetch tool).
 
-**File output not accessible (Docker sandbox)**
-- Files land inside the container at `/mnt/user-data/outputs/`.
-- Use `--web` flag which mounts the outputs directory to the host.
-
-**Stale model in web UI**
-- Deer-flow saves the last-used model in `localStorage`.
-- If the backend model list changes, the stale name causes `ValueError: Model not found`.
-- Fix: clear browser localStorage for `localhost:3000`, or see
-  [design/deer_flow_input_box_patch.md](design/deer_flow_input_box_patch.md) for the frontend patch.
+**ImportError on middleware class**
+- Ensure the middleware module is on `sys.path` / installed.
+- Class must be a fully-qualified name: `module.ClassName`.
 
 **Multi-turn memory lost after restart**
 - The SqliteSaver checkpointer is in-process; restarting genai-tk starts fresh.

@@ -1,7 +1,6 @@
 """CLI commands for Deer-flow agents (embedded client mode).
 
 Loads DeerFlow in-process via DEER_FLOW_PATH/backend — no HTTP servers needed.
-The --web option still starts the backend servers for the Next.js frontend.
 
 Usage examples:
     cli deerflow --list
@@ -10,6 +9,7 @@ Usage examples:
     cli deerflow -p "Research Assistant" --mode ultra --trace "Analyse AI trends"
     cli deerflow -p "Web Browser" --llm gpt_41mini@openai "Go to atos.net"
     cli deerflow -p "Research Assistant" --subagent --plan-mode "Build a report"
+    cli deerflow -p "Research Assistant" --generate-config
 """
 
 from __future__ import annotations
@@ -203,15 +203,12 @@ async def _prepare_profile(
     mode_override: str | None,
     verbose: bool,
     *,
-    start_servers: bool = False,
     sandbox_override: str | None = None,
 ) -> tuple[DeerFlowProfile, str | None, Path]:
     """Load, validate and prepare a profile, then write the deer-flow config.
 
-    For embedded (terminal) mode ``start_servers=False`` (default): only writes
-    ``config.yaml`` + ``extensions_config.json`` — no server restart is done.
-    For ``--web`` mode pass ``start_servers=True`` to also restart the backend
-    servers so the Next.js frontend has live processes to connect to.
+    Writes ``config.yaml`` + ``extensions_config.json`` ready for use by
+    the embedded client.
 
     Args:
         profile_name: Profile name from deerflow.yaml.
@@ -219,7 +216,6 @@ async def _prepare_profile(
         extra_mcp: Additional MCP server names.
         mode_override: Mode override string.
         verbose: Enable DEBUG-level logging.
-        start_servers: When True, restart deer-flow backend servers after config write.
         sandbox_override: Override sandbox type (None = use profile setting).
 
     Returns:
@@ -290,70 +286,7 @@ async def _prepare_profile(
             console.print(f"[red]Error:[/red] {e}")
             raise typer.Exit(1) from e
 
-    if start_servers:
-        await _ensure_server(profile.auto_start, profile.deer_flow_path, profile.langgraph_url, profile.gateway_url)
-
     return profile, model_name, config_path
-
-
-async def _ensure_server(
-    profile_auto_start: bool,
-    deer_flow_path: str | None,
-    langgraph_url: str,
-    gateway_url: str,
-) -> None:
-    """Restart the server so the freshly generated config.yaml is picked up.
-
-    Performs the equivalent of ``make clean && make dev``: kills processes,
-    stops sandbox containers, clears logs, then starts fresh.  LangGraph runs
-    with ``--no-reload``, so a restart is required for every config change.
-
-    If ``profile_auto_start`` is False, the server must already be running; a
-    reminder to restart manually is shown instead.
-
-    Args:
-        profile_auto_start: Whether the profile allows auto-starting the server.
-        deer_flow_path: Override path to deer-flow clone (falls back to DEER_FLOW_PATH env).
-        langgraph_url: LangGraph server base URL.
-        gateway_url: Gateway API base URL.
-    """
-    from genai_tk.agents.deer_flow.server_manager import DeerFlowServerManager
-
-    if not profile_auto_start:
-        mgr = DeerFlowServerManager(
-            langgraph_url=langgraph_url,
-            gateway_url=gateway_url,
-        )
-        if not await mgr.is_running():
-            console.print(
-                "[red]Deer-flow server is not running.[/red] Start it manually or set auto_start: true in the profile."
-            )
-            raise typer.Exit(1)
-        console.print(
-            "[yellow]Note:[/yellow] Config was regenerated — restart the Deer-flow server manually to pick up changes."
-        )
-        return
-
-    df_path = deer_flow_path or os.environ.get("DEER_FLOW_PATH", "")
-    if not df_path:
-        console.print(
-            "[red]Cannot auto-start:[/red] DEER_FLOW_PATH is not set. Point it to your deer-flow clone directory."
-        )
-        raise typer.Exit(1)
-
-    with console.status("Restarting Deer-flow (stop → clean → start)...", spinner="dots"):
-        mgr = DeerFlowServerManager(
-            deer_flow_path=df_path,
-            langgraph_url=langgraph_url,
-            gateway_url=gateway_url,
-        )
-        try:
-            await mgr.restart()
-            df_root = df_path
-            console.print(f"[green]✓ Deer-flow servers started[/green]  [dim]Logs → {df_root}/logs/[/dim]")
-        except Exception as e:
-            console.print(f"[red]Failed to restart Deer-flow servers:[/red] {e}")
-            raise typer.Exit(1) from e
 
 
 # ---------------------------------------------------------------------------
@@ -621,7 +554,7 @@ def _list_profiles() -> None:
     table.add_column("Mode", style="magenta")
     table.add_column("Tool Groups", style="green")
     table.add_column("MCP Servers", style="blue")
-    table.add_column("LangGraph URL", style="dim")
+    table.add_column("Middlewares", style="yellow")
 
     for p in profiles:
         name = f"* {p.name}" if default_name and p.name == default_name else p.name
@@ -630,7 +563,7 @@ def _list_profiles() -> None:
             p.mode or "flash",
             ", ".join(p.tool_groups) or "-",
             ", ".join(p.mcp_servers) or "-",
-            str(p.langgraph_url),
+            ", ".join(m.rsplit(".", 1)[-1] for m in p.middlewares) or "-",
         )
 
     console.print(table)
@@ -670,6 +603,7 @@ async def _run_single_shot(
         sandbox_override: Override sandbox type (None = use profile setting).
     """
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+    from genai_tk.agents.deer_flow.profile import resolve_middlewares
 
     profile, model_name, config_path = await _prepare_profile(
         profile_name, llm_override, extra_mcp, mode_override, verbose, sandbox_override=sandbox_override
@@ -689,7 +623,14 @@ async def _run_single_shot(
         _cleanup_stale_sandbox_containers()
 
     with console.status("Loading deer-flow agent...", spinner="dots"):
-        client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
+        middlewares = resolve_middlewares(profile.middlewares)
+        available_skills = set(profile.available_skills) if profile.available_skills is not None else None
+        client = EmbeddedDeerFlowClient(
+            config_path=config_path,
+            model_name=model_name,
+            middlewares=middlewares,
+            available_skills=available_skills,
+        )
 
     # Deterministic thread_id so the Docker sandbox container is reused
     # across single-shot runs (each random UUID would spin up a new container).
@@ -809,6 +750,7 @@ async def _run_chat_mode(
         sandbox_override: Override sandbox type (None = use profile setting).
     """
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
+    from genai_tk.agents.deer_flow.profile import resolve_middlewares
 
     profile, model_name, config_path = await _prepare_profile(
         profile_name, llm_override, extra_mcp, mode_override, verbose, sandbox_override=sandbox_override
@@ -837,7 +779,14 @@ async def _run_chat_mode(
         _cleanup_stale_sandbox_containers()
 
     with console.status("Loading deer-flow agent...", spinner="dots"):
-        client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
+        middlewares = resolve_middlewares(profile.middlewares)
+        available_skills = set(profile.available_skills) if profile.available_skills is not None else None
+        client = EmbeddedDeerFlowClient(
+            config_path=config_path,
+            model_name=model_name,
+            middlewares=middlewares,
+            available_skills=available_skills,
+        )
     thread_id = _stable_thread_id()
     client.clear_thread(thread_id)
     from prompt_toolkit import PromptSession
@@ -1041,179 +990,64 @@ async def _run_chat_mode(
 
 
 # ---------------------------------------------------------------------------
-# Web client launcher
+# Config generation helper (for --generate-config)
 # ---------------------------------------------------------------------------
 
 
-async def _open_web_client(
+def _generate_config_and_print_instructions(
     profile_name: str,
     llm_override: str | None,
     extra_mcp: list[str],
     mode_override: str | None,
     verbose: bool,
-    web_port: int = 3000,
-    start_timeout_seconds: float = 180.0,
 ) -> None:
-    """Start the deer-flow backend then launch the Next.js web client.
+    """Generate DeerFlow config files and print instructions to launch the native stack.
 
-    Ensures the backend server is running (auto-starting it if needed), sets
-    ``NEXT_PUBLIC_BACKEND_BASE_URL`` / ``NEXT_PUBLIC_LANGGRAPH_BASE_URL`` from the
-    profile, and starts ``node_modules/.bin/next dev`` inside
-    ``DEER_FLOW_PATH/frontend``.  The binary is invoked directly (instead of via
-    ``pnpm dev``) to avoid pnpm's self-version-management mechanism, which tries to
-    download an exact pnpm release into the (possibly root-owned) store and causes
-    EACCES errors.  Blocks until the subprocess exits or the user presses Ctrl+C.
+    Writes ``config.yaml`` and ``extensions_config.json`` to the DeerFlow backend
+    directory (or a temp directory when ``DEER_FLOW_PATH`` is not set), then prints
+    step-by-step instructions to start the standard DeerFlow backend and frontend.
 
     Args:
         profile_name: Profile to load from ``deerflow.yaml``.
-        llm_override: LLM identifier override (e.g. ``gpt_41mini@openai``).
+        llm_override: LLM identifier override.
         extra_mcp: Additional MCP server names to enable.
-        mode_override: Mode override string (``flash|thinking|pro|ultra``).
+        mode_override: Mode override string.
         verbose: Enable DEBUG-level logging.
-        web_port: Port for the Next.js dev server (default 3000).
-        start_timeout_seconds: Seconds to wait for the dev server to begin listening.
-
-    Example:
-        ```python
-        asyncio.run(_open_web_client("Research Assistant", None, [], None, False))
-        ```
     """
     import asyncio as _aio
-    import webbrowser
 
-    profile, model_name, _config_path = await _prepare_profile(
-        profile_name, llm_override, extra_mcp, mode_override, verbose, start_servers=True
-    )
-
-    # Locate frontend directory
-    df_path = profile.deer_flow_path or os.environ.get("DEER_FLOW_PATH", "")
-    if not df_path:
-        console.print(
-            "[red]Cannot start web client:[/red] DEER_FLOW_PATH is not set. Point it to your deer-flow clone directory."
+    async def _run() -> None:
+        profile, _model_name, config_path = await _prepare_profile(
+            profile_name, llm_override, extra_mcp, mode_override, verbose
         )
-        raise typer.Exit(1)
+        ext_config_path = config_path.parent / "extensions_config.json"
+        df_path = os.environ.get("DEER_FLOW_PATH", "")
 
-    frontend_dir = Path(df_path) / "frontend"
-    if not frontend_dir.exists():
-        console.print(f"[red]Frontend directory not found:[/red] {frontend_dir}")
-        raise typer.Exit(1)
-
-    web_url = f"http://localhost:{web_port}"
-
-    # Pass backend URLs via environment variables consumed by Next.js.
-    env = os.environ.copy()
-    env["NEXT_PUBLIC_BACKEND_BASE_URL"] = profile.gateway_url
-    env["NEXT_PUBLIC_LANGGRAPH_BASE_URL"] = profile.langgraph_url
-
-    logs_dir = Path(df_path) / "logs"
-    logs_dir.mkdir(exist_ok=True)
-    frontend_log = logs_dir / "frontend.log"
-
-    console.print(
-        f"[cyan]Profile:[/cyan] {profile.name}  [cyan]Mode:[/cyan] {profile.mode}  [cyan]Sandbox:[/cyan] {profile.sandbox}"
-    )
-    console.print(f"[cyan]Backend:[/cyan] {profile.gateway_url}  [cyan]LangGraph:[/cyan] {profile.langgraph_url}")
-    console.print(f"[cyan]Frontend log:[/cyan] {frontend_log}")
-    console.print(f"[cyan]Starting deer-flow web client …[/cyan] {web_url}")
-
-    # Build the command to start the Next.js dev server.
-    # We invoke node_modules/.bin/next directly instead of 'pnpm dev' to bypass
-    # pnpm's "manage-package-manager-versions" mechanism, which unconditionally
-    # tries to self-install pnpm@<version> into the (potentially root-owned) store
-    # and hangs or fails with EACCES.  The dev script in package.json is parsed so
-    # the command stays in sync with upstream changes.
-    next_bin = frontend_dir / "node_modules" / ".bin" / "next"
-    if not next_bin.exists():
-        console.print(f"[red]node_modules not found.[/red] Run [bold]pnpm install[/bold] inside {frontend_dir} first.")
-        raise typer.Exit(1)
-    import json as _json
-
-    pkg_json = frontend_dir / "package.json"
-    dev_script_raw: str = "next dev"
-    try:
-        dev_script_raw = _json.loads(pkg_json.read_text()).get("scripts", {}).get("dev", dev_script_raw)
-    except Exception:
-        pass
-    # Replace the bare 'next' with the absolute path to the local binary so we
-    # never rely on whatever 'next' is on PATH.
-    dev_args = dev_script_raw.split()
-    if dev_args and dev_args[0] == "next":
-        dev_args[0] = str(next_bin)
-    dev_cmd = [*dev_args, "--port", str(web_port)]
-
-    log_fp = open(frontend_log, "w", encoding="utf-8")  # noqa: WPS515
-    try:
-        proc = await _aio.create_subprocess_exec(
-            *dev_cmd,
-            cwd=str(frontend_dir),
-            env=env,
-            stdout=_aio.subprocess.PIPE,
-            stderr=_aio.subprocess.STDOUT,
-        )
-    except Exception:
-        log_fp.close()
-        raise
-
-    async def _stream_frontend_output() -> None:
-        assert proc.stdout is not None
-        while True:
-            line = await proc.stdout.readline()
-            if not line:
-                break
-            text = line.decode(errors="replace").rstrip("\n")
-            log_fp.write(text + "\n")
-            log_fp.flush()
-            console.print(text, markup=False)
-
-    output_task = _aio.create_task(_stream_frontend_output())
-
-    # Poll until the port is accepting connections (or the process dies).
-    opened = False
-    deadline = _aio.get_event_loop().time() + start_timeout_seconds
-    while _aio.get_event_loop().time() < deadline:
-        if proc.returncode is not None:
-            await output_task
+        console.print("\n[green]✓ Config files generated:[/green]")
+        console.print(f"  config.yaml          → [cyan]{config_path}[/cyan]")
+        console.print(f"  extensions_config.json → [cyan]{ext_config_path}[/cyan]")
+        console.print()
+        console.print("[bold]To launch the native DeerFlow stack:[/bold]")
+        console.print()
+        if df_path:
+            console.print("[bold cyan]Backend (terminal 1):[/bold cyan]")
+            console.print(f"  cd {df_path}/backend")
+            console.print("  langgraph dev")
+            console.print()
+            console.print("[bold cyan]Frontend (terminal 2):[/bold cyan]")
+            console.print(f"  cd {df_path}/frontend")
+            console.print("  pnpm dev")
+            console.print()
+            console.print("[dim]Then open http://localhost:3000 in your browser.[/dim]")
+        else:
             console.print(
-                f"[red]next dev exited early (code {proc.returncode}). Web client did not start.[/red] "
-                f"See: {frontend_log}"
+                "[yellow]DEER_FLOW_PATH is not set.[/yellow] "
+                "Set it to your deer-flow clone, then run:\n"
+                "  cd $DEER_FLOW_PATH/backend && langgraph dev\n"
+                "  cd $DEER_FLOW_PATH/frontend && pnpm dev"
             )
-            raise typer.Exit(1)
 
-        try:
-            _, writer = await _aio.wait_for(_aio.open_connection("localhost", web_port), timeout=1.0)
-            writer.close()
-            await writer.wait_closed()
-            opened = True
-            break
-        except (ConnectionRefusedError, _aio.TimeoutError, OSError):
-            await _aio.sleep(1)
-
-    if opened:
-        webbrowser.open(web_url)
-        console.print(f"[green]Opened {web_url} in browser.[/green] Press [bold]Ctrl+C[/bold] to stop.")
-    else:
-        console.print(
-            f"[yellow]Timed out waiting for {web_url} after {start_timeout_seconds:.0f}s.[/yellow] "
-            f"The dev server may still be starting. See: {frontend_log}"
-        )
-        webbrowser.open(web_url)
-
-    try:
-        await proc.wait()
-        await output_task
-    except (KeyboardInterrupt, _aio.CancelledError):
-        proc.terminate()
-        try:
-            await _aio.wait_for(proc.wait(), timeout=5)
-        except _aio.TimeoutError:
-            proc.kill()
-        try:
-            await _aio.wait_for(output_task, timeout=2)
-        except Exception:
-            output_task.cancel()
-        console.print("\n[yellow]Web client stopped.[/yellow]")
-    finally:
-        log_fp.close()
+    _aio.run(_run())
 
 
 # ---------------------------------------------------------------------------
@@ -1276,14 +1110,15 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                 bool,
                 typer.Option("--verbose", "-v", help="Enable DEBUG logging."),
             ] = False,
-            web: Annotated[
+            generate_config: Annotated[
                 bool,
                 typer.Option(
-                    "--web",
+                    "--generate-config",
+                    "-G",
                     help=(
-                        "Start the native deer-flow Next.js web client. "
-                        "Launches DEER_FLOW_PATH/frontend/node_modules/.bin/next dev with the "
-                        "profile's backend URLs and opens the browser. Requires DEER_FLOW_PATH."
+                        "Generate DeerFlow config.yaml and extensions_config.json, then print "
+                        "instructions to start the native DeerFlow backend (langgraph dev) and "
+                        "frontend (pnpm dev). Use this to connect the standard DeerFlow web UI."
                     ),
                 ),
             ] = False,
@@ -1302,9 +1137,11 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
         ) -> None:
             """Run Deer-flow agents in-process (embedded mode).
 
-            DeerFlow is loaded directly via DEER_FLOW_PATH/backend. No server
-            processes are required for terminal usage. The --web option still
-            starts the backend servers for the Next.js frontend.
+            DeerFlow is loaded directly via DEER_FLOW_PATH/backend. No server processes
+            are required for terminal usage.
+
+            Use --generate-config to write the native DeerFlow config files and get
+            instructions for launching the standard DeerFlow backend and frontend.
 
             Examples:
                 cli deerflow --list
@@ -1314,7 +1151,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                 cli deerflow -p "Coder" --llm gpt_41mini@openai --mode pro "Refactor my code"
                 cli deerflow -p "Research Assistant" --subagent --plan-mode "Study AI trends"
                 echo "What is RAG?" | cli deerflow -p "Research Assistant"
-                cli deerflow -p "Research Assistant" --web
+                cli deerflow -p "Research Assistant" --generate-config
             """
             if list_profiles:
                 _list_profiles()
@@ -1334,25 +1171,20 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                     console.print("[red]--profile/-p is required (or --list to see options)[/red]")
                     raise typer.Exit(1)
 
-            if web:
+            if generate_config:
                 try:
-                    asyncio.run(
-                        _open_web_client(
-                            profile_name=profile,
-                            llm_override=llm,
-                            extra_mcp=list(mcp),
-                            mode_override=mode,
-                            verbose=verbose,
-                        )
+                    _generate_config_and_print_instructions(
+                        profile_name=profile,
+                        llm_override=llm,
+                        extra_mcp=list(mcp),
+                        mode_override=mode,
+                        verbose=verbose,
                     )
-                except KeyboardInterrupt:
-                    console.print("\n[yellow]Interrupted[/yellow]")
-                    raise typer.Exit(0) from None
                 except typer.Exit:
                     raise
                 except Exception as e:
                     console.print(f"\n[red]Error:[/red] {e}")
-                    logger.exception("Deer-flow web client error")
+                    logger.exception("Deer-flow config generation error")
                     raise typer.Exit(1) from e
                 return
 

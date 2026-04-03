@@ -29,6 +29,10 @@
 # ============================================================================
 # Global Configuration
 # ============================================================================
+
+# :env:
+#   DEER_FLOW_PATH: ${oc.env:DEER_FLOW_PATH,${paths.project}/ext/deer-flow}
+
 deerflow:
   # Skills configuration
   # IMPORTANT: the FIRST entry is volume-mounted into the Docker sandbox at
@@ -104,6 +108,13 @@ deerflow_agents:
     skill_directories:
       - ${paths.project}/ext/deer-flow/skills  # Public skills (Docker-accessible)
      # - ${paths.project}/skills/custom          # Project custom skills
+    # Skill filtering: only expose these skills to the agent (omit to allow all)
+    # available_skills:
+    #   - public/deep-research
+    #   - public/data-analysis
+    # Custom middlewares by Python qualified class name (no-arg constructors):
+    # middlewares:
+    #   - genai_tk.agents.deer_flow.middlewares.LoggingMiddleware
     features:
       - "🌐 Web Search"
       - "📊 Data Analysis"

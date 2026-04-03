@@ -1,13 +1,13 @@
 """Deer-flow agent profile model.
 
 Defines the Pydantic profile loaded from config/agents/deerflow.yaml.
-Replaces the old DeerFlowAgentConfig dataclass.
 """
 
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
-from typing import Literal, cast, get_args
+from typing import Any, Literal, cast, get_args
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -46,12 +46,56 @@ class DeerFlowProfile(BaseModel):
 
     sandbox: DeerFlowSandbox = "local"
 
-    # --web mode: server lifecycle settings
-    auto_start: bool = True
-    deer_flow_path: str | None = None
-    base_url: str = "http://localhost:2026"
-    langgraph_url: str = "http://localhost:2024"
-    gateway_url: str = "http://localhost:8001"
+    # Skill filtering: when set, only the listed skill names are made available
+    # to the agent (mapped to DeerFlowClient's ``available_skills`` parameter).
+    # None means all discovered skills are available.
+    available_skills: list[str] | None = None
+
+    # Custom middlewares to inject: list of Python qualified class names,
+    # e.g. ``["mypackage.middleware.LoggingMiddleware"]``.
+    # Each class is imported and instantiated (no constructor arguments) at
+    # runtime via :func:`resolve_middlewares`.
+    middlewares: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Middleware resolution
+# ---------------------------------------------------------------------------
+
+
+def resolve_middlewares(qualified_names: list[str]) -> list[Any]:
+    """Import and instantiate middleware classes by their Python qualified names.
+
+    Each entry in *qualified_names* must be a fully-qualified class path such as
+    ``mypackage.module.MyMiddleware``.  The class is imported via
+    :mod:`importlib` and instantiated with no constructor arguments.
+
+    Args:
+        qualified_names: List of ``module.ClassName`` strings.
+
+    Returns:
+        List of instantiated middleware objects.
+
+    Raises:
+        ImportError: If a module cannot be imported.
+        AttributeError: If the class is not found in the module.
+        TypeError: If the class cannot be instantiated without arguments.
+    """
+    middlewares = []
+    for qname in qualified_names:
+        if "." not in qname:
+            raise ImportError(f"Middleware '{qname}' must be a fully-qualified class name (module.ClassName).")
+        module_path, class_name = qname.rsplit(".", 1)
+        try:
+            module = importlib.import_module(module_path)
+        except ImportError as exc:
+            raise ImportError(f"Cannot import middleware module '{module_path}': {exc}") from exc
+        cls = getattr(module, class_name, None)
+        if cls is None:
+            raise AttributeError(f"Class '{class_name}' not found in module '{module_path}'.")
+        middlewares.append(cls())
+        logger.debug(f"Loaded middleware: {qname}")
+    return middlewares
 
 
 # ---------------------------------------------------------------------------

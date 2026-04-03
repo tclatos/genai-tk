@@ -19,6 +19,7 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
 :env:
   LOGURU_LEVEL: INFO
   LANGCHAIN_TRACING_V2: "false"  # Disable LangChain v2 tracing by default (can be enabled in overrides or env)
+  DEER_FLOW_PATH: ${oc.env:DEER_FLOW_PATH,${paths.project}/ext/deer-flow}
 
 paths:
   home: ${oc.env:HOME}

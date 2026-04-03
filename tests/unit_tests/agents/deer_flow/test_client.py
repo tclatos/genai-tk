@@ -84,7 +84,34 @@ def fake_deer_flow_env(monkeypatch, tmp_path):
     fake_src_client = sys.modules["src.client"]
     fake_src_client.DeerFlowClient = mock_df_client_cls  # type: ignore[attr-defined]
 
-    return {"config_path": fake_config, "mock_cls": mock_df_client_cls}
+    # Also inject a fake deerflow.client so the modern-layout import path
+    # resolves to the same mock (prevents loading the real deer-flow module).
+    fake_df = sys.modules.get("deerflow") or ModuleType("deerflow")
+    fake_df_client = ModuleType("deerflow.client")
+    fake_df_client.DeerFlowClient = mock_df_client_cls  # type: ignore[attr-defined]
+    fake_df_client.StreamEvent = _FakeStreamEvent  # type: ignore[attr-defined]
+    prev_df = sys.modules.get("deerflow")
+    prev_df_client = sys.modules.get("deerflow.client")
+    sys.modules["deerflow"] = fake_df
+    sys.modules["deerflow.client"] = fake_df_client
+
+    # Reset the compat-check flag so clean-room detection runs per test
+    import genai_tk.agents.deer_flow.embedded_client as _ec
+
+    old_compat = _ec._compat_checked
+    _ec._compat_checked = True  # skip compat check in unit tests
+
+    yield {"config_path": fake_config, "mock_cls": mock_df_client_cls}
+
+    _ec._compat_checked = old_compat
+    if prev_df_client is not None:
+        sys.modules["deerflow.client"] = prev_df_client
+    else:
+        sys.modules.pop("deerflow.client", None)
+    if prev_df is not None:
+        sys.modules["deerflow"] = prev_df
+    else:
+        sys.modules.pop("deerflow", None)
 
 
 # ---------------------------------------------------------------------------
