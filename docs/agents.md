@@ -60,7 +60,7 @@ langchain_agents:
       tools:
         - spec: filesystem_tools
       middlewares:
-        - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
+        - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
           details: true
       
     - name: "DataAnalysis"
@@ -221,9 +221,9 @@ Middlewares enhance agent behavior with logging, rate limiting, and output forma
 
 ```yaml
 middlewares:
-  - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
+  - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
     details: true                    # Show detailed output
-  - class: deepagents.middleware.summarization:SummarizationMiddleware
+  - class: deepagents.middleware.summarization.SummarizationMiddleware
     model: gpt-35-turbo@openai
     trigger: ["tokens", 4000]        # Summarize after 4000 tokens
 ```

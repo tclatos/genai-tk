@@ -9,7 +9,7 @@ into **command groups** that are discovered dynamically from the application con
 `uv run cli` invokes the `cli` script entry point defined in `pyproject.toml` (`[project.scripts]`):
 
 ```toml
-cli = "genai_tk.main.cli:main"
+cli = "genai_tk.main.cli.main"
 ```
 
 **Optional:** Create a shell alias to avoid typing `uv run` each time:
@@ -328,7 +328,7 @@ class HelloCommands(CliTopCommand):
 cli:
   commands:
     # … existing entries …
-    - src.myapp.commands_hello:HelloCommands
+    - src.myapp.commands_hello.HelloCommands
 ```
 
 ### Step 3 — Use it
@@ -365,7 +365,7 @@ def register_commands(cli_app: typer.Typer) -> None:
 ```yaml
 cli:
   commands:
-    - genai_tk.main.cli:register_commands   # function reference (not a class)
+    - genai_tk.main.cli.register_commands   # function reference (not a class)
 ```
 
 This pattern is still supported but **not recommended** for new commands — use
@@ -378,7 +378,7 @@ This pattern is still supported but **not recommended** for new commands — use
 At startup (`uv run cli`), `load_and_register_commands()` in `genai_tk/main/cli.py`:
 
 1. Reads `cli.commands` from the merged YAML config.
-2. For each entry (`module:Symbol`), dynamically imports the symbol.
+2. For each entry (`module.ClassName`), dynamically imports the symbol.
 3. If the symbol is a `CliTopCommand` subclass → instantiates it, calls `.register(cli_app)`.
 4. If the symbol is a callable → calls it directly as `fn(cli_app)` (legacy path).
 5. If no arguments are provided to `cli`, displays a Rich command tree and exits.

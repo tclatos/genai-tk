@@ -49,7 +49,7 @@ def _create_openai_compatible_llm(
 **Example**:
 ```yaml
 groq:
-  use: langchain_openai:ChatOpenAI
+  use: langchain_openai.ChatOpenAI
   api_key_env_var: GROQ_API_KEY
   api_base: https://api.groq.com/openai/v1
   openai_compatible: true
@@ -95,7 +95,7 @@ def _create_specialized_llm(
 ```yaml
 provider_name:
   # Core Configuration
-  use: langchain_openai:ChatOpenAI          # LangChain class to use
+  use: langchain_openai.ChatOpenAI          # LangChain class to use
   api_key_env_var: PROVIDER_API_KEY          # Environment variable for API key
   litellm_prefix: provider                   # LiteLLM provider prefix (null if not needed)
   
@@ -120,7 +120,7 @@ To add OpenRouter support (already configured):
 
 ```yaml
 openrouter:
-  use: langchain_openai:ChatOpenAI
+  use: langchain_openai.ChatOpenAI
   api_key_env_var: OPENROUTER_API_KEY
   api_base: https://openrouter.ai/api/v1
   litellm_prefix: openrouter
@@ -139,7 +139,7 @@ If the provider has an OpenAI-compatible API:
 1. **Add entry to `config/basic/providers/providers.yaml`**:
 ```yaml
 newprovider:
-  use: langchain_openai:ChatOpenAI
+  use: langchain_openai.ChatOpenAI
   api_key_env_var: NEWPROVIDER_API_KEY
   api_base: https://api.newprovider.com/v1
   openai_compatible: true
@@ -176,7 +176,7 @@ If the provider requires a custom LangChain class:
 1. **Add entry to `providers.yaml`** with `openai_compatible: false`:
 ```yaml
 myprovider:
-  use: langchain_myprovider:ChatMyProvider
+  use: langchain_myprovider.ChatMyProvider
   api_key_env_var: MYPROVIDER_API_KEY
   litellm_prefix: myprovider
   openai_compatible: false
