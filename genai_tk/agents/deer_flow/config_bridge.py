@@ -30,6 +30,18 @@ from omegaconf import OmegaConf
 
 from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.core.providers import PROVIDER_INFO
+from genai_tk.utils.import_utils import get_module_from_qualified, get_object_name_from_qualified
+
+
+def _to_colon_notation(qualified_name: str) -> str:
+    """Convert dot-notation qualified name to colon-notation for deer-flow.
+
+    Deer-flow's resolver expects ``module.path:ClassName`` but GenAI Toolkit
+    uses ``module.path.ClassName`` internally.
+    """
+    module = get_module_from_qualified(qualified_name)
+    obj = get_object_name_from_qualified(qualified_name)
+    return f"{module}:{obj}"
 
 
 def _deer_flow_module_prefix() -> str:
@@ -150,7 +162,7 @@ def _build_dynamic_model_entry(canonical_llm_id: str) -> dict[str, Any] | None:
     entry: dict[str, Any] = {
         "name": canonical_llm_id,
         "display_name": model_part,
-        "use": provider_info.get_use_string(),
+        "use": _to_colon_notation(provider_info.get_use_string()),
         "model": model_part,
         "max_tokens": 4096,
         "supports_vision": False,
@@ -217,7 +229,7 @@ def generate_deer_flow_models(
         model_config: dict[str, Any] = {
             "name": model_id,
             "display_name": model_id.replace("_", " ").title(),
-            "use": provider_info.get_use_string(),
+            "use": _to_colon_notation(provider_info.get_use_string()),
             "model": model_name,
             "max_tokens": model_info.max_tokens or 4096,
             "supports_vision": model_info.supports_vision,
@@ -386,7 +398,19 @@ def write_deer_flow_config(
             "opensandbox_server_url": aio.opensandbox_server_url,
         }
     else:
-        sandbox_cfg = {"use": f"{pfx}.sandbox.local:LocalSandboxProvider"}
+        # Local sandbox: map /mnt/user-data → CWD so the agent's virtual
+        # paths resolve to the actual working directory instead of the
+        # non-existent Docker mount point.
+        sandbox_cfg = {
+            "use": f"{pfx}.sandbox.local:LocalSandboxProvider",
+            "mounts": [
+                {
+                    "host_path": str(Path.cwd()),
+                    "container_path": "/mnt/user-data",
+                    "read_only": False,
+                },
+            ],
+        }
 
     cfg: dict[str, Any] = {
         "models": models,

@@ -21,6 +21,7 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
+from genai_tk.agents.rich_display import summarize_tool_result
 from genai_tk.utils.markdown import looks_like_markdown
 
 
@@ -246,36 +247,7 @@ class RichToolCallMiddleware(AgentMiddleware):
     @staticmethod
     def _summarize_result(tool_name: str, result_text: str) -> str:
         """Produce a short one-line summary of a tool result for compact display."""
-        text = result_text.strip()
-        if tool_name == "sql_db_list_tables":
-            tables = [t.strip() for t in text.split(",") if t.strip()]
-            if tables:
-                preview = ", ".join(tables[:5])
-                suffix = f", … ({len(tables)} tables)" if len(tables) > 5 else f" ({len(tables)} tables)"
-                return preview + suffix
-        if tool_name == "sql_db_query_checker":
-            if "looks correct" in text.lower() or text.strip().upper().startswith("SELECT"):
-                return "query OK"
-            return text[:80]
-        if tool_name == "sql_db_query":
-            lines = [ln for ln in text.splitlines() if ln.strip()]
-            n = len(lines)
-            if n <= 1:
-                return text[:80]
-            return f"{n} rows returned"
-        if tool_name == "sql_db_schema":
-            # Try to list table names found in output
-            import re
-
-            tables_found = re.findall(r"CREATE TABLE [\"`]?(\w+)[\"`]?", text)
-            if tables_found:
-                return ", ".join(tables_found)
-        if tool_name == "write_todos":
-            return "plan updated"
-        # Generic fallback
-        if len(text) > 80:
-            return text[:77] + "…"
-        return text
+        return summarize_tool_result(tool_name, result_text)
 
     # ------------------------------------------------------------------
     # Detailed mode helpers (original panels)
@@ -355,11 +327,10 @@ class RichToolCallMiddleware(AgentMiddleware):
                 if names:
                     body += f"\n[bold]Skills:[/bold] [dim]{', '.join(names)}[/dim]"
 
-        self._call_count += 1
         self._console.print(
             Panel(
                 body,
-                title=f"[bold magenta]🧠 LLM Call #{self._call_count}[/bold magenta]",
+                title=f"[bold magenta]🧠 LLM Call #{self._call_count + 1}[/bold magenta]",
                 border_style="magenta",
                 padding=(0, 1),
             )
@@ -418,12 +389,31 @@ class RichToolCallMiddleware(AgentMiddleware):
         return response
 
     async def awrap_model_call(self, request: Any, handler: Callable[[Any], Awaitable[Any]]) -> Any:  # type: ignore[override]
-        """Trace each LLM invocation with timing and response summary."""
+        """Trace each LLM invocation with timing and response summary (async)."""
         if self._details:
             self._detail_print_llm_call(request)
         t0 = time.monotonic()
         try:
             response = await handler(request)
+        except Exception as exc:
+            elapsed = time.monotonic() - t0
+            self._call_count += 1
+            self._console.print(
+                f"  [bold red]LLM #{self._call_count}: FAILED after {elapsed:.1f}s — {exc!r}[/bold red]"
+            )
+            logger.error(f"LLM #{self._call_count}: {elapsed:.1f}s, exception={exc!r}")
+            raise
+        elapsed = time.monotonic() - t0
+        self._print_llm_response_summary(response, elapsed)
+        return response
+
+    def wrap_model_call(self, request: Any, handler: Callable[[Any], Any]) -> Any:  # type: ignore[override]
+        """Trace each LLM invocation with timing and response summary (sync)."""
+        if self._details:
+            self._detail_print_llm_call(request)
+        t0 = time.monotonic()
+        try:
+            response = handler(request)
         except Exception as exc:
             elapsed = time.monotonic() - t0
             self._call_count += 1
@@ -442,6 +432,7 @@ class RichToolCallMiddleware(AgentMiddleware):
 
     def _print_llm_response_summary(self, response: Any, elapsed: float) -> None:
         """Print a one-line summary of what the LLM returned."""
+        self._call_count += 1
         # Unwrap deepagents ModelResponse / ExtendedModelResponse wrappers
         # to get the actual AIMessage with content and tool_calls.
         msg = response

@@ -24,6 +24,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from genai_tk.agents.langchain.langchain_agent import LangchainAgent, _extract_content
+from genai_tk.agents.rich_display import ASSISTANT_BORDER_STYLE, ASSISTANT_PANEL_TITLE
 from genai_tk.utils.markdown import looks_like_markdown
 
 
@@ -49,8 +50,8 @@ def _render_content(content: str, console: Console, *, elapsed: float | None = N
     console.print(
         Panel(
             body,
-            title=f"[bold white on royal_blue1] Assistant [/bold white on royal_blue1]{time_suffix}",
-            border_style="royal_blue1",
+            title=f"{ASSISTANT_PANEL_TITLE}{time_suffix}",
+            border_style=ASSISTANT_BORDER_STYLE,
         )
     )
 

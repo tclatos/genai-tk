@@ -389,6 +389,7 @@ async def _stream_message(
         ToolCallEvent,
         ToolResultEvent,
     )
+    from genai_tk.agents.rich_display import ToolStepRenderer, assistant_panel
 
     full_text = ""
     current_node = ""
@@ -396,6 +397,12 @@ async def _stream_message(
     _MAX_SANDBOX_ERRORS = 3
     # Mutable container so the ticker coroutine can read the current start time.
     _llm_ctx: list[float | None] = [time.time()]
+
+    # Check if RichToolCallMiddleware is injected — if so, it already renders
+    # tool calls/results via AgentMiddleware hooks; we skip event-based display
+    # to avoid duplicates.
+    _has_rich_middleware = any(type(m).__name__ == "RichToolCallMiddleware" for m in (client._middlewares_kwarg or []))
+    tool_renderer = ToolStepRenderer(console) if not _has_rich_middleware else None
 
     _PANEL_TITLE = "[bold white on royal_blue1] Assistant [/bold white on royal_blue1]"
 
@@ -447,28 +454,18 @@ async def _stream_message(
                         elif show_trace:  # unknown node — only with --trace
                             console.log(f"[dim italic]→ {event.node}[/dim italic]")
                 elif isinstance(event, ToolCallEvent):
-                    if event.tool_name:  # always show tool calls — useful progress indicator
+                    if event.tool_name and tool_renderer:
                         _log_llm_elapsed()
-                        args_preview = str(event.args)[:120].replace("\n", " ") if event.args else ""
-                        console.log(
-                            f"[dim cyan]⚙ tool:[/dim cyan] [cyan]{event.tool_name}[/cyan] [dim]{args_preview}[/dim]"
-                        )
+                        tool_renderer.log_tool_call(event.tool_name, event.args)
                 elif isinstance(event, ToolResultEvent):
                     _llm_ctx[0] = time.time()  # LLM resumes thinking after tool returns
                     if event.tool_name:
                         content = event.content or ""
                         is_error = content.startswith(("Error", "error"))
-                        max_chars = 300 if show_trace else 80
-                        result_preview = event.content[:max_chars].replace("\n", " ") if event.content else ""
-                        if event.content and len(event.content) > max_chars:
-                            result_preview += "…"
-                        style = "dim red" if is_error else "dim green"
-                        icon = "✗" if is_error else "✓"
-                        console.log(
-                            f"[{style}]{icon} result:[/{style}] [dim]{event.tool_name}[/dim] [dim italic]{result_preview}[/dim italic]"
-                        )
+                        if tool_renderer:
+                            tool_renderer.log_tool_result(event.tool_name, content, is_error=is_error)
                         # Detect sandbox failures and abort after repeated errors
-                        if is_error and "Sandbox" in (event.content or "") and "failed" in (event.content or ""):
+                        if is_error and "Sandbox" in content and "failed" in content:
                             consecutive_sandbox_errors += 1
                             if consecutive_sandbox_errors >= _MAX_SANDBOX_ERRORS:
                                 console.print(
@@ -502,7 +499,7 @@ async def _stream_message(
             from genai_tk.agents.deer_flow.embedded_client import strip_reasoning_markers
 
             full_text = strip_reasoning_markers(full_text)
-            live.update(_md_panel(full_text))
+            live.update(assistant_panel(full_text))
 
     return full_text
 
@@ -603,7 +600,6 @@ async def _run_single_shot(
         sandbox_override: Override sandbox type (None = use profile setting).
     """
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
-    from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
     profile, model_name, config_path = await _prepare_profile(
         profile_name, llm_override, extra_mcp, mode_override, verbose, sandbox_override=sandbox_override
@@ -623,7 +619,7 @@ async def _run_single_shot(
         _cleanup_stale_sandbox_containers()
 
     with console.status("Loading deer-flow agent...", spinner="dots"):
-        middlewares = instantiate_from_qualified_names(profile.middlewares, logger=logger)
+        middlewares = _build_cli_middlewares(profile.middlewares)
         available_skills = set(profile.available_skills) if profile.available_skills is not None else None
         client = EmbeddedDeerFlowClient(
             config_path=config_path,
@@ -639,6 +635,9 @@ async def _run_single_shot(
     thread_id = _stable_thread_id()
     client.clear_thread(thread_id)
 
+    # Snapshot existing output files so we only show new ones after the run.
+    files_before = client.snapshot_output_files(thread_id)
+
     await _stream_message(
         client=client,
         thread_id=thread_id,
@@ -650,9 +649,10 @@ async def _run_single_shot(
         plan_mode=plan_mode if plan_mode is not None else profile.plan_mode,
     )
 
-    # Show host-side output files (sandbox mounts to .deer-flow/threads/<id>/user-data/)
+    # Show only files created during this run
     if profile.sandbox == "docker":
-        _show_sandbox_output_files(thread_id)
+        new_files = client.new_output_files(thread_id, files_before)
+        _show_output_files(new_files)
 
 
 def _stable_thread_id() -> str:
@@ -662,12 +662,24 @@ def _stable_thread_id() -> str:
     return hashlib.sha256(b"genai-tk-deerflow-single").hexdigest()[:16]
 
 
-def _show_sandbox_output_files(thread_id: str) -> None:
-    """Print host-side paths for any files created in the sandbox outputs directory."""
-    outputs_dir = Path(".deer-flow") / "threads" / thread_id / "user-data" / "outputs"
-    if not outputs_dir.exists():
-        return
-    files = sorted(outputs_dir.iterdir())
+def _build_cli_middlewares(profile_middlewares: list[str]) -> list:
+    """Instantiate profile middlewares and prepend RichToolCallMiddleware.
+
+    Mirrors the langchain agent default: every CLI run gets Rich tool-call
+    tracing automatically, regardless of what the profile config lists.
+    """
+    from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
+    from genai_tk.utils.import_utils import instantiate_from_qualified_names
+
+    user_mws = instantiate_from_qualified_names(profile_middlewares, logger=logger)
+    # Avoid duplicates if the profile already lists RichToolCallMiddleware.
+    if not any(isinstance(m, RichToolCallMiddleware) for m in user_mws):
+        user_mws.insert(0, RichToolCallMiddleware(console=console))
+    return user_mws
+
+
+def _show_output_files(files: list[Path]) -> None:
+    """Print resolved paths for the given output files."""
     if not files:
         return
     console.print()
@@ -750,7 +762,6 @@ async def _run_chat_mode(
         sandbox_override: Override sandbox type (None = use profile setting).
     """
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
-    from genai_tk.utils.import_utils import instantiate_from_qualified_names
 
     profile, model_name, config_path = await _prepare_profile(
         profile_name, llm_override, extra_mcp, mode_override, verbose, sandbox_override=sandbox_override
@@ -779,7 +790,7 @@ async def _run_chat_mode(
         _cleanup_stale_sandbox_containers()
 
     with console.status("Loading deer-flow agent...", spinner="dots"):
-        middlewares = instantiate_from_qualified_names(profile.middlewares, logger=logger)
+        middlewares = _build_cli_middlewares(profile.middlewares)
         available_skills = set(profile.available_skills) if profile.available_skills is not None else None
         client = EmbeddedDeerFlowClient(
             config_path=config_path,

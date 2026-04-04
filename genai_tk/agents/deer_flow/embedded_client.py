@@ -511,6 +511,7 @@ class EmbeddedDeerFlowClient:
             )
 
         self._client = _DeerFlowClient(**_upstream_kwargs)
+        self._middlewares_kwarg = middlewares  # kept for callers that inspect injected middlewares
         self._middlewares_supported = "middlewares" in _supported
         self._available_skills_supported = "available_skills" in _supported
         logger.debug(f"EmbeddedDeerFlowClient ready — config={config_path}")
@@ -542,6 +543,31 @@ class EmbeddedDeerFlowClient:
                 logger.debug(f"Cleared checkpointer state for thread {thread_id}")
         except Exception as e:
             logger.debug(f"Could not clear checkpointer thread (non-critical): {e}")
+
+    # ------------------------------------------------------------------
+    # Output files
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def output_dir(thread_id: str) -> Path:
+        """Return the host-side sandbox outputs directory for a thread."""
+        return Path(".deer-flow") / "threads" / thread_id / "user-data" / "outputs"
+
+    def snapshot_output_files(self, thread_id: str) -> set[Path]:
+        """Return the current set of files in the thread's output directory.
+
+        Call **before** a run and pass the result to :meth:`new_output_files`
+        after the run completes to get only files created during that run.
+        """
+        outputs = self.output_dir(thread_id)
+        if not outputs.exists():
+            return set()
+        return {f for f in outputs.iterdir() if f.is_file()}
+
+    def new_output_files(self, thread_id: str, before: set[Path]) -> list[Path]:
+        """Return files created since the *before* snapshot, sorted by name."""
+        current = self.snapshot_output_files(thread_id)
+        return sorted(current - before)
 
     # ------------------------------------------------------------------
     # Streaming
