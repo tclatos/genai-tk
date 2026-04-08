@@ -224,6 +224,7 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["genai_tk"]
+# genai_tk/default_config/ is a symlink to config/ — auto-included as package data.
 
 [build-system]
 requires = ["hatchling"]

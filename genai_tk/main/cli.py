@@ -110,6 +110,7 @@ from dotenv import load_dotenv
 from loguru import logger
 
 from genai_tk.cli.base import CliTopCommand
+from genai_tk.main.commands_init import InitCommands
 
 # Import modules where runnables are registered
 from genai_tk.utils.config_exceptions import (
@@ -147,6 +148,8 @@ def load_and_register_commands(cli_app: typer.Typer) -> None:
     """
     try:
         modules = global_config().get_list("cli.commands", value_type=str)
+    except ConfigFileNotFoundError:
+        raise  # Let main() handle this — bootstrap commands still run
     except ConfigKeyNotFoundError as e:
         logger.error(f"CLI commands configuration not found: {e.message}\nSuggestion: {e.suggestion}")
         raise typer.Exit(1) from e
@@ -212,10 +215,19 @@ def main() -> None:
     else:
         level = None
 
+    # Always register bootstrap commands — no config required.
+    InitCommands().register(cli_app)
+
     try:
         setup_logging(level)
         load_and_register_commands(cli_app)
-    except (ConfigFileNotFoundError, ConfigParseError, ConfigValidationError) as e:
+    except ConfigFileNotFoundError:
+        # No config in cwd — still let bootstrap commands (init, etc.) run.
+        logger.warning(
+            "No config/app_conf.yaml found in this directory.\n"
+            "Run 'cli init' to copy the default configuration here."
+        )
+    except (ConfigParseError, ConfigValidationError) as e:
         # Fatal configuration errors - display and exit
         logger.error(f"\n{'=' * 60}")
         logger.error(f"❌ Configuration Error: {e.__class__.__name__}")
