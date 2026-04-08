@@ -1255,3 +1255,56 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                 console.print(f"\n[red]Error:[/red] {e}")
                 logger.exception("Deer-flow CLI error")
                 raise typer.Exit(1) from e
+
+        @cli_app.command("setup")
+        def setup(
+            path: Annotated[
+                Optional[str],
+                typer.Option("--path", "-p", help="Directory to clone deer-flow into (default: ~/deer-flow)"),
+            ] = None,
+        ) -> None:
+            """Clone the Deer-flow repo and install its backend.
+
+            This is the equivalent of `make deer-flow-install` and works whether you
+            installed genai-tk from git or cloned the source.
+
+            After running this command, add the printed DEER_FLOW_PATH line to your .env.
+
+            Examples:
+                cli agents deerflow setup
+                cli agents deerflow setup --path ~/projects/deer-flow
+            """
+            deer_flow_repo = "https://github.com/bytedance/deer-flow.git"
+            target = Path(path).expanduser().resolve() if path else Path.home() / "deer-flow"
+
+            # Clone or update
+            if target.exists():
+                console.print(f"[cyan]Updating Deer-flow at {target} ...[/cyan]")
+                result = subprocess.run(["git", "-C", str(target), "pull", "--rebase"], capture_output=True, text=True)
+            else:
+                console.print(f"[cyan]Cloning Deer-flow into {target} ...[/cyan]")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                result = subprocess.run(
+                    ["git", "clone", "--depth", "1", deer_flow_repo, str(target)], capture_output=True, text=True
+                )
+            if result.returncode != 0:
+                console.print(f"[red]git failed:[/red] {result.stderr.strip()}")
+                raise typer.Exit(1)
+
+            # Install the backend
+            backend = target / "backend"
+            if not backend.exists():
+                console.print(f"[red]Backend directory not found:[/red] {backend}")
+                raise typer.Exit(1)
+
+            console.print(f"[cyan]Installing Deer-flow backend from {backend} ...[/cyan]")
+            install_result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-e", str(backend)], capture_output=True, text=True
+            )
+            if install_result.returncode != 0:
+                console.print(f"[red]Install failed:[/red] {install_result.stderr.strip()}")
+                raise typer.Exit(1)
+
+            console.print("\n[green]✓ Deer-flow installed successfully.[/green]\n")
+            console.print("Add the following to your [bold].env[/bold] file:\n")
+            console.print(f"  [bold cyan]DEER_FLOW_PATH={target}[/bold cyan]\n")

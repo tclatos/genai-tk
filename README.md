@@ -59,9 +59,15 @@ uv sync --all-groups  # core + every dependency group
 **Deer-flow setup** (requires a separate step — the backend is a separate repo):
 
 ```bash
-make deer-flow-install   # clones @bytedance/deer-flow and installs backend
-# Then add to your .env:
-# DEER_FLOW_PATH=/path/to/genai-tk/ext/deer-flow
+# If you have the source repo cloned:
+make deer-flow-install
+
+# If you installed via uv add (no Makefile available):
+uv run cli agents deerflow setup            # clones to ~/deer-flow by default
+uv run cli agents deerflow setup --path ~/projects/deer-flow  # custom location
+
+# Then add the printed line to your .env:
+# DEER_FLOW_PATH=~/deer-flow
 ```
 
 ### Quick install test
