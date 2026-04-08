@@ -301,9 +301,8 @@ def _check_deer_flow_compatibility() -> None:
 
     Checks performed:
     - Clone age (warn if git HEAD is older than 30 days)
-    - DeerFlowClient constructor parameters (middlewares, available_skills)
-    - Module layout consistency (DEER_FLOW_PATH points to modern vs. legacy)
-    - AgentMiddleware availability (required for custom middleware injection)
+    - Module layout consistency (warn if legacy backend/src/ layout is detected)
+    - Config module prefix consistency (config_bridge vs. actual layout)
 
     All issues are logged as warnings — nothing is fatal here.
     """
@@ -322,6 +321,7 @@ def _check_deer_flow_compatibility() -> None:
     # --- Clone freshness ---
     try:
         import subprocess
+        import time
 
         result = subprocess.run(
             ["git", "log", "-1", "--format=%ct"],
@@ -331,14 +331,11 @@ def _check_deer_flow_compatibility() -> None:
             timeout=5,
         )
         if result.returncode == 0:
-            import time
-
-            commit_ts = int(result.stdout.strip())
-            age_days = (time.time() - commit_ts) / 86400
+            age_days = (time.time() - int(result.stdout.strip())) / 86400
             if age_days > 30:
                 issues.append(
                     f"Deer-flow clone is {int(age_days)} days old. "
-                    "Run 'make deer-flow-install' to pull the latest version."
+                    "Run 'cli init --deer-flow --force' to pull the latest version."
                 )
     except Exception:
         pass
@@ -353,44 +350,10 @@ def _check_deer_flow_compatibility() -> None:
         issues.append(
             "Deer-flow clone uses the legacy backend/src/ layout. "
             "The modern layout (backend/packages/harness/) adds middleware and "
-            "skill filtering support. Run 'make deer-flow-install' to upgrade."
-        )
-
-    # --- DeerFlowClient API checks ---
-    try:
-        if is_modern:
-            from deerflow.client import DeerFlowClient as _Cls  # type: ignore[import]
-        else:
-            from src.client import DeerFlowClient as _Cls  # type: ignore[import]
-
-        import inspect
-
-        params = set(inspect.signature(_Cls.__init__).parameters)
-        for expected in ("middlewares", "available_skills"):
-            if expected not in params:
-                issues.append(
-                    f"DeerFlowClient.__init__ is missing '{expected}' parameter. "
-                    "Tests using this feature will be skipped. "
-                    "Pull the latest deer-flow or check the PR that adds it."
-                )
-    except ImportError:
-        issues.append(
-            "Could not import DeerFlowClient — deer-flow dependencies may not be installed. "
-            "Run 'make deer-flow-install'."
-        )
-
-    # --- AgentMiddleware availability ---
-    try:
-        from langchain.agents.middleware import AgentMiddleware  # noqa: F401
-    except ImportError:
-        issues.append(
-            "langchain.agents.middleware.AgentMiddleware is not available. "
-            "Custom middleware injection requires langchain >= 0.3.x. "
-            "Run 'uv sync --group deer-flow' to update."
+            "skill filtering support. Run 'cli init --deer-flow --force' to upgrade."
         )
 
     # --- Config module prefix consistency ---
-    # Detect if config_bridge would use the wrong prefix
     try:
         from genai_tk.agents.deer_flow.config_bridge import _deer_flow_module_prefix
 

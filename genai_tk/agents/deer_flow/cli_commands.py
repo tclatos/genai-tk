@@ -66,6 +66,55 @@ _NODE_LABELS: dict[str, str] = {
 
 
 # ---------------------------------------------------------------------------
+# DEER_FLOW_PATH early validation
+# ---------------------------------------------------------------------------
+
+
+def _require_deer_flow_path() -> Path:
+    """Return DEER_FLOW_PATH as a Path, or exit with a helpful message."""
+    df_path = os.environ.get("DEER_FLOW_PATH", "").strip()
+    if not df_path:
+        console.print(
+            "[red]DEER_FLOW_PATH is not set.[/red]\n\n"
+            "Deer-flow must be cloned and its backend installed before use.\n"
+            "Run one of:\n"
+            "  [bold cyan]cli init --deer-flow[/bold cyan]          " "# clone to ~/deer-flow (default)\n"
+            "  [bold cyan]cli agents deerflow setup[/bold cyan]    " "# same, with --path option\n\n"
+            "Then add to your .env:\n"
+            "  DEER_FLOW_PATH=~/deer-flow"
+        )
+        raise typer.Exit(1)
+
+    root = Path(df_path).expanduser().resolve()
+    backend = root / "backend"
+    harness = backend / "packages" / "harness"
+
+    if not root.exists():
+        console.print(
+            f"[red]DEER_FLOW_PATH does not exist:[/red] {root}\n"
+            "Re-run [bold cyan]cli init --deer-flow[/bold cyan] or update DEER_FLOW_PATH in your .env."
+        )
+        raise typer.Exit(1)
+
+    if not backend.exists():
+        console.print(
+            f"[red]DEER_FLOW_PATH/backend not found:[/red] {backend}\n"
+            "The directory exists but doesn't look like a deer-flow clone."
+        )
+        raise typer.Exit(1)
+
+    if not harness.exists() and not (backend / "src").exists():
+        console.print(
+            f"[red]Deer-flow backend layout not recognised:[/red] {backend}\n"
+            "Expected either backend/packages/harness/ (modern) or backend/src/ (legacy).\n"
+            "Try re-running [bold cyan]cli init --deer-flow --force[/bold cyan]."
+        )
+        raise typer.Exit(1)
+
+    return root
+
+
+# ---------------------------------------------------------------------------
 # LLM identifier -> deer-flow model_name
 # ---------------------------------------------------------------------------
 
@@ -238,6 +287,8 @@ async def _prepare_profile(
             level="DEBUG",
             format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan> - <level>{message}</level>",
         )
+
+    _require_deer_flow_path()
 
     config_dir = global_config().get_dir_path("paths.config")
     config_path = str(config_dir / "agents" / "deerflow.yaml")
