@@ -104,16 +104,45 @@ def _install_deer_flow(path: Path | None) -> bool:
         console.print(f"[red]Backend directory not found:[/red] {backend}")
         return False
 
-    console.print(f"[cyan]Installing Deer-flow backend ...[/cyan]")
-    install = subprocess.run(
-        ["uv", "pip", "install", "-e", str(backend)], capture_output=True, text=True
-    )
-    if install.returncode != 0:
-        console.print(f"[red]Install failed:[/red] {install.stderr.strip()}")
+    console.print(f"[cyan]Installing Deer-flow backend dependencies ...[/cyan]")
+    if not _install_deer_flow_backend(backend):
         return False
 
     console.print(f"[green]✓ Deer-flow installed.[/green]")
     console.print(f"\nAdd to your [bold].env[/bold]:\n  [bold cyan]DEER_FLOW_PATH={target}[/bold cyan]\n")
+    return True
+
+
+def _install_deer_flow_backend(backend: Path) -> bool:
+    """Install deer-flow's deps + harness package without building deer-flow itself.
+
+    deer-flow's backend has no [build-system] and a flat layout that confuses
+    setuptools.  The embedded client resolves the code via sys.path, so we only
+    need the runtime dependencies and the harness sub-package.
+    """
+    import tomllib
+
+    pyproject = backend / "pyproject.toml"
+    if not pyproject.exists():
+        console.print(f"[red]pyproject.toml not found:[/red] {pyproject}")
+        return False
+
+    with open(pyproject, "rb") as f:
+        data = tomllib.load(f)
+
+    deps: list[str] = data.get("project", {}).get("dependencies", [])
+
+    # Install harness (it has a proper layout) + all runtime deps
+    harness = backend / "packages" / "harness"
+    cmd: list[str] = ["uv", "pip", "install"]
+    if harness.exists():
+        cmd += ["-e", str(harness)]
+    cmd += deps
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        console.print(f"[red]Install failed:[/red] {result.stderr.strip()}")
+        return False
     return True
 
 

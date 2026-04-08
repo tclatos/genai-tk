@@ -1297,12 +1297,10 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                 console.print(f"[red]Backend directory not found:[/red] {backend}")
                 raise typer.Exit(1)
 
-            console.print(f"[cyan]Installing Deer-flow backend from {backend} ...[/cyan]")
-            install_result = subprocess.run(
-                ["uv", "pip", "install", "-e", str(backend)], capture_output=True, text=True
-            )
-            if install_result.returncode != 0:
-                console.print(f"[red]Install failed:[/red] {install_result.stderr.strip()}")
+            console.print(f"[cyan]Installing Deer-flow backend dependencies ...[/cyan]")
+            from genai_tk.main.commands_init import _install_deer_flow_backend
+
+            if not _install_deer_flow_backend(backend):
                 raise typer.Exit(1)
 
             console.print("\n[green]✓ Deer-flow installed successfully.[/green]\n")
