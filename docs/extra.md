@@ -1,5 +1,7 @@
 # Extra Module (`genai_tk.extra`)
 
+> **Quick nav:** [Agent Graphs](#agent-graphs-extragraphs) · [RAG Systems](#rag-systems-extrarag) · [Data Loaders](#data-loaders-extraloaders) · [Retrievers](#retrievers-extraretrievers) · [Anonymization](#anonymization-extraanonymization) · [BAML / Structured Extraction](#structured-extraction-baml-extrastructured) · [Image Analysis](#image-analysis-extraimage_analysis) · [KV Store](#kv-store-extrakv_store)
+
 ## Overview
 
 The `extra` module provides advanced AI capabilities beyond core agent functionality, including specialized agent graphs, RAG pipelines, data loaders, and utility functions for complex AI workflows.

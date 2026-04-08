@@ -51,6 +51,7 @@ dependencies = [
     "smolagents[toolkit, mcp, openai, litellm, docker]>=1.17", # Lightweight agentic framework
     "deepagents>=0.4",                                         # Deep agents with planning, subagents, skills
     "deepagents-cli>=0.0.26",                                  # CLI for deepagents
+    "langgraph-checkpoint-sqlite>=3.0.3",                      # SQLite checkpoint persistence for LangGraph
     "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
     "agent-sandbox>=0.0.24",                                   # AIO sandbox SDK client
@@ -94,12 +95,10 @@ dependencies = [
     # ============================================
     # Workflow Orchestration
     # ============================================
-    "prefect>=3.6.7",                     # Modern workflow orchestration
-    "jinaai>=0.2.10",                     # Jina AI embeddings and reranking
-    "langgraph-checkpoint-sqlite>=3.0.3", # SQLite checkpoint persistence for LangGraph
-    "readabilipy>=0.3.0",                 # Web article extraction and readability parsing
+    "prefect>=3.6.7",     # Modern workflow orchestration
+    "jinaai>=0.2.10",     # Jina AI embeddings and reranking
+    "readabilipy>=0.3.0", # Web article extraction and readability parsing
 
-    "pgembed>=0.2.0",
     "edgeparse>=0.2.2",
     "fastembed>=0.8.0",
 ]
@@ -123,12 +122,8 @@ extra = [
     #   "accelerate>=1.4.0",            # PyTorch model acceleration utilities
     #   "langchain-huggingface>=0.1.2", # LangChain integration for Hugging Face models
 ]
-# Deer-flow: Python deps only (backend must also be installed — see `make deer-flow-install`)
-deer-flow = [
-    "agent-sandbox>=0.0.24", # Docker sandbox client for deer-flow code execution
-]
 # All optional extras combined
-all = ["genai-tk[extra,deer-flow]"]
+all = ["genai-tk[extra]"]
 
 [dependency-groups]
 # Optional dependency groups for specific use cases
@@ -141,14 +136,16 @@ postgres = [
     "langchain-postgres>=0.0.15", # LangChain PostgreSQL integration for vector storage
     "psycopg[binary]>=3.2.9",     # Modern PostgreSQL adapter (v3)
     "psycopg2-binary>=2.9.10",    # Legacy PostgreSQL adapter (v2)
+    "pgembed>=0.2.0",             # Embeddings storage and search in PostgreSQL with pgvector  
+
 ]
 
 # ============================================
 # Browser Automation (sandbox browser tools)
 # ============================================
 browser-control = [
-    "playwright>=1.51.0",    # Browser automation via CDP
-    "agent-sandbox>=0.0.24", # AIO sandbox SDK client
+    "playwright>=1.51.0", # Browser automation via CDP
+    # agent-sandbox is already in core dependencies
 ]
 
 
@@ -161,12 +158,7 @@ browser-control = [
 # This is intentionally left empty since uv doesn't support ${VAR} in file:// URLs
 deer-flow = [
     # readabilipy is in main dependencies (required by deer-flow's Jina AI web_fetch tool)
-]
-
-# Docker sandbox support for deer-flow (enables file creation, bash, code execution in container)
-# Requires Docker to be installed and running
-deer-flow-docker = [
-    "agent-sandbox>=0.0.19", # HTTP client for deer-flow's Docker sandbox container
+    # agent-sandbox is in main dependencies
 ]
 
 # ============================================

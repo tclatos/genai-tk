@@ -337,36 +337,10 @@ api_key = get_provider_api_key("openai")
 env_var = get_provider_api_env_var("openai")
 ```
 
-## Configuration Files
+## Configuration
 
-The core module uses configuration files in `config/` directory:
-
-**Key Configuration Files:**
-- `baseline.yaml` - Base configuration with defaults
-- `providers/llm.yaml` - LLM provider definitions
-- `providers/embeddings.yaml` - Embedding model definitions
-- `app_conf.yaml` - Application-specific overrides
-
-**Configuration Hierarchy:**
-1. Baseline defaults
-2. Provider-specific configurations
-3. Environment variable overrides
-4. Runtime parameter overrides
-
-**Example:** Configuration loading
-```python
-from genai_tk.utils.config_mngr import global_config
-
-# Get global configuration (auto-discovers from parent directories)
-config = global_config()
-
-# Access nested values
-default_llm = config.get("llm.models.default")
-cache_method = config.get("llm.cache.method")
-
-# Switch environments
-config.select_config("production")
-```
+Configuration for LLM models, embeddings, and caching lives in `config/basic/providers/` and `config/basic/init/baseline.yaml`.
+See [docs/configuration.md](configuration.md) for the full system reference.
 
 ## Common Patterns
 
@@ -432,8 +406,7 @@ except ImportError as e:
 
 - [Agents Documentation](agents.md) - Agent implementations using core components
 - [Extra Documentation](extra.md) - Extended AI capabilities and RAG
-- [Configuration Guide](../config/README.md) - Detailed configuration reference
+- [Configuration Reference](configuration.md) - Full config system reference
+- [LLM Selection](llm-selection.md) - Model IDs, tags, models.dev
 - [MCP Servers](mcp-servers.md) - Model Context Protocol integration
 - [Testing Guide](TESTING_GUIDE.md) - Testing patterns
-- [Sandbox Support](sandbox_support.md) - Sandboxed code execution
-- [Development Guidelines](../AGENTS.md) - Code standards and practices

@@ -64,33 +64,29 @@ echo "Summarise this text: ..." | cli agents deerflow
 
 ## Setup
 
-### 1. Clone Deer-flow
+### Quick path (recommended)
+
+```bash
+uv run cli init --deer-flow   # clones Deer-flow into ext/deer-flow and installs its deps
+```
+
+`DEER_FLOW_PATH` is set automatically to `<project>/ext/deer-flow` if not already in the environment.
+
+Then run:
+
+```bash
+uv run cli agents deerflow -p "Research Assistant" --chat
+```
+
+### Manual path
 
 ```bash
 git clone https://github.com/bytedance/deer-flow /path/to/deer-flow
-export DEER_FLOW_PATH=/path/to/deer-flow
+cd /path/to/deer-flow/backend && uv sync
+export DEER_FLOW_PATH=/path/to/deer-flow   # add to .env
 ```
 
-Add `DEER_FLOW_PATH` to your `.env` or shell profile.
-
-### 2. Install Deer-flow dependencies
-
-```bash
-cd $DEER_FLOW_PATH/backend
-uv sync    # or: pip install -r requirements.txt
-```
-
-### 3. Configure a profile
-
-Edit `config/basic/agents/deerflow.yaml` (see [Profiles](#profiles) below).
-
-### 4. Run
-
-```bash
-cli agents deerflow -p "Research Assistant" --chat
-```
-
-No external servers are required for terminal mode.
+Then configure a profile in `config/basic/agents/deerflow.yaml` (see [Profiles](#profiles) below) and run as above.
 
 ## Architecture
 

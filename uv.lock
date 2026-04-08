@@ -1293,7 +1293,6 @@ dependencies = [
     { name = "openpyxl" },
     { name = "opensandbox" },
     { name = "opensandbox-server" },
-    { name = "pgembed" },
     { name = "prefect" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -1312,14 +1311,10 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
-    { name = "agent-sandbox" },
     { name = "langchain-postgres" },
     { name = "playwright" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg2-binary" },
-]
-deer-flow = [
-    { name = "agent-sandbox" },
 ]
 extra = [
     { name = "langchain-postgres" },
@@ -1330,11 +1325,7 @@ extra = [
 
 [package.dev-dependencies]
 browser-control = [
-    { name = "agent-sandbox" },
     { name = "playwright" },
-]
-deer-flow-docker = [
-    { name = "agent-sandbox" },
 ]
 dev = [
     { name = "faker" },
@@ -1353,6 +1344,7 @@ evals = [
 ]
 postgres = [
     { name = "langchain-postgres" },
+    { name = "pgembed" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg2-binary" },
 ]
@@ -1361,7 +1353,6 @@ postgres = [
 requires-dist = [
     { name = "abbreviations", specifier = ">=0.2.5" },
     { name = "agent-sandbox", specifier = ">=0.0.24" },
-    { name = "agent-sandbox", marker = "extra == 'deer-flow'", specifier = ">=0.0.24" },
     { name = "baml-cli", specifier = ">=0.1.0" },
     { name = "baml-lib", specifier = ">=0.42.0" },
     { name = "beartype", specifier = ">=0.21.0" },
@@ -1377,7 +1368,7 @@ requires-dist = [
     { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "fastembed", specifier = ">=0.8.0" },
     { name = "fuzzysearch", specifier = ">=0.8.0" },
-    { name = "genai-tk", extras = ["extra", "deer-flow"], marker = "extra == 'all'" },
+    { name = "genai-tk", extras = ["extra"], marker = "extra == 'all'" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "jinaai", specifier = ">=0.2.10" },
     { name = "kuzu", specifier = ">=0.7.1" },
@@ -1412,7 +1403,6 @@ requires-dist = [
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "opensandbox", specifier = ">=0.1.5" },
     { name = "opensandbox-server", specifier = ">=0.1.7" },
-    { name = "pgembed", specifier = ">=0.2.0" },
     { name = "playwright", marker = "extra == 'extra'", specifier = ">=1.51.0" },
     { name = "prefect", specifier = ">=3.6.7" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'extra'", specifier = ">=3.2.9" },
@@ -1431,15 +1421,11 @@ requires-dist = [
     { name = "wrapt", specifier = ">=1.17" },
     { name = "xxhash", specifier = ">=3.6.0" },
 ]
-provides-extras = ["extra", "deer-flow", "all"]
+provides-extras = ["extra", "all"]
 
 [package.metadata.requires-dev]
-browser-control = [
-    { name = "agent-sandbox", specifier = ">=0.0.24" },
-    { name = "playwright", specifier = ">=1.51.0" },
-]
+browser-control = [{ name = "playwright", specifier = ">=1.51.0" }]
 deer-flow = []
-deer-flow-docker = [{ name = "agent-sandbox", specifier = ">=0.0.19" }]
 dev = [
     { name = "faker", specifier = ">=25.0.0" },
     { name = "ipykernel", specifier = ">=6.29.4" },
@@ -1457,6 +1443,7 @@ evals = [
 ]
 postgres = [
     { name = "langchain-postgres", specifier = ">=0.0.15" },
+    { name = "pgembed", specifier = ">=0.2.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2.9" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
 ]

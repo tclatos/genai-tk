@@ -1,5 +1,8 @@
 # Genai-Tk Evolution Ideas - Roadmap candidates - 
 
+## Improve Embedders
+-  hane new FastEmbedEmbeddings provider: https://reference.langchain.com/python/langchain-community/embeddings/fastembed/FastEmbedEmbeddings  ; https://qdrant.github.io/fastembed/examples/Supported_Models 
+- add category (sparce, reranking, image, ..)
 
 ## Around Agents
 - Test the AioSandboxBackend (taken from DeerFlow, and made compatible with Langchain protocol) to work with Deep agents and Deepagent-cli. 

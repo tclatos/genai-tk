@@ -456,27 +456,10 @@ profile.backend = backend
 agent = await create_langchain_agent(profile)
 ```
 
-## Configuration Best Practices
+## Configuration
 
-1. **Use Profiles for Different Use Cases**
-   - Keep configuration organized with named profiles
-   - Use descriptive names that indicate purpose
-
-2. **Override at Runtime When Needed**
-   - Use `llm_override` and `extra_tools` parameters
-   - Don't hardcode configs in code
-
-3. **Test Tool Integration**
-   - Verify tools work in isolation before adding to profiles
-   - Use `--list` to check available tools
-
-4. **Monitor Tool Usage**
-   - Enable `RichToolCallMiddleware` for debugging
-   - Set `details: true` to see detailed output
-
-5. **Manage State Properly**
-   - Use thread IDs consistently for multi-turn conversations
-   - Clear old checkpoints periodically in production
+Agent profiles live in `config/basic/agents/langchain.yaml`.
+See [docs/configuration.md](configuration.md) for the full configuration reference including environments, `.env` loading, and how to add new profiles.
 
 ## Debugging
 
@@ -574,6 +557,6 @@ tests/integration_tests/agents/
 - [MCP Servers](mcp-servers.md) - Model Context Protocol
 - [Sandbox Support](sandbox_support.md) - Sandboxed execution
 - [Deep Agents CLI](deepagents-cli_integration.md) - Deepagents integration
-- [Deer-flow Integration](Deer_Flow_Integration.md) - ByteDance agent framework
+- [Deer-flow Integration](deer-flow.md) - ByteDance agent framework
 - [Testing Guide](TESTING_GUIDE.md) - Testing patterns
 - [Evaluation Testing](evaluation_testing.md) - LLM quality evaluation with openevals
