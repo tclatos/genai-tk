@@ -162,9 +162,9 @@ help:
 DEER_FLOW_REPO = https://github.com/bytedance/deer-flow.git
 DEER_FLOW_DIR  = ext/deer-flow
 
-.PHONY: deer-flow-sync deer-flow-install
+.PHONY: deer-flow-install
 
-deer-flow-sync:  ## Clone or update Deer-flow repository
+deer-flow-install:  ## Clone/update Deer-flow and install backend + Python deps
 	@if [ -d "$(DEER_FLOW_DIR)" ]; then \
 		echo "Updating Deer-flow..."; \
 		cd $(DEER_FLOW_DIR) && git pull --rebase; \
@@ -173,8 +173,13 @@ deer-flow-sync:  ## Clone or update Deer-flow repository
 		mkdir -p ext; \
 		git clone --depth 1 $(DEER_FLOW_REPO) $(DEER_FLOW_DIR); \
 	fi
-	@echo "Deer-flow synced at $(DEER_FLOW_DIR)"
-
-deer-flow-install: deer-flow-sync  ## Sync Deer-flow and install dependencies
+	@echo "Installing Deer-flow backend..."
+	uv pip install -e "$(CURDIR)/$(DEER_FLOW_DIR)/backend"
 	uv sync --group deer-flow
-	@echo "Deer-flow ready. Backend: $(DEER_FLOW_DIR)/backend"
+	@echo ""
+	@echo "✓ Deer-flow installed."
+	@echo ""
+	@echo "  Add to your .env (or export before running):"
+	@echo "    DEER_FLOW_PATH=$(CURDIR)/$(DEER_FLOW_DIR)"
+	@echo ""
+	@echo "  The value is also set automatically when you use 'make' targets."

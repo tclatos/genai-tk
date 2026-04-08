@@ -105,6 +105,29 @@ dependencies = [
 Homepage = "https://github.com/tclatos/genai-tk"
 Repository = "https://github.com/tclatos/genai-tk"
 
+# ============================================
+# Optional extras (pip-installable from git)
+# uv add "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
+# ============================================
+[project.optional-dependencies]
+# Commonly needed extras: PostgreSQL vector store, browser control, HuggingFace models
+extra = [
+    "langchain-postgres>=0.0.15",   # LangChain PostgreSQL integration for vector storage
+    "psycopg[binary]>=3.2.9",       # Modern PostgreSQL adapter (v3)
+    "psycopg2-binary>=2.9.10",      # Legacy PostgreSQL adapter (v2)
+    "playwright>=1.51.0",           # Browser automation via CDP
+    "agent-sandbox>=0.0.24",        # AIO sandbox SDK client
+    "accelerate>=1.4.0",            # PyTorch model acceleration utilities
+    "langchain-huggingface>=0.1.2", # LangChain integration for Hugging Face models
+    "sentence-transformers>=3.4.1", # Semantic sentence embeddings
+]
+# Deer-flow: Python deps only (backend must also be installed — see `make deer-flow-install`)
+deer-flow = [
+    "agent-sandbox>=0.0.24", # Docker sandbox client for deer-flow code execution
+]
+# All optional extras combined
+all = ["genai-tk[extra,deer-flow]"]
+
 [dependency-groups]
 # Optional dependency groups for specific use cases
 # Install with: uv sync --group <group-name>

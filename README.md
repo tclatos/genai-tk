@@ -31,17 +31,47 @@ GenAI Toolkit provides reusable components, agents, and utilities for building s
 
 ## Installation
 
+**From git (recommended for projects using uv):**
+
 ```bash
-# Install with core dependencies
-uv pip install git+https://github.com/tclatos/genai-tk@main
+# Core only
+uv add git+https://github.com/tclatos/genai-tk@main
 
-# Install with all extras  
-uv pip install "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
+# Core + common extras (PostgreSQL, browser control, HuggingFace models)
+uv add "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
 
-# Development installation
+# Core + Deer-flow Python deps (still requires make deer-flow-install, see below)
+uv add "genai-tk[deer-flow] @ git+https://github.com/tclatos/genai-tk@main"
+
+# Everything
+uv add "genai-tk[all] @ git+https://github.com/tclatos/genai-tk@main"
+```
+
+**Development installation (clone & edit):**
+
+```bash
 git clone https://github.com/tclatos/genai-tk.git
 cd genai-tk
-uv sync
+uv sync          # core + dev deps
+uv sync --all-groups  # core + every dependency group
+```
+
+**Deer-flow setup** (requires a separate step — the backend is a separate repo):
+
+```bash
+make deer-flow-install   # clones @bytedance/deer-flow and installs backend
+# Then add to your .env:
+# DEER_FLOW_PATH=/path/to/genai-tk/ext/deer-flow
+```
+
+### Quick install test
+
+```bash
+# Sanity-check with the built-in fake model (no API key needed)
+uv run cli core llm -i "tell me a joke" -m parrot_local@fake
+
+# With a real model (OpenAI example)
+uv run cli core llm -i "tell me a joke" -m gpt-4o-mini@openai --stream
 ```
 
 ## Quick Start
@@ -83,7 +113,7 @@ print(result)
 uv run cli
 
 # Invoke an LLM directly
-uv run cli core llm "Tell me a joke" --stream
+uv run cli core llm -i "Tell me a joke" --stream
 
 # Show config, API key status, default models
 uv run cli info config
@@ -108,6 +138,38 @@ uv run cli tools markdownize ./pdfs ./output --recursive --mistral-ocr
 ```
 
 See [docs/cli.md](docs/cli.md) for the full command reference.
+
+## LLM Selection
+
+Models are declared in `config/basic/providers/llm.yaml` using the format `model_id@provider`:
+
+```yaml
+# config/basic/providers/llm.yaml
+llm:
+  exceptions:
+    - model_id: gpt4o
+      providers:
+        - openai: gpt-4o
+    - model_id: haiku
+      providers:
+        - openrouter: anthropic/claude-haiku-4-5
+```
+
+The default model is configured in your active YAML config (e.g. `config/basic/extra/llm_defaults.yaml`). Override it at runtime with `-m` / `--llm`:
+
+```bash
+# Use default model from config
+uv run cli core llm -i "Explain transformers"
+
+# Use a specific model by ID@provider
+uv run cli core llm -i "Explain transformers" -m gpt-4o@openai
+
+# Use a named tag (configured in llm.models in YAML)
+uv run cli core llm -i "Explain transformers" -m cheap_model
+
+# See available models, tags, and API key status
+uv run cli info config
+```
 
 **Structured Output (BAML)**:
 ```python
