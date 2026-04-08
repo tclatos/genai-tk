@@ -19,6 +19,7 @@ dependencies = [
     "devtools>=0.12.2",         # Debug printing and development utilities
     "xxhash>=3.6.0",            # Fast non-cryptographic hash functions
     "httpx>=0.28.0",            # Async HTTP client
+    "wrapt>=1.17",              # Transparent function/decorator wrapping
     # ============================================
     # LangChain Core Framework
     # ============================================
@@ -52,6 +53,9 @@ dependencies = [
     "deepagents-cli>=0.0.26",                                  # CLI for deepagents
     "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
+    "agent-sandbox>=0.0.24",                                   # AIO sandbox SDK client
+    "opensandbox>=0.1.5",
+    "opensandbox-server>=0.1.7",
     # ============================================
     # Vector Stores & Embeddings
     # ============================================
@@ -94,11 +98,10 @@ dependencies = [
     "jinaai>=0.2.10",                     # Jina AI embeddings and reranking
     "langgraph-checkpoint-sqlite>=3.0.3", # SQLite checkpoint persistence for LangGraph
     "readabilipy>=0.3.0",                 # Web article extraction and readability parsing
-    "agent-sandbox>=0.0.24",              # All-in-One Sandbox -  code execution environment
+
     "pgembed>=0.2.0",
-    "opensandbox>=0.1.5",
-    "opensandbox-server>=0.1.7",
     "edgeparse>=0.2.2",
+    "fastembed>=0.8.0",
 ]
 
 [project.urls]
@@ -112,14 +115,13 @@ Repository = "https://github.com/tclatos/genai-tk"
 [project.optional-dependencies]
 # Commonly needed extras: PostgreSQL vector store, browser control, HuggingFace models
 extra = [
-    "langchain-postgres>=0.0.15",   # LangChain PostgreSQL integration for vector storage
-    "psycopg[binary]>=3.2.9",       # Modern PostgreSQL adapter (v3)
-    "psycopg2-binary>=2.9.10",      # Legacy PostgreSQL adapter (v2)
-    "playwright>=1.51.0",           # Browser automation via CDP
-    "agent-sandbox>=0.0.24",        # AIO sandbox SDK client
-    "accelerate>=1.4.0",            # PyTorch model acceleration utilities
-    "langchain-huggingface>=0.1.2", # LangChain integration for Hugging Face models
-    "sentence-transformers>=3.4.1", # Semantic sentence embeddings
+    "langchain-postgres>=0.0.15", # LangChain PostgreSQL integration for vector storage
+    "psycopg[binary]>=3.2.9",     # Modern PostgreSQL adapter (v3)
+    "psycopg2-binary>=2.9.10",    # Legacy PostgreSQL adapter (v2)
+    "playwright>=1.51.0",         # Browser automation via CDP
+
+    #   "accelerate>=1.4.0",            # PyTorch model acceleration utilities
+    #   "langchain-huggingface>=0.1.2", # LangChain integration for Hugging Face models
 ]
 # Deer-flow: Python deps only (backend must also be installed — see `make deer-flow-install`)
 deer-flow = [
@@ -149,23 +151,6 @@ browser-control = [
     "agent-sandbox>=0.0.24", # AIO sandbox SDK client
 ]
 
-# ============================================
-# Machine Learning Models
-# ============================================
-transformers = [
-    "accelerate>=1.4.0",            # PyTorch model acceleration utilities
-    "langchain-huggingface>=0.1.2", # LangChain integration for Hugging Face models
-    "sentence-transformers>=3.4.1", # Semantic sentence embeddings
-]
-
-# ============================================
-# Multi-Agent Systems
-# ============================================
-autogen = [
-    "autogen-openaiext-client>=0.0.3", # OpenAI extension client for AutoGen
-    "autogen-agentchat>=0.4.3",        # Multi-agent conversation framework
-    "autogen-ext[openai]>=0.4.3",      # AutoGen extensions with OpenAI support
-]
 
 # ============================================
 # Deer-flow Agent Integration  

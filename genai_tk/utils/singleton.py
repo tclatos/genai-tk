@@ -1,140 +1,89 @@
-"""
-Implement 'once', a decorator that ensures the wrapped function is called once and return same result.\n
-It's typically used for thread-safe singleton instance creation.
+"""Implement ``once``, a decorator that ensures the wrapped function is called once and returns the same result.
 
-It's inspired by the 'once' keyword in the Eiffel Programming language.
-It's simpler and arguably clearer than most usual approach to create singletons, such as inheriting a metaclass,
-overriding __init__(), etc.
-
-Purists might say it's not a 'real' Singleton class (as defined by the GoF), but  we can argue that
-it actually enforce reusability, since the class has not to be specialized to become a singleton.
-
+Typically used for thread-safe singleton instance creation.  Inspired by the
+``once`` keyword in the Eiffel programming language.
 """
 
 from __future__ import annotations
 
 import inspect
-from functools import wraps
 from threading import Lock
 from typing import Any, Callable, TypeVar
+
+import wrapt
 
 R = TypeVar("R")
 
 
+def _make_hashable(obj: Any) -> Any:
+    """Recursively convert an object to a hashable representation."""
+    if obj is None or isinstance(obj, (int, float, str, bool)):
+        return obj
+    if isinstance(obj, (list, tuple)):
+        return tuple(_make_hashable(x) for x in obj)
+    if isinstance(obj, dict):
+        return tuple(sorted((k, _make_hashable(v)) for k, v in obj.items()))
+    if hasattr(obj, "__dict__"):
+        return _make_hashable(vars(obj))
+    return str(obj)
+
+
 def once(func: Callable[..., R]) -> Callable[..., R]:
-    """
-    A decorator that ensures the wrapped function is called once and return same result.\n
-    It's typically used for thread-safe singleton instance creation.
+    """Decorator that caches the result and returns the same value on subsequent calls.
+
+    Thread-safe via double-checked locking.  Results are keyed by arguments so
+    different call signatures produce independent cached values.
+
+    Attach ``.invalidate()`` on the result to clear the cache.
 
     Example:
-    ```
-        class MyClass (BaseModel):
+        ```python
+        class MyClass(BaseModel):
             model_config = ConfigDict(frozen=True)
 
             @once
             def singleton() -> "MyClass":
-                "Returns a singleton instance of the class"
                 return MyClass()
 
-        my_class_singleton = MyClass.singleton()
 
-        # Invalidate the singleton
-        MyClass.singleton.invalidate()
-        new_instance = MyClass.singleton()  # Creates a new instance
+        obj = MyClass.singleton()
+        MyClass.singleton.invalidate()  # reset
 
-    # work for functions, too:
+
         @once
-        def get_my_class_singleton():
+        def get_singleton() -> MyClass:
             return MyClass()
 
-        # Invalidate function-based singleton
-        get_my_class_singleton.invalidate()
-    ```
+
+        get_singleton.invalidate()
+        ```
     """
-    # Preserve the original function's docstring and attributes
-    original_doc = func.__doc__
-    original_annotations = func.__annotations__
-    if isinstance(func, staticmethod):
-        # If already a staticmethod, apply once_fn() to the underlying function
-        inner_func = func.__func__
-        wrapper = once_fn()(inner_func)
-        # Modify wrapper's docstring and annotations BEFORE wrapping in staticmethod
-        wrapper.__doc__ = f"ONCE FUNCTION (singleton)\n- {original_doc or ''}"
-        wrapper.__annotations__ = original_annotations
-        wrapped = staticmethod(wrapper)
-        # Forward the invalidate method to the staticmethod
-        wrapped.invalidate = wrapper.invalidate  # type: ignore
-        wrapped.__name__ = inner_func.__name__  # type: ignore
-        wrapped.__module__ = inner_func.__module__  # type: ignore
-    else:
-        # Otherwise create a new staticmethod with once_fn() applied
-        wrapper = once_fn()(func)
-        # Modify wrapper's docstring and annotations BEFORE wrapping in staticmethod
-        wrapper.__doc__ = f"ONCE FUNCTION (singleton)\n- {original_doc or ''}"
-        wrapper.__annotations__ = original_annotations
-        wrapped = staticmethod(wrapper)
-        # Expose the invalidate method directly
-        wrapped.invalidate = wrapper.invalidate  # type: ignore
-        wrapped.__name__ = func.__name__
-        wrapped.__module__ = func.__module__
+    inner: Callable = func.__func__ if isinstance(func, staticmethod) else func  # type: ignore[union-attr]
 
-    return wrapped
+    _cache: dict = {}
+    _lock = Lock()
 
+    @wrapt.decorator
+    def _wrapper(wrapped: Callable, instance: Any, args: tuple, kwargs: dict) -> Any:  # noqa: ARG001
+        sig = inspect.signature(wrapped)
+        bound = sig.bind(*args, **kwargs)
+        bound.apply_defaults()
+        key = tuple(sorted((k, _make_hashable(v)) for k, v in bound.arguments.items()))
+        if key not in _cache:
+            with _lock:
+                if key not in _cache:
+                    _cache[key] = wrapped(*args, **kwargs)
+        return _cache[key]
 
-def once_fn() -> Callable:
-    """Factory function that returns a decorator for once functionality."""
+    def invalidate() -> None:
+        with _lock:
+            _cache.clear()
 
-    def decorator(func: Callable):
-        """The actual decorator that implements the once functionality."""
-        decorator._cached_results = {}  # type: ignore # Store instance and lock as decorator attributes
-        decorator._lock = Lock()  # type: ignore
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            # Create a stable cache key that handles:
-            # - Multiple arguments
-            # - Mutable types (lists, dicts)
-            # - None values
-            # - Keyword argument order
-            def make_hashable(obj) -> Any:  # noqa: ANN001
-                if obj is None:
-                    return None
-                if isinstance(obj, (int, float, str, bool)):
-                    return obj
-                if isinstance(obj, (list, tuple)):
-                    return tuple(make_hashable(x) for x in obj)
-                if isinstance(obj, dict):
-                    return tuple(sorted((k, make_hashable(v)) for k, v in obj.items()))
-                if hasattr(obj, "__dict__"):
-                    return make_hashable(vars(obj))
-                return str(obj)
-
-            # Get function signature to properly handle default args
-            sig = inspect.signature(func)
-            bound_args = sig.bind(*args, **kwargs)
-            bound_args.apply_defaults()
-
-            # Create cache key that treats positional and keyword args the same
-            sorted_args = tuple(sorted((k, make_hashable(v)) for k, v in bound_args.arguments.items()))
-            cache_key = sorted_args
-
-            if cache_key not in decorator._cached_results:  # type: ignore
-                with decorator._lock:  # type: ignore
-                    if cache_key not in decorator._cached_results:  # type: ignore
-                        result = func(*args, **kwargs)
-                        decorator._cached_results[cache_key] = result  # type: ignore
-            return decorator._cached_results[cache_key]  # type: ignore
-
-        # Add invalidation method
-        def invalidate() -> None:
-            with decorator._lock:  # type: ignore
-                decorator._cached_results.clear()  # type: ignore
-
-        wrapper.invalidate = invalidate  # type: ignore
-
-        return wrapper
-
-    return decorator  # type: ignore
+    wrapped_fn = _wrapper(inner)
+    wrapped_fn.invalidate = invalidate  # type: ignore[attr-defined]
+    result = staticmethod(wrapped_fn)
+    result.invalidate = invalidate  # type: ignore[attr-defined]
+    return result  # type: ignore[return-value]
 
 
 # TEST
