@@ -95,15 +95,14 @@ def fake_deer_flow_env(monkeypatch, tmp_path):
     sys.modules["deerflow"] = fake_df
     sys.modules["deerflow.client"] = fake_df_client
 
-    # Reset the compat-check flag so clean-room detection runs per test
+    # Skip compat check in unit tests by pre-populating the @once cache
     import genai_tk.agents.deer_flow.embedded_client as _ec
 
-    old_compat = _ec._compat_checked
-    _ec._compat_checked = True  # skip compat check in unit tests
+    _ec._check_deer_flow_compatibility()  # type: ignore[attr-defined]  # pre-populate cache → skips body on next call
 
     yield {"config_path": fake_config, "mock_cls": mock_df_client_cls}
 
-    _ec._compat_checked = old_compat
+    _ec._check_deer_flow_compatibility.invalidate()  # type: ignore[attr-defined]  # restore clean state
     if prev_df_client is not None:
         sys.modules["deerflow.client"] = prev_df_client
     else:

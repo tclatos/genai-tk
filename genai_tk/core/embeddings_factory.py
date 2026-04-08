@@ -31,7 +31,7 @@ Example:
 """
 
 import os  # noqa: I001
-from functools import cached_property, lru_cache
+from functools import cached_property
 from typing import Annotated, Any
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
@@ -43,6 +43,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 
 from genai_tk.extra.kv_store_registry import KvStoreRegistry
 from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.singleton import once
 from genai_tk.core.providers import (
     get_provider_api_env_var,
     get_provider_api_key,
@@ -315,8 +316,7 @@ class EmbeddingsFactory(BaseModel):
                 f"Unknown embeddings: {self.embeddings_id}; Check API key and module imports. Should be in {EmbeddingsFactory.known_items()}"
             )
 
-    @lru_cache(maxsize=1)
-    @staticmethod
+    @once
     def known_list() -> list[EmbeddingsInfo]:
         """List all known embeddings models.
 

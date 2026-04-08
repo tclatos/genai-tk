@@ -346,16 +346,16 @@ class InfoCommands(CliTopCommand):
             from rich.text import Text
 
             from genai_tk.core.llm_factory import LlmFactory, lookup_model_entry, resolve_model
-            from genai_tk.core.models_db import get_models_db, invalidate_models_db
+            from genai_tk.core.models_db import get_models_db
             from genai_tk.core.providers import PROVIDER_INFO
 
             console = Console()
 
             if reload:
                 console.print("[cyan]Reloading models.dev database…[/cyan]")
-                invalidate_models_db()
+                get_models_db.invalidate()  # type: ignore[attr-defined]
                 get_models_db().fetch()
-                invalidate_models_db()  # reload from freshly saved file
+                get_models_db.invalidate()  # type: ignore[attr-defined]  # reload from freshly saved file
                 get_models_db()
                 console.print("[green]✓ Database updated.[/green]")
 

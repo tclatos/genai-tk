@@ -23,6 +23,8 @@ import httpx
 from loguru import logger
 from pydantic import BaseModel, field_validator
 
+from genai_tk.utils.singleton import once
+
 MODELS_DEV_URL = "https://models.dev/api.json"
 _DEFAULT_CACHE_PATH = Path(__file__).parent.parent.parent / "data" / "models_dev.json"
 
@@ -270,22 +272,12 @@ class ModelsDb:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_db_singleton: ModelsDb | None = None
 
-
+@once
 def get_models_db() -> ModelsDb:
     """Return the singleton ``ModelsDb``, loading from the default cache path.
 
-    The database is loaded once and cached in memory.  Call ``invalidate_models_db()``
+    The database is loaded once and cached in memory.  Call ``get_models_db.invalidate()``
     followed by ``get_models_db()`` to reload after a ``fetch()``.
     """
-    global _db_singleton
-    if _db_singleton is None:
-        _db_singleton = ModelsDb().load()
-    return _db_singleton
-
-
-def invalidate_models_db() -> None:
-    """Discard the singleton so the next call to ``get_models_db()`` reloads from disk."""
-    global _db_singleton
-    _db_singleton = None
+    return ModelsDb().load()

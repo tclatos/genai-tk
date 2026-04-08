@@ -6,7 +6,6 @@ managing API keys across different AI service providers.
 """
 
 import os
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +13,7 @@ import yaml
 from pydantic import BaseModel, Field, SecretStr
 
 from genai_tk.utils.config_mngr import QualifiedClassName, get_module_from_qualified, get_object_name_from_qualified
+from genai_tk.utils.singleton import once
 
 DEEPSEEK_API_BASE = "https://api.deepseek.com"
 
@@ -78,7 +78,7 @@ class ProviderInfo(BaseModel):
         return self.use
 
 
-@lru_cache(maxsize=1)
+@once
 def _load_provider_info_from_yaml() -> dict[str, ProviderInfo]:
     """Load provider information from YAML config file."""
     # Look for providers.yaml in config/basic/providers/ directory

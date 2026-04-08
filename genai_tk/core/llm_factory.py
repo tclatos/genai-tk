@@ -40,7 +40,7 @@ import difflib
 import importlib.util
 import os
 import re
-from functools import cached_property, lru_cache
+from functools import cached_property
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
 if TYPE_CHECKING:
@@ -61,6 +61,7 @@ from genai_tk.core.providers import (
     get_provider_info,
 )
 from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.singleton import once
 
 SEED = 42  # Arbitrary value....
 DEFAULT_MAX_RETRIES = 2
@@ -543,8 +544,7 @@ class LlmFactory(BaseModel):
                 f"Unknown LLM: {self.llm_id}; Check API key and module imports. Should be in {LlmFactory.known_items()}"
             )
 
-    @lru_cache(maxsize=1)
-    @staticmethod
+    @once
     def known_list() -> list[LlmInfo]:
         return _read_llm_list_file()
 

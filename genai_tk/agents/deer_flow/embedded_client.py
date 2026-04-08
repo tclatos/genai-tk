@@ -40,6 +40,8 @@ from typing import Any
 
 from loguru import logger
 
+from genai_tk.utils.singleton import once
+
 # Suppress Pydantic serialization warnings emitted by LangGraph's checkpointer
 # when it serialises RunnableConfig.context (which is always a dict, not None).
 # NOTE: warnings.filterwarnings uses re.match() (not re.search), so the pattern
@@ -293,9 +295,8 @@ def _get_checkpointer_db_path() -> Path:
 # Compatibility checks
 # ---------------------------------------------------------------------------
 
-_compat_checked = False
 
-
+@once
 def _check_deer_flow_compatibility() -> None:
     """Run once to detect common deer-flow compatibility issues and warn early.
 
@@ -306,11 +307,6 @@ def _check_deer_flow_compatibility() -> None:
 
     All issues are logged as warnings — nothing is fatal here.
     """
-    global _compat_checked  # noqa: PLW0603
-    if _compat_checked:
-        return
-    _compat_checked = True
-
     df_path = os.environ.get("DEER_FLOW_PATH", "")
     if not df_path:
         return

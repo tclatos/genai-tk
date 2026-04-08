@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from functools import lru_cache
 
 import tiktoken
 from chonkie import MarkdownChef, RecursiveChunker, TableChunker
 from upath import UPath
+
+from genai_tk.utils.singleton import once
 
 # Tiktoken encoding for token counting (o200k_base is used by GPT-4o and newer)
 TIKTOKEN_ENCODING = "o200k_base"
@@ -40,12 +41,11 @@ warnings.filterwarnings(
 TIKTOKEN_ENCODING = "o200k_base"
 
 # Initialize chunkers once (they are reusable and thread-safe)
-_markdown_chef: MarkdownChef | None = None
 _text_chunker: RecursiveChunker | None = None
 _table_chunker: TableChunker | None = None
 
 
-@lru_cache(maxsize=1)
+@once
 def _get_tiktoken_encoding() -> tiktoken.Encoding:
     """Get cached tiktoken encoding."""
     return tiktoken.get_encoding(TIKTOKEN_ENCODING)
@@ -74,12 +74,10 @@ class ChunkInfo:
     end_pos: int  # End position in original content
 
 
+@once
 def _get_markdown_chef() -> MarkdownChef:
     """Get or create a MarkdownChef for parsing markdown."""
-    global _markdown_chef
-    if _markdown_chef is None:
-        _markdown_chef = MarkdownChef(tokenizer=TIKTOKEN_ENCODING)
-    return _markdown_chef
+    return MarkdownChef(tokenizer=TIKTOKEN_ENCODING)
 
 
 def _get_text_chunker(max_tokens: int = DEFAULT_MAX_TOKENS) -> RecursiveChunker:
