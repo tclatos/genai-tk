@@ -80,6 +80,9 @@ uv run cli core llm -i "tell me a joke" -m parrot_local@fake
 uv run cli core llm -i "tell me a joke" -m gpt-4o-mini@openai --stream
 ```
 
+> **Next step:** configure your LLMs in `config/basic/providers/llm.yaml`.
+> See [LLM Selection →](docs/llm-selection.md)
+
 ## Quick Start
 
 **Basic Setup**:
@@ -147,35 +150,47 @@ See [docs/cli.md](docs/cli.md) for the full command reference.
 
 ## LLM Selection
 
-Models are declared in `config/basic/providers/llm.yaml` using the format `model_id@provider`:
+Models are declared in `config/basic/providers/llm.yaml` with the format `model_id@provider`:
 
 ```yaml
-# config/basic/providers/llm.yaml
 llm:
   exceptions:
-    - model_id: gpt4o
+    - model_id: gpt41mini
       providers:
-        - openai: gpt-4o
+        - openai: gpt-4.1-mini-2025-04-14   # direct provider
     - model_id: haiku
       providers:
-        - openrouter: anthropic/claude-haiku-4-5
+        - openrouter: anthropic/claude-haiku-4-5  # via gateway
+    - model_id: parrot_local   # built-in fake model (no API key)
+      providers:
+        - fake: parrot
 ```
 
-The default model is configured in your active YAML config (e.g. `config/basic/extra/llm_defaults.yaml`). Override it at runtime with `-m` / `--llm`:
+Set the default in `config/basic/init/baseline.yaml`, then override at runtime with `-m` / `--llm`:
 
 ```bash
-# Use default model from config
-uv run cli core llm -i "Explain transformers"
-
-# Use a specific model by ID@provider
-uv run cli core llm -i "Explain transformers" -m gpt-4o@openai
-
-# Use a named tag (configured in llm.models in YAML)
-uv run cli core llm -i "Explain transformers" -m cheap_model
-
-# See available models, tags, and API key status
-uv run cli info config
+cli core llm -i "Explain RAG"                        # uses configured default
+cli core llm -i "Explain RAG" -m gpt41mini@openai    # explicit model
+cli core llm -i "Explain RAG" -m fast_model          # named tag
+cli core llm -i "Explain RAG" -m gpt-4o-mini         # raw provider name (fuzzy resolved)
 ```
+
+**Inspect what's available:**
+
+```bash
+cli info config          # default model, tags, API key status
+cli info models          # all providers + known model counts
+cli info llm-profile gpt41mini@openai   # context window, pricing, capabilities
+cli info llm-profile --reload           # refresh the models.dev database
+```
+
+Capabilities (context window, pricing, vision, tool-calling…) are sourced from the
+[models.dev](https://models.dev) database (`data/models_dev.json`) and can be
+overridden per-model in `llm.yaml`.
+
+See [docs/llm-selection.md](docs/llm-selection.md) for the full reference: adding
+models, tags, custom providers, overriding capability data, and adding new providers.
+
 
 **Structured Output (BAML)**:
 ```python
@@ -225,6 +240,7 @@ config.select_config('production')
 | Document | What it covers |
 |----------|---------------|
 | [docs/cli.md](docs/cli.md) | **All CLI commands**, flags, adding new commands — start here |
+| [docs/llm-selection.md](docs/llm-selection.md) | **LLM selection** — model IDs, YAML config, tags, models.dev, `cli info` commands |
 | [docs/core.md](docs/core.md) | LLM Factory, Embeddings, Vector Stores, Caching, Configuration |
 | [docs/agents.md](docs/agents.md) | LangChain agents (react/deep/custom), profiles, middleware, checkpointing |
 | [docs/extra.md](docs/extra.md) | RAG pipelines, graphs, data loaders, retrievers, privacy tools |
