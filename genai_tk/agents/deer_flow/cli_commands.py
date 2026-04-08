@@ -1299,7 +1299,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
 
             console.print(f"[cyan]Installing Deer-flow backend from {backend} ...[/cyan]")
             install_result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "-e", str(backend)], capture_output=True, text=True
+                ["uv", "pip", "install", "-e", str(backend)], capture_output=True, text=True
             )
             if install_result.returncode != 0:
                 console.print(f"[red]Install failed:[/red] {install_result.stderr.strip()}")

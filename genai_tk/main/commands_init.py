@@ -13,7 +13,6 @@ Usage:
 from __future__ import annotations
 
 import subprocess
-import sys
 from importlib.resources import files as pkg_files
 from pathlib import Path
 from typing import Annotated, Optional
@@ -107,7 +106,7 @@ def _install_deer_flow(path: Path | None) -> bool:
 
     console.print(f"[cyan]Installing Deer-flow backend ...[/cyan]")
     install = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "-e", str(backend)], capture_output=True, text=True
+        ["uv", "pip", "install", "-e", str(backend)], capture_output=True, text=True
     )
     if install.returncode != 0:
         console.print(f"[red]Install failed:[/red] {install.stderr.strip()}")
