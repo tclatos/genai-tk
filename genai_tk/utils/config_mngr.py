@@ -363,6 +363,8 @@ class OmegaConfig(BaseModel):
             ConfigTypeError: If value is not a string
         """
         value = self.get(key, default)
+        if value is None:
+            return None  # type: ignore[return-value]
         if not isinstance(value, str):
             raise ConfigTypeError(key, expected_type=str, actual_type=type(value), actual_value=value)
         return value
@@ -377,6 +379,8 @@ class OmegaConfig(BaseModel):
             ConfigTypeError: If value cannot be interpreted as boolean
         """
         value = self.get(key, default)
+        if value is None:
+            return None  # type: ignore[return-value]
         if isinstance(value, str):
             value = value.lower().strip()
             if value in ("true", "1", "yes"):
@@ -415,6 +419,8 @@ class OmegaConfig(BaseModel):
             ```
         """
         value = self.get(key, default)
+        if value is None:
+            return None  # type: ignore[return-value]
         if not (isinstance(value, ListConfig) or isinstance(value, list)):
             raise ConfigTypeError(key, expected_type=list, actual_type=type(value), actual_value=value)
 
