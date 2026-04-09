@@ -458,6 +458,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | **MCP servers** | `cli mcpserver` | `McpClient` | [docs/mcp-servers.md](docs/mcp-servers.md) |
 | **Prefect flows** | `cli tools markdownize` (example) | `run_flow_ephemeral()` | [docs/prefect.md](docs/prefect.md) |
 | **Browser automation** | — | `browser_use` tools | [docs/browser_control.md](docs/browser_control.md) |
+| **Streamlit webapp** | `make webapp` | `genai_tk.webapp` | [docs/webapp.md](docs/webapp.md) |
 | **Testing** | `cli test unit` / `cli test fast_integration` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
 | **Configuration** | `cli init` | `global_config()` | [docs/configuration.md](docs/configuration.md) |
 | **CLI extension** | — | `CliTopCommand` | [docs/cli.md](docs/cli.md) |
