@@ -12,6 +12,7 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
   - ${paths.config}/providers/embeddings.yaml
   - ${paths.config}/overrides.yaml
   - ${paths.config}/mcp_servers.yaml
+  - ${paths.config}/webapp.yaml
   # Agent configs are loaded on-demand by their respective loaders
   # (load_deepagent_config, load_deer_flow_profiles, load_unified_config,
   # load_all_demos_from_config) — no need to merge them globally here.

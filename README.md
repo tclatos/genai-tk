@@ -113,6 +113,24 @@ See [docs/cli.md](docs/cli.md) for the full command reference.
 
 ---
 
+## First steps — Web UI
+
+Test agents interactively without code:
+
+```bash
+make webapp           # launches Streamlit on http://localhost:8501
+```
+
+Two demo pages are included:
+
+- **🦌 DeerFlow Agent** — 2-panel trace + chat, artifacts, streaming
+- **🤖 ReAct Agent** — tool-call trace, MCP servers, slash commands
+
+See [docs/webapp.md](docs/webapp.md) for configuration, adding custom pages, and
+running from a new project via `cli init --name "My Project"`.
+
+---
+
 ## First steps — Python
 
 ```python

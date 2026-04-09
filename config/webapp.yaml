@@ -1,0 +1,25 @@
+# Web application configuration
+# Copied to ./config/ by `cli init` — customise here for your project.
+
+ui:
+  # Browser tab title and sidebar header.  Defaults to the project directory name.
+  app_name: GenAI Toolkit
+
+  # Path to your logo image (relative to the working directory, or absolute).
+  # Leave as null to show no logo.
+  logo: null
+
+  # -------------------------------------------------------------------------
+  # Custom navigation (optional).
+  # When both pages_dir and navigation are set, the webapp will load pages
+  # from pages_dir using the structure defined below.
+  # When left unset, only the built-in agent demos are shown.
+  # -------------------------------------------------------------------------
+
+  # pages_dir: genai_blueprint/webapp/pages   # example
+  # navigation:
+  #   demos:
+  #     - demos/deer_flow_agent.py
+  #     - demos/deep_agent.py
+  #   settings:
+  #     - settings/configuration.py

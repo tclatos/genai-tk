@@ -4,9 +4,10 @@ Registered statically in cli.py so they work from an empty directory
 (i.e. immediately after `uv add genai-tk`).
 
 Usage:
-    cli init                    # copy default config to ./config/
-    cli init --force            # overwrite existing config files
-    cli init --deer-flow        # also install the Deer-flow backend
+    cli init                            # copy default config + Makefile
+    cli init --name "My Project"        # set project name in webapp.yaml
+    cli init --force                    # overwrite existing files
+    cli init --deer-flow                # also install the Deer-flow backend
     cli init --deer-flow --path ~/my-deer-flow
 """
 
@@ -30,6 +31,34 @@ _CONFIG_PKG_PATH = "default_config"  # inside genai_tk package (wheel-bundled)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _copy_makefile(force: bool, app_name: str) -> None:
+    """Copy the bundled Makefile.template to ./Makefile, substituting APP_NAME."""
+    target = Path.cwd() / "Makefile"
+    if target.exists() and not force:
+        console.print("[yellow]Makefile already exists (use --force to overwrite)[/yellow]")
+        return
+    try:
+        src = pkg_files("genai_tk") / _CONFIG_PKG_PATH / "Makefile.template"
+        content = src.read_text(encoding="utf-8")
+        content = content.replace("{{APP_NAME}}", app_name)
+        target.write_text(content, encoding="utf-8")
+        console.print(f"[green]✓ Wrote[/green] [bold]{target}[/bold]")
+    except Exception as exc:
+        console.print(f"[red]Could not copy Makefile:[/red] {exc}")
+
+
+def _patch_webapp_yaml(config_dir: Path, app_name: str) -> None:
+    """Replace the placeholder app_name in the copied webapp.yaml."""
+    webapp_yaml = config_dir / "webapp.yaml"
+    if not webapp_yaml.exists():
+        return
+    content = webapp_yaml.read_text(encoding="utf-8")
+    patched = content.replace("app_name: My GenAI Project", f"app_name: {app_name}")
+    if patched != content:
+        webapp_yaml.write_text(patched, encoding="utf-8")
+        console.print(f"[green]✓ app_name set to[/green] [bold]{app_name!r}[/bold] in {webapp_yaml}")
 
 
 def _copy_default_config(dest: Path, force: bool) -> bool:
@@ -217,8 +246,15 @@ class InitCommands(CliTopCommand):
             ctx: typer.Context,
             force: Annotated[
                 bool,
-                typer.Option("--force", "-f", help="Overwrite existing config files."),
+                typer.Option("--force", "-f", help="Overwrite existing config files and Makefile."),
             ] = False,
+            name: Annotated[
+                Optional[str],
+                typer.Option(
+                    "--name", "-n",
+                    help="Project name used in webapp.yaml and Makefile (default: current directory name).",
+                ),
+            ] = None,
             deer_flow: Annotated[
                 bool,
                 typer.Option("--deer-flow", "-d", help="Also clone and install the Deer-flow backend."),
@@ -238,6 +274,7 @@ class InitCommands(CliTopCommand):
             \\b
             Examples:
                 cli init
+                cli init --name "My Project"               # set project name
                 cli init --force                           # overwrite existing files
                 cli init --deer-flow                       # also install Deer-flow
                 cli init --deer-flow --deer-flow-path ~/projects/deer-flow
@@ -245,10 +282,13 @@ class InitCommands(CliTopCommand):
             if ctx.invoked_subcommand is not None:
                 return
 
+            app_name = name or Path.cwd().name
             dest = Path.cwd() / "config"
             console.print(f"\n[bold]Initializing genai-tk project in[/bold] {Path.cwd()}\n")
 
             _copy_default_config(dest, force=force)
+            _patch_webapp_yaml(dest, app_name)
+            _copy_makefile(force=force, app_name=app_name)
 
             if deer_flow:
                 df_path = Path(deer_flow_path) if deer_flow_path else None
@@ -264,6 +304,7 @@ class InitCommands(CliTopCommand):
                     f"  [bold cyan]DEER_FLOW_PATH={df_root.absolute()}[/bold cyan]\n"
                 )
 
-            console.print("You can now run [bold]cli[/bold] commands.\n")
+            console.print(f"Project name: [bold]{app_name}[/bold]")
+            console.print("Run [bold]make webapp[/bold] to launch the agent demo UI.\n")
             if not deer_flow:
                 console.print("Tip: run [bold]cli init --deer-flow[/bold] to also install the Deer-flow backend.\n")

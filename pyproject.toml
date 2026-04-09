@@ -101,6 +101,12 @@ dependencies = [
 
     "edgeparse>=0.2.2",
     "fastembed>=0.8.0",
+
+    # ============================================
+    # Web Interface (Streamlit)
+    # ============================================
+    "streamlit>=1.49",                  # Interactive webapp framework
+    "pillow>=11.0",                     # Image support (used by smolagents_streamlit)
 ]
 
 [project.urls]
