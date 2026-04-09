@@ -79,7 +79,7 @@ class PathsConfig(BaseModel):
 
     All path fields are validated ``Path`` objects. Use ``paths_config().project`` directly
     (returns ``Path`` object), or call ``.as_posix()`` for string representation.
-    
+
     The ``data_root`` directory is auto-created if it doesn't exist.
     """
 

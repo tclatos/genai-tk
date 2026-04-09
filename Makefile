@@ -174,21 +174,8 @@ deer-flow-install:  ## Clone/update Deer-flow and install backend + Python deps
 		git clone --depth 1 $(DEER_FLOW_REPO) $(DEER_FLOW_DIR); \
 	fi
 	@echo "Installing Deer-flow backend..."
-	@python -c "
-import tomllib, subprocess, sys
-from pathlib import Path
-backend = Path('$(CURDIR)/$(DEER_FLOW_DIR)/backend')
-with open(backend / 'pyproject.toml', 'rb') as f:
-    data = tomllib.load(f)
-deps = data.get('project', {}).get('dependencies', [])
-harness = backend / 'packages' / 'harness'
-cmd = ['uv', 'pip', 'install']
-if harness.exists():
-    cmd += ['-e', str(harness)]
-cmd += deps
-sys.exit(subprocess.run(cmd).returncode)
-"
-	uv sync --group deer-flow
+	@uv run python scripts/install_deer_flow_backend.py
+	@uv sync --group deer-flow
 	@echo ""
 	@echo "✓ Deer-flow installed."
 	@echo ""
