@@ -33,6 +33,7 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
+from genai_tk.agents.deer_flow.config_bridge import ConfigSetupWarnings
 from genai_tk.cli.base import CliTopCommand
 
 if TYPE_CHECKING:
@@ -349,13 +350,22 @@ async def _prepare_profile(
         model_name = _resolve_model_name(profile.llm)
 
     with console.status("Preparing Deer-flow config...", spinner="dots"):
-        config_path, _ext_path = setup_deer_flow_config(
+        config_path, _ext_path, setup_warnings = setup_deer_flow_config(
             mcp_server_names=profile.mcp_servers,
             skill_directories=profile.skill_directories,
             sandbox=profile.sandbox,
             selected_llm=model_name,
         )
         _verify_written_sandbox(config_path, profile.sandbox)
+
+    # Display any warnings collected during config setup
+    if setup_warnings.has_warnings:
+        console.print("[yellow]Warnings:[/yellow]")
+        for msg in setup_warnings.missing_skill_directories:
+            console.print(f"  [yellow]⚠[/yellow]  {msg}")
+        for msg in setup_warnings.external_symlinks:
+            console.print(f"  [yellow]⚠[/yellow]  {msg}")
+        console.print()  # Add blank line for readability
 
     if profile.sandbox == "docker":
         try:

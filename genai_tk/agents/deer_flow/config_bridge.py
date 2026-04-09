@@ -10,7 +10,7 @@ Example:
 ```python
 from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
 
-config_path, ext_path = setup_deer_flow_config(
+config_path, ext_path, warnings = setup_deer_flow_config(
     mcp_server_names=["tavily-mcp"],
     config_dir="/path/to/deer-flow/backend",
 )
@@ -21,6 +21,7 @@ import json
 import os
 import shutil
 import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,19 @@ from omegaconf import OmegaConf
 from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.core.providers import PROVIDER_INFO
 from genai_tk.utils.import_utils import get_module_from_qualified, get_object_name_from_qualified
+
+
+@dataclass
+class ConfigSetupWarnings:
+    """Warnings collected during Deer-flow config setup."""
+
+    missing_skill_directories: list[str] = field(default_factory=list)
+    external_symlinks: list[str] = field(default_factory=list)
+
+    @property
+    def has_warnings(self) -> bool:
+        """Return True if any warnings were collected."""
+        return bool(self.missing_skill_directories or self.external_symlinks)
 
 
 def _to_colon_notation(qualified_name: str) -> str:
@@ -56,7 +70,7 @@ def _deer_flow_module_prefix() -> str:
     return "src"
 
 
-def _check_external_symlinks(skills_path: Path, sandbox: str) -> None:
+def _check_external_symlinks(skills_path: Path, sandbox: str, warnings: ConfigSetupWarnings | None = None) -> None:
     """Warn when skills path contains symlinks to targets outside the directory.
 
     Docker bind-mounts cannot follow symlinks whose targets live outside the
@@ -66,6 +80,7 @@ def _check_external_symlinks(skills_path: Path, sandbox: str) -> None:
     Args:
         skills_path: Resolved skills root directory.
         sandbox: Sandbox type (warning only relevant for ``"docker"``).
+        warnings: Optional ConfigSetupWarnings object to collect warnings into.
     """
     if sandbox != "docker":
         return
@@ -83,16 +98,21 @@ def _check_external_symlinks(skills_path: Path, sandbox: str) -> None:
     if external:
         shown = ", ".join(external[:5])
         suffix = f" … ({len(external)} total)" if len(external) > 5 else f" ({len(external)} total)"
-        logger.warning(
+        msg = (
             f"Docker sandbox: skills dir '{skills_path}' contains symlinks to external paths: "
             f"{shown}{suffix}. "
             "Docker cannot follow these — those skill files will return 404 in the container. "
             "Fix: set 'deerflow.skills.directories[0]' to a directory with real files "
             "(e.g. '${paths.project}/ext/deer-flow/skills')."
         )
+        logger.warning(msg)
+        if warnings is not None:
+            warnings.external_symlinks.append(msg)
 
 
-def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
+def load_skills_from_directories(
+    skill_directories: list[str], warnings: ConfigSetupWarnings | None = None
+) -> list[str]:
     """Discover all skills under the given directories.
 
     Looks for ``public/`` and ``custom/`` sub-directories inside each directory
@@ -100,6 +120,7 @@ def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
 
     Args:
         skill_directories: Paths to search (may contain ``${paths.project}``).
+        warnings: Optional ConfigSetupWarnings object to collect warnings into.
 
     Returns:
         List of skill identifiers, e.g. ``["public/deep-research", "custom/my-skill"]``.
@@ -118,7 +139,10 @@ def load_skills_from_directories(skill_directories: list[str]) -> list[str]:
 
         skill_dir = Path(skill_dir_str)
         if not skill_dir.exists():
-            logger.warning(f"Skill directory does not exist: {skill_dir}")
+            msg = f"Skill directory does not exist: {skill_dir}"
+            logger.warning(msg)
+            if warnings is not None:
+                warnings.missing_skill_directories.append(msg)
             continue
 
         for category in ["public", "custom"]:
@@ -309,6 +333,7 @@ def write_deer_flow_config(
     sandbox: str = "local",
     selected_llm: str | None = None,
     skills_path: str | None = None,
+    warnings: ConfigSetupWarnings | None = None,
 ) -> Path:
     """Write a complete Deer-flow config.yaml.
 
@@ -322,11 +347,15 @@ def write_deer_flow_config(
         skills_path: Explicit skills root directory to mount in the sandbox.  When
             provided this takes precedence over ``deerflow.skills.directories`` in
             the global config (which is not merged at startup).
+        warnings: Optional ConfigSetupWarnings object to collect warnings into.
 
     Returns:
         Path to the written config.yaml.
     """
     from genai_tk.utils.config_mngr import get_raw_config, paths_config
+
+    if warnings is None:
+        warnings = ConfigSetupWarnings()
 
     if models is None:
         models = generate_deer_flow_models(selected_llm_id=selected_llm)
@@ -381,9 +410,11 @@ def write_deer_flow_config(
                     suffix = "..." if len(names) > 5 else ""
                     logger.debug(f"Available {label} skills: {preview}{suffix}")
         else:
-            logger.warning(f"Skills directory not found: {skills_path}")
+            msg = f"Skills directory not found: {skills_path}"
+            logger.warning(msg)
+            warnings.missing_skill_directories.append(msg)
 
-    _check_external_symlinks(skills_path, sandbox)
+    _check_external_symlinks(skills_path, sandbox, warnings=warnings)
 
     pfx = _deer_flow_module_prefix()
 
@@ -527,7 +558,8 @@ def setup_deer_flow_config(
     config_dir: str | None = None,
     sandbox: str = "local",
     selected_llm: str | None = None,
-) -> tuple[Path, Path]:
+    warnings: ConfigSetupWarnings | None = None,
+) -> tuple[Path, Path, ConfigSetupWarnings]:
     """Generate both Deer-flow config files in one call.
 
     Call this **before** starting the server so it reads the generated files on
@@ -542,11 +574,15 @@ def setup_deer_flow_config(
         config_dir: Override output directory. Defaults to ``$DEER_FLOW_PATH/backend``.
         sandbox: Sandbox provider: ``"local"`` or ``"docker"``.
         selected_llm: Resolved GenAI-tk model ID; when set only that model is written.
+        warnings: Optional ConfigSetupWarnings object to collect warnings into.
 
     Returns:
-        Tuple of (config.yaml path in backend, extensions_config.json path).
+        Tuple of (config.yaml path in backend, extensions_config.json path, warnings).
     """
     from genai_tk.utils.config_mngr import get_raw_config
+
+    if warnings is None:
+        warnings = ConfigSetupWarnings()
 
     deer_flow_root: Path | None = None
     if config_dir is None:
@@ -584,7 +620,11 @@ def setup_deer_flow_config(
         resolved_skills_path = str(Path(_first).expanduser().resolve())
 
     config_path = write_deer_flow_config(
-        config_dir=config_dir, sandbox=sandbox, selected_llm=selected_llm, skills_path=resolved_skills_path
+        config_dir=config_dir,
+        sandbox=sandbox,
+        selected_llm=selected_llm,
+        skills_path=resolved_skills_path,
+        warnings=warnings,
     )
 
     # Also copy config.yaml to the deer-flow root directory (required by deer-flow docs)
@@ -598,10 +638,10 @@ def setup_deer_flow_config(
     # Determine skills to enable
     skills_to_enable = enabled_skills or []
     if skill_directories:
-        skills_to_enable = load_skills_from_directories(skill_directories)
+        skills_to_enable = load_skills_from_directories(skill_directories, warnings=warnings)
     elif not enabled_skills:
         if effective_skill_dirs:
-            skills_to_enable = load_skills_from_directories(effective_skill_dirs)
+            skills_to_enable = load_skills_from_directories(effective_skill_dirs, warnings=warnings)
 
     if skills_to_enable:
         config = get_raw_config()
@@ -622,4 +662,4 @@ def setup_deer_flow_config(
     ext_path = write_extensions_config(extensions=extensions_config, config_dir=config_dir)
 
     logger.debug(f"Deer-flow config ready: {config_path}, {ext_path}")
-    return config_path, ext_path
+    return config_path, ext_path, warnings
