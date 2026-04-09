@@ -33,7 +33,6 @@ from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
-from genai_tk.agents.deer_flow.config_bridge import ConfigSetupWarnings
 from genai_tk.cli.base import CliTopCommand
 
 if TYPE_CHECKING:

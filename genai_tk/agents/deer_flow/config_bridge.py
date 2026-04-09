@@ -584,11 +584,14 @@ def setup_deer_flow_config(
     if warnings is None:
         warnings = ConfigSetupWarnings()
 
+    # Resolve DEER_FLOW_PATH unconditionally — used both for output dir and skills fallback.
     deer_flow_root: Path | None = None
+    _deer_flow_env = os.environ.get("DEER_FLOW_PATH", "").strip()
+    if _deer_flow_env:
+        deer_flow_root = Path(_deer_flow_env).expanduser().resolve()
+
     if config_dir is None:
-        deer_flow_path = os.environ.get("DEER_FLOW_PATH", "")
-        if deer_flow_path:
-            deer_flow_root = Path(deer_flow_path).expanduser().resolve()
+        if deer_flow_root is not None:
             config_dir = str(deer_flow_root / "backend")
         else:
             config_dir = tempfile.mkdtemp(prefix="deer_flow_")
@@ -605,7 +608,6 @@ def setup_deer_flow_config(
     effective_skill_dirs = skill_directories or []
     if not effective_skill_dirs:
         from genai_tk.utils.config_mngr import get_raw_config as _get_raw
-        from genai_tk.utils.config_mngr import paths_config as _paths
 
         _cfg = _get_raw()
         _default_dirs = OmegaConf.select(_cfg, "deerflow.skills.directories")
@@ -617,7 +619,22 @@ def setup_deer_flow_config(
             from genai_tk.utils.config_mngr import paths_config as _paths
 
             _first = _first.replace("${paths.project}", str(_paths().project))
-        resolved_skills_path = str(Path(_first).expanduser().resolve())
+        candidate = Path(_first).expanduser().resolve()
+        if not candidate.exists() and deer_flow_root is not None:
+            # Config default points to ${paths.project}/ext/deer-flow/skills which only
+            # exists inside the genai-tk repo itself.  When running from any other
+            # directory fall back to $DEER_FLOW_PATH/skills (the skills bundled with
+            # the user's deer-flow clone).
+            deer_flow_skills = deer_flow_root / "skills"
+            if deer_flow_skills.exists():
+                logger.debug(
+                    f"Configured skills dir '{candidate}' not found, "
+                    f"falling back to DEER_FLOW_PATH/skills: {deer_flow_skills}"
+                )
+                # Replace the first entry with the fallback so skill discovery also uses it.
+                effective_skill_dirs = [str(deer_flow_skills)] + list(effective_skill_dirs[1:])
+                candidate = deer_flow_skills
+        resolved_skills_path = str(candidate)
 
     config_path = write_deer_flow_config(
         config_dir=config_dir,
@@ -635,11 +652,10 @@ def setup_deer_flow_config(
 
     extensions_config = generate_extensions_config(mcp_server_names)
 
-    # Determine skills to enable
+    # Determine skills to enable — always use the resolved effective_skill_dirs
+    # (which may have been redirected to $DEER_FLOW_PATH/skills above).
     skills_to_enable = enabled_skills or []
-    if skill_directories:
-        skills_to_enable = load_skills_from_directories(skill_directories, warnings=warnings)
-    elif not enabled_skills:
+    if not enabled_skills:
         if effective_skill_dirs:
             skills_to_enable = load_skills_from_directories(effective_skill_dirs, warnings=warnings)
 
