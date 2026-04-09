@@ -104,11 +104,11 @@ def _install_deer_flow(path: Path | None) -> bool:
         console.print(f"[red]Backend directory not found:[/red] {backend}")
         return False
 
-    console.print(f"[cyan]Installing Deer-flow backend dependencies ...[/cyan]")
+    console.print("[cyan]Installing Deer-flow backend dependencies ...[/cyan]")
     if not _install_deer_flow_backend(backend):
         return False
 
-    console.print(f"[green]✓ Deer-flow installed.[/green]")
+    console.print("[green]✓ Deer-flow installed.[/green]")
     console.print(f"\nAdd to your [bold].env[/bold]:\n  [bold cyan]DEER_FLOW_PATH={target}[/bold cyan]\n")
     return True
 
@@ -211,6 +211,4 @@ class InitCommands(CliTopCommand):
 
             console.print("\n[bold green]Done.[/bold green] You can now run [bold]cli[/bold] commands.\n")
             if not deer_flow:
-                console.print(
-                    "Tip: run [bold]cli init --deer-flow[/bold] to also install the Deer-flow backend.\n"
-                )
+                console.print("Tip: run [bold]cli init --deer-flow[/bold] to also install the Deer-flow backend.\n")

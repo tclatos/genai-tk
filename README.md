@@ -28,6 +28,10 @@ uv init
 
 # Add genai-tk to your project
 uv add git+https://github.com/tclatos/genai-tk@main
+
+# Initialize configuration and sample agents
+uv run cli init              # copies default config/ tree
+uv run cli init --deer-flow  # (optional) also clones the Deer-flow backend
 ```
 
 **Add to existing project:**
@@ -67,6 +71,8 @@ OPENAI_API_KEY=sk-...
 ---
 
 ## First steps — CLI
+
+After completing installation and running `uv run cli init`, you can explore the CLI:
 
 ```bash
 # Discover all available commands

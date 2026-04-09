@@ -78,8 +78,10 @@ def _require_deer_flow_path() -> Path:
             "[red]DEER_FLOW_PATH is not set.[/red]\n\n"
             "Deer-flow must be cloned and its backend installed before use.\n"
             "Run one of:\n"
-            "  [bold cyan]cli init --deer-flow[/bold cyan]          " "# clone to ~/deer-flow (default)\n"
-            "  [bold cyan]cli agents deerflow setup[/bold cyan]    " "# same, with --path option\n\n"
+            "  [bold cyan]cli init --deer-flow[/bold cyan]          "
+            "# clone to ~/deer-flow (default)\n"
+            "  [bold cyan]cli agents deerflow setup[/bold cyan]    "
+            "# same, with --path option\n\n"
             "Then add to your .env:\n"
             "  DEER_FLOW_PATH=~/deer-flow"
         )
@@ -1348,7 +1350,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                 console.print(f"[red]Backend directory not found:[/red] {backend}")
                 raise typer.Exit(1)
 
-            console.print(f"[cyan]Installing Deer-flow backend dependencies ...[/cyan]")
+            console.print("[cyan]Installing Deer-flow backend dependencies ...[/cyan]")
             from genai_tk.main.commands_init import _install_deer_flow_backend
 
             if not _install_deer_flow_backend(backend):

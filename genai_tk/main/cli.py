@@ -224,8 +224,7 @@ def main() -> None:
     except ConfigFileNotFoundError:
         # No config in cwd — still let bootstrap commands (init, etc.) run.
         logger.warning(
-            "No config/app_conf.yaml found in this directory.\n"
-            "Run 'cli init' to copy the default configuration here."
+            "No config/app_conf.yaml found in this directory.\nRun 'cli init' to copy the default configuration here."
         )
     except (ConfigParseError, ConfigValidationError) as e:
         # Fatal configuration errors - display and exit
