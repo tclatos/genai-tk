@@ -14,11 +14,6 @@ from typing import Any, cast
 
 import streamlit as st
 from dotenv import load_dotenv
-from genai_tk.agents.langchain.config import AgentProfileConfig, load_unified_config
-from genai_tk.core.llm_factory import get_llm
-from genai_tk.core.mcp_client import get_mcp_servers_dict
-from genai_tk.core.prompts import dedent_ws
-from genai_tk.tools.langchain.shared_config_loader import process_langchain_tools_from_config
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
@@ -28,6 +23,11 @@ from langgraph.checkpoint.memory import MemorySaver
 from streamlit import session_state as sss
 from streamlit.delta_generator import DeltaGenerator
 
+from genai_tk.agents.langchain.config import AgentProfileConfig, load_unified_config
+from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.mcp_client import get_mcp_servers_dict
+from genai_tk.core.prompts import dedent_ws
+from genai_tk.tools.langchain.shared_config_loader import process_langchain_tools_from_config
 from genai_tk.webapp.ui_components.agent_layout import (
     PANEL_HEIGHT,
     render_agent_sidebar,
@@ -43,6 +43,20 @@ load_dotenv()
 
 
 CONFIG_FILE = "config/agents/langchain.yaml"
+
+
+def _resolve_config_file() -> str:
+    """Return config path: project-local if it exists, otherwise the bundled default."""
+    if Path(CONFIG_FILE).exists():
+        return CONFIG_FILE
+    from importlib.resources import files as _pkg_files
+
+    try:
+        bundled = _pkg_files("genai_tk") / "default_config" / "agents" / "langchain.yaml"
+        # Return as string path (works for both installed and editable installs)
+        return str(bundled)
+    except Exception:
+        return CONFIG_FILE  # let the caller surface the missing-file error
 
 # Default system prompt
 SYSTEM_PROMPT = dedent_ws(
@@ -360,17 +374,15 @@ async def main() -> None:
     """Main async function to run the ReAct agent demo."""
     initialize_session_state()
 
-    if not Path(CONFIG_FILE).exists():
-        st.error(f"Config not found: `{CONFIG_FILE}`. Run `cli init` to create default configs.")
-        st.stop()
+    config_file = _resolve_config_file()
 
-    sample_demos = load_unified_config(CONFIG_FILE).profiles
+    sample_demos = load_unified_config(config_file).profiles
     if not sample_demos:
-        st.error(f"No demo configurations found in {CONFIG_FILE}")
+        st.error(f"No demo configurations found in {config_file}")
         st.stop()
 
     # ── Sidebar ───────────────────────────────────────────────────────────
-    render_agent_sidebar(CONFIG_FILE)
+    render_agent_sidebar(config_file)
     with st.sidebar:
         st.divider()
         demo = render_sidebar_demo_section(

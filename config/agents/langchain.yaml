@@ -1,0 +1,35 @@
+# ReAct Agent Demo Profiles
+# This file is created by `cli init` and can be extended with project-specific profiles.
+# See config/agents/langchain/ for more specialised examples (browser, SQL, deep, ...).
+
+langchain_agents:
+  default_profile: "Web Search"
+
+  defaults:
+    type: react
+    llm: null
+
+  profiles:
+
+    - name: "Web Search"
+      type: react
+      description: "General-purpose agent with web search"
+      pre_prompt: "You are a helpful assistant with access to the web."
+      tools:
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
+          verbose: true
+      examples:
+        - "What are the latest AI news today?"
+        - "Search for information about LangGraph"
+
+    - name: "Weather"
+      type: react
+      description: "Weather assistant"
+      tools:
+        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
+          verbose: true
+      mcp_servers:
+        - "weather"
+      examples:
+        - "What is the wind in New York?"
+        - "Quel temps fait-il à Toulouse?"
