@@ -137,7 +137,7 @@ tool  → returns: "Credential from $ENEDIS_USERNAME filled into '#email'."
 
 The actual value never appears in LLM context, conversation history, or logs.
 
-An allowlist in `config/basic/sandbox.yaml` restricts which env vars the tool can
+An allowlist in `config/sandbox.yaml` restricts which env vars the tool can
 access, preventing prompt-injection attacks that try to exfiltrate other secrets:
 
 ```yaml
@@ -204,7 +204,7 @@ the container filesystem API.
 
 ## Configuration
 
-### Browser settings (`config/basic/sandbox.yaml`)
+### Browser settings (`config/sandbox.yaml`)
 
 ```yaml
 sandbox_browser:
@@ -225,7 +225,7 @@ sandbox_browser:
 Chromium with anti-detection flags before connecting. Use this if the default
 CDP-attach mode is detected by the target site.
 
-### Agent profiles (`config/basic/agents/langchain.yaml`)
+### Agent profiles (`config/agents/langchain.yaml`)
 
 Both `Browser Agent` (sandbox) and `Browser Agent Direct` (host) profiles are
 pre-configured with `type: deep`, planning enabled, and the appropriate browser

@@ -1,6 +1,6 @@
 """Sandbox configuration loader.
 
-Reads ``config/basic/sandbox.yaml`` via the OmegaConf singleton and returns
+Reads ``config/sandbox.yaml`` via the OmegaConf singleton and returns
 typed Pydantic models.
 
 Example:
@@ -32,7 +32,7 @@ def load_sandbox_config() -> SandboxConfig:
     """Load and validate the unified sandbox configuration.
 
     Reads the ``sandbox`` section from the global OmegaConf config (which
-    includes ``config/basic/sandbox.yaml``).  Falls back to defaults when the
+    includes ``config/sandbox.yaml``).  Falls back to defaults when the
     section is absent.
 
     Returns:

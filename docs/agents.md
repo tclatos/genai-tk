@@ -368,7 +368,7 @@ cli agents smol "Run some Python code" --sandbox docker
 - `browser_use` - Browser automation
 
 **Configuration:**
-SmolAgents configuration is in `config/basic/codeact_agent.yaml`:
+SmolAgents configuration is in `config/smolagents.yaml`:
 ```yaml
 codeact_agent:
   default:
@@ -458,7 +458,7 @@ agent = await create_langchain_agent(profile)
 
 ## Configuration
 
-Agent profiles live in `config/basic/agents/langchain.yaml`.
+Agent profiles live in `config/agents/langchain.yaml`.
 See [docs/configuration.md](configuration.md) for the full configuration reference including environments, `.env` loading, and how to add new profiles.
 
 ## Debugging

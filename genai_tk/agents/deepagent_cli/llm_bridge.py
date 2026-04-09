@@ -81,7 +81,7 @@ def _resolve_identifier(identifier: str | None) -> BaseChatModel:
     if not identifier:
         raise ValueError(
             "No LLM specified for deepagent. Set 'deepagent.default_model' in "
-            "config/basic/agents/deepagent.yaml, or use the --llm flag."
+            "config/agents/deepagent.yaml, or use the --llm flag."
         )
 
     resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(identifier)

@@ -81,8 +81,8 @@ class ProviderInfo(BaseModel):
 @once
 def _load_provider_info_from_yaml() -> dict[str, ProviderInfo]:
     """Load provider information from YAML config file."""
-    # Look for providers.yaml in config/basic/providers/ directory
-    config_path = Path(__file__).parent.parent.parent / "config" / "basic" / "providers" / "providers.yaml"
+    # Look for providers.yaml in config/providers/ directory
+    config_path = Path(__file__).parent.parent.parent / "config" / "providers" / "providers.yaml"
 
     if not config_path.exists():
         raise FileNotFoundError(f"Provider config file not found: {config_path}")

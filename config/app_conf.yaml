@@ -7,11 +7,11 @@
 default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
 
 :merge:
-  - ${paths.config}/init/baseline.yaml
+  - ${paths.config}/baseline.yaml
   - ${paths.config}/providers/llm.yaml
   - ${paths.config}/providers/embeddings.yaml
-  - ${paths.config}/init/overrides.yaml
-  - ${paths.config}/init/mcp_servers.yaml
+  - ${paths.config}/overrides.yaml
+  - ${paths.config}/mcp_servers.yaml
   # Agent configs are loaded on-demand by their respective loaders
   # (load_deepagent_config, load_deer_flow_profiles, load_unified_config,
   # load_all_demos_from_config) — no need to merge them globally here.
@@ -24,7 +24,7 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
 paths:
   home: ${oc.env:HOME}
   project: ${oc.env:PWD}
-  config: ${paths.project}/config/basic
+  config: ${paths.project}/config
   data_root: ${paths.project}/data
 
 

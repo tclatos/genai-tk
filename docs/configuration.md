@@ -52,7 +52,7 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
 paths:
   home: ${oc.env:HOME}
   project: ${oc.env:PWD}   # auto-detected at runtime
-  config: ${paths.project}/config/basic
+  config: ${paths.project}/config
   data_root: ${paths.project}/data
 ```
 
@@ -199,7 +199,7 @@ uv run cli init --deer-flow           # also clone + install Deer-flow backend
 uv run cli init --deer-flow --force   # update existing Deer-flow clone
 ```
 
-After running, edit `.env` with your API keys and `config/basic/providers/llm.yaml` to declare your models.
+After running, edit `.env` with your API keys and `config/providers/llm.yaml` to declare your models.
 
 ## See also
 

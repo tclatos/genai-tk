@@ -2,7 +2,7 @@
 
 ## Overview
 
-The LLM Factory has been refactored to simplify code and leverage OpenAI-compatible APIs across most providers. **Most provider configuration is now in YAML** (`config/basic/providers/providers.yaml`), making it trivial to add support for new providers without modifying Python code.
+The LLM Factory has been refactored to simplify code and leverage OpenAI-compatible APIs across most providers. **Most provider configuration is now in YAML** (`config/providers/providers.yaml`), making it trivial to add support for new providers without modifying Python code.
 
 ## Architecture
 
@@ -136,7 +136,7 @@ openrouter:
 
 If the provider has an OpenAI-compatible API:
 
-1. **Add entry to `config/basic/providers/providers.yaml`**:
+1. **Add entry to `config/providers/providers.yaml`**:
 ```yaml
 newprovider:
   use: langchain_openai.ChatOpenAI
@@ -154,7 +154,7 @@ newprovider:
 export NEWPROVIDER_API_KEY="your-api-key"
 ```
 
-3. **Define models in `config/basic/providers/llm.yaml`** (or llm.exceptions):
+3. **Define models in `config/providers/llm.yaml`** (or llm.exceptions):
 ```yaml
 llm:
   exceptions:
@@ -193,7 +193,7 @@ if provider == "myprovider":
     )
 ```
 
-3. **Define models** in `config/basic/providers/llm.yaml`.
+3. **Define models** in `config/providers/llm.yaml`.
 
 ## Auto-Detection of OpenAI-Compatible
 

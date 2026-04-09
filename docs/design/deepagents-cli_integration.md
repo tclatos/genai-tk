@@ -5,7 +5,7 @@
 genai-tk now provides seamless in-process integration with [deepagents-cli](https://github.com/hunterglynn/deepagents-cli), a persistent coding agent framework built on LangGraph. The integration exposes deepagents as the `cli agents deepagent` command group, using genai-tk's **LlmFactory** as the model bridge to bypass deepagents-cli's own model-creation pipeline.
 
 **Key benefits:**
-- ✅ Use any LLM configured in `config/basic/agents/deepagent.yaml`
+- ✅ Use any LLM configured in `config/agents/deepagent.yaml`
 - ✅ Curate the TUI `/model` switcher to show only YAML-defined models
 - ✅ Create reusable agent profiles with pre-configured settings
 - ✅ Persistent memory, skills, and tool use across sessions
@@ -22,7 +22,7 @@ genai-tk now provides seamless in-process integration with [deepagents-cli](http
 cli agents deepagent
 ```
 
-This opens the Textual terminal UI with the default model. Use `/model` to switch models from the curated list in `config/basic/agents/deepagent.yaml`.
+This opens the Textual terminal UI with the default model. Use `/model` to switch models from the curated list in `config/agents/deepagent.yaml`.
 
 ### Run a Non-Interactive Task
 
@@ -52,7 +52,7 @@ cli agents deepagent --resume <thread-id>
 
 ## Configuration
 
-All deepagent settings live in `config/basic/agents/deepagent.yaml`.
+All deepagent settings live in `config/agents/deepagent.yaml`.
 
 ### Global Settings
 

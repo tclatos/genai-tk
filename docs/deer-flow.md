@@ -86,7 +86,7 @@ cd /path/to/deer-flow/backend && uv sync
 export DEER_FLOW_PATH=/path/to/deer-flow   # add to .env
 ```
 
-Then configure a profile in `config/basic/agents/deerflow.yaml` (see [Profiles](#profiles) below) and run as above.
+Then configure a profile in `config/agents/deerflow.yaml` (see [Profiles](#profiles) below) and run as above.
 
 ## Architecture
 
@@ -117,7 +117,7 @@ Before each run `config_bridge.setup_deer_flow_config()` generates:
 
 ## Profiles
 
-Profiles live in `config/basic/agents/deerflow.yaml`.
+Profiles live in `config/agents/deerflow.yaml`.
 
 ```yaml
 deerflow_agents:

@@ -268,7 +268,7 @@ uv run pytest tests/eval_tests/ --timeout=60
 The `judge_llm` fixture uses the project's configured `fast_model`:
 
 ```yaml
-# config/basic/init/baseline.yaml
+# config/baseline.yaml
 llm:
   models:
     fast_model: claude-haiku@openrouter

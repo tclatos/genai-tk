@@ -1,7 +1,7 @@
 """Factory function for creating sandbox browser tools.
 
 Compatible with the ``factory:`` tool-spec pattern used in
-``config/basic/agents/langchain.yaml``::
+``config/agents/langchain.yaml``::
 
     tools:
       - factory: genai_tk.tools.sandbox_browser.factory.create_sandbox_browser_tools

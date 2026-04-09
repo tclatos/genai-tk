@@ -67,7 +67,7 @@ These are generic infrastructure fixes, not Enedis-specific hacks:
 - `genai_tk/tools/sandbox_browser/models.py`
   - add `timezone_id` to browser config
 
-- `config/basic/sandbox.yaml`
+- `config/sandbox.yaml`
   - default timezone set to `Europe/Paris`
 
 - `docs/browser_control.md`
@@ -391,7 +391,7 @@ The fresh mode (`session.py` `_connect_fresh()`) implements:
 3. Wait for the new browser's CDP endpoint at `{sandbox_url}/cdp/json/version`
 4. Connect HOST Playwright over CDP and create a fresh, owned context with locale/timezone
 
-Configure in `config/basic/sandbox.yaml`:
+Configure in `config/sandbox.yaml`:
 ```yaml
 sandbox_browser:
   launch_mode: "fresh"  # or "cdp" (default)

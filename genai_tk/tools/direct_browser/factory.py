@@ -1,7 +1,7 @@
 """Factory function for creating direct (host-local) browser tools.
 
 Compatible with the ``factory:`` tool-spec pattern used in
-``config/basic/agents/langchain.yaml``::
+``config/agents/langchain.yaml``::
 
     tools:
       - factory: genai_tk.tools.direct_browser.factory.create_direct_browser_tools

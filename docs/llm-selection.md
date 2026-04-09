@@ -22,7 +22,7 @@ You can omit `@provider` when passing a raw provider model name to the CLI
 
 ## Declaring a model in YAML
 
-Models are declared in `config/basic/providers/llm.yaml`:
+Models are declared in `config/providers/llm.yaml`:
 
 ```yaml
 llm:
@@ -54,7 +54,7 @@ llm:
 
 ## Setting the default model
 
-The default model is configured in `config/basic/init/baseline.yaml`:
+The default model is configured in `config/baseline.yaml`:
 
 ```yaml
 llm:
@@ -71,7 +71,7 @@ Override per-session with the `LLM_DEFAULT` environment variable, or always pass
 Tags are aliases for common models, usable with `--llm <tag>`:
 
 ```yaml
-# config/basic/init/baseline.yaml
+# config/baseline.yaml
 llm:
   tags:
     fast_model:  gpt41mini@openai
@@ -184,8 +184,8 @@ If the database entry is absent or incorrect for your use case, override it in
 
 ## Adding a new provider
 
-1. Add the provider configuration to `config/basic/providers/providers.yaml`
-2. Add model entries to `config/basic/providers/llm.yaml`
+1. Add the provider configuration to `config/providers/providers.yaml`
+2. Add model entries to `config/providers/llm.yaml`
 3. Set the required API key in your `.env`
 4. Verify with `cli info models` and `cli info llm-profile <new-model-id>`
 

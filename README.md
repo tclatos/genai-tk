@@ -81,8 +81,8 @@ uv run cli info llm-profile gpt-4o          # fuzzy match: finds the closest dec
 ```
 
 ```bash
-# Confirm everything works (no API key needed)
-uv run cli core llm -i "tell me a joke" -m parrot_local@fake
+# Confirm everything works (no API key needed) 
+uv run cli core llm -i "tell me a joke" -m parrot_local@fake  # should print "tell me a joke"
 
 # With a real model
 uv run cli core llm -i "tell me a joke" -m gpt-4o-mini@openai --stream
@@ -145,7 +145,7 @@ Models are referenced as `model_id@provider` — a short logical name plus the p
 The toolkit ships with a built-in database sourced from [models.dev](https://models.dev) covering 1 000+ models across all major providers. You only need `llm.yaml` entries for models that are **not** in that database or when you want to give a model a short alias:
 
 ```yaml
-# config/basic/providers/llm.yaml
+# config/providers/llm.yaml
 llm:
   exceptions:
     - model_id: gpt41mini          # short alias used in config and CLI

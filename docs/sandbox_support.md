@@ -98,7 +98,7 @@ cli agents smolagents --executor e2b "cloud execution"   # requires E2B_API_KEY
 
 ## Configuration
 
-All sandbox settings live in `config/basic/sandbox.yaml`:
+All sandbox settings live in `config/sandbox.yaml`:
 
 ```yaml
 sandbox:

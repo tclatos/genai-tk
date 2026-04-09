@@ -26,7 +26,7 @@ from typing import Annotated, Any, Optional, TypeVar, overload
 from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pydantic import BaseModel, ConfigDict, DirectoryPath, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, DirectoryPath, Field, StringConstraints, field_validator
 
 from genai_tk.utils.config_exceptions import (
     ConfigFileError,
@@ -79,14 +79,24 @@ class PathsConfig(BaseModel):
 
     All path fields are validated ``Path`` objects. Use ``paths_config().project`` directly
     (returns ``Path`` object), or call ``.as_posix()`` for string representation.
+    
+    The ``data_root`` directory is auto-created if it doesn't exist.
     """
 
     home: DirectoryPath | None = Field(None, description="Home directory (HOME env var)")
     project: DirectoryPath = Field(..., description="Root of the project (PWD env var)")
-    config: DirectoryPath = Field(..., description="Config directory (typically <project>/config/basic)")
-    data_root: DirectoryPath = Field(..., description="Data root directory for caches, vector stores, etc.")
+    config: DirectoryPath = Field(..., description="Config directory (typically <project>/config)")
+    data_root: Path = Field(..., description="Data root directory for caches, vector stores, etc.")
     data: DirectoryPath | None = Field(None, description="Alias for data_root (may be set separately)")
     models: DirectoryPath | None = Field(None, description="Models cache directory")
+
+    @field_validator("data_root", mode="after")
+    @classmethod
+    def ensure_data_root_exists(cls, v: Path) -> Path:
+        """Auto-create data_root directory if it doesn't exist."""
+        v = Path(v).expanduser().resolve()
+        v.mkdir(parents=True, exist_ok=True)
+        return v
 
     model_config = ConfigDict(extra="allow")
 

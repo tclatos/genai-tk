@@ -1,7 +1,0 @@
-rag_configs:
-   basic_in_memory:
-      vector_store : in_memory_chroma
-      text_splitter: 
-         class: RecursiveCharacterTextSplitter 
-         chunk_size: 200
-

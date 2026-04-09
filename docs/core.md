@@ -337,7 +337,7 @@ env_var = get_provider_api_env_var("openai")
 
 ## Configuration
 
-Configuration for LLM models, embeddings, and caching lives in `config/basic/providers/` and `config/basic/init/baseline.yaml`.
+Configuration for LLM models, embeddings, and caching lives in `config/providers/` and `config/baseline.yaml`.
 See [docs/configuration.md](configuration.md) for the full system reference.
 
 ## Common Patterns
