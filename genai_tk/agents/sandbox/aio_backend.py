@@ -30,7 +30,11 @@ from deepagents.backends.protocol import (
     FileDownloadResponse,
     FileInfo,
     FileUploadResponse,
+    GlobResult,
     GrepMatch,
+    GrepResult,
+    LsResult,
+    ReadResult,
     SandboxBackendProtocol,
     WriteResult,
 )
@@ -478,20 +482,20 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
     # BackendProtocol — file operations
     # ------------------------------------------------------------------
 
-    async def als_info(self, path: str) -> list[FileInfo]:
+    async def als(self, path: str) -> LsResult:
         """List directory contents with metadata.
 
         Args:
             path: Absolute path to the directory.
 
         Returns:
-            List of ``FileInfo`` dicts with ``path`` and optional ``size``.
+            ``LsResult`` with ``entries`` on success or ``error`` on failure.
         """
         assert self._client is not None
         resp = await self._client.file.list_path(path=path, include_size=True, show_hidden=True)
         data = resp.data
         if not data or not data.files:
-            return []
+            return LsResult(entries=[])
         infos: list[FileInfo] = []
         for f in data.files:
             info: FileInfo = {"path": f.path}
@@ -500,9 +504,9 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             if f.size is not None:
                 info["size"] = f.size
             infos.append(info)
-        return infos
+        return LsResult(entries=infos)
 
-    async def aread(self, file_path: str, offset: int = 0, limit: int = 2000) -> str:
+    async def aread(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
         """Read a file with optional line-based pagination.
 
         Lines are 1-indexed in the returned text.
@@ -513,7 +517,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             limit: Maximum number of lines to return (default: 2000).
 
         Returns:
-            Formatted string with line numbers, or an error message prefixed with ``Error:``.
+            ``ReadResult`` with ``file_data`` on success or ``error`` on failure.
         """
         assert self._client is not None
         try:
@@ -521,10 +525,11 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             data = resp.data
             content = (data.content or "") if data else ""
         except Exception as exc:
-            return f"Error: {exc}"
+            return ReadResult(error=f"Error: {exc}")
         lines = content.splitlines(keepends=True)
         page = lines[offset : offset + limit]
-        return "".join(f"{offset + i + 1}: {line}" for i, line in enumerate(page))
+        formatted = "".join(f"{offset + i + 1}: {line}" for i, line in enumerate(page))
+        return ReadResult(file_data={"content": formatted, "encoding": "utf-8"})
 
     async def awrite(self, file_path: str, content: str) -> WriteResult:
         """Write content to a new file; returns an error if the file already exists.
@@ -590,12 +595,12 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
 
         return EditResult(path=file_path, occurrences=occurrences)
 
-    async def agrep_raw(
+    async def agrep(
         self,
         pattern: str,
         path: str | None = None,
         glob: str | None = None,
-    ) -> list[GrepMatch] | str:
+    ) -> GrepResult:
         """Search for a literal text pattern in files using ``grep``.
 
         Args:
@@ -604,7 +609,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             glob: Optional filename glob to restrict the search, e.g. ``*.py``.
 
         Returns:
-            List of ``GrepMatch`` dicts on success, or an error string on grep failure.
+            ``GrepResult`` with ``matches`` on success or ``error`` on grep failure.
         """
         search_path = path or self.config.work_dir
         cmd = f"grep -rna {shlex.quote(pattern)} {shlex.quote(search_path)} 2>/dev/null"
@@ -620,10 +625,10 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
                 except ValueError:
                     pass
         if result.exit_code > 1 and not matches and result.output.strip():
-            return f"grep error: {result.output.strip()}"
-        return matches
+            return GrepResult(error=f"grep error: {result.output.strip()}")
+        return GrepResult(matches=matches)
 
-    async def aglob_info(self, pattern: str, path: str = "/") -> list[FileInfo]:
+    async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
         """Find files matching a glob pattern.
 
         Args:
@@ -631,7 +636,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             path: Base directory to search from (default: ``/``).
 
         Returns:
-            List of ``FileInfo`` dicts with matched absolute paths.
+            ``GlobResult`` with ``matches`` (list of ``FileInfo``) on success.
         """
         py_cmd = (
             "import glob, os, sys; "
@@ -645,7 +650,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             line = line.strip()
             if line:
                 infos.append(FileInfo(path=line))
-        return infos
+        return GlobResult(matches=infos)
 
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
         """Upload multiple files into the sandbox.

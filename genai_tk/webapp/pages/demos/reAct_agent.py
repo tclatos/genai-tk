@@ -460,11 +460,4 @@ async def main() -> None:
     )
 
 
-# Run the async main function only when executing in Streamlit context
-try:
-    # This will only work when running in a Streamlit context
-    _ = st.session_state  # This will raise an exception if not in Streamlit context
-    asyncio.run(main())
-except (AttributeError, RuntimeError, Exception):
-    # We're being imported, not running in Streamlit - skip execution
-    pass
+asyncio.run(main())

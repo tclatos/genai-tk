@@ -8,7 +8,11 @@ from deepagents.backends.protocol import (
     ExecuteResponse,
     FileDownloadResponse,
     FileUploadResponse,
+    GlobResult,
     GrepMatch,
+    GrepResult,
+    LsResult,
+    ReadResult,
     WriteResult,
 )
 
@@ -353,36 +357,40 @@ async def test_aexecute_nonzero_exit(started_backend: AioSandboxBackend) -> None
 
 
 # ---------------------------------------------------------------------------
-# BackendProtocol.als_info
+# BackendProtocol.als
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_als_info_returns_file_info_list(started_backend: AioSandboxBackend) -> None:
+async def test_als_returns_ls_result(started_backend: AioSandboxBackend) -> None:
     started_backend._client.file.list_path = AsyncMock(
         return_value=_make_file_list_response([("/home/user/a.py", 100), ("/home/user/b.txt", None)])
     )
 
-    infos = await started_backend.als_info("/home/user")
+    result = await started_backend.als("/home/user")
 
-    assert len(infos) == 2
-    assert infos[0]["path"] == "/home/user/a.py"
-    assert infos[0]["size"] == 100
-    assert infos[1]["path"] == "/home/user/b.txt"
-    assert "size" not in infos[1]
+    assert isinstance(result, LsResult)
+    assert result.error is None
+    assert result.entries is not None
+    assert len(result.entries) == 2
+    assert result.entries[0]["path"] == "/home/user/a.py"
+    assert result.entries[0]["size"] == 100
+    assert result.entries[1]["path"] == "/home/user/b.txt"
+    assert "size" not in result.entries[1]
 
 
 @pytest.mark.asyncio
-async def test_als_info_empty_directory(started_backend: AioSandboxBackend) -> None:
+async def test_als_empty_directory(started_backend: AioSandboxBackend) -> None:
     data = MagicMock()
     data.files = []
     resp = MagicMock()
     resp.data = data
     started_backend._client.file.list_path = AsyncMock(return_value=resp)
 
-    infos = await started_backend.als_info("/empty")
+    result = await started_backend.als("/empty")
 
-    assert infos == []
+    assert isinstance(result, LsResult)
+    assert result.entries == []
 
 
 # ---------------------------------------------------------------------------
@@ -394,11 +402,14 @@ async def test_als_info_empty_directory(started_backend: AioSandboxBackend) -> N
 async def test_aread_returns_numbered_lines(started_backend: AioSandboxBackend) -> None:
     started_backend._client.file.read_file = AsyncMock(return_value=_make_file_read_response("line1\nline2\nline3\n"))
 
-    text = await started_backend.aread("/tmp/f.txt")
+    result = await started_backend.aread("/tmp/f.txt")
 
-    assert "1: line1\n" in text
-    assert "2: line2\n" in text
-    assert "3: line3\n" in text
+    assert isinstance(result, ReadResult)
+    assert result.error is None
+    assert result.file_data is not None
+    assert "1: line1\n" in result.file_data["content"]
+    assert "2: line2\n" in result.file_data["content"]
+    assert "3: line3\n" in result.file_data["content"]
 
 
 @pytest.mark.asyncio
@@ -406,8 +417,11 @@ async def test_aread_pagination_offset_limit(started_backend: AioSandboxBackend)
     content = "\n".join(f"line{i}" for i in range(1, 11))  # 10 lines
     started_backend._client.file.read_file = AsyncMock(return_value=_make_file_read_response(content))
 
-    text = await started_backend.aread("/tmp/f.txt", offset=2, limit=3)
+    result = await started_backend.aread("/tmp/f.txt", offset=2, limit=3)
 
+    assert isinstance(result, ReadResult)
+    assert result.file_data is not None
+    text = result.file_data["content"]
     assert "3: line3" in text
     assert "4: line4" in text
     assert "5: line5" in text
@@ -419,9 +433,12 @@ async def test_aread_pagination_offset_limit(started_backend: AioSandboxBackend)
 async def test_aread_error_returns_error_string(started_backend: AioSandboxBackend) -> None:
     started_backend._client.file.read_file = AsyncMock(side_effect=RuntimeError("not found"))
 
-    text = await started_backend.aread("/missing.txt")
+    result = await started_backend.aread("/missing.txt")
 
-    assert text.startswith("Error:")
+    assert isinstance(result, ReadResult)
+    assert result.error is not None
+    assert result.error.startswith("Error:")
+    assert result.file_data is None
 
 
 # ---------------------------------------------------------------------------
@@ -504,7 +521,7 @@ async def test_aedit_read_error(started_backend: AioSandboxBackend) -> None:
 
 
 # ---------------------------------------------------------------------------
-# BackendProtocol.agrep_raw
+# BackendProtocol.agrep
 # ---------------------------------------------------------------------------
 
 
@@ -513,74 +530,82 @@ def _make_grep_shell_response(lines: list[str], exit_code: int = 0) -> MagicMock
 
 
 @pytest.mark.asyncio
-async def test_agrep_raw_returns_matches(started_backend: AioSandboxBackend) -> None:
+async def test_agrep_returns_matches(started_backend: AioSandboxBackend) -> None:
     started_backend._client.shell.exec_command = AsyncMock(
         return_value=_make_grep_shell_response(["/src/a.py:10:    foo = bar", "/src/b.py:42:    foo = baz"])
     )
 
-    result = await started_backend.agrep_raw("foo", path="/src")
+    result = await started_backend.agrep("foo", path="/src")
 
-    assert isinstance(result, list)
-    assert len(result) == 2
-    assert result[0] == GrepMatch(path="/src/a.py", line=10, text="    foo = bar")
-    assert result[1] == GrepMatch(path="/src/b.py", line=42, text="    foo = baz")
+    assert isinstance(result, GrepResult)
+    assert result.error is None
+    assert result.matches is not None
+    assert len(result.matches) == 2
+    assert result.matches[0] == GrepMatch(path="/src/a.py", line=10, text="    foo = bar")
+    assert result.matches[1] == GrepMatch(path="/src/b.py", line=42, text="    foo = baz")
 
 
 @pytest.mark.asyncio
-async def test_agrep_raw_no_matches_returns_empty_list(started_backend: AioSandboxBackend) -> None:
+async def test_agrep_no_matches_returns_empty_list(started_backend: AioSandboxBackend) -> None:
     started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("", 1))
 
-    result = await started_backend.agrep_raw("notfound", path="/src")
+    result = await started_backend.agrep("notfound", path="/src")
 
-    assert result == []
+    assert isinstance(result, GrepResult)
+    assert result.matches == []
+    assert result.error is None
 
 
 @pytest.mark.asyncio
-async def test_agrep_raw_error_returns_string(started_backend: AioSandboxBackend) -> None:
+async def test_agrep_error_returns_grep_result_with_error(started_backend: AioSandboxBackend) -> None:
     started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("grep: bad", 2))
 
-    result = await started_backend.agrep_raw("x", path="/bad")
+    result = await started_backend.agrep("x", path="/bad")
 
-    assert isinstance(result, str)
-    assert "grep error" in result
+    assert isinstance(result, GrepResult)
+    assert result.error is not None
+    assert "grep error" in result.error
 
 
 @pytest.mark.asyncio
-async def test_agrep_raw_with_glob_passes_include(started_backend: AioSandboxBackend) -> None:
+async def test_agrep_with_glob_passes_include(started_backend: AioSandboxBackend) -> None:
     started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("", 1))
 
-    await started_backend.agrep_raw("foo", path="/src", glob="*.py")
+    await started_backend.agrep("foo", path="/src", glob="*.py")
 
     call_args = started_backend._client.shell.exec_command.call_args
     assert "--include=" in call_args.kwargs["command"] or "--include=" in str(call_args)
 
 
 # ---------------------------------------------------------------------------
-# BackendProtocol.aglob_info
+# BackendProtocol.aglob
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_aglob_info_returns_file_infos(started_backend: AioSandboxBackend) -> None:
+async def test_aglob_returns_glob_result(started_backend: AioSandboxBackend) -> None:
     started_backend._client.shell.exec_command = AsyncMock(
         return_value=_make_shell_response("/src/a.py\n/src/b.py\n", 0)
     )
 
-    infos = await started_backend.aglob_info("*.py", path="/src")
+    result = await started_backend.aglob("*.py", path="/src")
 
-    assert isinstance(infos, list)
-    assert all(isinstance(i, dict) and "path" in i for i in infos)
-    assert infos[0]["path"] == "/src/a.py"
-    assert infos[1]["path"] == "/src/b.py"
+    assert isinstance(result, GlobResult)
+    assert result.error is None
+    assert result.matches is not None
+    assert all(isinstance(i, dict) and "path" in i for i in result.matches)
+    assert result.matches[0]["path"] == "/src/a.py"
+    assert result.matches[1]["path"] == "/src/b.py"
 
 
 @pytest.mark.asyncio
-async def test_aglob_info_empty_result(started_backend: AioSandboxBackend) -> None:
+async def test_aglob_empty_result(started_backend: AioSandboxBackend) -> None:
     started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("", 0))
 
-    infos = await started_backend.aglob_info("*.nonexistent", path="/src")
+    result = await started_backend.aglob("*.nonexistent", path="/src")
 
-    assert infos == []
+    assert isinstance(result, GlobResult)
+    assert result.matches == []
 
 
 # ---------------------------------------------------------------------------
