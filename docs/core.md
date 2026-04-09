@@ -32,7 +32,6 @@ llm:
 
 **Usage:**
 ```python
-from genai_tk.core import LLMFactory
 from genai_tk.core.llm_factory import get_llm
 
 # Get default LLM from config
@@ -79,8 +78,7 @@ embeddings:
 
 **Usage:**
 ```python
-from genai_tk.core import EmbeddingsFactory
-from genai_tk.core.embeddings_factory import get_embeddings
+from genai_tk.core.embeddings_factory import get_embeddings, EmbeddingsFactory
 
 # Get default embeddings
 embeddings = get_embeddings()

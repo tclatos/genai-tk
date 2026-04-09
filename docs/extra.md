@@ -23,11 +23,11 @@ Standard Reasoning + Acting agent built from scratch using LangGraph's Functiona
 **Usage:**
 ```python
 from genai_tk.extra.graphs.custom_react_agent import create_custom_react_agent
-from genai_tk.core import LLMFactory
+from genai_tk.core.llm_factory import get_llm
 from langgraph.checkpoint.memory import MemorySaver
 
 # Create agent
-llm = LLMFactory.create("gpt_4o@openai")
+llm = get_llm("gpt_4o@openai")
 tools = [your_tools_here]
 checkpointer = MemorySaver()
 
@@ -67,12 +67,12 @@ tools:
 
 **Usage:**
 ```python
-from genai_tk.extra.graphs.sql_agent import create_sql_agent
+from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph
 from langchain_community.utilities import SQLDatabase
 
 # Create agent for database
 db = SQLDatabase.from_uri("sqlite:///./data.db")
-agent = create_sql_agent(llm=get_llm(), db=db)
+agent = create_sql_querying_graph(llm=get_llm(), db=db)
 
 # Query database naturally
 result = agent.invoke({
@@ -112,7 +112,7 @@ ReAct agent that outputs validated Pydantic models instead of free-form text.
 ```python
 from pydantic import BaseModel
 from genai_tk.extra.graphs.react_agent_structured_output import (
-    create_react_agent_structured_output
+    create_react_structured_output_graph
 )
 
 class ResearchResult(BaseModel):
@@ -122,10 +122,10 @@ class ResearchResult(BaseModel):
     sources: list[str]
     confidence: float
 
-agent = create_react_agent_structured_output(
+agent = create_react_structured_output_graph(
     llm=get_llm(),
     tools=tools,
-    output_schema=ResearchResult
+    out_model_class=ResearchResult
 )
 
 result = agent.invoke({
@@ -262,6 +262,9 @@ extra:
 ```
 
 **Usage:**
+
+> **Requires:** `uv add mistralai`
+
 ```python
 from genai_tk.extra.loaders.mistral_ocr import MistralOCRLoader
 
@@ -323,6 +326,9 @@ PII (Personally Identifiable Information) detection and anonymization.
 - Redaction reporting
 
 **Usage:**
+
+> **Requires:** `uv add presidio-analyzer presidio-anonymizer`
+
 ```python
 from genai_tk.extra.custom_presidio_anonymizer import (
     PresidioAnonymizer,
@@ -353,21 +359,16 @@ Computer vision capabilities for image understanding and analysis.
 
 **Usage:**
 ```python
-from genai_tk.extra.image_analysis import analyze_image
+from genai_tk.extra.image_analysis import image_query_message
+from genai_tk.core.llm_factory import get_llm
 
-# Single image analysis
-analysis = await analyze_image(
-    "image.jpg",
-    query="What objects are in this image?",
-    llm=get_llm()
+# Build a multimodal message with an image
+llm = get_llm()
+messages = image_query_message(
+    {"image_path": "image.jpg"},
+    {"query": "What objects are in this image?"}
 )
-
-# Multiple images comparison
-comparison = await compare_images(
-    ["image1.jpg", "image2.jpg"],
-    query="Highlight differences",
-    llm=get_llm()
-)
+response = llm.invoke(messages)
 ```
 
 ### GPT Researcher Helper (`gpt_researcher_helper.py`)
@@ -381,6 +382,9 @@ Integration with GPT Researcher for autonomous research tasks.
 - Multi-source synthesis
 
 **Usage:**
+
+> **Requires:** `uv add gpt-researcher`
+
 ```python
 from genai_tk.extra.gpt_researcher_helper import ResearchAgent
 
@@ -527,7 +531,7 @@ agent = await create_langchain_agent(profile, extra_tools=[
 ```python
 from pydantic import BaseModel
 from genai_tk.extra.graphs.react_agent_structured_output import (
-    create_react_agent_structured_output
+    create_react_structured_output_graph
 )
 
 class DocumentSummary(BaseModel):
@@ -537,10 +541,10 @@ class DocumentSummary(BaseModel):
     sentiment: str
 
 # RAG + Structured output
-agent = create_react_agent_structured_output(
+agent = create_react_structured_output_graph(
     llm=get_llm(),
     tools=[rag_retriever],
-    output_schema=DocumentSummary
+    out_model_class=DocumentSummary
 )
 
 result = agent.invoke({"messages": [...]})

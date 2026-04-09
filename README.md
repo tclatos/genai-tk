@@ -81,17 +81,24 @@ print(response.content)
 
 ```python
 # ReAct agent — single query
-from genai_tk.agents.langchain.agent import LangchainAgent
+from genai_tk.agents.langchain import LangchainAgent
 
-agent = LangchainAgent.from_profile("Research")
+agent = LangchainAgent("Research")
 result = agent.run("What is the latest news on LLM benchmarks?")
 print(result)
 ```
 
 ```python
-# Streaming ReAct chat
-async for chunk in agent.astream("Explain RAG in one paragraph"):
-    print(chunk, end="", flush=True)
+# Async streaming
+import asyncio
+from genai_tk.agents.langchain import LangchainAgent
+
+async def main():
+    agent = LangchainAgent("Research")
+    async for chunk in agent.astream("Explain RAG in one paragraph"):
+        print(chunk, end="", flush=True)
+
+asyncio.run(main())
 ```
 
 ---
@@ -155,7 +162,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | Area | CLI entry point | Python entry point | Reference |
 |------|-----------------|--------------------|-----------|
 | **LLM / Embeddings** | `cli core llm` | `get_llm()` / `get_embeddings()` | [docs/core.md](docs/core.md) |
-| **LLM model config** | `cli info config/models` | `llm.yaml` | [docs/llm-selection.md](docs/llm-selection.md) |
+| **LLM model config** | `cli info models` | `llm.yaml` | [docs/llm-selection.md](docs/llm-selection.md) |
 | **LangChain Agents** | `cli agents langchain` | `LangchainAgent` | [docs/agents.md](docs/agents.md) |
 | **Deer-flow** | `cli agents deerflow` | `EmbeddedDeerFlowClient` | [docs/deer-flow.md](docs/deer-flow.md) |
 | **RAG** | `cli rag ingest/query` | `extra.rag` | [docs/extra.md](docs/extra.md#rag-systems) |
@@ -164,7 +171,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | **MCP servers** | `cli mcpserver` | `McpClient` | [docs/mcp-servers.md](docs/mcp-servers.md) |
 | **Docker sandbox** | `cli sandbox` | `SandboxBackend` | [docs/sandbox_support.md](docs/sandbox_support.md) |
 | **Browser automation** | — | `browser_use` tools | [docs/browser_control.md](docs/browser_control.md) |
-| **Testing** | `cli test unit/fast_integration` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
+| **Testing** | `cli test unit` / `cli test fast_integration` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
 | **Configuration** | `cli init` | `global_config()` | [docs/configuration.md](docs/configuration.md) |
 | **CLI extension** | — | `CliTopCommand` | [docs/cli.md](docs/cli.md) |
 

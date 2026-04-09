@@ -180,7 +180,7 @@ profiles:
 **Implementation Example:**
 ```python
 from genai_tk.agents.langchain.factory import create_langchain_agent
-from genai_tk.extra.graphs import create_custom_react_agent
+from genai_tk.extra.graphs.custom_react_agent import create_custom_react_agent
 
 # Framework automatically dispatches to create_custom_react_agent
 agent = await create_langchain_agent(profile)
@@ -324,10 +324,10 @@ cli agents langchain --list
 
 **Shell Mode:**
 ```python
-from genai_tk.agents.langchain.agent_cli import langchain_agent_shell
+from genai_tk.agents.langchain.agent_cli import run_langchain_agent_shell
 
 # Start interactive agent shell
-await langchain_agent_shell()
+await run_langchain_agent_shell()
 ```
 
 ## SmolAgents (`agents.smolagents`)
