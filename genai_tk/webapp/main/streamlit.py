@@ -98,8 +98,16 @@ if _nav_config and _pages_dir_str:
 
     def _file_name_to_page_name(file_name: str) -> str:
         """Convert a file name to a formatted page title."""
+        # Well-known overrides for built-in genai-tk pages
+        _KNOWN_TITLES = {
+            "deer_flow_agent": "🦌 DeerFlow Agent",
+            "reAct_agent": "🤖 ReAct Agent",
+            "smolagents_streamlit": "🤖 SmolAgents",
+        }
         try:
             name_only = file_name.split("/")[-1].rsplit(".", 1)[0]
+            if name_only in _KNOWN_TITLES:
+                return _KNOWN_TITLES[name_only]
             parts = name_only.split("_")
             start = 1 if (parts and parts[0].isdigit()) else 0
             words = []
@@ -120,7 +128,24 @@ if _nav_config and _pages_dir_str:
     for section_name, page_files in _nav_config.items():
         section_pages = []
         for page_file in page_files:
-            page_path = _pages_dir / page_file
+            # Resolve page path:
+            #   genai_tk://path  → installed genai_tk/webapp/path
+            #   /absolute/path   → as-is
+            #   relative/path    → relative to pages_dir
+            if page_file.startswith("genai_tk://"):
+                rel = page_file[len("genai_tk://"):]
+                from importlib.resources import files as _pkg_files
+
+                try:
+                    page_path = Path(str(_pkg_files("genai_tk") / "webapp" / "pages" / rel))
+                except Exception:
+                    logger.warning(f"Could not resolve genai_tk package path: {page_file}")
+                    continue
+            elif Path(page_file).is_absolute():
+                page_path = Path(page_file)
+            else:
+                page_path = _pages_dir / page_file
+
             if page_path.exists():
                 section_pages.append(st.Page(page=page_path, title=_file_name_to_page_name(page_file)))
             else:
