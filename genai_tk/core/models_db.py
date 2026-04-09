@@ -26,6 +26,8 @@ from pydantic import BaseModel, field_validator
 from genai_tk.utils.singleton import once
 
 MODELS_DEV_URL = "https://models.dev/api.json"
+
+
 def _default_cache_path() -> Path:
     """Resolve the default models cache path via config, fallback to CWD/data/."""
     try:

@@ -4,9 +4,10 @@ LLM model selector widget for Streamlit applications.
 Provides a UI component for selecting and configuring the default LLM model.
 """
 
+from streamlit.delta_generator import DeltaGenerator
+
 from genai_tk.core.llm_factory import LlmFactory
 from genai_tk.utils.config_mngr import global_config
-from streamlit.delta_generator import DeltaGenerator
 
 
 # LLM Model Selection

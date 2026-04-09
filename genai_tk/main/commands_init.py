@@ -251,7 +251,8 @@ class InitCommands(CliTopCommand):
             name: Annotated[
                 Optional[str],
                 typer.Option(
-                    "--name", "-n",
+                    "--name",
+                    "-n",
                     help="Project name used in webapp.yaml and Makefile (default: current directory name).",
                 ),
             ] = None,

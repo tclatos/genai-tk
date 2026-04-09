@@ -133,7 +133,7 @@ if _nav_config and _pages_dir_str:
             #   /absolute/path   → as-is
             #   relative/path    → relative to pages_dir
             if page_file.startswith("genai_tk://"):
-                rel = page_file[len("genai_tk://"):]
+                rel = page_file[len("genai_tk://") :]
                 from importlib.resources import files as _pkg_files
 
                 try:

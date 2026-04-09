@@ -58,6 +58,7 @@ def _resolve_config_file() -> str:
     except Exception:
         return CONFIG_FILE  # let the caller surface the missing-file error
 
+
 # Default system prompt
 SYSTEM_PROMPT = dedent_ws(
     """

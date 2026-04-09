@@ -26,10 +26,7 @@ def edit_config_dialog(config_path: str | Path) -> None:
     try:
         from streamlit_monaco import st_monaco
     except ImportError:
-        st.warning(
-            "Install `streamlit-monaco` to enable the visual editor:\n"
-            "```\nuv add streamlit-monaco\n```"
-        )
+        st.warning("Install `streamlit-monaco` to enable the visual editor:\n```\nuv add streamlit-monaco\n```")
         with open(config_path, encoding="utf-8") as f:
             st.code(f.read(), language="yaml")
         return
