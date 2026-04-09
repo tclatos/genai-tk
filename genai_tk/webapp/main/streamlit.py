@@ -72,7 +72,7 @@ if auth_config is not None and auth_config.enabled and not st.session_state.auth
 # Logo (optional)
 # ---------------------------------------------------------------------------
 
-_logo_path = global_config().get_str("ui.logo", default=None)
+_logo_path: str | None = global_config().get_str("ui.logo", default=None)
 if _logo_path:
     _logo_resolved = Path(_logo_path) if Path(_logo_path).is_absolute() else Path.cwd() / _logo_path
     if _logo_resolved.exists():

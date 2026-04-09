@@ -28,6 +28,9 @@ from loguru import logger
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import BaseModel, ConfigDict, DirectoryPath, Field, StringConstraints, field_validator
 
+# Sentinel used to distinguish "no default provided" from "default=None".
+_MISSING: Any = object()
+
 from genai_tk.utils.config_exceptions import (
     ConfigFileError,
     ConfigFileNotFoundError,
@@ -227,28 +230,27 @@ class OmegaConfig(BaseModel):
 
         # Check for default models
         try:
-            default_llm = self.get("llm.models.default", default=None)
-            if default_llm is None or not str(default_llm).strip():
+            default_llm = self.get("llm.models.default", default=_MISSING)
+            if default_llm is not _MISSING and not str(default_llm).strip():
                 errors.append("Missing required default LLM tag: llm.models.default")
         except Exception as e:
             logger.debug(f"Could not check default LLM: {e}")
 
         try:
-            default_emb = self.get("embeddings.models.default", default=None)
-            if default_emb is None or not str(default_emb).strip():
+            default_emb = self.get("embeddings.models.default", default=_MISSING)
+            if default_emb is not _MISSING and not str(default_emb).strip():
                 errors.append("Missing required default embeddings tag: embeddings.models.default")
         except Exception as e:
             logger.debug(f"Could not check default embeddings: {e}")
 
         # Check for paths configuration
         try:
-            paths = self.get("paths", default=None)
-            if paths is None:
-                errors.append("Missing required 'paths' configuration section")
-            else:
+            paths = self.get("paths", default=_MISSING)
+            if paths is not _MISSING:
                 required_paths = ["project", "config"]
                 for path_key in required_paths:
-                    if not self.get(f"paths.{path_key}", default=None):
+                    val = self.get(f"paths.{path_key}", default=_MISSING)
+                    if val is _MISSING or not val:
                         errors.append(f"Missing required path configuration: paths.{path_key}")
         except Exception as e:
             logger.debug(f"Could not validate paths: {e}")
@@ -297,11 +299,12 @@ class OmegaConfig(BaseModel):
         self.root = OmegaConf.merge(self.root, new_conf)  # type: ignore
         return self
 
-    def get(self, key: str, default: Optional[Any] = None) -> Any:
+    def get(self, key: str, default: Any = _MISSING) -> Any:
         """Get a configuration value using dot notation.
         Args:
             key: Configuration key in dot notation (e.g., "llm.models.default")
-            default: Default value if key not found
+            default: Default value if key not found. Pass ``None`` to return None
+                when the key is absent without raising.
         Returns:
             The configuration value or default if not found
         Raises:
@@ -313,7 +316,7 @@ class OmegaConfig(BaseModel):
         try:
             value = OmegaConf.select(merged, key)
             if value is None:
-                if default is not None:
+                if default is not _MISSING:
                     return default
                 # Try to get available keys at the parent level for better error messages
                 parts = key.split(".")
@@ -331,7 +334,7 @@ class OmegaConfig(BaseModel):
         except ConfigKeyNotFoundError:
             raise
         except Exception as e:
-            if default is not None:
+            if default is not _MISSING:
                 return default
             # Check if it's an interpolation error
             if "${" in str(e) or "interpolation" in str(e).lower():
