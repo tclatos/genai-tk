@@ -1,12 +1,18 @@
 # Web Interface (`make webapp`)
 
-genai-tk ships a minimal Streamlit webapp so you can test agents interactively
-without writing any UI code.  Two built-in demo pages are included:
+genai-tk ships a Streamlit webapp so you can test agents interactively
+without writing any UI code.  Three built-in demo pages are included out
+of the box:
 
-| Page | Description |
-|------|-------------|
-| 🦌 **DeerFlow Agent** | Full 2-panel UI — execution trace + chat, streaming, artifact viewer |
-| 🤖 **ReAct Agent** | Two-panel chat + trace, tool-call display, MCP support, slash commands |
+| Page | Section | Description |
+|------|---------|-------------|
+| 🦌 **DeerFlow Agent** | Agents | Full 2-panel UI — execution trace + chat, streaming, artifact viewer |
+| 🤖 **ReAct Agent** | Agents | Two-panel chat + trace, tool-call display, MCP support, slash commands |
+| 🤖 **SmolAgents** | Agents | SmolAgents step-by-step display |
+
+Downstream projects (e.g. genai-blueprint) can embed these pages alongside
+their own pages using the `genai_tk://` reference prefix described below,
+so the agent UIs stay maintained in one place.
 
 ---
 
@@ -125,19 +131,42 @@ full project-mode navigation and only shows the pages you list.
 
 ---
 
-## Running genai-blueprint's full UI
+## Referencing genai-tk pages from a downstream project
 
-genai-blueprint extends the built-in pages with blueprint-specific demos
-(Graph RAG, Maintenance Agent, etc.):
+Any project that includes genai-tk can embed its built-in agent pages alongside
+their own pages using the `genai_tk://` prefix in navigation entries.  The
+webapp entry point resolves this prefix to the installed package path via
+`importlib.resources`, so it works whether genai-tk is installed from GitHub,
+as an editable local path, or declared as a workspace dependency.
 
-```bash
-cd my-blueprint-project
-make webapp    # uses blueprint's Makefile → genai_blueprint/main/streamlit.py
+```yaml
+# config/app_conf.yaml (or webapp.yaml) in your downstream project
+ui:
+  pages_dir: ${paths.src}/webapp/pages   # your own pages directory
+  navigation:
+    agents:
+      - genai_tk://demos/deer_flow_agent.py   # ← installed genai-tk page
+      - genai_tk://demos/reAct_agent.py       # ← installed genai-tk page
+    demos:
+      - demos/my_custom_agent.py              # ← your own page (relative to pages_dir)
+    settings:
+      - settings/configuration.py
 ```
 
-The blueprint's `deer_flow_agent.py` and `reAct_agent.py` pages are thin wrappers
-that delegate to `genai_tk.webapp.pages.demos.*`.  Changes to the genai-tk
-implementations are picked up automatically.
+Three path formats are supported for each navigation entry:
+
+| Prefix | Resolution |
+|--------|------------|
+| `genai_tk://path/page.py` | `genai_tk/webapp/pages/path/page.py` inside the installed package |
+| `/absolute/path/page.py` | Used as-is |
+| `relative/path/page.py` | Joined with `ui.pages_dir` |
+
+Page titles are set automatically.  Built-in genai-tk pages receive pretty
+names with emojis (`🦌 DeerFlow Agent`, `🤖 ReAct Agent`, etc.).  Your own
+pages are named from their filename with standard title-case conversion.
+
+> **Important:** Streamlit requires each page to have a unique URL pathname.
+> Do not list the same physical file in more than one navigation section.
 
 ---
 
@@ -146,7 +175,7 @@ implementations are picked up automatically.
 ```
 genai_tk/webapp/
 ├── main/
-│   └── streamlit.py           ← minimal entry point (config-driven)
+│   └── streamlit.py           ← config-driven entry point; handles genai_tk:// resolution
 ├── pages/
 │   └── demos/
 │       ├── deer_flow_agent.py ← DeerFlow 2-panel demo

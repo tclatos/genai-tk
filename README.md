@@ -121,13 +121,29 @@ Test agents interactively without code:
 make webapp           # launches Streamlit on http://localhost:8501
 ```
 
-Two demo pages are included:
+Three built-in demo pages are included in an **Agents** section:
 
 - **🦌 DeerFlow Agent** — 2-panel trace + chat, artifacts, streaming
 - **🤖 ReAct Agent** — tool-call trace, MCP servers, slash commands
+- **🤖 SmolAgents** — SmolAgents step display
 
-See [docs/webapp.md](docs/webapp.md) for configuration, adding custom pages, and
-running from a new project via `cli init --name "My Project"`.
+**Downstream projects** (like genai-blueprint) can embed these pages in their
+own navigation using the `genai_tk://` prefix — no copy-pasting, no wrappers:
+
+```yaml
+# config/app_conf.yaml in your project
+ui:
+  pages_dir: myapp/webapp/pages
+  navigation:
+    agents:
+      - genai_tk://demos/deer_flow_agent.py   # served from the installed package
+      - genai_tk://demos/reAct_agent.py
+    demos:
+      - demos/my_custom_page.py               # your own page
+```
+
+See [docs/webapp.md](docs/webapp.md) for configuration, cross-package navigation,
+custom pages, and running from a new project via `cli init --name "My Project"`.
 
 ---
 
