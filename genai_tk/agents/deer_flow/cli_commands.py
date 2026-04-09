@@ -71,8 +71,25 @@ _NODE_LABELS: dict[str, str] = {
 
 
 def _require_deer_flow_path() -> Path:
-    """Return DEER_FLOW_PATH as a Path, or exit with a helpful message."""
+    """Return DEER_FLOW_PATH as a Path, or exit with a helpful message.
+
+    Checks both the explicit environment variable and the config default.
+    Validates that the path points to a real Deer-flow installation.
+    """
+    # First check explicit env var
     df_path = os.environ.get("DEER_FLOW_PATH", "").strip()
+
+    # If not set explicitly, try to get it from config default
+    if not df_path:
+        try:
+            from genai_tk.utils.config_mngr import global_config
+
+            raw_config = global_config().root
+            df_path = raw_config.get("DEER_FLOW_PATH", "").strip() or ""
+        except Exception:
+            pass
+
+    # Still not found?
     if not df_path:
         console.print(
             "[red]DEER_FLOW_PATH is not set.[/red]\n\n"
@@ -89,12 +106,25 @@ def _require_deer_flow_path() -> Path:
 
     root = Path(df_path).expanduser().resolve()
     backend = root / "backend"
-    harness = backend / "packages" / "harness"
 
+    # Check if directory exists
     if not root.exists():
         console.print(
-            f"[red]DEER_FLOW_PATH does not exist:[/red] {root}\n"
-            "Re-run [bold cyan]cli init --deer-flow[/bold cyan] or update DEER_FLOW_PATH in your .env."
+            f"[red]Deer-flow not found at:[/red] {root}\n\n"
+            "Deer-flow must be cloned first. Run one of:\n"
+            "  [bold cyan]cli init --deer-flow[/bold cyan]          "
+            "# clone to ~/deer-flow (default)\n"
+            "  [bold cyan]cli agents deerflow setup[/bold cyan]    "
+            "# clone with custom path\n"
+        )
+        raise typer.Exit(1)
+
+    # Check if backend exists
+    if not backend.exists():
+        console.print(
+            f"[red]Deer-flow backend not found:[/red] {backend}\n\n"
+            "Your Deer-flow clone at {root} appears incomplete.\n"
+            "Try re-running: [bold cyan]cli init --deer-flow --force[/bold cyan]"
         )
         raise typer.Exit(1)
 
