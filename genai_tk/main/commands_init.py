@@ -81,8 +81,8 @@ def _copy_tree(src_traversable, dest: Path, force: bool, written_ref) -> None:
     """Noop — only _copy_tree_counted is used."""
 
 
-def _install_deer_flow(path: Path | None) -> bool:
-    """Clone/update Deer-flow and install its backend. Returns True on success."""
+def _install_deer_flow(path: Path | None) -> Path | None:
+    """Clone/update Deer-flow and install its backend. Returns root path on success, None on failure."""
     deer_flow_repo = "https://github.com/bytedance/deer-flow.git"
     target = path.expanduser().resolve() if path else Path.home() / "deer-flow"
 
@@ -97,20 +97,19 @@ def _install_deer_flow(path: Path | None) -> bool:
         )
     if result.returncode != 0:
         console.print(f"[red]git failed:[/red] {result.stderr.strip()}")
-        return False
+        return None
 
     backend = target / "backend"
     if not backend.exists():
         console.print(f"[red]Backend directory not found:[/red] {backend}")
-        return False
+        return None
 
     console.print("[cyan]Installing Deer-flow backend dependencies ...[/cyan]")
     if not _install_deer_flow_backend(backend):
-        return False
+        return None
 
     console.print("[green]✓ Deer-flow installed.[/green]")
-    console.print(f"\nAdd to your [bold].env[/bold]:\n  [bold cyan]DEER_FLOW_PATH={target}[/bold cyan]\n")
-    return True
+    return target
 
 
 def _install_deer_flow_backend(backend: Path) -> bool:
@@ -207,8 +206,18 @@ class InitCommands(CliTopCommand):
 
             if deer_flow:
                 df_path = Path(deer_flow_path) if deer_flow_path else None
-                _install_deer_flow(df_path)
+                df_root = _install_deer_flow(df_path)
+            else:
+                df_root = None
 
-            console.print("\n[bold green]Done.[/bold green] You can now run [bold]cli[/bold] commands.\n")
+            console.print("\n[bold green]Done.[/bold green]\n")
+            
+            if df_root:
+                console.print(
+                    f"[bold]Set up Deer-flow in your .env:[/bold]\n"
+                    f"  [bold cyan]DEER_FLOW_PATH={df_root.absolute()}[/bold cyan]\n"
+                )
+            
+            console.print("You can now run [bold]cli[/bold] commands.\n")
             if not deer_flow:
                 console.print("Tip: run [bold]cli init --deer-flow[/bold] to also install the Deer-flow backend.\n")
