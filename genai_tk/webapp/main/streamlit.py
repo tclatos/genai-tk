@@ -21,10 +21,11 @@ from pathlib import Path
 
 import streamlit as st
 from dotenv import load_dotenv
+from loguru import logger
+
 from genai_tk.utils.basic_auth import authenticate, load_auth_config
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.logger_factory import setup_logging
-from loguru import logger
 
 load_dotenv()
 setup_logging()
@@ -49,9 +50,12 @@ st.set_page_config(
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-auth_config = load_auth_config()
+try:
+    auth_config = load_auth_config()
+except Exception:
+    auth_config = None
 
-if auth_config.enabled and not st.session_state.authenticated:
+if auth_config is not None and auth_config.enabled and not st.session_state.authenticated:
     st.title("Login")
     with st.form("login_form"):
         username = st.text_input("Username")
