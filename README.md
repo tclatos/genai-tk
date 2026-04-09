@@ -14,8 +14,26 @@ A toolkit for building Gen AI and Agentic applications with LangChain, LangGraph
 
 ## Installation
 
+**Start from scratch:**
+
 ```bash
-# Add to your project
+# Install uv (Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create a new project directory
+mkdir my-genai-project && cd my-genai-project
+
+# Initialize a Python project
+uv init
+
+# Add genai-tk to your project
+uv add git+https://github.com/tclatos/genai-tk@main
+```
+
+**Add to existing project:**
+
+```bash
+# Add to your project  
 uv add git+https://github.com/tclatos/genai-tk@main
 
 # With PostgreSQL / Playwright extras
