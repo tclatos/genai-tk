@@ -172,7 +172,7 @@ STREAMLIT_ENTRY ?= genai_tk/webapp/main/streamlit.py
 .PHONY: webapp
 
 webapp:  ## Launch built-in agent demo webapp (Streamlit)
-	uv run streamlit run "$(STREAMLIT_ENTRY)"
+	uv run python -m streamlit run "$(STREAMLIT_ENTRY)"
 
 deer-flow-install:  ## Clone/update Deer-flow and install backend + Python deps
 	@if [ -d "$(DEER_FLOW_DIR)" ]; then \

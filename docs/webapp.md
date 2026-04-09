@@ -10,6 +10,42 @@ without writing any UI code.  Two built-in demo pages are included:
 
 ---
 
+## Installation
+
+Streamlit is a **required dependency** of genai-tk, so it is installed
+automatically — no separate `uv add streamlit` step needed.
+
+### Starting from scratch
+
+```bash
+mkdir my-project && cd my-project
+uv init
+
+# 1. Install genai-tk (pulls in streamlit, pillow, and all other deps)
+uv add git+https://github.com/tclatos/genai-tk@main
+
+# 2. Initialise config and a project Makefile
+uv run cli init                # copies default config/ tree + writes Makefile
+uv run cli init --name "My Project"  # optionally set the app title
+
+# 3. (Optional) Also install the Deer-flow backend for the DeerFlow demo page
+uv run cli init --deer-flow            # clones deer-flow into ~/deer-flow
+uv run cli init --deer-flow --path ./ext/deer-flow  # or to a custom path
+```
+
+`cli init` is idempotent — re-running it skips files that already exist unless
+you pass `--force`.
+
+### Adding to an existing project
+
+```bash
+# In your existing uv-managed project
+uv add git+https://github.com/tclatos/genai-tk@main
+uv run cli init
+```
+
+---
+
 ## Quick start
 
 ```bash
@@ -19,7 +55,7 @@ make webapp
 
 This runs:
 ```
-uv run streamlit run genai_tk/webapp/main/streamlit.py
+uv run python -m streamlit run genai_tk/webapp/main/streamlit.py
 ```
 
 Open <http://localhost:8501> in your browser.
@@ -51,12 +87,10 @@ cli init --name "My AI Project"
 
 ## Running from a new project
 
-After `uv add genai-tk` and `cli init`:
+See [Installation](#installation) above for how to bootstrap a new project.
+Once `cli init` has run:
 
 ```bash
-mkdir my-project && cd my-project
-uv init && uv add genai-tk
-cli init --name "My Project"
 make webapp
 ```
 

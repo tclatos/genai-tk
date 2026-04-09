@@ -43,14 +43,19 @@ install-dev:  ## Install with development dependencies
 
 # Override STREAMLIT_ENTRY to use a custom entry point, e.g.:
 #   make webapp STREAMLIT_ENTRY=myapp/main/streamlit.py
-STREAMLIT_ENTRY ?= $(shell python -c "import genai_tk.webapp.main; import os; print(os.path.join(os.path.dirname(genai_tk.webapp.main.__file__), 'streamlit.py'))" 2>/dev/null || echo "genai_tk/webapp/main/streamlit.py")
+STREAMLIT_ENTRY ?=
 
 DEV_PYTHONPATH ?= .
 
 .PHONY: webapp
 
 webapp:  ## Launch agent demo webapp (Streamlit)
-	PYTHONPATH=$(DEV_PYTHONPATH) uv run streamlit run "$(STREAMLIT_ENTRY)"
+	@entry="$(STREAMLIT_ENTRY)"; \
+	if [ -z "$$entry" ]; then \
+		entry=$$(uv run python -c \
+			"import genai_tk.webapp.main, os; print(os.path.join(os.path.dirname(genai_tk.webapp.main.__file__), 'streamlit.py'))"); \
+	fi; \
+	PYTHONPATH=$(DEV_PYTHONPATH) uv run python -m streamlit run "$$entry"
 
 ##############################
 ##  Quality
