@@ -34,6 +34,11 @@ uv sync              # core + dev
 uv sync --all-groups # + postgres, browser, evals
 ```
 
+> **Using your clone in another project:** add it as a local path dependency so changes are picked up immediately:
+> ```bash
+> uv add --editable /path/to/genai-tk
+> ```
+
 **Add your API key** to `.env` in the project root (auto-loaded at startup):
 
 ```bash
@@ -44,6 +49,18 @@ OPENAI_API_KEY=sk-...
 ---
 
 ## First steps — CLI
+
+```bash
+# Discover all available commands
+uv run cli --help
+
+# List all known LLM and embeddings models
+uv run cli info models
+
+# Inspect a specific model profile — supports fuzzy matching on the model name
+uv run cli info llm-profile gpt41mini@openai
+uv run cli info llm-profile gpt-4o          # fuzzy match: finds the closest declared model
+```
 
 ```bash
 # Confirm everything works (no API key needed)
@@ -105,18 +122,21 @@ asyncio.run(main())
 
 ## LLM Selection
 
-Models are declared in `config/basic/providers/llm.yaml` as `model_id@provider`:
+Models are referenced as `model_id@provider` — a short logical name plus the provider that serves it (`openai`, `openrouter`, `groq`, `ollama`, `fake`, …).
+
+The toolkit ships with a built-in database sourced from [models.dev](https://models.dev) covering 1 000+ models across all major providers. You only need `llm.yaml` entries for models that are **not** in that database or when you want to give a model a short alias:
 
 ```yaml
+# config/basic/providers/llm.yaml
 llm:
   exceptions:
-    - model_id: gpt41mini
+    - model_id: gpt41mini          # short alias used in config and CLI
       providers:
-        - openai: gpt-4.1-mini-2025-04-14
+        - openai: gpt-4.1-mini-2025-04-14  # maps to the actual API name
     - model_id: haiku
       providers:
         - openrouter: anthropic/claude-haiku-4-5
-    - model_id: parrot_local          # built-in fake model, no API key
+    - model_id: parrot_local       # built-in fake model, no API key needed
       providers:
         - fake: parrot
 ```
@@ -124,9 +144,9 @@ llm:
 Override at runtime with `-m` / `--llm`:
 
 ```bash
-cli core llm -i "Hello" -m gpt41mini@openai   # explicit
-cli core llm -i "Hello" -m fast_model         # named tag
-cli core llm -i "Hello" -m gpt-4o-mini        # fuzzy-resolved raw name
+cli core llm -i "Hello" -m gpt41mini@openai   # declared alias — explicit provider
+cli core llm -i "Hello" -m fast_model         # named tag from baseline.yaml
+cli core llm -i "Hello" -m gpt-4o-mini        # raw model name — fuzzy-resolved from models.dev
 ```
 
 See [docs/llm-selection.md](docs/llm-selection.md) for the full reference (tags, `cli info` commands, models.dev database).
@@ -167,7 +187,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | **Deer-flow** | `cli agents deerflow` | `EmbeddedDeerFlowClient` | [docs/deer-flow.md](docs/deer-flow.md) |
 | **RAG** | `cli rag ingest/query` | `extra.rag` | [docs/extra.md](docs/extra.md#rag-systems) |
 | **BAML structured output** | `cli baml run/extract` | `BamlStructuredProcessor` | [docs/baml.md](docs/baml.md) |
-| **Prefect flows** | `cli tools markdownize` | `run_flow_ephemeral()` | [docs/prefect.md](docs/prefect.md) |
+| **Prefect flows** | `cli tools markdownize` (example) | `run_flow_ephemeral()` | [docs/prefect.md](docs/prefect.md) |
 | **MCP servers** | `cli mcpserver` | `McpClient` | [docs/mcp-servers.md](docs/mcp-servers.md) |
 | **Docker sandbox** | `cli sandbox` | `SandboxBackend` | [docs/sandbox_support.md](docs/sandbox_support.md) |
 | **Browser automation** | — | `browser_use` tools | [docs/browser_control.md](docs/browser_control.md) |
