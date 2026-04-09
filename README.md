@@ -4,10 +4,13 @@ A toolkit for building Gen AI and Agentic applications with LangChain, LangGraph
 
 **What it gives you:**
 - Multi-provider LLM and embeddings factory (OpenAI, Groq, Anthropic, Ollama, local, …)
-- YAML-configured agents: ReAct, Deep (planning + subagents), custom LangGraph graphs
+- Four agent frameworks in one toolkit: **ReAct**, **Deep agent**, **Deer-flow**, **SmolAgents**
+- YAML-configured profiles — swap models, tools, MCP servers, and sandboxes without code changes
+- Skills system — markdown domain-knowledge files loaded on demand, not injected into every prompt
+- Docker sandbox via OpenSandbox — isolated code execution, browser automation, volume-mounted skills
 - Full RAG pipeline — chunking, BM25 + semantic hybrid retrieval, PGVector
 - Structured extraction with BAML (type-safe Pydantic output, incremental manifests)
-- Prefect document flows, browser automation, Docker sandbox, MCP servers
+- Prefect document flows, browser automation, MCP servers
 - Rich CLI that mirrors every capability; easily extensible with one class + one YAML line
 
 ---
@@ -147,6 +150,207 @@ asyncio.run(main())
 
 ---
 
+## Agents
+
+The toolkit ships four agent frameworks, all sharing the same YAML profile system, LLM factory, MCP servers, and Docker sandbox.
+
+### Choosing an agent
+
+| Agent | Best for | Multi-turn | Planning | Web research | Code execution |
+|-------|----------|:----------:|:--------:|:------------:|:--------------:|
+| **ReAct** | General tasks, tool use | ✓ | — | via tools | via tools |
+| **Deep agent** | Complex multi-step planning | ✓ | ✓ | via tools | Docker sandbox |
+| **Deer-flow** | Deep web research & reports | ✓ | ✓ | ✓ native | Docker sandbox |
+| **SmolAgents** | Code-first automation | ✓ | — | via tools | local / E2B |
+
+---
+
+### ReAct agent (LangChain)
+
+Standard Thought → Action → Observation loop. Good general-purpose default.
+
+```bash
+cli agents langchain --chat                           # interactive session
+cli agents langchain -p Coding "Review this code"    # named profile
+cli agents langchain --list                           # show profiles
+```
+
+```python
+from genai_tk.agents.langchain import LangchainAgent
+
+agent = LangchainAgent("Research")
+result = agent.run("Summarise the 2024 GPT-4 technical report")
+```
+
+Profile in `config/agents/langchain.yaml`:
+
+```yaml
+langchain_agents:
+  profiles:
+    - name: Research
+      type: react
+      llm: gpt_41mini@openai
+      tools:
+        - spec: web_search
+      mcp_servers: []
+      checkpointer:
+        type: memory       # memory | postgres | sqlite
+```
+
+---
+
+### Deep agent (LangChain)
+
+Extends ReAct with multi-step planning, subagent delegation, and optional Docker sandbox execution. Requires the `deepagents` extra package.
+
+```bash
+cli agents langchain -p Research --chat
+```
+
+```yaml
+langchain_agents:
+  profiles:
+    - name: Research
+      type: deep
+      llm: gpt_41@openai
+      enable_planning: true
+      skills:
+        directories:
+          - ${paths.project}/skills    # SKILL.md files read on demand
+      backend:
+        type: aio_sandbox              # optional Docker sandbox
+```
+
+---
+
+### Deer-flow (ByteDance / LangGraph)
+
+[Deer-flow](https://github.com/bytedance/deer-flow) is a multi-agent LangGraph system with native web search, planning, reporting, and sub-agents. genai-tk embeds it **in-process** — no separate server.
+
+**Setup** (one-time):
+
+```bash
+cli init --deer-flow          # clones Deer-flow and installs its backend deps
+# then add to .env: DEER_FLOW_PATH=~/deer-flow
+```
+
+**Run:**
+
+```bash
+cli agents deerflow --chat                              # interactive (default profile)
+cli agents deerflow -p "Research Assistant" --trace "Explain quantum key distribution"
+cli agents deerflow -p "Research Assistant" --mode ultra --chat   # full planning + sub-agents
+cli agents deerflow --list                              # show profiles + modes
+```
+
+**Modes:**
+
+| Mode | Thinking | Planning | Sub-agents |
+|------|:--------:|:--------:|:----------:|
+| `flash` | — | — | — |
+| `thinking` | ✓ | — | — |
+| `pro` | ✓ | ✓ | — |
+| `ultra` | ✓ | ✓ | ✓ |
+
+**Profile** in `config/agents/deerflow.yaml`:
+
+```yaml
+deerflow_agents:
+  - name: Research Assistant
+    mode: pro
+    llm: gpt_41@openai          # optional; falls back to server default
+    mcp_servers: [tavily-mcp]
+    skill_directories:
+      - ${paths.project}/skills
+    available_skills:           # filter which skills are exposed (omit = all)
+      - public/deep-research
+      - public/data-analysis
+    sandbox: local              # local | docker
+```
+
+Skills in `$DEER_FLOW_PATH/skills` are discovered automatically when running outside the development tree.
+
+---
+
+### SmolAgents (HuggingFace)
+
+Code-first agent that writes and executes Python. Supports local, E2B, and Docker execution backends.
+
+```bash
+cli agents smolagents "Plot the sine function and save to sine.png"
+cli agents smolagents --executor docker "Install pandas and analyse data.csv"
+cli agents smolagents --executor e2b "Scrape and summarise this webpage: …"    # requires E2B_API_KEY
+```
+
+---
+
+### Skills — domain knowledge on demand
+
+Skills are markdown files (`SKILL.md`) that agents load **when needed**, rather than injecting all knowledge into every prompt. This keeps context lean and enables per-task specialisation.
+
+```
+skills/
+├── public/              # shipped with Deer-flow
+│   ├── deep-research/
+│   │   └── SKILL.md
+│   └── data-analysis/
+│       └── SKILL.md
+└── custom/              # your project skills
+    └── my-domain/
+        └── SKILL.md
+```
+
+Any agent that supports `skill_directories` (LangChain deep, all Deer-flow profiles) can discover and use skill files. In Docker sandbox mode the skill directories are automatically bind-mounted read-only at `/mnt/skills/`.
+
+---
+
+### Sandbox
+
+Agents can run code in an isolated Docker container via [OpenSandbox](https://github.com/alibaba/OpenSandbox):
+
+```bash
+# One-time warm-up (cuts container startup from ~28 s to ~5 s)
+cli sandbox start
+cli sandbox pull
+
+# Use with any agent
+cli agents langchain  -p Research --sandbox docker "Write and run a Python script"
+cli agents deerflow   -p "Research Assistant" --sandbox docker --chat
+cli agents smolagents --executor docker "Run some code"
+```
+
+The sandbox provides Chromium (VNC at `localhost:8080/vnc`), Python, Node.js, and a REST shell/file API. Skill directories are mount-inserted automatically.
+
+See [docs/sandbox_support.md](docs/sandbox_support.md) for full setup instructions.
+
+---
+
+### MCP Servers
+
+Any agent profile can load tools from [Model Context Protocol](https://modelcontextprotocol.io) servers:
+
+```yaml
+# config/mcp_servers.yaml
+mcp_servers_config:
+  tavily-mcp:
+    command: npx
+    args: ["-y", "tavily-mcp"]
+    env:
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+  math_server:
+    command: python
+    args: ["-m", "genai_tk.mcp.math_server"]
+```
+
+```bash
+cli agents deerflow -p "Research Assistant" --mcp math_server "…"
+cli agents langchain -p Research --mcp custom_server "…"
+```
+
+See [docs/mcp-servers.md](docs/mcp-servers.md) for the full reference.
+
+---
+
 ## LLM Selection
 
 Models are referenced as `model_id@provider` — a short logical name plus the provider that serves it (`openai`, `openrouter`, `groq`, `ollama`, `fake`, …).
@@ -187,14 +391,13 @@ The config system uses a hierarchy of YAML files loaded from `config/` (auto-dis
 ```
 config/
 ├── app_conf.yaml           # entry point — sets default_config and :merge list
-└── basic/
-    ├── init/baseline.yaml  # defaults: default LLM / embeddings / cache
-    ├── providers/
-    │   ├── llm.yaml        # LLM model declarations
-    │   └── embeddings.yaml # Embeddings model declarations
-    └── agents/
-        ├── langchain.yaml  # LangChain agent profiles
-        └── deerflow.yaml   # Deer-flow profiles
+├── baseline.yaml           # defaults: default LLM / embeddings / cache
+├── providers/
+│   ├── llm.yaml            # LLM model declarations
+│   └── embeddings.yaml     # Embeddings model declarations
+└── agents/
+    ├── langchain.yaml      # LangChain agent profiles (ReAct / Deep / Custom)
+    └── deerflow.yaml       # Deer-flow profiles + skills + sandbox config
 ```
 
 Environment variables in `.env` override config values at any level.  
@@ -210,13 +413,16 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 |------|-----------------|--------------------|-----------|
 | **LLM / Embeddings** | `cli core llm` | `get_llm()` / `get_embeddings()` | [docs/core.md](docs/core.md) |
 | **LLM model config** | `cli info models` | `llm.yaml` | [docs/llm-selection.md](docs/llm-selection.md) |
-| **LangChain Agents** | `cli agents langchain` | `LangchainAgent` | [docs/agents.md](docs/agents.md) |
+| **ReAct agent** | `cli agents langchain` | `LangchainAgent` | [docs/agents.md](docs/agents.md) |
+| **Deep agent** | `cli agents langchain -p <deep-profile>` | `LangchainAgent` (type: deep) | [docs/agents.md](docs/agents.md) |
 | **Deer-flow** | `cli agents deerflow` | `EmbeddedDeerFlowClient` | [docs/deer-flow.md](docs/deer-flow.md) |
+| **SmolAgents** | `cli agents smolagents` | `SmolAgent` | [docs/agents.md](docs/agents.md) |
+| **Skills** | — | `skill_directories:` in profile | [AGENTS.md](AGENTS.md#skills) |
+| **Docker sandbox** | `cli sandbox` | `SandboxBackend` | [docs/sandbox_support.md](docs/sandbox_support.md) |
 | **RAG** | `cli rag ingest/query` | `extra.rag` | [docs/extra.md](docs/extra.md#rag-systems) |
 | **BAML structured output** | `cli baml run/extract` | `BamlStructuredProcessor` | [docs/baml.md](docs/baml.md) |
-| **Prefect flows** | `cli tools markdownize` (example) | `run_flow_ephemeral()` | [docs/prefect.md](docs/prefect.md) |
 | **MCP servers** | `cli mcpserver` | `McpClient` | [docs/mcp-servers.md](docs/mcp-servers.md) |
-| **Docker sandbox** | `cli sandbox` | `SandboxBackend` | [docs/sandbox_support.md](docs/sandbox_support.md) |
+| **Prefect flows** | `cli tools markdownize` (example) | `run_flow_ephemeral()` | [docs/prefect.md](docs/prefect.md) |
 | **Browser automation** | — | `browser_use` tools | [docs/browser_control.md](docs/browser_control.md) |
 | **Testing** | `cli test unit` / `cli test fast_integration` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
 | **Configuration** | `cli init` | `global_config()` | [docs/configuration.md](docs/configuration.md) |
