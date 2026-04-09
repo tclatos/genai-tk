@@ -108,8 +108,57 @@ def _install_deer_flow(path: Path | None) -> Path | None:
     if not _install_deer_flow_backend(backend):
         return None
 
+    # Validate Deer-flow installation
+    _validate_deer_flow_installation(target)
+
     console.print("[green]✓ Deer-flow installed.[/green]")
     return target
+
+
+def _validate_deer_flow_installation(root: Path) -> None:
+    """Validate Deer-flow installation and show warnings if issues are found."""
+    import subprocess
+    
+    backend = root / "backend"
+    
+    # Check expected directories
+    harness = backend / "packages" / "harness"
+    legacy_src = backend / "src"
+    
+    if not harness.exists() and not legacy_src.exists():
+        console.print(
+            f"[yellow]Warning:[/yellow] Expected backend/packages/harness or backend/src not found.\n"
+            f"  Deer-flow at {root} may be incomplete or using an unexpected layout."
+        )
+    
+    # Check pyproject.toml exists
+    if not (backend / "pyproject.toml").exists():
+        console.print(
+            f"[yellow]Warning:[/yellow] pyproject.toml not found in {backend}.\n"
+            f"  Deer-flow installation may be incomplete."
+        )
+    
+    # Check git version
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "log", "-1", "--format=%h %ai %s"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0 and result.stdout:
+            info = result.stdout.strip().split()
+            if len(info) >= 3:
+                commit_hash = info[0]
+                date = info[1]
+                console.print(f"[cyan]Deer-flow version:[/cyan] {commit_hash} ({date})")
+        else:
+            console.print("[yellow]Warning:[/yellow] Could not determine Deer-flow version from git.")
+    except Exception as e:
+        console.print(f"[yellow]Warning:[/yellow] Could not check Deer-flow version: {e}")
+
+
+
 
 
 def _install_deer_flow_backend(backend: Path) -> bool:
