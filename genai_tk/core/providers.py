@@ -81,14 +81,20 @@ class ProviderInfo(BaseModel):
 @once
 def _load_provider_info_from_yaml() -> dict[str, ProviderInfo]:
     """Load provider information from YAML config file."""
-    # Look for providers.yaml in config/providers/ directory
-    config_path = Path(__file__).parent.parent.parent / "config" / "providers" / "providers.yaml"
+    from importlib.resources import files as _pkg_files
 
-    if not config_path.exists():
-        raise FileNotFoundError(f"Provider config file not found: {config_path}")
+    # Load from the bundled package data (works both in editable installs and wheels)
+    try:
+        src = _pkg_files("genai_tk") / "default_config" / "providers" / "providers.yaml"
+        yaml_text = src.read_text(encoding="utf-8")
+    except Exception:
+        # Fallback for editable installs where the symlink may not resolve via importlib
+        config_path = Path(__file__).parent.parent / "default_config" / "providers" / "providers.yaml"
+        if not config_path.exists():
+            raise FileNotFoundError(f"Provider config file not found: {config_path}")
+        yaml_text = config_path.read_text(encoding="utf-8")
 
-    with open(config_path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+    data = yaml.safe_load(yaml_text)
 
     providers = {}
     for name, info in data["providers"].items():

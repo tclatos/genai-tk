@@ -26,6 +26,16 @@ from pydantic import BaseModel, field_validator
 from genai_tk.utils.singleton import once
 
 MODELS_DEV_URL = "https://models.dev/api.json"
+def _default_cache_path() -> Path:
+    """Resolve the default models cache path via config, fallback to CWD/data/."""
+    try:
+        from genai_tk.utils.config_mngr import global_config
+
+        return global_config().get_dir_path("paths.data") / "models_dev.json"
+    except Exception:
+        return Path.cwd() / "data" / "models_dev.json"
+
+
 _DEFAULT_CACHE_PATH = Path(__file__).parent.parent.parent / "data" / "models_dev.json"
 
 
@@ -146,8 +156,10 @@ class ModelsDb:
 
     # ── Loading / fetching ────────────────────────────────────────────────
 
-    def load(self, cache_path: Path = _DEFAULT_CACHE_PATH) -> "ModelsDb":
+    def load(self, cache_path: Path | None = None) -> "ModelsDb":
         """Load from local cache file, fetching automatically if absent."""
+        if cache_path is None:
+            cache_path = _default_cache_path()
         self._cache_path = cache_path
         if not cache_path.exists():
             logger.info(f"models.dev cache not found at {cache_path} — fetching now …")
@@ -161,7 +173,7 @@ class ModelsDb:
     def fetch(self, cache_path: Path | None = None) -> "ModelsDb":
         """Download the latest models.dev database and save to the cache file."""
         if cache_path is None:
-            cache_path = self._cache_path or _DEFAULT_CACHE_PATH
+            cache_path = self._cache_path or _default_cache_path()
         logger.info(f"Fetching models.dev from {MODELS_DEV_URL} …")
         response = httpx.get(MODELS_DEV_URL, timeout=30)
         response.raise_for_status()
