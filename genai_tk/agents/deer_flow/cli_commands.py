@@ -123,18 +123,13 @@ def _require_deer_flow_path() -> Path:
     if not backend.exists():
         console.print(
             f"[red]Deer-flow backend not found:[/red] {backend}\n\n"
-            "Your Deer-flow clone at {root} appears incomplete.\n"
+            f"Your Deer-flow clone at {root} appears incomplete.\n"
             "Try re-running: [bold cyan]cli init --deer-flow --force[/bold cyan]"
         )
         raise typer.Exit(1)
 
-    if not backend.exists():
-        console.print(
-            f"[red]DEER_FLOW_PATH/backend not found:[/red] {backend}\n"
-            "The directory exists but doesn't look like a deer-flow clone."
-        )
-        raise typer.Exit(1)
-
+    # Check for expected backend layout (modern: packages/harness, or legacy: src)
+    harness = backend / "packages" / "harness"
     if not harness.exists() and not (backend / "src").exists():
         console.print(
             f"[red]Deer-flow backend layout not recognised:[/red] {backend}\n"
