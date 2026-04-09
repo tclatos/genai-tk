@@ -32,6 +32,9 @@ uv add git+https://github.com/tclatos/genai-tk@main
 # Initialize configuration and sample agents
 uv run cli init              # copies default config/ tree
 uv run cli init --deer-flow  # (optional) also clones the Deer-flow backend
+
+# After running cli init --deer-flow, add this to your .env:
+# DEER_FLOW_PATH=~/deer-flow  (or wherever you cloned it)
 ```
 
 **Add to existing project:**
