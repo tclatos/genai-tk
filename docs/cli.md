@@ -42,6 +42,56 @@ uv run cli core --help
 
 ## Command Groups
 
+### `init` — Project Initialisation
+
+Bootstrap a new genai-tk project in the current directory.
+
+```bash
+# Full scaffold — config, Makefile, Python package with examples, Copilot files
+uv run cli init
+uv run cli init --name "My AI Project"   # explicit project name
+
+# Config + Makefile only (no example code)
+uv run cli init --minimal
+
+# Also clone the Deer-flow backend
+uv run cli init --deer-flow
+uv run cli init --deer-flow --path ./ext/deer-flow   # custom clone path
+
+# Overwrite existing files
+uv run cli init --force
+```
+
+**What the full scaffold generates:**
+
+| Path | Description |
+|------|-------------|
+| `config/` | Default YAML config tree (app_conf, baseline, providers, agents) |
+| `Makefile` | `make webapp`, `make test`, `make example-*` targets |
+| `<package>/` | Python package with CLI commands, LCEL chain, Streamlit page |
+| `AGENTS.md` | Copilot coding guidelines and skill index |
+| `.github/copilot-instructions.md` | Always-active Copilot hints |
+| `pyproject.toml` | uv project with scoped package discovery |
+| `README.md` | Project overview and getting started guide |
+
+Run `uv sync` after `cli init` to install the generated package so the
+example CLI commands are importable.
+
+Example commands available after `uv sync`:
+
+```bash
+uv run cli example joke "software engineers"   # simple LLM call via LCEL chain
+uv run cli example chain "Python devs"         # chain registry runnable
+uv run cli example agent "What is 2 + 2?"     # ReAct agent with calculator tool
+uv run cli example deerflow "Explain RAG"      # Deer-flow (requires --deer-flow)
+```
+
+See [docs/scaffolding.md](scaffolding.md) for the full reference and
+[docs/copilot-agent-support.md](copilot-agent-support.md) for details on the
+generated Copilot files.
+
+---
+
 ### `core` — AI Model Interactions
 
 Direct access to LLMs and registered chains.

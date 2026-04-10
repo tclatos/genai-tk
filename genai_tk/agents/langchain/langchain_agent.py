@@ -277,10 +277,23 @@ class LangchainAgent(BaseModel):
 
     def _load_profile(self) -> AgentProfileConfig:
         """Load and merge a named profile from ``langchain.yaml``."""
-        from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+        from pathlib import Path
 
-        cfg = load_unified_config()
-        profile = resolve_profile(cfg, self.profile_name, type_override=self.agent_type)  # type: ignore[arg-type]
+        from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+        from genai_tk.utils.config_mngr import paths_config
+
+        agents_dir = paths_config().config / "agents"
+        dir_path = agents_dir / "langchain"
+        config_path: Path | None = dir_path if dir_path.is_dir() else None
+
+        cfg = load_unified_config(str(config_path) if config_path else None)
+        try:
+            profile = resolve_profile(cfg, self.profile_name, type_override=self.agent_type)  # type: ignore[arg-type]
+        except ValueError as exc:
+            shown_path = str(config_path) if config_path else str(agents_dir / "langchain.yaml")
+            raise ValueError(
+                f"{exc}\n  Config: {shown_path}\n  Tip: run `cli agents langchain --list` to see all profiles."
+            ) from exc
 
         # Apply ad-hoc overrides on top of the resolved profile
         overrides: dict[str, Any] = {}

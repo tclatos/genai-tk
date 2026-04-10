@@ -15,6 +15,7 @@ from deepagents.backends.protocol import (
     ExecuteResponse,
     FileDownloadResponse,
     FileUploadResponse,
+    ReadResult,
     WriteResult,
 )
 
@@ -160,8 +161,10 @@ async def test_aread_line_numbered(sandbox: AioSandboxBackend) -> None:
     content = "alpha\nbeta\ngamma\n"
     await sandbox.execute_tool("write_file", {"path": "/tmp/genai_tk_aread.txt", "content": content})
 
-    text = await sandbox.aread("/tmp/genai_tk_aread.txt")
+    result = await sandbox.aread("/tmp/genai_tk_aread.txt")
 
+    assert result.error is None
+    text = (result.file_data or {}).get("content", "")
     assert "1: alpha" in text
     assert "2: beta" in text
     assert "3: gamma" in text
@@ -173,8 +176,10 @@ async def test_aread_pagination(sandbox: AioSandboxBackend) -> None:
     lines = "\n".join(f"L{i}" for i in range(1, 11))
     await sandbox.execute_tool("write_file", {"path": "/tmp/genai_tk_aread_pg.txt", "content": lines})
 
-    text = await sandbox.aread("/tmp/genai_tk_aread_pg.txt", offset=2, limit=3)
+    result = await sandbox.aread("/tmp/genai_tk_aread_pg.txt", offset=2, limit=3)
 
+    assert result.error is None
+    text = (result.file_data or {}).get("content", "")
     assert "3: L3" in text
     assert "5: L5" in text
     assert "1: L1" not in text
@@ -200,7 +205,9 @@ async def test_awrite_creates_new_file(sandbox: AioSandboxBackend) -> None:
     assert result.path == path
 
     read = await sandbox.aread(path)
-    assert "new file content" in read
+    assert isinstance(read, ReadResult)
+    assert read.error is None
+    assert "new file content" in (read.file_data or {}).get("content", "")
 
 
 @pytest.mark.asyncio(loop_scope="module")
@@ -233,7 +240,9 @@ async def test_aedit_replace_first(sandbox: AioSandboxBackend) -> None:
     assert result.occurrences == 1
 
     read = await sandbox.aread(path)
-    assert "ZZZ bbb aaa" in read
+    assert isinstance(read, ReadResult)
+    assert read.error is None
+    assert "ZZZ bbb aaa" in (read.file_data or {}).get("content", "")
 
 
 @pytest.mark.asyncio(loop_scope="module")
@@ -246,7 +255,9 @@ async def test_aedit_replace_all(sandbox: AioSandboxBackend) -> None:
 
     assert result.occurrences == 3
     read = await sandbox.aread(path)
-    assert "Y Y Y" in read
+    assert isinstance(read, ReadResult)
+    assert read.error is None
+    assert "Y Y Y" in (read.file_data or {}).get("content", "")
 
 
 @pytest.mark.asyncio(loop_scope="module")

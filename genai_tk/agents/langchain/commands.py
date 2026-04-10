@@ -25,6 +25,9 @@ def _get_config_path() -> str:
     from genai_tk.utils.config_mngr import paths_config
 
     agents_dir = paths_config().config / "agents"
+    dir_path = agents_dir / "langchain"
+    if dir_path.is_dir():
+        return str(dir_path)
     return str(agents_dir / "langchain.yaml")
 
 
@@ -266,7 +269,9 @@ def register(cli_app: typer.Typer) -> None:
                 keep_sandbox=keep_sandbox,
             )
         except ValueError as e:
+            config_path = _get_config_path()
             console.print(f"[red]{e}[/red]")
+            console.print(f"[dim]Config loaded from: {config_path}[/dim]")
             _list_profiles()
             raise typer.Exit(1) from e
 

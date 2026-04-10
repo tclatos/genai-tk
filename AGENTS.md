@@ -142,6 +142,8 @@ Current docs index:
 | File | Topic |
 |------|-------|
 | `docs/cli.md` | All CLI command groups, sub-commands, and how to add new commands |
+| `docs/scaffolding.md` | `cli init` — full project scaffold, generated files, config auto-patching |
+| `docs/copilot-agent-support.md` | Copilot Agent skills, AGENTS.md, copilot-instructions.md |
 | `docs/core.md` | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, `LlmCache`, `ChainRegistry` |
 | `docs/extra.md` | Agent graphs, RAG, data loaders, anonymization, image analysis, KV store |
 | `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |
