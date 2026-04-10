@@ -58,6 +58,20 @@ webapp:  ## Launch agent demo webapp (Streamlit)
 	PYTHONPATH=$(DEV_PYTHONPATH) uv run python -m streamlit run "$$entry"
 
 ##############################
+##  Examples
+##############################
+.PHONY: example-joke example-chain example-agent
+
+example-joke:  ## Run example: tell a joke
+	uv run cli example joke "programming"
+
+example-chain:  ## Run example: LCEL chain
+	uv run cli example chain "AI engineers"
+
+example-agent:  ## Run example: ReAct agent
+	uv run cli example agent "What is 2+2?"
+
+##############################
 ##  Quality
 ##############################
 .PHONY: fmt lint check

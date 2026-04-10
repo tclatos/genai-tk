@@ -101,6 +101,7 @@ dependencies = [
 
     "edgeparse>=0.2.2",
     "fastembed>=0.8.0",
+    "jinja2>=3.1.0",    # Template engine for project scaffolding (cli init)
 
     # ============================================
     # Web Interface (Streamlit)

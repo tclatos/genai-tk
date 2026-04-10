@@ -4,8 +4,9 @@ Registered statically in cli.py so they work from an empty directory
 (i.e. immediately after `uv add genai-tk`).
 
 Usage:
-    cli init                            # copy default config + Makefile
-    cli init --name "My Project"        # set project name in webapp.yaml
+    cli init                            # full scaffold: config + package + examples + Copilot files
+    cli init --name "My Project"        # set project name
+    cli init --minimal                  # config + Makefile only (no Python scaffold)
     cli init --force                    # overwrite existing files
     cli init --deer-flow                # also install the Deer-flow backend
     cli init --deer-flow --path ~/my-deer-flow
@@ -55,7 +56,10 @@ def _patch_webapp_yaml(config_dir: Path, app_name: str) -> None:
     if not webapp_yaml.exists():
         return
     content = webapp_yaml.read_text(encoding="utf-8")
-    patched = content.replace("app_name: My GenAI Project", f"app_name: {app_name}")
+    patched = content.replace("app_name: GenAI Toolkit", f"app_name: {app_name}")
+    if patched == content:
+        # Fallback for legacy template
+        patched = content.replace("app_name: My GenAI Project", f"app_name: {app_name}")
     if patched != content:
         webapp_yaml.write_text(patched, encoding="utf-8")
         console.print(f"[green]✓ app_name set to[/green] [bold]{app_name!r}[/bold] in {webapp_yaml}")
@@ -108,6 +112,20 @@ def _copy_tree_counted(src_traversable, dest: Path, force: bool) -> tuple[int, i
 
 def _copy_tree(src_traversable, dest: Path, force: bool, written_ref) -> None:
     """Noop — only _copy_tree_counted is used."""
+
+
+def _scaffold_project(project_dir: Path, project_name: str, *, force: bool = False) -> None:
+    """Generate Python package, examples, and Copilot support files."""
+    try:
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        scaffolder = ProjectScaffolder(project_dir, project_name, force=force)
+        scaffolder.scaffold()
+    except ImportError:
+        console.print("[yellow]Jinja2 not installed — skipping project scaffold.[/yellow]")
+        console.print("  Install with: [bold]uv add jinja2[/bold]  then re-run [bold]cli init[/bold]\n")
+    except Exception as exc:
+        console.print(f"[red]Scaffold error:[/red] {exc}")
 
 
 def _install_deer_flow(path: Path | None) -> Path | None:
@@ -256,6 +274,10 @@ class InitCommands(CliTopCommand):
                     help="Project name used in webapp.yaml and Makefile (default: current directory name).",
                 ),
             ] = None,
+            minimal: Annotated[
+                bool,
+                typer.Option("--minimal", help="Only copy config and Makefile (no Python package scaffold)."),
+            ] = False,
             deer_flow: Annotated[
                 bool,
                 typer.Option("--deer-flow", "-d", help="Also clone and install the Deer-flow backend."),
@@ -268,14 +290,15 @@ class InitCommands(CliTopCommand):
                 ),
             ] = None,
         ) -> None:
-            """Copy default config files to ./config/ and optionally install Deer-flow.
+            """Initialize a new genai-tk project with config, example code, and Copilot support.
 
             Run this once in a new project after installing genai-tk:
 
             \\b
             Examples:
-                cli init
+                cli init                                   # full scaffold
                 cli init --name "My Project"               # set project name
+                cli init --minimal                         # config + Makefile only
                 cli init --force                           # overwrite existing files
                 cli init --deer-flow                       # also install Deer-flow
                 cli init --deer-flow --deer-flow-path ~/projects/deer-flow
@@ -290,6 +313,9 @@ class InitCommands(CliTopCommand):
             _copy_default_config(dest, force=force)
             _patch_webapp_yaml(dest, app_name)
             _copy_makefile(force=force, app_name=app_name)
+
+            if not minimal:
+                _scaffold_project(Path.cwd(), app_name, force=force)
 
             if deer_flow:
                 df_path = Path(deer_flow_path) if deer_flow_path else None
@@ -306,6 +332,21 @@ class InitCommands(CliTopCommand):
                 )
 
             console.print(f"Project name: [bold]{app_name}[/bold]")
+            if not minimal:
+                from genai_tk.main.scaffolder import _sanitize_package_name
+
+                pkg = _sanitize_package_name(app_name)
+                console.print(f"Package:      [bold]{pkg}/[/bold]")
+                console.print()
+                console.print("[bold]You can try these commands:[/bold]")
+                console.print(
+                    '  [cyan]uv run cli info  config"[/cyan]  (check you have keys set up correctly and correct defaults'
+                )
+                console.print('  [cyan]uv run cli core llm -i "tell me a joke on Java"[/cyan]')
+                console.print('  [cyan]uv run cli example joke "Python"[/cyan]')
+                #                console.print('  [cyan]uv run cli example chain "AI engineers"[/cyan]')
+                console.print('  [cyan]uv run cli example agent "What is 2+2?"[/cyan]')
+                console.print()
             console.print("Run [bold]make webapp[/bold] to launch the agent demo UI.\n")
             if not deer_flow:
                 console.print("Tip: run [bold]cli init --deer-flow[/bold] to also install the Deer-flow backend.\n")

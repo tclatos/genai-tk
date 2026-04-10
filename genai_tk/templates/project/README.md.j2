@@ -1,0 +1,56 @@
+# {{ project_name }}
+
+Built with [genai-tk](https://github.com/tclatos/genai-tk).
+
+## Quick Start
+
+```bash
+# Install dependencies
+uv sync
+
+# Try the example CLI commands
+uv run cli example joke "Python"
+uv run cli example chain "AI engineers"
+uv run cli example agent "What is the capital of France?"
+
+# Launch the web interface
+make webapp
+```
+
+## Project Structure
+
+```
+{{ package_name }}/
+├── main/
+│   └── streamlit.py           # Streamlit webapp entry point
+├── commands/
+│   └── example_commands.py    # Example CLI commands (joke, chain, agent, deerflow)
+├── chains/
+│   └── joke_chain.py          # Example LCEL chain
+└── webapp/pages/demos/
+    └── hello_agent.py         # Example Streamlit agent page
+config/
+├── app_conf.yaml              # Main configuration
+├── baseline.yaml              # LLM and embeddings defaults
+├── webapp.yaml                # Web UI settings
+├── agents/                    # Agent profile configs
+└── providers/                 # LLM provider configs
+```
+
+## Adding New Features
+
+### New CLI Command
+
+1. Create a command class extending `CliTopCommand` in `{{ package_name }}/commands/`
+2. Register it in `config/app_conf.yaml` under `cli.commands`
+
+### New Webapp Page
+
+1. Create a Streamlit page in `{{ package_name }}/webapp/pages/demos/`
+2. Register it in `config/webapp.yaml` under `ui.navigation`
+
+### New Agent Profile
+
+Edit `config/agents/langchain.yaml` to add profiles with tools and MCP servers.
+
+See the [genai-tk documentation](https://github.com/tclatos/genai-tk) for details.

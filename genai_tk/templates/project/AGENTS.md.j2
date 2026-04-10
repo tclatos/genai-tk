@@ -1,0 +1,174 @@
+# {{ project_name }} — Agent & Development Guidelines
+
+This project is built with [genai-tk](https://github.com/tclatos/genai-tk), a comprehensive toolkit for building AI applications with LangChain, LangGraph, and multiple LLM providers.
+
+## Build Commands
+
+```bash
+uv sync              # install dependencies
+make webapp          # launch Streamlit web interface
+make fmt             # format with ruff
+make lint            # lint with ruff
+make check           # fmt + lint
+make test            # run all tests
+uv run cli --help    # show available CLI commands
+```
+
+Always use `uv` to run Python code and manage packages.
+
+## Project Structure
+
+```
+{{ package_name }}/
+├── main/streamlit.py              # Webapp entry point (delegates to genai-tk)
+├── commands/example_commands.py   # CLI command groups (registered in app_conf.yaml)
+├── chains/joke_chain.py           # LCEL chains (registered in chain registry)
+└── webapp/pages/demos/            # Streamlit pages (registered in webapp.yaml)
+config/
+├── app_conf.yaml                  # Main config (merges all below)
+├── baseline.yaml                  # LLM/embeddings defaults
+├── webapp.yaml                    # UI navigation and settings
+├── agents/langchain.yaml          # Agent profiles (ReAct, Deep, custom)
+├── providers/llm.yaml             # LLM model definitions
+└── mcp_servers.yaml               # MCP server definitions
+```
+
+## Code Style
+
+- **Python 3.12+** required
+- **Pydantic v2** for all data models — not dataclasses
+- **Absolute imports** only (`from {{ package_name }}.commands import ...`)
+- **ruff** for formatting (line length 120)
+- Use `str | None` not `Optional[str]`, `list[str]` not `List[str]`
+- Google-style docstrings (no type mentions in docstring — they're in the signature)
+
+## Key Patterns
+
+### Adding a CLI Command
+
+Create a class extending `CliTopCommand`:
+
+```python
+from genai_tk.cli.base import CliTopCommand
+import typer
+
+class MyCommands(CliTopCommand):
+    description: str = "My custom commands"
+
+    def get_description(self) -> tuple[str, str]:
+        return "mycommand", self.description
+
+    def register_sub_commands(self, cli_app: typer.Typer) -> None:
+        @cli_app.command()
+        def hello(name: str) -> None:
+            """Say hello."""
+            print(f"Hello, {name}!")
+```
+
+Register in `config/app_conf.yaml`:
+```yaml
+cli:
+  commands:
+    - {{ package_name }}.commands.my_commands.MyCommands
+```
+
+### Using LLMs
+
+```python
+from genai_tk.core.llm_factory import get_llm
+
+# Get default LLM (configured in baseline.yaml)
+llm = get_llm()
+
+# Get specific model
+llm = get_llm("gpt_41mini@openai")
+
+# With options
+llm = get_llm("default", streaming=True, temperature=0.7)
+```
+
+### Building LCEL Chains
+
+```python
+from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.prompts import def_prompt
+from langchain_core.output_parsers import StrOutputParser
+
+llm = get_llm()
+prompt = def_prompt(system="You are helpful.", user="Answer: {question}")
+chain = prompt | llm | StrOutputParser()
+result = chain.invoke({"question": "What is 2+2?"})
+```
+
+### Creating Agents
+
+```python
+from genai_tk.core.llm_factory import get_llm
+from langchain_core.messages import HumanMessage
+from langgraph.prebuilt import create_react_agent
+
+llm = get_llm()
+agent = create_react_agent(llm, tools=[my_tool])
+result = agent.invoke({"messages": [HumanMessage(content="...")]})
+```
+
+### Adding a Webapp Page
+
+Create a Streamlit page in `{{ package_name }}/webapp/pages/demos/my_page.py`, then register in `config/webapp.yaml`:
+
+```yaml
+ui:
+  pages_dir: {{ package_name }}/webapp/pages
+  navigation:
+    demos:
+      - demos/my_page.py
+```
+
+### Configuration Access
+
+```python
+from genai_tk.utils.config_mngr import global_config
+
+cfg = global_config()
+value = cfg.get_str("ui.app_name")
+```
+
+### Agent Profiles (YAML)
+
+Configure in `config/agents/langchain.yaml`:
+```yaml
+langchain_agents:
+  profiles:
+    - name: MyAgent
+      type: react
+      llm: default
+      system_prompt: "You are a helpful assistant."
+      tools:
+        - spec: web_search
+      mcp_servers: []
+```
+
+Run with: `cli agents langchain --profile MyAgent --chat`
+
+## genai-tk Documentation
+
+- **CLI**: `docs/cli.md` — all command groups and how to add new ones
+- **Core**: `docs/core.md` — LlmFactory, EmbeddingsFactory, ChainRegistry
+- **Agents**: `docs/agents.md` — ReAct, Deep, DeerFlow agents and profiles
+- **Webapp**: `docs/webapp.md` — Streamlit pages, components, navigation
+- **MCP**: `docs/mcp-servers.md` — MCP server configuration and tool exposure
+- **RAG**: `docs/extra.md` — RAG, data loaders, anonymization, KV store
+- **DeerFlow**: `docs/deer-flow.md` — DeerFlow multi-step research agents
+
+## Copilot Skills
+
+The following step-by-step skills are available (shipped with genai-tk) for common extension tasks:
+
+| Skill | Description |
+|-------|-------------|
+| `add-cli-command` | Create a new CLI command group and register it |
+| `add-webapp-page` | Create a new Streamlit page and register it |
+| `add-agent-profile` | Configure a new agent profile with tools |
+| `add-chain` | Create a new LCEL chain and register it |
+
+These are located in the genai-tk package under `skills/copilot/`.
