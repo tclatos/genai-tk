@@ -146,5 +146,5 @@ class McpCommands(CliTopCommand):
                 console.print(f"[green]✓[/green] Script written to [bold]{path}[/bold]")
                 console.print(f"\nLaunch with:  [cyan]uv run {path.name}[/cyan]")
             except Exception as e:
-                logger.error(f"Script generation failed: {e}")
+                logger.error("Script generation failed: {}", e)
                 raise typer.Exit(1) from e

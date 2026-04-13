@@ -49,7 +49,7 @@ def _load_file_content(path: UPath) -> str:
     try:
         return path.read_text(encoding="utf-8")
     except Exception as e:
-        logger.error(f"Error reading {path}: {e}")
+        logger.error("Error reading {}: {}", path, e)
         raise
 
 
@@ -74,10 +74,10 @@ def _chunk_text(content: str, max_chunk_tokens: int) -> list[str]:
 def _chunk_file_content(path: UPath, content: str, max_chunk_tokens: int) -> list[str]:
     """Chunk file content based on file type."""
     if path.suffix.lower() in {".md", ".markdown"}:
-        logger.debug(f"Using MarkdownChef for {path}")
+        logger.debug("Using MarkdownChef for {}", path)
         return _chunk_markdown(content, max_chunk_tokens=max_chunk_tokens)
     else:
-        logger.debug(f"Using text chunker for {path}")
+        logger.debug("Using text chunker for {}", path)
         return _chunk_text(content, max_chunk_tokens=max_chunk_tokens)
 
 
@@ -110,9 +110,9 @@ def _prepare_files(
                 for metadata in all_docs["metadatas"]:
                     if metadata and "file_hash" in metadata:
                         existing_hashes.add(metadata["file_hash"])
-            logger.debug(f"Found {len(existing_hashes)} existing file hashes in vector store")
+            logger.debug("Found {} existing file hashes in vector store", len(existing_hashes))
         except Exception as e:
-            logger.warning(f"Could not retrieve existing file hashes: {e}")
+            logger.warning("Could not retrieve existing file hashes: {}", e)
 
     for path in files:
         try:
@@ -121,7 +121,7 @@ def _prepare_files(
 
             # Skip if already processed (unless force is True)
             if not force and content_hash in existing_hashes:
-                logger.info(f"Skipping already processed file: {path}")
+                logger.info("Skipping already processed file: {}", path)
                 skipped += 1
                 continue
 
@@ -136,7 +136,7 @@ def _prepare_files(
                 )
             )
         except Exception as e:
-            logger.error(f"Error preparing {path}: {e}")
+            logger.error("Error preparing {}: {}", path, e)
             continue
 
     return to_process, skipped
@@ -160,7 +160,7 @@ def process_file_task(
     Returns:
         Number of chunks added to the vector store
     """
-    logger.info(f"Processing file: {file_info.path}")
+    logger.info("Processing file: {}", file_info.path)
 
     # Chunk the content
     chunks = _chunk_file_content(
@@ -170,7 +170,7 @@ def process_file_task(
     )
 
     if not chunks:
-        logger.warning(f"No chunks created for {file_info.path}")
+        logger.warning("No chunks created for {}", file_info.path)
         return 0
 
     # Compute relative path
@@ -197,7 +197,7 @@ def process_file_task(
     vector_store = EmbeddingsStore.create_from_config(store_name)
     _ = vector_store.add_documents(documents)
 
-    logger.info(f"Added {len(documents)} chunks from {file_info.path} to vector store")
+    logger.info("Added {} chunks from {} to vector store", len(documents), file_info.path)
     return len(documents)
 
 
@@ -230,7 +230,7 @@ def rag_file_ingestion_flow(
     Returns:
         Dictionary with statistics about the ingestion process
     """
-    logger.info(f"Starting RAG file ingestion from '{root_dir}' to store '{store_name}'")
+    logger.info("Starting RAG file ingestion from '{}' to store '{}'", root_dir, store_name)
 
     # Resolve files
     root_path = UPath(root_dir)
@@ -247,7 +247,7 @@ def rag_file_ingestion_flow(
         recursive=recursive,
     )
 
-    logger.info(f"Found {len(files)} files matching patterns")
+    logger.info("Found {} files matching patterns", len(files))
 
     if not files:
         logger.warning("No files found to process")
@@ -264,7 +264,7 @@ def rag_file_ingestion_flow(
     # Prepare files
     files_to_process, skipped = _prepare_files(files, force, vector_store)
 
-    logger.info(f"Processing {len(files_to_process)} files, skipping {skipped} already processed files")
+    logger.info("Processing {} files, skipping {} already processed files", len(files_to_process), skipped)
 
     if not files_to_process:
         logger.info("No new files to process")
@@ -279,7 +279,7 @@ def rag_file_ingestion_flow(
     total_chunks = 0
     for i in range(0, len(files_to_process), batch_size):
         batch = files_to_process[i : i + batch_size]
-        logger.info(f"Processing batch {i // batch_size + 1} with {len(batch)} files")
+        logger.info("Processing batch {} with {} files", i // batch_size + 1, len(batch))
 
         # Submit tasks for the batch
         futures = []
@@ -298,9 +298,9 @@ def rag_file_ingestion_flow(
                 chunk_count = future.result()
                 total_chunks += chunk_count
             except Exception as e:
-                logger.error(f"Error processing file in batch: {e}")
+                logger.error("Error processing file in batch: {}", e)
 
-    logger.info(f"Completed RAG file ingestion: {len(files_to_process)} files, {total_chunks} chunks")
+    logger.info("Completed RAG file ingestion: {} files, {} chunks", len(files_to_process), total_chunks)
 
     return {
         "total_files": len(files),

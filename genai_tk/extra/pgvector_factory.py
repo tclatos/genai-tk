@@ -75,7 +75,7 @@ def create_pg_vector_store(
             index_name=hybrid_config.get("index_name", f"{table_name}_tsv_index"),
             index_type=hybrid_config.get("index_type", "GIN"),
         )
-        logger.debug(f"Hybrid search enabled with config: {hybrid_search_config}")
+        logger.debug("Hybrid search enabled with config: {}", hybrid_search_config)
 
     try:
         pg_engine.init_vectorstore_table(
@@ -86,12 +86,12 @@ def create_pg_vector_store(
             hybrid_search_config=hybrid_search_config,
             metadata_columns=[Column(e["name"], e["data_type"]) for e in metadata_columns],
         )
-        logger.info(f"pgvector vector table created: {table_name=} {schema_name=}")
+        logger.info("pgvector vector table created: table_name={} schema_name={}", table_name, schema_name)
         if hybrid_search and hybrid_search_config:
-            logger.info(f"Hybrid search configured with TSV column: {hybrid_search_config.tsv_column}")
+            logger.info("Hybrid search configured with TSV column: {}", hybrid_search_config.tsv_column)
     except ProgrammingError as e:
         if "already exists" in str(e).lower():
-            logger.debug(f"Use existing pgvector table : {table_name}")
+            logger.debug("Use existing pgvector table : {}", table_name)
         else:
             raise
 
@@ -111,9 +111,9 @@ def create_pg_vector_store(
             #  tsv_index_query = f"""CREATE INDEX langchain_tsv_index ON "{schema_name}"."{table_name}" USING GIN("content_tsv);"""
             #  Always fail : apply_hybrid_search_index not implemented (only async version exists)
             vector_store._engine._run_as_async(vector_store.apply_hybrid_search_index())
-            logger.info(f"Applied hybrid search index on {table_name}")
+            logger.info("Applied hybrid search index on {}", table_name)
         except Exception as e:
-            logger.debug(f"Failed to apply hybrid search index: {e}")
+            logger.debug("Failed to apply hybrid search index: {}", e)
 
     conf["pg_engine"] = pg_engine
     conf["table_name"] = table_name

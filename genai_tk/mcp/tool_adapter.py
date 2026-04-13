@@ -47,7 +47,7 @@ def register_tools(server: FastMCP, tools: list[BaseTool]) -> None:
     for tool in tools:
         wrapper = _make_mcp_wrapper(tool)
         server.add_tool(wrapper, name=_safe_name(tool.name), description=tool.description)
-        logger.debug(f"Registered MCP tool: {tool.name!r}")
+        logger.debug("Registered MCP tool: {!r}", tool.name)
 
 
 def resolve_tools_from_config(tool_configs: list) -> list[BaseTool]:

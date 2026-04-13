@@ -57,11 +57,11 @@ def instantiate_tools_from_specs(tool_specs: list[ToolSpec]) -> list[Any]:
                 tools.extend(result if isinstance(result, list) else [result])
         except ModuleNotFoundError as ex:
             missing_module = str(ex).split("'")[1] if "'" in str(ex) else str(ex)
-            logger.warning(f"Skipping tool: missing optional dependency '{missing_module}'")
+            logger.warning("Skipping tool: missing optional dependency '{}'", missing_module)
         except (ImportError, AttributeError) as ex:
-            logger.warning(f"Skipping tool {spec}: {ex}")
+            logger.warning("Skipping tool {}: {}", spec, ex)
         except Exception as ex:
-            logger.warning(f"Failed to instantiate tool from {spec}: {ex}")
+            logger.warning("Failed to instantiate tool from {}: {}", spec, ex)
     return tools
 
 
@@ -135,5 +135,5 @@ def create_demo_from_config(config_name: str) -> SmolagentsAgentConfig | None:
             if raw.get("name", "").lower() == config_name.lower():
                 return _build_smolagent_config(raw)
     except Exception as ex:
-        logger.error(f"Failed to load demo config '{config_name}': {ex}")
+        logger.error("Failed to load demo config '{}': {}", config_name, ex)
     return None

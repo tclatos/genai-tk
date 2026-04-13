@@ -118,7 +118,7 @@ def load_mcp_server_definitions(config_path: Path | str | None = None) -> list[M
     try:
         merged = OmegaConf.merge(get_raw_config(), raw_cfg)
     except Exception as e:
-        logger.warning(f"Could not merge with global config for interpolation: {e}")
+        logger.warning("Could not merge with global config for interpolation: {}", e)
         merged = raw_cfg
 
     raw_dict = OmegaConf.to_container(merged, resolve=True)
@@ -137,7 +137,7 @@ def load_mcp_server_definitions(config_path: Path | str | None = None) -> list[M
             )
         )
 
-    logger.info(f"Loaded {len(definitions)} MCP server definition(s) from {path}")
+    logger.info("Loaded {} MCP server definition(s) from {}", len(definitions), path)
     return definitions
 
 

@@ -53,7 +53,7 @@ def create_search_function(verbose: bool = False):
                         topic=topic,
                     )
                 except Exception as e:
-                    logger.error(f"Tavily search error: {e}")
+                    logger.error("Tavily search error: {}", e)
                     return {"error": str(e)}
 
             if verbose:
@@ -102,7 +102,7 @@ def create_search_function(verbose: bool = False):
                         return {"error": f"Search API error: {response.status_code}"}
 
                 except Exception as e:
-                    logger.error(f"Serper search error: {e}")
+                    logger.error("Serper search error: {}", e)
                     return {"error": str(e)}
 
             if verbose:
@@ -144,7 +144,7 @@ def create_search_function(verbose: bool = False):
                     return formatted_results
 
             except Exception as e:
-                logger.error(f"DuckDuckGo search error: {e}")
+                logger.error("DuckDuckGo search error: {}", e)
                 return {"error": str(e)}
 
         if verbose:
@@ -245,7 +245,7 @@ def create_search_tool(verbose: bool = False):
                         return f"No results found for '{query}'"
 
                 except Exception as e:
-                    logger.error(f"Tavily search error: {e}")
+                    logger.error("Tavily search error: {}", e)
                     return f"Search error: {str(e)}"
 
             if verbose:
@@ -299,7 +299,7 @@ def create_search_tool(verbose: bool = False):
                         return f"Search API error: {response.status_code}"
 
                 except Exception as e:
-                    logger.error(f"Serper search error: {e}")
+                    logger.error("Serper search error: {}", e)
                     return f"Search error: {str(e)}"
 
             if verbose:
@@ -346,7 +346,7 @@ def create_search_tool(verbose: bool = False):
                         return f"No results found for '{query}'"
 
             except Exception as e:
-                logger.error(f"DuckDuckGo search error: {e}")
+                logger.error("DuckDuckGo search error: {}", e)
                 return f"Search error: {str(e)}"
 
         if verbose:

@@ -75,7 +75,7 @@ def _load_manifest(manifest_path: UPath) -> Ppt2PdfManifest | None:
         data = json.loads(text)
         return Ppt2PdfManifest.model_validate(data)
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning(f"Failed to load manifest from {manifest_path}: {exc}. Ignoring it.")
+        logger.warning("Failed to load manifest from {}: {}. Ignoring it.", manifest_path, exc)
         return None
 
 
@@ -98,7 +98,7 @@ def _prepare_files(
             content_bytes = path.read_bytes()
             content_hash = _compute_hash(content_bytes)
         except Exception as exc:  # pragma: no cover - defensive
-            logger.error(f"Error reading {path}: {exc}")
+            logger.error("Error reading {}: {}", path, exc)
             continue
 
         key = str(path)
@@ -106,7 +106,7 @@ def _prepare_files(
 
         if existing and not force and existing.source_hash == content_hash:
             skipped += 1
-            logger.info(f"Skipping unchanged file: {path}")
+            logger.info("Skipping unchanged file: {}", path)
             continue
 
         to_process.append(_FileToProcess(path=path, content_hash=content_hash))
@@ -147,7 +147,7 @@ def _convert_with_libreoffice(input_path: UPath, output_dir: UPath) -> UPath:
         str(input_path),
     ]
 
-    logger.debug(f"Running LibreOffice command: {' '.join(cmd)}")
+    logger.debug("Running LibreOffice command: {}", " ".join(cmd))
 
     # LibreOffice creates PDF with same stem name
     expected_output = output_dir / f"{input_path.stem}.pdf"
@@ -162,9 +162,9 @@ def _convert_with_libreoffice(input_path: UPath, output_dir: UPath) -> UPath:
 
         # Log stdout/stderr for debugging
         if result.stdout:
-            logger.debug(f"LibreOffice stdout: {result.stdout}")
+            logger.debug("LibreOffice stdout: {}", result.stdout)
         if result.stderr:
-            logger.debug(f"LibreOffice stderr: {result.stderr}")
+            logger.debug("LibreOffice stderr: {}", result.stderr)
 
         if result.returncode != 0:
             error_msg = result.stderr or result.stdout or f"Return code {result.returncode}"
@@ -226,7 +226,7 @@ def _process_single_file_task(
     except Exception as e:
         # Return failure result instead of raising
         error_msg = str(e)
-        logger.warning(f"✗ {upath.name}: {error_msg}")
+        logger.warning("✗ {}: {}", upath.name, error_msg)
         return _TaskResult(success=False, source_path=str(upath), error=error_msg)
 
 
@@ -283,7 +283,7 @@ def ppt2pdf_flow(
         logger.warning("No PowerPoint files found to process")
         return Ppt2PdfManifest()
 
-    logger.info(f"Discovered {len(file_paths)} files to process")
+    logger.info("Discovered {} files to process", len(file_paths))
 
     # Resolve output directory
     resolved_output = resolve_config_path(output_dir)
@@ -302,13 +302,13 @@ def ppt2pdf_flow(
     to_process, skipped = _prepare_files(files, manifest, force=force)
 
     if skipped:
-        logger.info(f"Skipped {skipped} unchanged files based on manifest")
+        logger.info("Skipped {} unchanged files based on manifest", skipped)
 
     if not to_process:
         logger.info("No files left to process after manifest filtering")
         return manifest
 
-    logger.info(f"Processing {len(to_process)} files with LibreOffice")
+    logger.info("Processing {} files with LibreOffice", len(to_process))
 
     all_entries: dict[str, Ppt2PdfManifestEntry] = dict(manifest.entries)
     failed_files: list[str] = []
@@ -340,7 +340,7 @@ def ppt2pdf_flow(
     # Report results
     total = len(to_process)
     if failed_files:
-        logger.warning(f"{len(failed_files)}/{total} files failed conversion")
+        logger.warning("{}/{} files failed conversion", len(failed_files), total)
     logger.success(f"Converted {processed_count}/{total} files (skipped {skipped} unchanged)")
 
     return updated_manifest

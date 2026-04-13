@@ -385,7 +385,7 @@ class RichToolCallMiddleware(AgentMiddleware):
             self._console.print(f"  [dim]⏱ {tool_name}: {elapsed:.1f}s[/dim]")
         else:
             self._handle_tool_call(tool_name, tool_args, response)
-        logger.debug(f"Tool {tool_name}: {elapsed:.1f}s")
+        logger.debug("Tool {}: {:.1f}s", tool_name, elapsed)
         return response
 
     async def awrap_model_call(self, request: Any, handler: Callable[[Any], Awaitable[Any]]) -> Any:  # type: ignore[override]
@@ -401,7 +401,7 @@ class RichToolCallMiddleware(AgentMiddleware):
             self._console.print(
                 f"  [bold red]LLM #{self._call_count}: FAILED after {elapsed:.1f}s — {exc!r}[/bold red]"
             )
-            logger.error(f"LLM #{self._call_count}: {elapsed:.1f}s, exception={exc!r}")
+            logger.error("LLM #{}: {:.1f}s, exception={!r}", self._call_count, elapsed, exc)
             raise
         elapsed = time.monotonic() - t0
         self._print_llm_response_summary(response, elapsed)
@@ -420,7 +420,7 @@ class RichToolCallMiddleware(AgentMiddleware):
             self._console.print(
                 f"  [bold red]LLM #{self._call_count}: FAILED after {elapsed:.1f}s — {exc!r}[/bold red]"
             )
-            logger.error(f"LLM #{self._call_count}: {elapsed:.1f}s, exception={exc!r}")
+            logger.error("LLM #{}: {:.1f}s, exception={!r}", self._call_count, elapsed, exc)
             raise
         elapsed = time.monotonic() - t0
         self._print_llm_response_summary(response, elapsed)
@@ -460,7 +460,7 @@ class RichToolCallMiddleware(AgentMiddleware):
             parts.append(f"[dim]{text_len} chars text[/dim]")
         if not tool_calls and not text_len:
             parts.append("[bold red]⚠ empty response (no tool calls, no text)[/bold red]")
-            logger.warning(f"LLM #{self._call_count}: empty response — raw type={type(msg).__name__}")
+            logger.warning("LLM #{}: empty response — raw type={}", self._call_count, type(msg).__name__)
             raw_attrs = {
                 a: repr(getattr(msg, a, None))[:200]
                 for a in (
@@ -474,7 +474,7 @@ class RichToolCallMiddleware(AgentMiddleware):
                 )
                 if hasattr(msg, a)
             }
-            logger.debug(f"LLM #{self._call_count} raw attrs: {raw_attrs}")
+            logger.debug("LLM #{} raw attrs: {}", self._call_count, raw_attrs)
             if self._details:
                 self._console.print(
                     Panel(
@@ -486,7 +486,7 @@ class RichToolCallMiddleware(AgentMiddleware):
 
         summary = "  ".join(parts)
         self._console.print(f"  [dim]LLM #{self._call_count}:[/dim] {summary}")
-        logger.debug(f"LLM #{self._call_count}: {elapsed:.1f}s, tool_calls={len(tool_calls)}, text={text_len}")
+        logger.debug("LLM #{}: {:.1f}s, tool_calls={}, text={}", self._call_count, elapsed, len(tool_calls), text_len)
 
 
 def create_rich_agent_middlewares(

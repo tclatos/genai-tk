@@ -44,7 +44,7 @@ def load_react_demo_config(config_name: str) -> Optional[Dict[str, Any]]:
                 return demo_config
         return None
     except Exception as ex:
-        logger.error(f"Failed to load ReAct demo config '{config_name}': {ex}")
+        logger.error("Failed to load ReAct demo config '{}': {}", config_name, ex)
         return None
 
 
@@ -74,7 +74,7 @@ def load_all_react_demos_from_config() -> List[ReactDemo]:
 
         return result
     except Exception as ex:
-        logger.error(f"Failed to load ReAct demo configurations: {ex}")
+        logger.error("Failed to load ReAct demo configurations: {}", ex)
         return []
 
 

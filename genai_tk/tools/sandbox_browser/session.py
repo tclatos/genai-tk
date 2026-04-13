@@ -104,7 +104,7 @@ class SandboxBrowserSession:
         client = sandbox_cls(base_url=self._sandbox_url)
         browser_info = client.browser.get_info().data
         cdp_url = browser_info.cdp_url
-        logger.info(f"Connecting to sandbox browser via CDP: {cdp_url}")
+        logger.info("Connecting to sandbox browser via CDP: {}", cdp_url)
 
         # Connect Playwright over CDP
         pw = await async_playwright_fn().start()
@@ -164,7 +164,7 @@ class SandboxBrowserSession:
             cdp_port = parsed.port or 9222
         except Exception:
             cdp_port = 9222
-        logger.info(f"Pre-launched browser CDP port: {cdp_port}")
+        logger.info("Pre-launched browser CDP port: {}", cdp_port)
 
         client = AsyncSandbox(base_url=self._sandbox_url)
 

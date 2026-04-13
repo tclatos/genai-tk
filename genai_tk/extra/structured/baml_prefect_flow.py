@@ -71,7 +71,7 @@ def _load_manifest(manifest_path: UPath) -> BamlExtractionManifest | None:
         data = json.loads(text)
         return BamlExtractionManifest.model_validate(data)
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning(f"Failed to load manifest from {manifest_path}: {exc}. Ignoring it.")
+        logger.warning("Failed to load manifest from {}: {}. Ignoring it.", manifest_path, exc)
         return None
 
 
@@ -131,7 +131,7 @@ def _prepare_files(
             content_bytes = path.read_bytes()
             content_hash = _compute_hash(content_bytes)
         except Exception as exc:  # pragma: no cover - defensive
-            logger.error(f"Error reading {path}: {exc}")
+            logger.error("Error reading {}: {}", path, exc)
             continue
 
         key = str(path)
@@ -139,7 +139,7 @@ def _prepare_files(
 
         if existing and not force and existing.source_hash == content_hash:
             skipped += 1
-            logger.info(f"Skipping unchanged file: {path}")
+            logger.info("Skipping unchanged file: {}", path)
             continue
 
         to_process.append(
@@ -168,7 +168,7 @@ async def _process_single_file_task(
     """
 
     upath = file_info.path
-    logger.info(f"Processing file with BAML: {upath}")
+    logger.info("Processing file with BAML: {}", upath)
 
     params: dict[str, Any] = {"__input__": file_info.content_text}
     result = await baml_invoke(function_name, params, config_name, llm)
@@ -273,7 +273,7 @@ def baml_structured_extraction_flow(
             llm=llm,
         )
 
-    logger.info(f"Discovered {len(file_paths)} files to process")
+    logger.info("Discovered {} files to process", len(file_paths))
 
     # Resolve output directory
     from genai_tk.utils.file_patterns import resolve_config_path
@@ -294,8 +294,7 @@ def baml_structured_extraction_flow(
         try:
             schema_fp = prompt_fingerprint(function_name, config_name)
         except Exception as exc:
-            logger.warning(f"Failed to compute schema fingerprint: {exc}")
-            schema_fp = None
+        logger.warning("Failed to compute schema fingerprint: {}", exc)
 
         manifest = BamlExtractionManifest(
             function_name=function_name,
@@ -310,13 +309,13 @@ def baml_structured_extraction_flow(
     to_process, skipped = _prepare_files(files, manifest, force=force)
 
     if skipped:
-        logger.info(f"Skipped {skipped} unchanged files based on manifest")
+        logger.info("Skipped {} unchanged files based on manifest", skipped)
 
     if not to_process:
         logger.info("No files left to process after manifest filtering")
         return manifest
 
-    logger.info(f"Processing {len(to_process)} files with BAML")
+    logger.info("Processing {} files with BAML", len(to_process))
 
     all_entries: dict[str, BamlExtractionManifestEntry] = dict(manifest.entries)
     detected_model_name: str | None = manifest.model_name
@@ -361,7 +360,7 @@ def baml_structured_extraction_flow(
     try:
         schema_fp = prompt_fingerprint(function_name, config_name)
     except Exception as exc:
-        logger.warning(f"Failed to compute schema fingerprint: {exc}")
+        logger.warning("Failed to compute schema fingerprint: {}", exc)
         schema_fp = manifest.schema_fingerprint  # Keep existing if calculation fails
 
     updated_manifest = BamlExtractionManifest(
@@ -401,7 +400,7 @@ async def _process_single_input_task(
     If output_dir/output_file are None, result is returned without saving.
     """
 
-    logger.info(f"Processing input with BAML function: {function_name}")
+    logger.info("Processing input with BAML function: {}", function_name)
 
     # Check if already processed based on manifest
     if not force and existing_manifest and output_dir and output_file:
@@ -411,7 +410,7 @@ async def _process_single_input_task(
             # Load and return existing result
             output_path_obj = UPath(output_dir) / existing_entry.output_path
             if output_path_obj.exists():
-                logger.info(f"Skipping - result already exists: {output_path_obj}")
+                logger.info("Skipping - result already exists: {}", output_path_obj)
                 json_text = output_path_obj.read_text(encoding="utf-8")
                 # Try to reconstruct the result, but return raw JSON if it fails
                 try:

@@ -43,5 +43,5 @@ def create_direct_browser_tools() -> list[BaseTool]:
     config = _load_browser_config()
     session = DirectBrowserSession(config=config)
     tools: list[BaseTool] = [tool_cls(session=session) for tool_cls in ALL_BROWSER_TOOLS]
-    logger.info(f"Created {len(tools)} direct browser tools (host-local Playwright)")
+    logger.info("Created {} direct browser tools (host-local Playwright)", len(tools))
     return tools

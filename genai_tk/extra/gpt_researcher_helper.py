@@ -54,7 +54,7 @@ def create_gptr_config(config_name: str) -> str:
             factory = LlmFactory(llm=llm_id)
             litellm_name = factory.get_litellm_model_name(separator=":")
             config_dict[llm] = litellm_name
-            logger.info(f"Using LiteLLM model name for {llm}: {litellm_name}")
+            logger.info("Using LiteLLM model name for {}: {}", llm, litellm_name)
 
             # Track the provider for API key injection
             providers_needed.add(factory.provider)
@@ -87,7 +87,7 @@ def create_gptr_config(config_name: str) -> str:
                 env_var_name = f"{provider.upper()}_API_KEY"
                 config_dict[env_var_name] = api_key_value
 
-            logger.info(f"Added API key for provider: {provider}")
+            logger.info("Added API key for provider: {}", provider)
 
     path = Path(tempfile.gettempdir()) / "gptr_conf.json"
     with open(path, "w") as json_file:
@@ -95,7 +95,7 @@ def create_gptr_config(config_name: str) -> str:
 
     # Log config without API keys for security
     safe_config = {k: v for k, v in config_dict.items() if "API_KEY" not in k.upper()}
-    logger.info(f"Using GPT Researcher config '{config_name}': {safe_config}")
+    logger.info("Using GPT Researcher config '{}': {}", config_name, safe_config)
     return str(path)
 
 
@@ -130,13 +130,13 @@ async def run_gpt_researcher(
         for key_var in api_key_vars:
             if config_data[key_var]:
                 os.environ[key_var] = config_data[key_var]
-                logger.debug(f"Set environment variable: {key_var}")
+                logger.debug("Set environment variable: {}", key_var)
 
         researcher = GPTResearcher(
             query=query, verbose=verbose, websocket=websocket_logger, config_path=config_path, **kwargs
         )
 
-        logger.info(f"Starting GPT Researcher with query: {query}")
+        logger.info("Starting GPT Researcher with query: {}", query)
         await researcher.conduct_research()
         report = await researcher.write_report()
 
@@ -160,7 +160,7 @@ async def run_gpt_researcher(
             sources=researcher.get_research_sources(),
         )
     except Exception as e:
-        logger.error(f"GPT Researcher failed: {e}", exc_info=True)
+        logger.error("GPT Researcher failed: {}", e, exc_info=True)
         # Return a basic error report instead of crashing
         return ResearchReport(
             report=f"Research failed due to error: {str(e)}\n\nThis may be caused by:\n- Invalid API credentials\n- LLM provider API issues\n- Network connectivity problems\n- Incorrect model configuration",

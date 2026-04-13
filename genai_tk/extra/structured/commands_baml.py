@@ -130,9 +130,9 @@ class BamlCommands(CliTopCommand):
                 raise typer.Exit(1)
 
             if llm:
-                logger.info(f"Using LLM: {llm}")
+                logger.info("Using LLM: {}", llm)
 
-            logger.info(f"Executing BAML function '{function_name}' with config '{config_name}'")
+            logger.info("Executing BAML function '{}' with config '{}'", function_name, config_name)
 
             # Execute using Prefect flow
             from genai_tk.extra.prefect.runtime import run_flow_ephemeral
@@ -164,7 +164,7 @@ class BamlCommands(CliTopCommand):
                     )
 
             except Exception as exc:
-                logger.error(f"BAML function execution failed: {exc}")
+                logger.error("BAML function execution failed: {}", exc)
                 raise typer.Exit(1) from exc
 
         @cli_app.command("extract")
@@ -265,11 +265,14 @@ class BamlCommands(CliTopCommand):
                     )
 
             if llm:
-                logger.info(f"Using LLM: {llm}")
+                logger.info("Using LLM: {}", llm)
 
             logger.info(
-                f"Starting BAML extraction from '{root_dir}' to '{output_dir}' "
-                f"with function '{function_name}' and config '{config_name}'",
+                "Starting BAML extraction from '{}' to '{}' with function '{}' and config '{}'",
+                root_dir,
+                output_dir,
+                function_name,
+                config_name,
             )
 
             from genai_tk.extra.prefect.runtime import run_flow_ephemeral
@@ -290,7 +293,7 @@ class BamlCommands(CliTopCommand):
                     llm=llm,
                 )
             except Exception as exc:
-                logger.error(f"BAML extraction failed: {exc}")
+                logger.error("BAML extraction failed: {}", exc)
                 raise typer.Exit(1) from exc
 
             logger.success("BAML extraction completed successfully")

@@ -83,14 +83,14 @@ async def create_langchain_agent(
         if mcp_servers_dict:
             mcp_client = MultiServerMCPClient(mcp_servers_dict)
             mcp_tools = await mcp_client.get_tools()
-            logger.info(f"Loaded {len(mcp_tools)} tools from {len(mcp_servers_dict)} MCP server(s)")
+            logger.info("Loaded {} tools from {} MCP server(s)", len(mcp_tools), len(mcp_servers_dict))
 
     # 4. Combine all tools
     all_tools: list[BaseTool] = profile_tools + mcp_tools
     if extra_tools:
         all_tools.extend(extra_tools)
 
-    logger.info(f"Creating '{profile.name}' agent (type={profile.type}) with {len(all_tools)} tools")
+    logger.info("Creating '{}' agent (type={}) with {} tools", profile.name, profile.type, len(all_tools))
 
     # 5. Checkpointer
     checkpointer_cfg = profile.checkpointer or CheckpointerConfig(type="none", class_path=None, kwargs={})
@@ -138,7 +138,7 @@ async def create_langchain_agent(
             for d in skill_dirs:
                 container_path = f"/mnt/skills/{_Path(d).name}"
                 backend.add_volume(d, container_path, read_only=True)
-                logger.info(f"Skill mount: {d} → {container_path} (read-only)")
+                logger.info("Skill mount: {} → {} (read-only)", d, container_path)
         if backend is not None and hasattr(backend, "start"):
             await backend.start()
 
@@ -160,7 +160,7 @@ async def create_langchain_agent(
                     session._sandbox_url = container_url
                     patched += 1
             if patched:
-                logger.debug(f"Patched {patched} browser tool session(s) → {container_url}")
+                logger.debug("Patched {} browser tool session(s) → {}", patched, container_url)
 
     # 8. Dispatch to engine
     if profile.type == "react":
@@ -333,7 +333,7 @@ def _load_skills_as_prompt(skill_dirs: list[str]) -> str | None:
                     sections.append(content)
                     skill_names.append((fm_name, fm_desc))
             except Exception as exc:
-                logger.warning(f"Could not read skill file '{skill_file}': {exc}")
+                logger.warning("Could not read skill file '{}': {}", skill_file, exc)
 
     if not sections:
         return None
@@ -348,7 +348,7 @@ def _load_skills_as_prompt(skill_dirs: list[str]) -> str | None:
         table.add_row(str(i), name, desc or "—")
     console.print(table)
 
-    logger.info(f"Loaded {len(sections)} skill(s) as system prompt")
+    logger.info("Loaded {} skill(s) as system prompt", len(sections))
     return "\n\n---\n\n".join(sections)
 
 
@@ -384,7 +384,7 @@ def _resolve_skill_dirs(skill_directories: list[str]) -> list[str]:
     existing = [d for d in resolved if __import__("os").path.isdir(d)]
     missing = [d for d in resolved if d not in existing]
     if missing:
-        logger.warning(f"Skill directories not found (will be ignored): {missing}")
+        logger.warning("Skill directories not found (will be ignored): {}", missing)
 
     # Expand to source-level directories: SkillsMiddleware needs a path whose
     # immediate subdirs are the individual skills (each containing SKILL.md).

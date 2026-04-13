@@ -56,7 +56,7 @@ def register_agent_tool(
         """Run the agent and return the final text answer."""
         if "agent" not in _agent_cache:
             _agent_cache["agent"] = await _build_agent(agent_cfg, extra_tools or [])
-            logger.info(f"Agent '{agent_cfg.name}' initialised.")
+            logger.info("Agent '{}' initialised.", agent_cfg.name)
 
         agent = _agent_cache["agent"]
         result = await agent.ainvoke(
@@ -74,7 +74,7 @@ def register_agent_tool(
     _invoke_agent.__doc__ = agent_cfg.description
 
     server.add_tool(_invoke_agent, name=agent_cfg.name, description=agent_cfg.description)
-    logger.debug(f"Registered agent MCP tool: {agent_cfg.name!r}")
+    logger.debug("Registered agent MCP tool: {!r}", agent_cfg.name)
 
 
 async def _build_agent(agent_cfg: MCPAgentConfig, extra_tools: list[BaseTool]) -> Any:

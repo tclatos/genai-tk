@@ -193,7 +193,7 @@ def _read_embeddings_list_file() -> list[EmbeddingsInfo]:
     embeddings = []
     for idx, model_entry in enumerate(providers_data):
         if not model_entry or not isinstance(model_entry, dict):
-            logger.warning(f"Skipping invalid embeddings entry at index {idx}: {model_entry}")
+            logger.warning("Skipping invalid embeddings entry at index {}: {}", idx, model_entry)
             continue
 
         # The model entry has this structure:
@@ -203,14 +203,14 @@ def _read_embeddings_list_file() -> list[EmbeddingsInfo]:
         model_id = model_entry.get("model_id")
 
         if not model_id:
-            logger.warning(f"Skipping embeddings entry without model_id at index {idx}: {model_entry}")
+            logger.warning("Skipping embeddings entry without model_id at index {}: {}", idx, model_entry)
             continue
 
         dimension = model_entry.get("dimension")
         providers_list = model_entry.get("providers", [])
 
         if not providers_list:
-            logger.debug(f"Embeddings model {model_id} has no providers")
+            logger.debug("Embeddings model {} has no providers", model_id)
             continue
 
         for provider_info in providers_list:

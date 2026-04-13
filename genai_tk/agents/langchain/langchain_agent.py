@@ -172,7 +172,7 @@ class LangchainAgent(BaseModel):
             if self.keep_sandbox and hasattr(backend, "detach"):
                 vnc = getattr(backend, "_base_url", "")
                 if vnc:
-                    logger.info(f"Sandbox kept alive — VNC: {vnc}/vnc/index.html?autoconnect=true")
+                    logger.info("Sandbox kept alive — VNC: {}/vnc/index.html?autoconnect=true", vnc)
                     logger.info("Use 'cli sandbox list' to see running containers, 'cli sandbox stop' to clean up.")
                 backend.detach()
             elif hasattr(backend, "stop"):
@@ -200,7 +200,7 @@ class LangchainAgent(BaseModel):
                 try:
                     await session.close()
                 except Exception as exc:
-                    logger.debug(f"Error closing browser session: {exc}")
+                    logger.debug("Error closing browser session: {}", exc)
 
     # Context-manager support
     async def __aenter__(self) -> LangchainAgent:
@@ -237,7 +237,7 @@ class LangchainAgent(BaseModel):
                 update: dict[str, Any] = {"backend": sandbox_backend}
                 if profile.type != "deep":
                     update["type"] = "deep"
-                    logger.debug(f"Sandbox override '{self.sandbox}': switched profile type to deep")
+                    logger.debug("Sandbox override '{}': switched profile type to deep", self.sandbox)
 
                 profile = profile.model_copy(update=update)
 
@@ -248,7 +248,7 @@ class LangchainAgent(BaseModel):
                 force_memory_checkpointer=self.checkpointer,
                 details=self.details,
             )
-            logger.debug(f"LangchainAgent initialized: profile={self._profile.name}")
+            logger.debug("LangchainAgent initialized: profile={}", self._profile.name)
 
             # Auto-open VNC in the default browser for visual debugging
             if self.vnc:
@@ -258,7 +258,7 @@ class LangchainAgent(BaseModel):
                     import webbrowser  # noqa: PLC0415
 
                     vnc_url = f"{base_url}/vnc/index.html?autoconnect=true"
-                    logger.info(f"Opening VNC in browser: {vnc_url}")
+                    logger.info("Opening VNC in browser: {}", vnc_url)
                     webbrowser.open(vnc_url)
 
         return self._agent

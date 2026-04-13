@@ -63,7 +63,7 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
 
                 if cached_doc:
                     analyzed_docs.append(cached_doc)
-                    logger.info(f"Loaded cached document: {doc_id}")
+                    logger.info("Loaded cached document: {}", doc_id)
                 else:
                     remaining_ids.append(doc_id)
                     remaining_contents.append(content)
@@ -75,7 +75,7 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
             return analyzed_docs
 
         # Process uncached documents using BAML concurrent calls pattern
-        logger.info(f"Processing {len(remaining_ids)} documents with BAML async client...")
+        logger.info("Processing {} documents with BAML async client...", len(remaining_ids))
 
         # Create concurrent tasks for all remaining documents
         if self.baml_function:
@@ -98,7 +98,7 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
         # Process results and save to KV store
         for doc_id, result in zip(remaining_ids, results, strict=True):
             if isinstance(result, Exception):
-                logger.error(f"Failed to process document {doc_id}: {result}")
+                logger.error("Failed to process document {}: {}", doc_id, result)
                 continue
 
             try:
@@ -108,7 +108,7 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
                         raise ValueError(f"BAML function must return a Pydantic model, got {type(result).__name__}")
                     self.model_cls = type(result)
                     self._model_cls_deduced = True
-                    logger.info(f"Deduced model class: {self.model_cls.__name__}")
+                    logger.info("Deduced model class: {}", self.model_cls.__name__)
 
                 # Add document_id as a custom attribute
                 result_dict = result.model_dump()
@@ -121,10 +121,10 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
                 # Save to KV store
                 if self.kvstore_id:
                     save_object_to_kvstore(doc_id, result_with_id, kv_store_id=self.kvstore_id)
-                    logger.debug(f"Saved to KV store: {doc_id}")
+                    logger.debug("Saved to KV store: {}", doc_id)
 
             except Exception as e:
-                logger.error(f"Failed to save document {doc_id}: {e}")
+                logger.error("Failed to save document {}: {}", doc_id, e)
 
         return analyzed_docs
 
@@ -161,13 +161,13 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
                 markdown_contents.append(content)
                 valid_files.append(file_path)
             except Exception as e:
-                logger.error(f"Error reading {file_path}: {e}")
+                logger.error("Error reading {}: {}", file_path, e)
 
         if not document_ids:
             logger.warning("No valid files to process")
             return
 
-        logger.info(f"Processing {len(valid_files)} files using BAML. Output in '{self.kvstore_id}' KV Store")
+        logger.info("Processing {} files using BAML. Output in '{}' KV Store", len(valid_files), self.kvstore_id)
 
         # Process all documents (BAML handles batching internally)
         _ = await self.abatch_analyze_documents(document_ids, markdown_contents)

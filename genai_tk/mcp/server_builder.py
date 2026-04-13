@@ -60,7 +60,7 @@ def build_mcp_server(definition: MCPServerDefinition) -> FastMCP:
     # Step 1 – resolve LangChain tools from factory configs
     raw_tool_configs: list[dict[str, Any]] = [{"factory": t.factory, **t.factory_kwargs()} for t in definition.tools]
     lc_tools = resolve_tools_from_config(raw_tool_configs)
-    logger.info(f"[{definition.name}] resolved {len(lc_tools)} LangChain tool(s)")
+    logger.info("[{}] resolved {} LangChain tool(s)", definition.name, len(lc_tools))
 
     # Step 2 – register individual tools as MCP tools
     register_tools(server, lc_tools)
@@ -95,7 +95,7 @@ def serve(
     """
     definition = get_mcp_server_definition(name, config_path)
     server = build_mcp_server(definition)
-    logger.info(f"Starting MCP server '{name}' over {transport} transport …")
+    logger.info("Starting MCP server '{}' over {} transport …", name, transport)
     server.run(transport=transport)  # type: ignore[arg-type]
 
 

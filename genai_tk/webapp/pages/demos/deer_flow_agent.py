@@ -279,7 +279,7 @@ def _load_profiles() -> list[DeerFlowProfile]:
     try:
         return load_deer_flow_profiles(CONFIG_FILE)
     except Exception as exc:
-        logger.error(f"Failed to load DeerFlow profiles: {exc}")
+        logger.error("Failed to load DeerFlow profiles: {}", exc)
         return []
 
 
@@ -750,7 +750,7 @@ def main() -> None:
             client, prepared_profile, model_name = _ensure_runtime(selected_name)
         except Exception as exc:
             sss.df_error = f"Failed to prepare DeerFlow runtime: {exc}"
-            logger.error(f"{sss.df_error}\n{traceback.format_exc()}")
+            logger.error("{}\n{}", sss.df_error, traceback.format_exc())
             st.rerun()
             return
 
@@ -779,7 +779,7 @@ def main() -> None:
                     status_widget.update(label="✅ Done", state="complete", expanded=False)
             except Exception as exc:
                 sss.df_error = f"Agent error: {exc}"
-                logger.error(f"{sss.df_error}\n{traceback.format_exc()}")
+                logger.error("{}\n{}", sss.df_error, traceback.format_exc())
                 status_widget.update(label="❌ Error", state="error")
                 st.rerun()
                 return

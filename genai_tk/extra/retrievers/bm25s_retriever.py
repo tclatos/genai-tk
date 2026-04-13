@@ -28,7 +28,7 @@ def get_spacy_preprocess_fn(model: str, more_stop_words: list[str] | None = None
 
     if more_stop_words is None:
         more_stop_words = []
-    logger.info(f"load spacy model {model}")
+    logger.info("load spacy model {}", model)
 
     try:
         nlp = spacy.load(model)
@@ -165,7 +165,7 @@ class BM25FastRetriever(BaseRetriever):
 
         results = self.vectorizer.retrieve([processed_query], corpus=self.docs, k=self.k, return_as="documents")
         return_docs = [results[0, i] for i in range(results.shape[1])]
-        logger.debug(f"search : {query=} {return_docs=}")
+        logger.debug("search : {}='{}' {}={}", "query", query, "return_docs", return_docs)
         return return_docs
 
 

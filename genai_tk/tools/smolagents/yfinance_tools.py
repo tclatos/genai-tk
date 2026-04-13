@@ -48,5 +48,5 @@ def get_historical_price(symbol: str, start_date: date, end_date: date) -> pd.Da
     except Exception as ex:
         from loguru import logger
 
-        logger.error(f"failed to call get_historical_price: {ex}")
+        logger.error("failed to call get_historical_price: {}", ex)
         return pd.DataFrame()

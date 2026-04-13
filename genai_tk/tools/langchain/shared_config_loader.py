@@ -64,14 +64,14 @@ def _process_class_tool(spec: ClassToolSpec) -> BaseTool | None:
         instance = tool_class(**spec.extra_params)
         if isinstance(instance, BaseTool):
             return instance
-        logger.warning(f"Class {spec.tool_class!r} does not produce a BaseTool instance")
+        logger.warning("Class {!r} does not produce a BaseTool instance", spec.tool_class)
     except ModuleNotFoundError as ex:
         missing_module = str(ex).split("'")[1] if "'" in str(ex) else str(ex)
-        logger.warning(f"Skipping tool {spec.tool_class!r}: missing optional dependency '{missing_module}'")
+        logger.warning("Skipping tool {!r}: missing optional dependency '{}'", spec.tool_class, missing_module)
     except (ImportError, AttributeError) as ex:
-        logger.warning(f"Skipping tool {spec.tool_class!r}: {ex}")
+        logger.warning("Skipping tool {!r}: {}", spec.tool_class, ex)
     except Exception as ex:
-        logger.warning(f"Failed to load class {spec.tool_class!r}: {ex}")
+        logger.warning("Failed to load class {!r}: {}", spec.tool_class, ex)
     return None
 
 
@@ -87,5 +87,5 @@ def _process_factory_tool(spec: FactoryToolSpec, llm: Any = "default") -> list[B
         if isinstance(tool_result, BaseTool):
             return [tool_result]
     except Exception as ex:
-        logger.warning(f"Failed to load factory {spec.factory!r}: {ex}")
+        logger.warning("Failed to load factory {!r}: {}", spec.factory, ex)
     return []

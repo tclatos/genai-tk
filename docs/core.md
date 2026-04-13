@@ -395,7 +395,7 @@ try:
     # May fail if pgvector not installed
     store = EmbeddingsStore.create("pgvector", ...)
 except ImportError as e:
-    logger.warning(f"PGVector not available: {e}")
+    logger.warning("PGVector not available: {}", e)
     # Fall back to alternative
     store = EmbeddingsStore.create("chroma")
 ```

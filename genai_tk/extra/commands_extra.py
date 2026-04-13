@@ -143,7 +143,7 @@ class ExtraCommands(CliTopCommand):
                     converter=converter,
                 )
             except Exception as exc:
-                logger.error(f"Markdownize conversion failed: {exc}")
+                logger.error("Markdownize conversion failed: {}", exc)
                 raise typer.Exit(1) from exc
 
             logger.success("Markdownize conversion completed successfully")
@@ -218,7 +218,7 @@ class ExtraCommands(CliTopCommand):
                     force=force,
                 )
             except Exception as exc:
-                logger.error(f"PowerPoint to PDF conversion failed: {exc}")
+                logger.error("PowerPoint to PDF conversion failed: {}", exc)
                 raise typer.Exit(1) from exc
 
             logger.success("PowerPoint to PDF conversion completed successfully")
@@ -329,10 +329,10 @@ class ExtraCommands(CliTopCommand):
                 logger.warning("No PDF files found matching the provided patterns.")
                 return
 
-            logger.info(f"Found {len(pdf_files)} PDF files to process")
+            logger.info("Found {} PDF files to process", len(pdf_files))
 
             # Process the files
             output_path = UPath(output_dir)
             asyncio.run(process_pdf_batch(pdf_files, output_path, use_cache))
 
-            logger.info(f"OCR processing complete. Results saved to {output_dir}")
+            logger.info("OCR processing complete. Results saved to {}", output_dir)

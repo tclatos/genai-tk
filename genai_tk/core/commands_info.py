@@ -806,7 +806,7 @@ class InfoCommands(CliTopCommand):
                     include_directories=True,
                 )
             except Exception as e:
-                logger.error(f"Failed to resolve entries: {e}")
+                logger.error("Failed to resolve entries: {}", e)
                 raise typer.Exit(1) from e
 
             # Filter out hidden files if needed
@@ -817,7 +817,7 @@ class InfoCommands(CliTopCommand):
             all_entries = sorted([Path(f) for f in files])
 
             if not all_entries:
-                logger.warning(f"No files or directories found matching patterns in {target_dir}")
+                logger.warning("No files or directories found matching patterns in {}", target_dir)
                 return
 
             # Get resolved directory for display

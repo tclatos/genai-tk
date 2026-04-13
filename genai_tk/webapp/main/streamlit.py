@@ -78,7 +78,7 @@ if _logo_path:
     if _logo_resolved.exists():
         st.logo(str(_logo_resolved), size="medium")
     else:
-        logger.warning(f"Logo not found: {_logo_resolved}")
+        logger.warning("Logo not found: {}", _logo_resolved)
 
 # ---------------------------------------------------------------------------
 # Navigation
@@ -139,7 +139,7 @@ if _nav_config and _pages_dir_str:
                 try:
                     page_path = Path(str(_pkg_files("genai_tk") / "webapp" / "pages" / rel))
                 except Exception:
-                    logger.warning(f"Could not resolve genai_tk package path: {page_file}")
+                    logger.warning("Could not resolve genai_tk package path: {}", page_file)
                     continue
             elif Path(page_file).is_absolute():
                 page_path = Path(page_file)
@@ -149,7 +149,7 @@ if _nav_config and _pages_dir_str:
             if page_path.exists():
                 section_pages.append(st.Page(page=page_path, title=_file_name_to_page_name(page_file)))
             else:
-                logger.warning(f"Page not found: {page_path}")
+                logger.warning("Page not found: {}", page_path)
         if section_pages:
             pages[section_name.title()] = section_pages
 

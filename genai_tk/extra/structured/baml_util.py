@@ -43,7 +43,7 @@ def load_baml_client(config_name: str = "default") -> tuple[Any, Any]:
             f"Please configure it in YAML config file (overrides.yaml or else)"
         )
 
-    logger.debug(f"Loading BAML client from package: {baml_client_package}")
+    logger.debug("Loading BAML client from package: {}", baml_client_package)
 
     try:
         types_module = importlib.import_module(f"{baml_client_package}.types")
@@ -89,7 +89,7 @@ def get_return_type_from_baml_function(baml_function_method: Callable[..., Await
         return return_annotation
 
     except Exception as e:
-        logger.debug(f"Could not extract return type: {e}")
+        logger.debug("Could not extract return type: {}", e)
 
     return None
 
@@ -181,9 +181,9 @@ def load_and_validate_baml_function(
     # Load BAML client
     try:
         baml_types, baml_async_client = load_baml_client(config_name)
-        logger.debug(f"Successfully loaded BAML client for config: {config_name}")
+        logger.debug("Successfully loaded BAML client for config: {}", config_name)
     except Exception as e:
-        logger.error(f"Failed to load BAML client: {e}")
+        logger.error("Failed to load BAML client: {}", e)
         return None
 
     # Get BAML function and return type
@@ -196,12 +196,12 @@ def load_and_validate_baml_function(
     # Validate return type if required
     if require_pydantic:
         if return_type is None:
-            logger.error(f"Could not deduce return type from BAML function '{function_name}'")
+            logger.error("Could not deduce return type from BAML function '{}'", function_name)
             return None
         try:
             return_type = validate_pydantic_model(return_type, function_name)
         except ValueError as e:
-            logger.error(f"BAML function '{function_name}' must return a Pydantic BaseModel: {e}")
+            logger.error("BAML function '{}' must return a Pydantic BaseModel: {}", function_name, e)
             return None
 
     return baml_function, return_type, baml_types, baml_async_client
@@ -276,7 +276,7 @@ def prompt_fingerprint(function_name: str, config_name: str = "default", **kwarg
 
     # Get the type name (e.g., 'Resume' from <class 'baml_client.types.Resume'>)
     return_type_name = return_type.__name__
-    logger.debug(f"Found return type '{return_type_name}' for function '{function_name}'")
+    logger.debug("Found return type '{}' for function '{}'", return_type_name, function_name)
 
     # Get BAML source files path from config
     config_key = f"structured.{config_name}.baml_client"
