@@ -65,10 +65,8 @@ dependencies = [
     # ============================================
     # Knowledge Graphs & Structured Data
     # ============================================
-    "baml-cli>=0.1.0",       # BAML CLI for structured data extraction
-    "baml-lib>=0.42.0",      # BAML library for LLM-powered parsing
-    "langchain-kuzu>=0.3.0", # LangChain integration for Kuzu graph DB
-    "kuzu>=0.7.1",           # Embedded graph database
+    "baml-cli>=0.1.0",  # BAML CLI for structured data extraction
+    "baml-lib>=0.42.0", # BAML library for LLM-powered parsing
     # ============================================
     # NLP & Text Processing
     # ============================================
