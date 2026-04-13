@@ -291,10 +291,11 @@ def baml_structured_extraction_flow(
 
     if manifest is None:
         # Calculate schema fingerprint for new manifest
+        schema_fp = None
         try:
             schema_fp = prompt_fingerprint(function_name, config_name)
         except Exception as exc:
-        logger.warning("Failed to compute schema fingerprint: {}", exc)
+            logger.warning("Failed to compute schema fingerprint: {}", exc)
 
         manifest = BamlExtractionManifest(
             function_name=function_name,
