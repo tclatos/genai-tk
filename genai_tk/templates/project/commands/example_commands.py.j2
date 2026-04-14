@@ -105,8 +105,8 @@ class ExampleCommands(CliTopCommand):
                 from genai_tk.agents.deer_flow.embedded_client import (
                     EmbeddedDeerFlowClient,
                     ErrorEvent,
+                    NodeEvent,
                     TokenEvent,
-                    strip_reasoning_markers,
                 )
             except ImportError:
                 console.print(
@@ -117,20 +117,28 @@ class ExampleCommands(CliTopCommand):
             console.print(f"[cyan]DeerFlow researching:[/cyan] {question}\n")
 
             model_name = None if model == "default" else model
+            # mcp_server_names=[] disables all MCP tools for this simple example
             config_path, _ext_path, _warnings = setup_deer_flow_config(
+                mcp_server_names=[],
                 sandbox="local",
                 selected_llm=model_name,
             )
             client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
 
-            async def _run() -> str:
-                last_text = ""
+            async def _run() -> None:
+                prev_len = 0
                 async for event in client.stream_message(str(uuid.uuid4()), question, mode="flash"):
-                    if isinstance(event, TokenEvent) and event.data:
-                        last_text = event.data
+                    if isinstance(event, NodeEvent):
+                        print(f"\n\033[2m▶ {event.node}\033[0m", flush=True)
+                        prev_len = 0
+                    elif isinstance(event, TokenEvent) and event.data:
+                        # data is cumulative — print only the new suffix
+                        new_text = event.data[prev_len:]
+                        if new_text:
+                            print(new_text, end="", flush=True)
+                        prev_len = len(event.data)
                     elif isinstance(event, ErrorEvent):
                         raise RuntimeError(f"DeerFlow error: {event.message!r}")
-                return strip_reasoning_markers(last_text)
+                print()  # final newline
 
-            result = asyncio.run(_run())
-            console.print(f"\n{result}\n")
+            asyncio.run(_run())

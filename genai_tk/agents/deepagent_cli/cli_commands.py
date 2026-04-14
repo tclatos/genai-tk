@@ -168,7 +168,7 @@ async def _run_tui_async(
     from deepagents_cli.agent import create_cli_agent
     from deepagents_cli.app import run_textual_app
     from deepagents_cli.sessions import get_checkpointer
-    from deepagents_cli.tools import fetch_url, http_request
+    from deepagents_cli.tools import fetch_url
 
     from genai_tk.agents.deepagent_cli.llm_bridge import resolve_model_from_profile
     from genai_tk.agents.deepagent_cli.sandbox_bridge import effective_sandbox_type, sandbox_context
@@ -177,8 +177,8 @@ async def _run_tui_async(
     # Populate the TUI /model switcher with the YAML-curated models list.
     write_genai_tk_provider(config.switcher_models)
 
-    # Build tool list (always include base HTTP tools; add web_search if configured)
-    tools = [http_request, fetch_url]
+    # Build tool list (always include fetch_url; add web_search if configured)
+    tools = [fetch_url]
     if "web_search" in profile.tools:
         try:
             from deepagents_cli.tools import web_search
@@ -254,14 +254,14 @@ async def _run_task_async(
 
     from deepagents_cli.agent import create_cli_agent
     from deepagents_cli.sessions import get_checkpointer
-    from deepagents_cli.tools import fetch_url, http_request
+    from deepagents_cli.tools import fetch_url
     from langchain_core.messages import AIMessage
     from langgraph.types import Command
 
     from genai_tk.agents.deepagent_cli.llm_bridge import resolve_model_from_profile
     from genai_tk.agents.deepagent_cli.sandbox_bridge import sandbox_context
 
-    tools = [http_request, fetch_url]
+    tools = [fetch_url]
     if "web_search" in profile.tools:
         try:
             from deepagents_cli.tools import web_search
