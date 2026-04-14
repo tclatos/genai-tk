@@ -98,18 +98,39 @@ class ExampleCommands(CliTopCommand):
             model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
         ) -> None:
             """Run a DeerFlow research agent — demonstrates multi-step research with planning."""
+            import uuid
+
             try:
-                from genai_tk.agents.deerflow.embedded_client import DeerFlowClient
+                from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
+                from genai_tk.agents.deer_flow.embedded_client import (
+                    EmbeddedDeerFlowClient,
+                    ErrorEvent,
+                    TokenEvent,
+                    strip_reasoning_markers,
+                )
             except ImportError:
                 console.print(
                     "[red]DeerFlow not installed.[/red] Run [bold]cli init --deer-flow[/bold] first."
                 )
                 raise typer.Exit(1)
 
-            from genai_tk.utils.config_mngr import global_config
-
             console.print(f"[cyan]DeerFlow researching:[/cyan] {question}\n")
 
-            client = DeerFlowClient()
-            result = asyncio.run(client.research(question, mode="flash"))
+            model_name = None if model == "default" else model
+            config_path, _ext_path, _warnings = setup_deer_flow_config(
+                sandbox="local",
+                selected_llm=model_name,
+            )
+            client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
+
+            async def _run() -> str:
+                last_text = ""
+                async for event in client.stream_message(str(uuid.uuid4()), question, mode="flash"):
+                    if isinstance(event, TokenEvent) and event.data:
+                        last_text = event.data
+                    elif isinstance(event, ErrorEvent):
+                        raise RuntimeError(f"DeerFlow error: {event.message!r}")
+                return strip_reasoning_markers(last_text)
+
+            result = asyncio.run(_run())
             console.print(f"\n{result}\n")
