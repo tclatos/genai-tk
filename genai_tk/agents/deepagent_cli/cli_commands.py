@@ -171,7 +171,7 @@ async def _run_tui_async(
     from deepagents_cli.tools import fetch_url
 
     from genai_tk.agents.deepagent_cli.llm_bridge import resolve_model_from_profile
-    from genai_tk.agents.deepagent_cli.sandbox_bridge import effective_sandbox_type, sandbox_context
+    from genai_tk.agents.deepagent_cli.sandbox_bridge import sandbox_context
     from genai_tk.agents.deepagent_cli.toml_bridge import write_genai_tk_provider
 
     # Populate the TUI /model switcher with the YAML-curated models list.
@@ -211,9 +211,6 @@ async def _run_tui_async(
                 auto_approve=auto_approve,
                 thread_id=thread_id,
                 initial_prompt=initial_prompt,
-                checkpointer=checkpointer,
-                tools=tools,
-                sandbox_type=effective_sandbox_type(profile, sandbox_backend),
             )
             return result.return_code
 
