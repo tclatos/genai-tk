@@ -13,8 +13,9 @@ from typing import Any, Type, get_args, get_origin
 import baml_lib
 from baml_py import ClientRegistry
 from loguru import logger
+from pydantic import BaseModel
 
-from genai_tk.utils.config_mngr import get_raw_config
+from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.utils.pydantic_utils.common import validate_pydantic_model
 
@@ -33,9 +34,8 @@ def load_baml_client(config_name: str = "default") -> tuple[Any, Any]:
         ImportError: If BAML client modules cannot be imported
     """
     config_key = f"structured.{config_name}.baml_client"
-    from omegaconf import OmegaConf
 
-    baml_client_package = OmegaConf.select(get_raw_config(), config_key, default=None)
+    baml_client_package = global_config().get(config_key, default=None)
 
     if not baml_client_package:
         raise ValueError(
@@ -280,9 +280,8 @@ def prompt_fingerprint(function_name: str, config_name: str = "default", **kwarg
 
     # Get BAML source files path from config
     config_key = f"structured.{config_name}.baml_client"
-    from omegaconf import OmegaConf
 
-    baml_client_package = OmegaConf.select(get_raw_config(), config_key, default=None)
+    baml_client_package = global_config().get(config_key, default=None)
     if not baml_client_package:
         raise ValueError(f"BAML client package not found in config at '{config_key}'")
 
@@ -300,8 +299,8 @@ def prompt_fingerprint(function_name: str, config_name: str = "default", **kwarg
         baml_src_path = root / baml_src_dir
         if baml_src_path.exists():
             found_baml_src = True
-            # Read all .baml files to get class and enum definitions
-            for baml_file in sorted(baml_src_path.glob("*.baml")):
+            # Read all .baml files (including subdirectories) to get class and enum definitions
+            for baml_file in sorted(baml_src_path.rglob("*.baml")):
                 with open(baml_file, "r") as f:
                     baml_schema_content += f.read() + "\n"
             break
@@ -369,6 +368,31 @@ async def baml_invoke(
         # Support generic '__input__' key that maps to first parameter
         if "__input__" in params and func_params:
             params = {func_params[0]: params["__input__"]}
+
+        # Validate parameter types against the real BAML function signature.
+        # If a parameter expects a Pydantic model but receives a plain str,
+        # raise a descriptive error rather than silently passing invalid data.
+        real_sig = inspect.signature(getattr(baml_async_client, function_name))
+        for param_name, param_value in params.items():
+            real_param = real_sig.parameters.get(param_name)
+            if real_param is None:
+                continue
+            ann_type = real_param.annotation
+            if isinstance(ann_type, type) and issubclass(ann_type, BaseModel) and not isinstance(param_value, ann_type):
+                str_fields = [
+                    fname
+                    for fname, finfo in ann_type.model_fields.items()
+                    if finfo.annotation is str or finfo.annotation == "str"
+                ]
+                hint = (
+                    f" Pass a {ann_type.__name__} instance instead (e.g. {ann_type.__name__}({str_fields[0]}=...) )."
+                    if str_fields
+                    else f" Pass a {ann_type.__name__} instance."
+                )
+                raise TypeError(
+                    f"Parameter '{param_name}' of BAML function '{function_name}' expects"
+                    f" {ann_type.__name__} but got {type(param_value).__name__}.{hint}"
+                )
 
         # Pass arguments in order
         args = [params.get(p) for p in func_params]
