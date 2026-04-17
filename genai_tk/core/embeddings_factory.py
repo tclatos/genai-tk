@@ -15,6 +15,7 @@ Supported Providers:
 - OpenAI
 - Google Generative AI
 - HuggingFace
+- FastEmbed (local)
 - EdenAI
 - Azure OpenAI
 - Ollama
@@ -468,6 +469,14 @@ class EmbeddingsFactory(BaseModel):
                 encode_kwargs={"normalize_embeddings": True},
                 cache_folder=cache,
             )
+        elif self.info.provider == "local":
+            from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
+
+            cache = embeddings_config().cache
+            kwargs: dict[str, Any] = {"model_name": self.info.model}
+            if cache:
+                kwargs["cache_dir"] = cache
+            emb = FastEmbedEmbeddings(**kwargs)
         elif self.info.provider == "edenai":
             from langchain_community.embeddings.edenai import EdenAiEmbeddings
 

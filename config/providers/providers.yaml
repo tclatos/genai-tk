@@ -103,6 +103,12 @@ providers:
     openai_compatible: false
     # Note: Ollama runs locally; requires special proxy handling in code
 
+  local:
+    use: langchain_community.embeddings.fastembed.FastEmbedEmbeddings
+    api_key_env_var: ""
+    openai_compatible: false
+    # FastEmbed local ONNX models for embeddings; no API key required
+
   azure:
     use: langchain_openai.AzureChatOpenAI
     api_key_env_var: AZURE_OPENAI_API_KEY

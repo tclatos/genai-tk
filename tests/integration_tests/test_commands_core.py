@@ -105,6 +105,27 @@ class TestEmbeddCommand:
         result = runner.invoke(core_app, ["core", "embedd", "test text"])
         assert result.exit_code == 0
 
+    def test_embedd_fastembed_local_model(self, core_app, runner, monkeypatch) -> None:
+        class FakeFastEmbedEmbeddings:
+            def __init__(self, **kwargs) -> None:
+                self.kwargs = kwargs
+
+            def embed_documents(self, texts: list[str]) -> list[list[float]]:
+                return [[0.0] * 384 for _ in texts]
+
+            def embed_query(self, text: str) -> list[float]:
+                return [0.0] * 384
+
+        import langchain_community.embeddings.fastembed as fastembed_module
+
+        monkeypatch.setattr(fastembed_module, "FastEmbedEmbeddings", FakeFastEmbedEmbeddings)
+
+        result = runner.invoke(core_app, ["core", "embedd", "hello", "-m", "bge-small-en@local"])
+        assert result.exit_code == 0
+        assert "Embeddings Summary" in result.stdout
+        assert "bge-small-en@local" in result.stdout
+        assert "384" in result.stdout
+
 
 class TestSimilarityCommand:
     def test_similarity_two_sentences(self, core_app, runner) -> None:
