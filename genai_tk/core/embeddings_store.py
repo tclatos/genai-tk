@@ -129,7 +129,7 @@ try:
 except ImportError:
     HybridSearchConfig = None  # Optional dependency
 from loguru import logger
-from pydantic import AnyUrl, BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import AliasChoices, AnyUrl, BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
 
 from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.utils.config_mngr import (
@@ -143,8 +143,7 @@ VECTOR_STORE_ENGINE = Literal["Chroma", "InMemory", "Sklearn", "PgVector"]
 
 class _EmbeddingsStoreConfig(BaseModel):
     """Parsed configuration for an EmbeddingsStore YAML entry."""
-
-    backend: str
+    backend: str = Field(validation_alias=AliasChoices("backend", "id"))
     embeddings: str | None = None
     embeddings_id: str | None = None
     table_name_prefix: str = "embeddings"
@@ -152,6 +151,25 @@ class _EmbeddingsStoreConfig(BaseModel):
     collection_metadata: dict[str, str] | None = None
     record_manager: str | None = None
     config: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_fields(cls, data: Any) -> Any:
+        """Migrate legacy config keys to the current schema."""
+        if not isinstance(data, dict):
+            return data
+
+        migrated = dict(data)
+        if "backend" not in migrated and "id" in migrated:
+            migrated["backend"] = migrated["id"]
+
+        config = migrated.get("config")
+        if isinstance(config, dict) and "storage" not in config and "chroma_path" in config:
+            new_config = dict(config)
+            new_config["storage"] = new_config.pop("chroma_path")
+            migrated["config"] = new_config
+
+        return migrated
 
     @model_validator(mode="after")
     def _apply_defaults(self) -> "_EmbeddingsStoreConfig":

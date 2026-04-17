@@ -303,6 +303,63 @@ class TestRAGCommandsWithCustomConfig:
         assert "Vector Store Information" in output
         assert "Chroma" in output
 
+    def test_local_fast_smoke_with_mocked_fastembed(self, cli_app, cli_runner, monkeypatch, tmp_path):
+        """Smoke test local_fast RAG workflow with mocked FastEmbed embeddings."""
+        from langchain_core.embeddings import Embeddings
+
+        class FakeFastEmbedEmbeddings(Embeddings):
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+            @staticmethod
+            def _vector_for_text(text: str) -> list[float]:
+                base = float((sum(ord(ch) for ch in text) % 31) + 1)
+                return [base / 31.0] * 384
+
+            def embed_documents(self, texts: list[str]) -> list[list[float]]:
+                return [self._vector_for_text(text) for text in texts]
+
+            def embed_query(self, text: str) -> list[float]:
+                return self._vector_for_text(text)
+
+        import langchain_community.embeddings.fastembed as fastembed_module
+
+        from genai_tk.utils.config_mngr import global_config
+
+        monkeypatch.setattr(fastembed_module, "FastEmbedEmbeddings", FakeFastEmbedEmbeddings)
+
+        config = global_config()
+        original_storage = config.get("embeddings_store.local_fast.config.storage", default=None)
+        test_storage = tmp_path / "local_fast_chroma"
+        config.set("embeddings_store.local_fast.config.storage", str(test_storage))
+
+        try:
+            # Start from a clean state in case this storage directory already exists.
+            delete_result = cli_runner.invoke(cli_app, ["rag", "delete", "local_fast", "--force"])
+            assert delete_result.exit_code == 0
+
+            embed_result = cli_runner.invoke(
+                cli_app,
+                ["rag", "embed", "local_fast", "--text", "FastEmbed local smoke test content"],
+            )
+            assert embed_result.exit_code == 0
+            assert "Embedding Complete" in embed_result.stdout or "Successfully embedded" in embed_result.stdout
+            assert "Failed to create vector store" not in embed_result.stdout
+
+            query_result = cli_runner.invoke(cli_app, ["rag", "query", "local_fast", "FastEmbed smoke", "--k", "1"])
+            assert query_result.exit_code == 0
+            assert "Query Summary" in query_result.stdout or "No Results" in query_result.stdout
+            assert "Failed to create vector store" not in query_result.stdout
+
+            # Cleanup documents created by this smoke test.
+            cleanup_result = cli_runner.invoke(cli_app, ["rag", "delete", "local_fast", "--force"])
+            assert cleanup_result.exit_code == 0
+        finally:
+            config.set(
+                "embeddings_store.local_fast.config.storage",
+                original_storage or "${paths.data_root}/vector_store_local_fast",
+            )
+
 
 @pytest.mark.slow
 class TestRAGCommandsIntegration:

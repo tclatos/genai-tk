@@ -9,6 +9,7 @@ from langchain_core.documents import Document
 
 from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.core.embeddings_store import EmbeddingsStore
+from genai_tk.utils.config_mngr import global_config
 
 # Fake model constants
 FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
@@ -192,6 +193,29 @@ def test_chroma_memory_storage(sample_documents) -> None:
     # Verify we can search
     results = db.similarity_search("test", k=2)
     assert len(results) == 2
+
+
+def test_local_fast_store_config_is_available() -> None:
+    """Test that local_fast configuration resolves with local FastEmbed model."""
+    embeddings_store = EmbeddingsStore.create_from_config("local_fast")
+    assert embeddings_store.backend == "Chroma"
+    assert embeddings_store.embeddings_factory.embeddings_id == "bge-small-en@local"
+    assert embeddings_store.config.get("storage")
+
+
+def test_legacy_id_key_supported_in_embeddings_store_config() -> None:
+    """Test legacy `id` key support in embeddings_store entries."""
+    global_config().set(
+        "embeddings_store.legacy_id_store",
+        {
+            "id": "InMemory",
+            "embeddings": "fake",
+        },
+    )
+
+    embeddings_store = EmbeddingsStore.create_from_config("legacy_id_store")
+    assert embeddings_store.backend == "InMemory"
+    assert embeddings_store.embeddings_factory.embeddings_id == "embeddings_768@fake"
 
 
 @pytest.mark.skip(reason="PostgreSQL tests temporarily disabled")

@@ -39,6 +39,13 @@ embeddings_store:
     table_name_prefix: embeddings
     config:
       storage: '::memory::'  # In-memory Chroma storage
+
+  local_fast:
+    backend: Chroma
+    embeddings: bge-small-en@local
+    table_name_prefix: embeddings
+    config:
+      storage: ${paths.data_root}/vector_store_local_fast  # Persistent local FastEmbed-backed store
   
   default: *default_store  # Now we can reference it
   
