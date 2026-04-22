@@ -40,6 +40,7 @@ class DirectBrowserSession:
         self._page: Page | None = None
         self._playwright: object | None = None
         self._connected = False
+        self._is_remote = False
         self._event_log: list[str] = []
 
     @property
@@ -53,7 +54,7 @@ class DirectBrowserSession:
         return self._connected
 
     async def connect(self) -> None:
-        """Launch a local Chromium and create a page."""
+        """Launch a local Chromium or connect to an existing one via CDP."""
         if self._connected:
             return
 
@@ -67,47 +68,88 @@ class DirectBrowserSession:
         pw = await async_playwright().start()
         self._playwright = pw
 
-        launch_args = [
-            "--disable-blink-features=AutomationControlled",
-            f"--lang={self.config.locale}",
-            f"--window-size={self.config.viewport_width},{self.config.viewport_height}",
-        ]
-        launch_args.extend(self.config.extra_args)
+        cdp_endpoint = self.config.cdp_endpoint
+        if cdp_endpoint:
+            # Connect to an already-running Chrome via CDP (e.g. Chrome on Windows host)
+            self._browser = await pw.chromium.connect_over_cdp(cdp_endpoint)
+            self._is_remote = True
+            contexts = self._browser.contexts
+            if contexts:
+                self._context = contexts[0]
+                pages = self._context.pages
+                self._page = pages[0] if pages else await self._context.new_page()
+            else:
+                self._context = await self._browser.new_context(
+                    ignore_https_errors=self.config.ignore_https_errors,
+                )
+                self._page = await self._context.new_page()
+            logger.info("Direct browser session connected via CDP to {}", cdp_endpoint)
+        else:
+            launch_args = [
+                "--disable-blink-features=AutomationControlled",
+                f"--lang={self.config.locale}",
+                f"--window-size={self.config.viewport_width},{self.config.viewport_height}",
+            ]
+            launch_args.extend(self.config.extra_args)
 
-        self._browser = await pw.chromium.launch(
-            headless=self.config.headless,
-            args=launch_args,
-        )
+            self._browser = await pw.chromium.launch(
+                headless=self.config.headless,
+                args=launch_args,
+            )
+            self._is_remote = False
 
-        width = self.config.viewport_width + random.randint(-30, 30)
-        height = self.config.viewport_height + random.randint(-30, 30)
-        self._context = await self._browser.new_context(
-            viewport={"width": width, "height": height},
-            locale=self.config.locale,
-            timezone_id=self.config.timezone_id,
-            ignore_https_errors=self.config.ignore_https_errors,
-        )
-        self._page = await self._context.new_page()
+            width = self.config.viewport_width + random.randint(-30, 30)
+            height = self.config.viewport_height + random.randint(-30, 30)
+
+            if self.config.user_data_dir:
+                # Persistent context: cookies, localStorage, etc. survive across runs
+                user_dir = Path(self.config.user_data_dir)
+                user_dir.mkdir(parents=True, exist_ok=True)
+                self._context = await pw.chromium.launch_persistent_context(
+                    user_data_dir=str(user_dir),
+                    headless=self.config.headless,
+                    args=launch_args,
+                    viewport={"width": width, "height": height},
+                    locale=self.config.locale,
+                    timezone_id=self.config.timezone_id,
+                    ignore_https_errors=self.config.ignore_https_errors,
+                )
+                # launch_persistent_context returns a BrowserContext directly (no Browser)
+                self._browser = None  # type: ignore[assignment]
+                self._page = self._context.pages[0] if self._context.pages else await self._context.new_page()
+                logger.info("Direct browser session connected with persistent profile ({})", user_dir)
+            else:
+                self._context = await self._browser.new_context(
+                    viewport={"width": width, "height": height},
+                    locale=self.config.locale,
+                    timezone_id=self.config.timezone_id,
+                    ignore_https_errors=self.config.ignore_https_errors,
+                )
+                self._page = await self._context.new_page()
+                logger.info("Direct browser session connected (host-local Playwright)")
+
         self._connected = True
-
         self._attach_debug_listeners()
-        logger.info("Direct browser session connected (host-local Playwright)")
 
     async def close(self) -> None:
         """Close the browser and release resources."""
         if not self._connected:
             return
         self._detach_debug_listeners()
-        try:
-            if self._context:
-                await self._context.close()
-        except Exception as exc:
-            logger.warning(f"Error closing browser context: {exc}")
-        try:
-            if self._browser:
-                await self._browser.close()
-        except Exception as exc:
-            logger.warning(f"Error closing browser: {exc}")
+        if not self._is_remote:
+            # Only close browser/context if we launched it ourselves
+            try:
+                if self._context:
+                    await self._context.close()
+            except Exception as exc:
+                logger.warning(f"Error closing browser context: {exc}")
+            try:
+                if self._browser:
+                    await self._browser.close()
+            except Exception as exc:
+                logger.warning(f"Error closing browser: {exc}")
+        else:
+            logger.info("Skipping browser close — remote CDP session (browser stays open)")
         try:
             if self._playwright:
                 await self._playwright.stop()  # type: ignore[union-attr]
@@ -118,6 +160,7 @@ class DirectBrowserSession:
         self._browser = None
         self._playwright = None
         self._connected = False
+        self._is_remote = False
         logger.info("Direct browser session closed")
 
     # ------------------------------------------------------------------

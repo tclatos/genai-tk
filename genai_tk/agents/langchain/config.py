@@ -461,14 +461,19 @@ def instantiate_middlewares(
             )
 
         kwargs = cfg.extra_kwargs
-        # Resolve any LLM name in 'model' kwarg using LlmFactory
+        # Resolve any LLM name in 'model' kwarg using get_llm
         if "model" in kwargs and isinstance(kwargs["model"], str):
             try:
-                from genai_tk.core.llm_factory import LlmFactory
+                from genai_tk.core.llm_factory import get_llm
 
-                kwargs["model"] = LlmFactory.resolve_llm_identifier(kwargs["model"])
+                kwargs["model"] = get_llm(kwargs["model"])
             except Exception:
                 pass  # Leave as-is; the middleware constructor will handle it
+        # YAML deserializes tuples as lists; SummarizationMiddleware expects tuples for
+        # 'trigger' and 'keep' (ContextSize = tuple[str, int]).
+        for _tuple_key in ("trigger", "keep"):
+            if _tuple_key in kwargs and isinstance(kwargs[_tuple_key], list):
+                kwargs[_tuple_key] = tuple(kwargs[_tuple_key])
 
         try:
             instance = cls(**kwargs)

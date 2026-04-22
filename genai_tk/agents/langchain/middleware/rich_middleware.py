@@ -243,6 +243,7 @@ class RichToolCallMiddleware(AgentMiddleware):
             self._execution_header_printed = True
         self._step_number += 1
         self._console.print(f"  [dim]{self._step_number}.[/dim] [yellow]📖 Reading skill:[/yellow] {name}")
+        logger.info("Agent reading skill '{}' | path={}", name, args_str)
 
     @staticmethod
     def _summarize_result(tool_name: str, result_text: str) -> str:
@@ -259,6 +260,7 @@ class RichToolCallMiddleware(AgentMiddleware):
         if is_skill_read:
             title = "[bold yellow]📖 Reading Skill[/bold yellow]"
             border = "yellow"
+            logger.info("Agent reading skill (detail mode) | tool_args={}", args_str)
         else:
             title = "[bold blue]⚙ Tool Call[/bold blue]"
             border = "blue"

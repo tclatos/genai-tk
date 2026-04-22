@@ -50,7 +50,7 @@ sandbox:
   # Supported by SmolAgents (executor_type="e2b").
   # LangChain deepagents E2B provider not yet released.
   e2b:
-    api_key: ${E2B_API_KEY:null}
+    api_key: ${oc.env:E2B_API_KEY,null}  # was ${E2B_API_KEY:null} — fixed for OmegaConf
     template: null          # Optional custom E2B template ID
     timeout: 300            # Max execution time (seconds)
 
@@ -106,7 +106,7 @@ direct_browser:
   ignore_https_errors: true
   log_browser_console: true
   cookies_dir: "data/sessions"
-  user_data_dir: null          # optional persistent Chromium profile path
+  user_data_dir: "data/browser_profile"   # persistent Chromium profile (cookies, localStorage survive across runs)
   extra_args: []               # additional Chromium launch flags
   allowed_credential_envs:
     - ENEDIS_USERNAME

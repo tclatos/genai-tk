@@ -29,3 +29,4 @@ class DirectBrowserConfig(BaseModel):
     user_data_dir: str | None = None
     extra_args: list[str] = Field(default_factory=list)
     allowed_credential_envs: list[str] = Field(default_factory=list)
+    cdp_endpoint: str | None = None

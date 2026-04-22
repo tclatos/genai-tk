@@ -167,7 +167,7 @@ DEER_FLOW_DIR  = ext/deer-flow
 ##############################
 ##  Web Interface
 ##############################
-STREAMLIT_ENTRY ?= genai_tk/webapp/main/streamlit.py
+STREAMLIT_ENTRY ?= browser_control/main/streamlit.py genai_tk/webapp/main/streamlit.py
 
 .PHONY: webapp
 

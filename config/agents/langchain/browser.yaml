@@ -24,12 +24,24 @@ langchain_agents:
         5. Use browser_screenshot only when text extraction is insufficient (charts, visual verification)
         6. Save cookies after every successful authentication with browser_save_cookies
         7. Verify domains before filling credentials — check the URL is correct
-        8. If you encounter a CAPTCHA, take a screenshot and ask the user to solve it on VNC
+        8. If you encounter a CAPTCHA, take a screenshot and inform the user
+        9. When the user needs to log in manually (SSO, CAPTCHA, MFA), use browser_wait_for_user to pause and poll until the page URL changes after login
 
         Workflow: plan → load cookies → navigate → interact → extract → report → save cookies
 
       tools:
         - factory: genai_tk.tools.sandbox_browser.factory.create_sandbox_browser_tools
+
+      middlewares:
+        - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+        - class: langchain.agents.middleware.summarization.SummarizationMiddleware
+          model: haiku@edenai
+          trigger:
+            - tokens
+            - 40000
+          keep:
+            - messages
+            - 10
 
       skill_directories:
         - ${paths.project}/skills
@@ -73,11 +85,23 @@ langchain_agents:
         6. Save cookies after every successful authentication with browser_save_cookies
         7. Verify domains before filling credentials — check the URL is correct
         8. If you encounter a CAPTCHA, take a screenshot and inform the user
+        9. When the user needs to log in manually (SSO, CAPTCHA, MFA), use browser_wait_for_user to pause and poll until the page URL changes after login
 
         Workflow: plan → load cookies → navigate → interact → extract → report → save cookies
 
       tools:
         - factory: genai_tk.tools.direct_browser.factory.create_direct_browser_tools
+
+      middlewares:
+        - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+        - class: langchain.agents.middleware.summarization.SummarizationMiddleware
+          model: haiku@edenai
+          trigger:
+            - tokens
+            - 40000
+          keep:
+            - messages
+            - 10
 
       skill_directories:
         - ${paths.project}/skills

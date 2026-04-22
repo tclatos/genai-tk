@@ -396,10 +396,14 @@ def _resolve_skill_dirs(skill_directories: list[str]) -> list[str]:
         if any((sd / "SKILL.md").is_file() for sd in subdirs):
             # Already at skill-source level
             sources.append(d)
+            skill_names = [sd.name for sd in subdirs if (sd / "SKILL.md").is_file()]
+            logger.info("Skill source '{}': found {} skill(s): {}", d, len(skill_names), skill_names)
         else:
             # Expand: include subdirs that themselves contain skill directories
             for sub in sorted(subdirs):
                 sub_subdirs = [sd for sd in sub.iterdir() if sd.is_dir()]
                 if any((sd / "SKILL.md").is_file() for sd in sub_subdirs):
                     sources.append(str(sub))
+                    skill_names = [sd.name for sd in sub_subdirs if (sd / "SKILL.md").is_file()]
+                    logger.info("Skill source '{}': found {} skill(s): {}", sub, len(skill_names), skill_names)
     return sources
