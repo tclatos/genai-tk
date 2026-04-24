@@ -1,5 +1,10 @@
 # Genai-Tk Evolution Ideas - Roadmap candidates - 
 
+# Better file spec
+use  https://github.com/cpburnz/python-pathspec 
+
+
+
 ## Improve Embedders
 -  hane new FastEmbedEmbeddings provider: https://reference.langchain.com/python/langchain-community/embeddings/fastembed/FastEmbedEmbeddings  ; https://qdrant.github.io/fastembed/examples/Supported_Models 
 - add category (sparce, reranking, image, ..)

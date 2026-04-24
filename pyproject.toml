@@ -103,7 +103,7 @@ dependencies = [
     # Web Interface (Streamlit)
     # ============================================
     "streamlit>=1.49", # Interactive webapp framework
-    "pillow>=11.0",    # Image support (used by smolagents_streamlit)
+    "pillow>=11.0",
 ]
 
 [project.urls]

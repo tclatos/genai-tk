@@ -401,6 +401,134 @@ async def baml_invoke(
         return await baml_function(*args)
 
 
+# ---------------------------------------------------------------------------
+# BAML source-file parsing — extract @description annotations
+# ---------------------------------------------------------------------------
+
+
+def extract_baml_description(line: str, all_lines: list[str], start_idx: int) -> tuple[str, int] | None:
+    """Extract ``@description`` content starting from *line*.
+
+    Handles both single-line ``@description("text")`` and multi-line
+    ``@description(#"text"#)`` forms.
+
+    Args:
+        line: The source line that contains ``@description``.
+        all_lines: Full list of source lines (for multi-line scanning).
+        start_idx: 0-based index of *line* in *all_lines*.
+
+    Returns:
+        ``(description_text, next_line_index)`` or ``None`` if not found.
+    """
+    import re
+
+    if "@description" not in line:
+        return None
+
+    desc_match = re.search(r"@{1,2}description\s*\(\s*", line)
+    if not desc_match:
+        return None
+
+    start_pos = desc_match.end()
+    current_line_idx = start_idx
+    current_text = line[start_pos:]
+
+    if current_text.startswith('#"'):
+        current_text = current_text[2:]
+        buffer: list[str] = []
+        while current_line_idx < len(all_lines):
+            if '"#' in current_text:
+                buffer.append(current_text[: current_text.index('"#')])
+                result = re.sub(r"\s+", " ", "\n".join(buffer).strip())
+                return (result, current_line_idx + 1)
+            buffer.append(current_text)
+            current_line_idx += 1
+            current_text = all_lines[current_line_idx] if current_line_idx < len(all_lines) else ""
+        return None
+
+    quote_match = re.search(r'(["\'])(.+?)\1', current_text)
+    return (quote_match.group(2), start_idx + 1) if quote_match else None
+
+
+def parse_baml_content(
+    content: str,
+    classes: dict[str, str],
+    fields: dict[str, dict[str, str]],
+    enums: dict[str, dict[str, str]],
+) -> None:
+    """Parse a single BAML source string and populate description dicts in-place.
+
+    Extracts ``@description`` annotations from ``class`` and ``enum`` blocks.
+
+    Args:
+        content: Raw BAML file content.
+        classes: Dict to populate with ``class_name → description``.
+        fields: Dict to populate with ``class_name → {field_name → description}``.
+        enums: Dict to populate with ``enum_name → {value_name → description}``.
+    """
+    import re
+
+    lines = content.split("\n")
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        block_match = re.match(r"^(class|enum)\s+([A-Za-z_]\w*)", line.strip())
+        if block_match:
+            block_type, block_name = block_match.group(1), block_match.group(2)
+
+            inline = extract_baml_description(line, lines, i)
+            if inline and "@description" in line:
+                if block_type == "class":
+                    classes[block_name] = inline[0]
+                else:
+                    enums.setdefault(block_name, {})
+                i = inline[1]
+            else:
+                # Look backwards for a preceding @description
+                found = False
+                for back in range(max(0, i - 3), i):
+                    prev = extract_baml_description(lines[back], lines, back)
+                    if prev:
+                        if block_type == "class":
+                            classes[block_name] = prev[0]
+                        else:
+                            enums.setdefault(block_name, {})
+                        found = True
+                        break
+                if not found and block_type == "enum":
+                    enums.setdefault(block_name, {})
+
+            i += 1
+            while i < len(lines):
+                inner = lines[i].strip()
+                if inner == "}":
+                    i += 1
+                    break
+                if block_type == "class":
+                    m = re.match(r"([A-Za-z_]\w*)\s+([^@\n]+)", inner)
+                    if m:
+                        fld = m.group(1)
+                        desc = extract_baml_description(lines[i], lines, i)
+                        if desc and "@description" in lines[i]:
+                            fields.setdefault(block_name, {})[fld] = desc[0]
+                            i = desc[1]
+                            continue
+                else:
+                    m = re.match(r"([A-Za-z_]\w*)", inner)
+                    if m:
+                        val = m.group(1)
+                        desc = extract_baml_description(lines[i], lines, i)
+                        if desc and "@description" in lines[i]:
+                            enums.setdefault(block_name, {})[val] = desc[0]
+                            i = desc[1]
+                            continue
+                        elif block_name in enums and val not in enums[block_name]:
+                            enums[block_name][val] = ""
+                i += 1
+            continue
+        i += 1
+
+
 if __name__ == "__main__":
     """Quick test of prompt_fingerprint function."""
     print("Testing prompt_fingerprint with BAML functions...")
