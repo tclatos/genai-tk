@@ -31,6 +31,7 @@ class CustomizedPresidioAnonymizer(BaseModel):
 
     company_names: list[str] = Field(default_factory=list)
     product_names: list[str] = Field(default_factory=list)
+    project_names: list[str] = Field(default_factory=list)
     spacy_model: str = Field(default="en_core_web_sm")  # use large one in production
     language: str = Field(default="en")
 
@@ -63,7 +64,7 @@ class CustomizedPresidioAnonymizer(BaseModel):
         self._add_custom_recognizers()
 
     def _add_custom_recognizers(self) -> None:
-        """Add custom recognizers for companies and products."""
+        """Add custom recognizers for companies, products, and projects."""
         if self.company_names:
             company_pattern = r"(?i)\b(" + "|".join(map(str, self.company_names)) + r")\b"
             company_recognizer = PatternRecognizer(
@@ -82,6 +83,15 @@ class CustomizedPresidioAnonymizer(BaseModel):
             )
             self._analyzer.registry.add_recognizer(product_recognizer)
 
+        if self.project_names:
+            project_pattern = r"(?i)\b(" + "|".join(map(str, self.project_names)) + r")\b"
+            project_recognizer = PatternRecognizer(
+                supported_entity="PROJECT",
+                patterns=[Pattern(name="project_pattern", regex=project_pattern, score=0.9)],
+                context=["project", "initiative", "campaign", "program", "task"],
+            )
+            self._analyzer.registry.add_recognizer(project_recognizer)
+
     def _generate_fake_value(self, entity_type: str) -> str:
         """Generate a fake value based on entity type."""
         if entity_type == "PERSON":
@@ -96,6 +106,8 @@ class CustomizedPresidioAnonymizer(BaseModel):
             return self._faker.bothify(text="COMP####")
         elif entity_type == "PRODUCT":
             return self._faker.bothify(text="PROD####")
+        elif entity_type == "PROJECT":
+            return self._faker.bothify(text="PROJ####")
         else:
             return self._faker.bothify(text=f"{entity_type[:4].upper()}####")
 
@@ -121,6 +133,8 @@ class CustomizedPresidioAnonymizer(BaseModel):
             entities_to_analyze.append("COMPANY")
         if self.product_names:
             entities_to_analyze.append("PRODUCT")
+        if self.project_names:
+            entities_to_analyze.append("PROJECT")
 
         # Analyze text to find PII
         analyzer_results = self._analyzer.analyze(
@@ -277,7 +291,10 @@ if __name__ == "__main__":
 
     # Initialize anonymizer with sample data
     anonymizer = CustomizedPresidioAnonymizer(
-        company_names=["Acme Corp", "Tech Solutions"], product_names=["WidgetPro", "CloudMaster"], faker_seed=42
+        company_names=["Acme Corp", "Tech Solutions"],
+        product_names=["WidgetPro", "CloudMaster"],
+        project_names=["ProjectAlpha", "ProjectBeta"],
+        faker_seed=42,
     )
 
     # Test text with PII
@@ -285,6 +302,7 @@ if __name__ == "__main__":
     John Smith works at Acme Corp and uses WidgetPro for development.
     His email is john.smith@email.com and phone is (555) 123-4567.
     He previously worked at Tech Solutions where he used CloudMaster.
+    He's currently assigned to ProjectAlpha and ProjectBeta.
     """
 
     print("\nOriginal text:")
