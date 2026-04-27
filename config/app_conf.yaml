@@ -28,6 +28,14 @@ paths:
   config: ${paths.project}/config
   data_root: ${paths.project}/data
 
+# Test suite configuration
+# Paths are relative to the project root; absent keys fall back to common defaults.
+test:
+  unit: tests/unit_tests
+  integration: tests/integration_tests
+  evals: tests/eval_tests
+  notebooks: notebooks
+
 
 
 # Command Line Interface configuration

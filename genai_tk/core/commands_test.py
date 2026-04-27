@@ -1,17 +1,67 @@
-"""CLI commands for running test suites via pytest.
+"""CLI commands for running test suites via pytest and notebook execution.
 
 Provides a `test` command group so tests can be invoked uniformly through the
 CLI across all projects that vendor genai-tk.
 
-Note: this is intentionally a thin wrapper around pytest — no logic lives here.
-If the package itself is broken, fall back to `uv run pytest` directly.
+Test paths are resolved from the ``test`` section of ``app_conf.yaml``; if a
+key is absent a warning is printed and common fallback paths are tried.
+
+Note: the pytest-based sub-commands are thin wrappers — if the package itself
+is broken, fall back to ``uv run pytest`` directly.
 """
 
+from __future__ import annotations
+
+from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from genai_tk.cli.base import CliTopCommand
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_FALLBACKS: dict[str, list[str]] = {
+    "unit": ["tests/unit_tests", "tests/unit", "tests"],
+    "integration": ["tests/integration_tests", "tests/integration", "tests"],
+    "evals": ["tests/eval_tests", "tests/evals", "tests"],
+    "notebooks": ["notebooks"],
+}
+
+
+def _resolve_test_path(key: str) -> Path:
+    """Return the configured path for *key*, falling back to common defaults.
+
+    Emits a Rich warning when the config key is absent so the user knows to
+    add ``test.<key>`` in ``app_conf.yaml``.
+    """
+    from rich.console import Console
+
+    console = Console(stderr=True)
+
+    try:
+        from genai_tk.utils.config_mngr import global_config
+
+        cfg_path = global_config().get_str(f"test.{key}", default=None)
+    except Exception:  # noqa: BLE001 — config unavailable during bootstrap
+        cfg_path = None
+
+    if cfg_path:
+        return Path(cfg_path)
+
+    console.print(
+        f"[yellow]warning:[/yellow] [bold]test.{key}[/bold] not set in app_conf.yaml — falling back to common paths."
+    )
+    for candidate in _FALLBACKS.get(key, []):
+        p = Path(candidate)
+        if p.exists():
+            console.print(f"  [dim]using fallback:[/dim] {p}")
+            return p
+
+    # Return the first fallback even if it doesn't exist; pytest will report clearly.
+    return Path(_FALLBACKS[key][0])
 
 
 class TestCommands(CliTopCommand):
@@ -27,10 +77,11 @@ class TestCommands(CliTopCommand):
         def unit(
             verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Verbose pytest output")] = False,
         ) -> None:
-            """Run unit tests only (tests/unit_tests/)."""
+            """Run unit tests only (configured via test.unit in app_conf.yaml)."""
             import subprocess
 
-            args = ["uv", "run", "pytest", "tests/unit_tests/"]
+            path = _resolve_test_path("unit")
+            args = ["uv", "run", "pytest", str(path)]
             if verbose:
                 args.append("-v")
             result = subprocess.run(args)
@@ -44,6 +95,7 @@ class TestCommands(CliTopCommand):
 
             Tests marked ``real_models`` or ``docker`` are automatically skipped.
             Safe to run in CI without any credentials.
+            Path is configured via ``test.integration`` in app_conf.yaml.
 
             Examples:
                 cli test fast_integration
@@ -51,7 +103,8 @@ class TestCommands(CliTopCommand):
             """
             import subprocess
 
-            args = ["uv", "run", "pytest", "tests/integration_tests/"]
+            path = _resolve_test_path("integration")
+            args = ["uv", "run", "pytest", str(path)]
             if verbose:
                 args.append("-v")
             result = subprocess.run(args)
@@ -68,6 +121,7 @@ class TestCommands(CliTopCommand):
             Passes ``--include-real-models`` to pytest so that tests marked
             ``real_models`` are executed.  DeerFlow tests also run when
             ``DEER_FLOW_PATH`` is set in the environment.
+            Path is configured via ``test.integration`` in app_conf.yaml.
 
             Examples:
                 cli test full_integration
@@ -76,11 +130,12 @@ class TestCommands(CliTopCommand):
             """
             import subprocess
 
+            path = _resolve_test_path("integration")
             args = [
                 "uv",
                 "run",
                 "pytest",
-                "tests/integration_tests/",
+                str(path),
                 "--include-real-models",
                 f"--timeout={timeout}",
             ]
@@ -101,6 +156,7 @@ class TestCommands(CliTopCommand):
 
             Equivalent to running ``unit`` followed by ``full_integration``.
             Evals are excluded — use ``cli test evals`` for those.
+            Paths are configured via ``test.unit`` / ``test.integration`` in app_conf.yaml.
 
             Examples:
                 cli test all
@@ -108,12 +164,14 @@ class TestCommands(CliTopCommand):
             """
             import subprocess
 
+            unit_path = _resolve_test_path("unit")
+            integ_path = _resolve_test_path("integration")
             args = [
                 "uv",
                 "run",
                 "pytest",
-                "tests/unit_tests/",
-                "tests/integration_tests/",
+                str(unit_path),
+                str(integ_path),
                 "--include-real-models",
                 "-m",
                 "not slow and not evals",
@@ -138,6 +196,7 @@ class TestCommands(CliTopCommand):
 
             By default runs only deterministic evals (no API key needed).
             Use --real to include LLM-judged tests, --deerflow for the deerflow suite.
+            Path is configured via ``test.evals`` in app_conf.yaml.
 
             Examples:
                 uv run cli test evals
@@ -146,6 +205,7 @@ class TestCommands(CliTopCommand):
             """
             import subprocess
 
+            path = _resolve_test_path("evals")
             if deerflow:
                 marker = "evals and deerflow"
                 extra = ["--include-real-models", f"--timeout={timeout}"]
@@ -156,7 +216,7 @@ class TestCommands(CliTopCommand):
                 marker = "evals and not real_models"
                 extra = []
 
-            args = ["uv", "run", "pytest", "tests/eval_tests/", "-m", marker, "-v"] + extra
+            args = ["uv", "run", "pytest", str(path), "-m", marker, "-v"] + extra
             result = subprocess.run(args)
             raise typer.Exit(result.returncode)
 
@@ -187,10 +247,109 @@ class TestCommands(CliTopCommand):
                 _typer.echo("Pattern must contain at least one non-wildcard character.", err=True)
                 raise typer.Exit(1)
 
-            args = ["uv", "run", "pytest", "tests/", "-k", k_expr]
+            # Collect all configured test directories as search roots.
+            seen: set[Path] = set()
+            roots: list[str] = []
+            for key in ("unit", "integration", "evals"):
+                p = _resolve_test_path(key)
+                if p not in seen:
+                    seen.add(p)
+                    roots.append(str(p))
+
+            args = ["uv", "run", "pytest"] + roots + ["-k", k_expr]
             if verbose:
                 args.append("-v")
             if real:
                 args.append("--include-real-models")
             result = subprocess.run(args)
             raise typer.Exit(result.returncode)
+
+        @cli_app.command("notebooks")
+        def notebooks(
+            path: Annotated[
+                str | None,
+                typer.Argument(help="Path to a single .ipynb file or a directory. Defaults to test.notebooks config."),
+            ] = None,
+            allow_pip: Annotated[
+                bool, typer.Option("--allow-pip", help="Execute cells that contain %pip / !pip commands")
+            ] = False,
+            glob: Annotated[
+                str, typer.Option("--glob", help="Glob pattern for discovering notebooks in a directory")
+            ] = "**/*.ipynb",
+        ) -> None:
+            """Execute Jupyter notebooks and report pass/fail for each.
+
+            Runs every code cell in order using a shared exec() namespace (the
+            lightweight approach — no Jupyter kernel required).  Stops at the
+            first failing cell per notebook.
+
+            Path is configured via ``test.notebooks`` in app_conf.yaml.
+
+            Examples:
+                cli test notebooks
+                cli test notebooks notebooks/my_demo.ipynb
+                cli test notebooks --glob "*.ipynb"
+                cli test notebooks --allow-pip
+            """
+            from rich import box
+            from rich.console import Console
+            from rich.table import Table
+
+            from genai_tk.core.notebook_runner import run_notebook
+
+            console = Console()
+
+            # Resolve target path
+            target = Path(path) if path else _resolve_test_path("notebooks")
+
+            if target.is_file():
+                nb_files = [target]
+            else:
+                nb_files = sorted(target.glob(glob))
+
+            if not nb_files:
+                console.print(f"[yellow]No notebooks found in[/yellow] {target}")
+                raise typer.Exit(0)
+
+            console.print(f"\n[bold]Running {len(nb_files)} notebook(s)[/bold] from [cyan]{target}[/cyan]\n")
+
+            table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+            table.add_column("Notebook", style="cyan", no_wrap=True)
+            table.add_column("Cells run", justify="right")
+            table.add_column("Skipped", justify="right")
+            table.add_column("Duration", justify="right")
+            table.add_column("Status", justify="center")
+
+            failed: list[str] = []
+
+            for nb_path in nb_files:
+                console.print(f"  [dim]executing[/dim] {nb_path.name} ...", end="")
+                result = run_notebook(nb_path, allow_pip=allow_pip)
+                status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
+                console.print(f"\r  {status} {nb_path.name}          ")
+
+                if not result.passed:
+                    failed.append(str(nb_path))
+                    for cell_res in result.failed_cells:
+                        console.print(
+                            f"    [red]Cell {cell_res.cell_index}:[/red] "
+                            f"{type(cell_res.error).__name__}: {cell_res.error}"
+                        )
+
+                table.add_row(
+                    str(nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path),
+                    str(len(result.cell_results)),
+                    str(result.skipped),
+                    f"{result.total_duration:.2f}s",
+                    status,
+                )
+
+            console.print()
+            console.print(table)
+
+            if failed:
+                console.print(f"\n[red bold]{len(failed)} notebook(s) FAILED[/red bold]")
+                raise typer.Exit(1)
+            else:
+                console.print(f"\n[green bold]All {len(nb_files)} notebook(s) passed[/green bold]")
+                raise typer.Exit(0)
