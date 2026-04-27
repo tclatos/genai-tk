@@ -5,7 +5,6 @@ from typing import Callable, TypeVar
 
 from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
 from langchain_core.callbacks.base import BaseCallbackHandler
-
 from streamlit.delta_generator import DeltaGenerator
 from streamlit.runtime.scriptrunner import add_script_run_ctx, get_script_run_ctx
 

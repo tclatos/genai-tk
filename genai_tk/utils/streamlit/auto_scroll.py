@@ -37,8 +37,7 @@ def scroll_to_here() -> DeltaGenerator:
         content()
         scroll_to_here()
     else:
-        content()
-    """
+        content()"""
     return html(
         f"""
         <div id="scroll-to-here" style='background: cyan; height=1px;' />

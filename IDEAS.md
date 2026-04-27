@@ -1,5 +1,28 @@
 # Genai-Tk Evolution Ideas - Roadmap candidates - 
 
+# Test Notebooks
+- extend cli test with : https://medium.com/codetodeploy/automating-jupyter-notebook-testing-a-liteweight-approach-f723273eeacf 
+- have YAML config for tests
+# LLM Router
+
+Create  anonymizer and router Middlewares for LangChain agents, based on Presidio.   For the anonymization, get inspiration from /home/tcl/prj/genai-tk/genai_tk/extra/custom_presidio_anonymizer.py (quite old code - can be improved)   and build-in PII Midleware (https://github.com/langchain-ai/langchain/blob/87ba30f09773b8e9ec549841c57906f343b35ed8/libs/langchain_v1/langchain/agents/middleware/pii.py) (https://reference.langchain.com/python/langchain/agents/middleware/pii/PIIMiddleware.md)
+For the routing, have a look at : /home/tcl/ext_prj/LLM_router/llm_router/middleware 
+
+The idea is to have 2 Middleware taking as argument A Pydantic object to define the analyser work. 
+For the anonymization it could includes field from the legacy YAML conf (config/demos/presidio_anonymization.yaml)
+For the router, it could include 
+    - the qualified path to a function (or a Class - you decide) that math match done in /home/tcl/ext_prj/LLM_router/llm_router/middleware/confidentiality.py , but with Presidio and/or spaCy.  It returns whether the message is sensitive and need to be send to a 'safe' llm, or not  - Provide one by default
+    - A pydainc model to confure such function - Put there the equivalent of hard coded dict  in confidentiality.py.  Hard code it however for no - we will see later to have it it YAML.
+    - an id or tag for the save llm
+    - a list of file path pattern (glob style) 
+
+This file paths are used to dedermine if the context extracted from a retriever (for RAG) need systematocally be sent to a safe LLM, whatever its content. To do that, my idea (to be checked) is a middleware wrapper around tools that checks is the tool return a list of Langchain Document object in the 'artifact' field of the ToolMessage returned after tool call, if if so collect in a set the 'source' key value in the metadata.    
+
+
+
+
+
+
 # Better file spec
 use  https://github.com/cpburnz/python-pathspec 
 

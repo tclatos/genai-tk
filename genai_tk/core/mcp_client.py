@@ -244,7 +244,6 @@ def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
             try:
                 result_dict[name] = update_server_parameters(desc)
             except Exception as e:
-                msg = "Skipping MCP server {} due to configuration error: {}"
                 logger.warning("Skipping MCP server {} due to configuration error: {}", name, str(e))
     return result_dict
 

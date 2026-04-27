@@ -178,7 +178,7 @@ def handle_command(command: str) -> bool:
         - `/trace` - Open last LangSmith trace in browser (if available)
         - `/clear` - Clear chat history
         - `/quit` - Instructions to quit
-        
+
         **Tips:**
         - Type normally to chat with the agent
         - Use the sidebar to change demo configurations

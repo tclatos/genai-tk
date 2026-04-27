@@ -129,7 +129,16 @@ try:
 except ImportError:
     HybridSearchConfig = None  # Optional dependency
 from loguru import logger
-from pydantic import AliasChoices, AnyUrl, BaseModel, ConfigDict, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    AliasChoices,
+    AnyUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    model_validator,
+)
 
 from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.utils.config_mngr import (
@@ -143,6 +152,7 @@ VECTOR_STORE_ENGINE = Literal["Chroma", "InMemory", "Sklearn", "PgVector"]
 
 class _EmbeddingsStoreConfig(BaseModel):
     """Parsed configuration for an EmbeddingsStore YAML entry."""
+
     backend: str = Field(validation_alias=AliasChoices("backend", "id"))
     embeddings: str | None = None
     embeddings_id: str | None = None

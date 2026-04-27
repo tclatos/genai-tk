@@ -87,11 +87,11 @@ def _load_provider_info_from_yaml() -> dict[str, ProviderInfo]:
     try:
         src = _pkg_files("genai_tk") / "default_config" / "providers" / "providers.yaml"
         yaml_text = src.read_text(encoding="utf-8")
-    except Exception:
+    except Exception as e:
         # Fallback for editable installs where the symlink may not resolve via importlib
         config_path = Path(__file__).parent.parent / "default_config" / "providers" / "providers.yaml"
         if not config_path.exists():
-            raise FileNotFoundError(f"Provider config file not found: {config_path}")
+            raise FileNotFoundError(f"Provider config file not found: {config_path}") from e
         yaml_text = config_path.read_text(encoding="utf-8")
 
     data = yaml.safe_load(yaml_text)

@@ -28,9 +28,6 @@ from loguru import logger
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import BaseModel, ConfigDict, DirectoryPath, Field, StringConstraints, field_validator
 
-# Sentinel used to distinguish "no default provided" from "default=None".
-_MISSING: Any = object()
-
 from genai_tk.utils.config_exceptions import (
     ConfigFileError,
     ConfigFileNotFoundError,
@@ -49,6 +46,9 @@ from genai_tk.utils.import_utils import (
     split_qualified_name,
 )
 from genai_tk.utils.singleton import once
+
+# Sentinel used to distinguish "no default provided" from "default=None".
+_MISSING: Any = object()
 
 load_dotenv()
 
