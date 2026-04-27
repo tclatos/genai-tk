@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 
 class CustomRecognizerConfig(BaseModel):
@@ -98,7 +98,7 @@ class PresidioDetector(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     config: PresidioDetectorConfig = Field(default_factory=PresidioDetectorConfig)
-    _analyzer: Any = None
+    _analyzer: Any = PrivateAttr(default=None)
 
     def model_post_init(self, __context: Any) -> None:
         self._analyzer = self._build_analyzer()

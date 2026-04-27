@@ -346,3 +346,9 @@ def _deduplicate_entities(entities: list[DetectedEntity]) -> list[DetectedEntity
         if not overlaps:
             kept.append(entity)
     return sorted(kept, key=lambda e: e.start)
+
+
+# Re-build model validators so that %autoreload 2 in notebooks doesn't cause
+# "Input should be a valid dictionary or instance of PresidioDetectorConfig"
+# errors due to stale Pydantic schema referencing old class objects.
+AnonymizationConfig.model_rebuild(force=True)
