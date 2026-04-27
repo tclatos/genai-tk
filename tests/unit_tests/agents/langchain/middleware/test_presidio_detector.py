@@ -24,7 +24,7 @@ def _make_detector(
         enable_spacy=enable_spacy,
         custom_recognizers=custom_recognizers or [],
     )
-    return PresidioDetector(config)
+    return PresidioDetector(config=config)
 
 
 # ---------------------------------------------------------------------------
@@ -49,7 +49,7 @@ class TestPresidioDetectorDetect:
             enable_spacy=False,
             score_threshold=0.0,  # accept any score
         )
-        detector_low = PresidioDetector(config)
+        detector_low = PresidioDetector(config=config)
         entities = detector_low.detect("My phone number is (212) 555-1234")
         types = [e.entity_type for e in entities]
         # With score_threshold=0 Presidio should surface a PHONE_NUMBER hit
@@ -99,7 +99,7 @@ class TestScoreThreshold:
             enable_spacy=False,
             score_threshold=0.99,
         )
-        detector = PresidioDetector(config)
+        detector = PresidioDetector(config=config)
         # Most detections score < 1.0, so a threshold of 0.99 should filter most
         entities = detector.detect("Call alice@example.com")
         # May return 0 or some with very high confidence — just don't crash
@@ -108,8 +108,8 @@ class TestScoreThreshold:
     def test_zero_threshold_returns_more(self) -> None:
         config_low = PresidioDetectorConfig(analyzed_fields=["EMAIL_ADDRESS"], enable_spacy=False, score_threshold=0.0)
         config_high = PresidioDetectorConfig(analyzed_fields=["EMAIL_ADDRESS"], enable_spacy=False, score_threshold=0.9)
-        detector_low = PresidioDetector(config_low)
-        detector_high = PresidioDetector(config_high)
+        detector_low = PresidioDetector(config=config_low)
+        detector_high = PresidioDetector(config=config_high)
         text = "Email alice@example.com"
         low_count = len(detector_low.detect(text))
         high_count = len(detector_high.detect(text))
@@ -161,6 +161,6 @@ class TestSpacyDisabled:
             analyzed_fields=["EMAIL_ADDRESS"],
             enable_spacy=False,
         )
-        detector = PresidioDetector(config)
+        detector = PresidioDetector(config=config)
         entities = detector.detect("Send to info@example.com")
         assert isinstance(entities, list)

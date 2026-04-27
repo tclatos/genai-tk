@@ -253,7 +253,7 @@ class DefaultSensitivityScorer(SensitivityScorer):
 
     def __init__(self, config: DefaultScorerConfig | None = None) -> None:
         self._config = config or DefaultScorerConfig()
-        self._detector = PresidioDetector(self._config.detector)
+        self._detector = PresidioDetector(config=self._config.detector)
         self._compiled_regex = self._compile_regex()
         self._compiled_keywords = self._compile_keywords()
         self._compiled_banwords = self._compile_banwords()

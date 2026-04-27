@@ -78,6 +78,68 @@ Presidio's built-in recognizers include:
 
 See [Presidio docs](https://microsoft.github.io/presidio/supported_entities/) for the complete list.
 
+### Custom Recognizers
+
+Add domain-specific entity types using regex patterns and optional context words via `CustomRecognizerConfig`:
+
+```python
+from genai_tk.agents.langchain.middleware.presidio_detector import (
+    CustomRecognizerConfig,
+    PresidioDetectorConfig,
+)
+
+config = PresidioDetectorConfig(
+    analyzed_fields=["PERSON", "EMAIL_ADDRESS"],
+    custom_recognizers=[
+        # Match internal project codes: PRJ-12345
+        CustomRecognizerConfig(
+            entity_name="PROJECT_CODE",
+            patterns=[r"\bPRJ-\d{5}\b"],
+            context=["project", "ticket", "issue"],
+            score=0.85,
+        ),
+        # Match internal employee IDs: EMP-A1234
+        CustomRecognizerConfig(
+            entity_name="EMPLOYEE_ID",
+            patterns=[r"\bEMP-[A-Z]\d{4}\b"],
+            context=["employee", "staff", "hr"],
+            score=0.9,
+        ),
+    ],
+)
+```
+
+Custom entity types are anonymized with a generic `ENTY####` placeholder by default. To provide a better Faker replacement, subclass `AnonymizationMiddleware` and override `_fake_value()`:
+
+```python
+class MyMiddleware(AnonymizationMiddleware):
+    def _fake_value(self, entity_type: str) -> str:
+        if entity_type == "PROJECT_CODE":
+            return f"PRJ-{self._faker.numerify('#####')}"
+        if entity_type == "EMPLOYEE_ID":
+            return f"EMP-{self._faker.bothify('?####').upper()}"
+        return super()._fake_value(entity_type)
+```
+
+#### YAML Custom Recognizers
+
+```yaml
+langchain_agents:
+  profiles:
+    - name: PrivacyAgent
+      type: react
+      llm: default
+      middlewares:
+        - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
+          analyzed_fields: [PERSON, EMAIL_ADDRESS, PROJECT_CODE]
+          custom_recognizers:
+            - entity_name: PROJECT_CODE
+              patterns:
+                - '\bPRJ-\d{5}\b'
+              context: [project, ticket]
+              score: 0.85
+```
+
 ### Thread Isolation
 
 The anonymization mapping is keyed by `thread_id`, so each concurrent conversation maintains separate PII mappings:

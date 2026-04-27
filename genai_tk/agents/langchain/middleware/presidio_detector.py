@@ -23,7 +23,7 @@ Example:
             )
         ],
     )
-    detector = PresidioDetector(config)
+    detector = PresidioDetector(config=config)
     entities = detector.detect("Call John at john@example.com")
     ```
 """
@@ -32,7 +32,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CustomRecognizerConfig(BaseModel):
@@ -88,18 +88,19 @@ class DetectedEntity(BaseModel):
     score: float
 
 
-class PresidioDetector:
+class PresidioDetector(BaseModel):
     """PII detector backed by Microsoft Presidio and optionally spaCy.
 
     Initialize once per middleware instance and reuse.  Not thread-safe if
     ``enable_spacy=True`` because the spaCy pipeline is not thread-safe.
-
-    Args:
-        config: Detector configuration.
     """
 
-    def __init__(self, config: PresidioDetectorConfig | None = None) -> None:
-        self._config = config or PresidioDetectorConfig()
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    config: PresidioDetectorConfig = Field(default_factory=PresidioDetectorConfig)
+    _analyzer: Any = None
+
+    def model_post_init(self, __context: Any) -> None:
         self._analyzer = self._build_analyzer()
 
     # ------------------------------------------------------------------
@@ -118,13 +119,13 @@ class PresidioDetector:
         if not text or not text.strip():
             return []
 
-        entities = self._config.analyzed_fields + [r.entity_name for r in self._config.custom_recognizers]
+        entities = self.config.analyzed_fields + [r.entity_name for r in self.config.custom_recognizers]
         try:
             results = self._analyzer.analyze(
                 text=text,
                 entities=entities,
-                language=self._config.language,
-                score_threshold=self._config.score_threshold,
+                language=self.config.language,
+                score_threshold=self.config.score_threshold,
             )
         except Exception:
             return []
@@ -151,22 +152,22 @@ class PresidioDetector:
         """Build and configure the Presidio AnalyzerEngine."""
         from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
 
-        if self._config.enable_spacy:
+        if self.config.enable_spacy:
             self._ensure_spacy()
             nlp_engine = self._build_spacy_nlp_engine()
             if nlp_engine is not None:
                 from presidio_analyzer import RecognizerRegistry
 
                 registry = RecognizerRegistry()
-                registry.load_predefined_recognizers(languages=[self._config.language])
+                registry.load_predefined_recognizers(languages=[self.config.language])
                 analyzer = AnalyzerEngine(nlp_engine=nlp_engine, registry=registry)
             else:
                 analyzer = AnalyzerEngine()
         else:
-            analyzer = AnalyzerEngine(nlp_engine=None)
+            analyzer = AnalyzerEngine()
 
         # Register custom recognizers
-        for rec_cfg in self._config.custom_recognizers:
+        for rec_cfg in self.config.custom_recognizers:
             patterns = [
                 Pattern(name=f"{rec_cfg.entity_name}_pattern_{i}", regex=p, score=rec_cfg.score)
                 for i, p in enumerate(rec_cfg.patterns)
@@ -174,7 +175,7 @@ class PresidioDetector:
             recognizer = PatternRecognizer(
                 supported_entity=rec_cfg.entity_name,
                 patterns=patterns,
-                context=rec_cfg.context or None,
+                context=rec_cfg.context or [],
             )
             analyzer.registry.add_recognizer(recognizer)
 
@@ -185,7 +186,7 @@ class PresidioDetector:
         try:
             from genai_tk.utils.spacy_model_mngr import SpaCyModelManager
 
-            SpaCyModelManager.setup_spacy_model(self._config.spacy_model)
+            SpaCyModelManager.setup_spacy_model(self.config.spacy_model)
         except Exception:
             pass  # Best-effort: if setup fails, Presidio will try to load anyway
 
@@ -197,7 +198,7 @@ class PresidioDetector:
             provider = NlpEngineProvider(
                 nlp_configuration={
                     "nlp_engine_name": "spacy",
-                    "models": [{"lang_code": self._config.language, "model_name": self._config.spacy_model}],
+                    "models": [{"lang_code": self.config.language, "model_name": self.config.spacy_model}],
                 }
             )
             return provider.create_engine()

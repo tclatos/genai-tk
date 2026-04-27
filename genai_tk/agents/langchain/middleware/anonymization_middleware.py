@@ -41,7 +41,9 @@ import string
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware.types import AgentState
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
+from langgraph.runtime import Runtime
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -93,7 +95,7 @@ class AnonymizationMiddleware(AgentMiddleware):
                 anon_fields["detector"] = PresidioDetectorConfig(**detector_fields)
             config = AnonymizationConfig(**anon_fields)
         self._config = config
-        self._detector = PresidioDetector(config.detector)
+        self._detector = PresidioDetector(config=config.detector)
         self._faker = self._build_faker()
         # mapping[thread_id][original_text] = fake_value
         self._mapping: dict[str, dict[str, str]] = {}
@@ -102,7 +104,7 @@ class AnonymizationMiddleware(AgentMiddleware):
     # Middleware hooks
     # ------------------------------------------------------------------
 
-    def before_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    def before_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:  # type: ignore[override]
         """Anonymize PII in the last human message before the LLM is called."""
         messages: list[AnyMessage] = state.get("messages", [])
         if not messages:
@@ -126,7 +128,7 @@ class AnonymizationMiddleware(AgentMiddleware):
             return None
         return {"messages": updated}
 
-    def after_model(self, state: dict[str, Any], runtime: Any) -> dict[str, Any] | None:
+    def after_model(self, state: AgentState, runtime: Runtime) -> dict[str, Any] | None:  # type: ignore[override]
         """Deanonymize PII in the last AI message after the LLM has responded."""
         messages: list[AnyMessage] = state.get("messages", [])
         if not messages:
