@@ -262,7 +262,96 @@ def test_with_fake_models(fake_llm):
 7. **Clean Up**: Use fixtures or context managers for cleanup
 8. **Test What Matters**: Focus on behavior, not implementation
 
-## Running Tests
+## Running Tests via CLI
+
+The `cli test` command provides a uniform interface for running all test types. Test paths are configurable in `config/app_conf.yaml` under the `test:` section.
+
+### Test Configuration
+
+Add or customize test paths in **`config/app_conf.yaml`**:
+
+```yaml
+test:
+  unit: tests/unit_tests
+  integration: tests/integration_tests
+  evals: tests/eval_tests
+  notebooks: notebooks
+```
+
+If a key is absent, the CLI falls back to common defaults (e.g., `tests/unit_tests/`, `tests/integration_tests/`) and prints a warning. This allows you to override paths per project.
+
+### CLI Test Commands
+
+```bash
+# Run unit tests only
+cli test unit
+cli test unit -v
+
+# Run fast integration tests (no real LLM calls)
+cli test fast_integration
+cli test fast_integration -v
+
+# Run full integration tests (with real LLM API calls)
+cli test full_integration
+cli test full_integration --docker          # include Docker-based tests
+cli test full_integration --timeout 240 -v  # custom timeout and verbose
+
+# Run all unit + integration tests
+cli test all
+cli test all --docker --timeout 240
+
+# Run evaluation tests
+cli test evals                          # deterministic evals only
+cli test evals --real                   # include LLM-judged evals
+cli test evals --deerflow --timeout 360 # DeerFlow evals
+
+# Run tests matching a pattern (across all test directories)
+cli test select '*deerflow*'
+cli test select 'rag' -v
+cli test select 'embedding or vectorstore' --real
+
+# Execute Jupyter notebooks as tests (NEW)
+cli test notebooks                              # run all notebooks in configured path
+cli test notebooks notebooks/my_demo.ipynb      # run a single notebook
+cli test notebooks --glob "*.ipynb"             # custom glob pattern
+cli test notebooks --allow-pip                  # execute cells with %pip / !pip
+```
+
+### Jupyter Notebook Testing
+
+The new `cli test notebooks` command executes code cells in `.ipynb` files and reports pass/fail for each notebook. This uses a lightweight execution model (no Jupyter kernel required) to catch regressions.
+
+**How it works:**
+- Reads the `.ipynb` JSON, iterates through code cells in order
+- Executes each cell in a shared namespace (mimics notebook state)
+- Skips empty cells and (by default) cells with `%pip` / `!pip`
+- Stops at the first failing cell and reports the error
+- Removes IPython magic lines (`%`, `!`) so mixed magic+Python cells execute correctly
+
+**Example output:**
+```
+Running 3 notebook(s) from notebooks
+
+  executing middleware_anonymization_demo.ipynb ...  PASS middleware_anonymization_demo.ipynb
+  executing middleware_router_demo.ipynb ...        PASS middleware_router_demo.ipynb
+  executing scratchpad.ipynb ...                    PASS scratchpad.ipynb
+
+╭─────────────────────────────────┬───────┬───────┬──────┬───────╮
+│ Notebook                        │ Cells │ Skip… │ Dur… │ Stat… │
+├─────────────────────────────────┼───────┼───────┼──────┼───────┤
+│ notebooks/demo1.ipynb           │    10 │     0 │ 9.9… │ PASS  │
+│ notebooks/demo2.ipynb           │     7 │     0 │ 2.1… │ PASS  │
+│ notebooks/demo3.ipynb           │     2 │     0 │ 0.3… │ PASS  │
+╰─────────────────────────────────┴───────┴───────┴──────┴───────╯
+
+All 3 notebook(s) passed
+```
+
+---
+
+## Raw pytest Commands
+
+For fine-grained control, you can invoke `pytest` directly:
 
 ```bash
 # Run all tests
