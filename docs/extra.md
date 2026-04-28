@@ -139,80 +139,28 @@ print(result.output.key_points)
 
 ## RAG Systems (`extra.rag`)
 
-Retrieval-Augmented Generation pipeline components.
+> **Full documentation:** see **[rag.md](rag.md)** for the complete guide covering design, all retriever types, YAML config reference, Python API, CLI commands, Prefect batch ingestion, agent tool integration, and PostgreSQL hybrid search.
 
-### RAG Commands (`commands_rag.py`)
+**Quick reference:**
 
-CLI commands for RAG operations. See [cli.md](cli.md) for the full CLI reference.
+```python
+from genai_tk.core.retriever_factory import RetrieverFactory
+
+# Create retriever from YAML config tag
+managed = RetrieverFactory.create("hybrid_ensemble")
+
+# Query (async-first)
+docs = await managed.aquery("What is vector search?", k=5)
+
+# Ingest documents
+await managed.aadd_documents(my_docs)
+```
 
 ```bash
-# Ingest documents into the default vector store
-uv run cli rag ingest ./my_documents/
-
-# Query the vector index
-uv run cli rag query "What are the main features?"
-
-# Create a named index
-uv run cli rag create-index ./my_documents/
-
-# Add documents to existing index
-uv run cli rag add-documents ./new_docs/
-
-# List available indexes
-uv run cli rag list-indexes
-```
-
-### Markdown Chunking (`markdown_chunking.py`)
-
-Intelligent document chunking that respects markdown structure.
-
-**Features:**
-- Markdown-aware splitting (respects headers, sections)
-- Configurable chunk size and overlap
-- Preserves semantic structure
-- Metadata extraction from headers
-
-**Usage:**
-```python
-from genai_tk.extra.rag.markdown_chunking import MarkdownChunker
-
-chunker = MarkdownChunker(
-    chunk_size=1024,
-    chunk_overlap=200,
-    preserve_headers=True
-)
-
-with open("document.md") as f:
-    documents = chunker.split_text(f.read())
-
-# documents have metadata about hierarchy
-for doc in documents:
-    print(f"Section: {doc.metadata.get('section')}")
-    print(f"Level: {doc.metadata.get('heading_level')}")
-```
-
-### RAG Prefect Flow (`rag_prefect_flow.py`)
-
-Orchestrated RAG pipeline using Prefect for scheduling and monitoring.
-See [prefect.md](prefect.md) for the complete Prefect integration guide including
-ephemeral vs. deployed server modes and how to write your own flows.
-
-**Features:**
-- Document loading and deduplication (hash-based)
-- Markdown-aware chunking
-- Embedding generation and vector-store upsert
-- Incremental processing (unchanged files are skipped)
-
-**Usage:**
-```python
-from genai_tk.extra.prefect.runtime import run_flow_ephemeral
-from genai_tk.extra.rag.rag_prefect_flow import rag_ingest_flow
-
-run_flow_ephemeral(
-    rag_ingest_flow,
-    source_dir="./documents",
-    force=False,
-)
+# CLI
+uv run cli rag add-files ./docs/ --retriever persistent
+uv run cli rag query "hybrid search" --retriever hybrid_ensemble
+uv run cli rag list-retrievers
 ```
 
 ## Data Loaders (`extra.loaders`)
@@ -281,37 +229,12 @@ for page_num, text in enumerate(pages):
 
 ## Retrievers (`extra.retrievers`)
 
-Search and retrieval implementations for RAG systems.
+> See **[rag.md](rag.md)** for the full retriever documentation.
 
-**Available Retrievers:**
-- `BM25Retriever` - Keyword-based search
-- `EnsembleRetriever` - Combines multiple retrievers
-- `MultiQueryRetriever` - Query expansion for better results
-- `VectorStoreRetriever` - Semantic search with embeddings
+Low-level retriever implementations used by `RetrieverFactory`:
 
-**Usage Example:**
-```python
-from langchain.retrievers import BM25Retriever
-from genai_tk.core.embeddings_store import EmbeddingsStore
-
-# Vector-based retrieval
-vector_store = EmbeddingsStore.from_config()
-vector_retriever = vector_store.as_retriever(search_kwargs={"k": 5})
-
-# BM25 (keyword) retrieval
-bm25_retriever = BM25Retriever.from_documents(documents)
-
-# Ensemble for best results
-from langchain.retrievers import EnsembleRetriever
-
-ensemble_retriever = EnsembleRetriever(
-    retrievers=[vector_retriever, bm25_retriever],
-    weights=[0.5, 0.5]
-)
-
-# Use in RAG chain
-results = ensemble_retriever.get_relevant_documents("query")
-```
+- `BM25FastRetriever` — bm25s-backed keyword retriever with optional Spacy preprocessing
+- `ZeroEntropyRetriever` — read-only retriever backed by the ZeroEntropy SDK
 
 ## Utility Functions
 

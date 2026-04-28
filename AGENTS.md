@@ -146,6 +146,7 @@ Current docs index:
 | `docs/copilot-agent-support.md` | Copilot Agent skills, AGENTS.md, copilot-instructions.md |
 | `docs/core.md` | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, `LlmCache`, `ChainRegistry` |
 | `docs/extra.md` | Agent graphs, RAG, data loaders, anonymization, image analysis, KV store |
+| `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, all retriever types, CLI, Prefect flow, agent tools |
 | `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |
 | `docs/prefect.md` | Prefect flows — ephemeral vs. server mode, available flows, writing new flows |
 | `docs/agents.md` | LangChain / SmolAgents / DeerFlow / DeepAgents profiles and config |

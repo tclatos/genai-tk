@@ -131,8 +131,8 @@ def test_vector_store_factory_known_items() -> None:
     assert len(known_items) > 0
     assert "InMemory" in known_items
     assert "Chroma" in known_items
-    assert "Sklearn" in known_items
     assert "PgVector" in known_items
+    assert "Sklearn" not in known_items
     # Ensure deprecated Chroma_in_memory is no longer in known items
     assert "Chroma_in_memory" not in known_items
 

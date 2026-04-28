@@ -8,7 +8,7 @@ A toolkit for building Gen AI and Agentic applications with LangChain, LangGraph
 - YAML-configured profiles — swap models, tools, MCP servers, and sandboxes without code changes
 - Skills system — markdown domain-knowledge files loaded on demand, not injected into every prompt
 - Docker sandbox via OpenSandbox — isolated code execution, browser automation, volume-mounted skills
-- Full RAG pipeline — chunking, BM25 + semantic hybrid retrieval, PGVector
+- Full RAG pipeline — chunking, BM25 + dense hybrid retrieval, PGVector, composable YAML-configured retrievers
 - Structured extraction with BAML (type-safe Pydantic output, incremental manifests)
 - Prefect document flows, browser automation, MCP servers
 - Rich CLI that mirrors every capability; easily extensible with one class + one YAML line
@@ -472,7 +472,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | **SmolAgents** | `cli agents smolagents` | `SmolAgent` | [docs/agents.md](docs/agents.md) |
 | **Skills** | — | `skill_directories:` in profile | [AGENTS.md](AGENTS.md#skills) |
 | **Docker sandbox** | `cli sandbox` | `SandboxBackend` | [docs/sandbox_support.md](docs/sandbox_support.md) |
-| **RAG** | `cli rag ingest/query` | `extra.rag` | [docs/extra.md](docs/extra.md#rag-systems) |
+| **RAG** | `cli rag add-files/query/list-retrievers` | `RetrieverFactory` / `ManagedRetriever` | [docs/rag.md](docs/rag.md) |
 | **BAML structured output** | `cli baml run/extract` | `BamlStructuredProcessor` | [docs/baml.md](docs/baml.md) |
 | **MCP servers** | `cli mcpserver` | `McpClient` | [docs/mcp-servers.md](docs/mcp-servers.md) |
 | **Prefect flows** | `cli tools markdownize` (example) | `run_flow_ephemeral()` | [docs/prefect.md](docs/prefect.md) |

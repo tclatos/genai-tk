@@ -54,10 +54,79 @@ embeddings_store:
     backend: Chroma
     embeddings: default
     table_name_prefix: embeddings
-    record_manager: sqlite:///${paths.data_root}/vector_store/record_manager_cache.sql
     config:
       storage: ${paths.data_root}/vector_store  # Persistent storage on disk
-  
+
+
+# ============================================================
+# Retrievers — composable RAG retrievers (RetrieverFactory)
+# See: genai_tk.core.retriever_factory
+# ============================================================
+retrievers:
+  # Simple in-memory vector retriever (good for tests/demos)
+  default:
+    type: vector
+    embeddings_store: in_memory_chroma
+    top_k: 4
+
+  # Persistent Chroma vector retriever with record_manager dedup
+  persistent:
+    type: vector
+    embeddings_store: chroma_indexed
+    top_k: 4
+    # record_manager_url: auto-generated SQLite under ${paths.data_root}/record_manager/
+
+  # BM25 retriever (index persisted under ${paths.data_root}/bm25_cache/bm25_local/)
+  bm25_local:
+    type: bm25
+    k: 4
+    preprocessing: default   # or "spacy" for lemmatisation
+
+  # Ensemble: dense + sparse (good baseline for hybrid retrieval without Postgres)
+  hybrid_ensemble:
+    type: ensemble
+    retrievers:
+      - ref: default
+        weight: 0.7
+      - ref: bm25_local
+        weight: 0.3
+
+  # Reranked ensemble using semantic embeddings filter
+  hybrid_reranked:
+    type: reranked
+    retriever: hybrid_ensemble
+    reranker: embeddings   # or "cohere" / "cross_encoder"
+    top_k: 3
+    fetch_k: 10
+
+  # PostgreSQL hybrid search (requires postgres dependency group)
+  # pg_hybrid:
+  #   type: pg_hybrid
+  #   embeddings: default
+  #   postgres: default
+  #   hybrid_search: true
+  #   top_k: 4
+  #   hybrid_search_config:
+  #     tsv_lang: pg_catalog.english
+  #     fusion_function_parameters:
+  #       primary_results_weight: 0.7
+  #       secondary_results_weight: 0.3
+
+
+# ============================================================
+# PostgreSQL connection sources  (get_pg_engine / get_postgres_url)
+# See: genai_tk.extra.postgres
+# ============================================================
+postgres:
+  default:
+    mode: external
+    url: postgresql+asyncpg://${oc.env:POSTGRES_USER,postgres}:${oc.env:POSTGRES_PASSWORD,password}@localhost:5432/genai
+
+  # Embedded PostgreSQL via pgembed — no server setup required
+  # embedded:
+  #   mode: pgembed
+  #   data_dir: ${paths.data_root}/pgembed
+  #   extensions: [vector]
 
 
 # Key-Value Stores configuration

@@ -1,14 +1,13 @@
-"""CLI commands for RAG (Retrieval Augmented Generation) operations.
+"""CLI commands for RAG (Retrieval-Augmented Generation) operations.
 
-This module provides command-line interface commands for:
-- Managing vector stores (create, delete, query)
-- Adding documents to vector stores with embeddings
-- Ingesting files into vector stores with parallel processing
-- Querying vector stores for similar documents
-- Getting information and statistics about vector stores
-
-The commands support multiple vector store backends configured via YAML
-and provide rich formatted output with tables and panels.
+Commands:
+    add-files       Ingest files into a retriever store
+    query           Search a retriever for similar documents
+    embed           Embed a single text snippet into a retriever store
+    delete          Delete/clear a retriever store
+    info            Show retriever configuration and statistics
+    list-retrievers List all available retriever configurations
+    list-configs    List all available embeddings_store configurations (legacy)
 """
 
 from __future__ import annotations
@@ -26,231 +25,121 @@ from rich.table import Table
 from genai_tk.cli.base import CliTopCommand
 
 if TYPE_CHECKING:
-    from langchain_core.documents import Document
+    from genai_tk.core.retriever_factory import ManagedRetriever
 
-    from genai_tk.core.embeddings_store import EmbeddingsStore
+
+# ---------------------------------------------------------------------------
+# Rich helpers
+# ---------------------------------------------------------------------------
 
 
 def _create_info_table(stats: dict) -> Table:
-    """Create a Rich table for vector store information.
-
-    Args:
-        stats: Dictionary containing vector store statistics
-
-    Returns:
-        Rich Table with formatted statistics
-    """
-    table = Table(title="Vector Store Information", show_header=True, header_style="bold blue")
+    table = Table(title="Retriever Information", show_header=True, header_style="bold blue")
     table.add_column("Property", style="cyan", no_wrap=True)
     table.add_column("Value", style="green")
-
     for key, value in stats.items():
-        # Format the key to be more readable
-        display_key = key.replace("_", " ").title()
-        table.add_row(display_key, str(value))
-
+        table.add_row(key.replace("_", " ").title(), str(value))
     return table
 
 
-def _create_documents_table(documents: list[Document], show_scores: bool = False, max_length: int = 100) -> Table:
-    """Create a Rich table for displaying documents.
-
-    Args:
-        documents: List of documents to display
-        show_scores: Whether to show relevance scores
-        max_length: Maximum length of content to display per document
-
-    Returns:
-        Rich Table with formatted document information
-    """
+def _create_documents_table(documents: list, max_length: int = 100) -> Table:
     table = Table(title="Query Results", show_header=True, header_style="bold magenta", show_lines=True)
     table.add_column("Index", style="cyan", width=6)
     table.add_column("Content", style="white")
     table.add_column("Metadata", style="dim white")
-
-    if show_scores:
-        table.add_column("Score", style="green", width=8)
-
     for i, doc in enumerate(documents, 1):
         content = doc.page_content[:max_length] + "..." if len(doc.page_content) > max_length else doc.page_content
         metadata = json.dumps(doc.metadata) if doc.metadata else "{}"
-
-        if show_scores:
-            # Note: scores would need to be passed separately in real implementation
-            table.add_row(str(i), content, metadata, "N/A")
-        else:
-            table.add_row(str(i), content, metadata)
-
+        table.add_row(str(i), content, metadata)
     return table
 
 
-def _get_embeddings_store_safe(store_name: str) -> EmbeddingsStore | None:
-    """Safely get a vector store by name, with error handling.
-
-    Args:
-        store_name: Name of the vector store configuration
-
-    Returns:
-        EmbeddingsStore instance or None if not found
-    """
-
-    from genai_tk.core.embeddings_store import EmbeddingsStore
+def _get_retriever_safe(retriever_name: str) -> "ManagedRetriever | None":
+    from genai_tk.core.retriever_factory import RetrieverFactory
     from genai_tk.utils.rich_widgets import create_error_panel
 
     console = Console()
-
     try:
-        return EmbeddingsStore.create_from_config(store_name)
+        return RetrieverFactory.create(retriever_name)
     except ValueError:
-        available_configs = EmbeddingsStore.list_available_configs()
-        if available_configs:
-            # Create a nice table of available configurations
-            table = Table(title="Available Vector Store Configurations", show_header=True, header_style="bold cyan")
-            table.add_column("Configuration Name", style="green")
-
-            for config in sorted(available_configs):
-                table.add_row(config)
-
+        available = RetrieverFactory.list_available_configs()
+        if available:
+            table = Table(title="Available Retrievers", show_header=True, header_style="bold cyan")
+            table.add_column("Retriever Name", style="green")
+            for name in sorted(available):
+                table.add_row(name)
             console.print(
                 create_error_panel(
-                    "Configuration Not Found",
-                    f"Vector store configuration '{store_name}' not found.\n\n"
-                    f"Please choose from the available configurations below:",
+                    "Retriever Not Found",
+                    f"Retriever '{retriever_name}' not found. Choose from the list below:",
                 )
             )
             console.print(table)
-            console.print("\n[dim]Tip: Use 'cli rag list-configs' to see detailed configuration information.[/dim]\n")
         else:
             console.print(
                 create_error_panel(
-                    "No Configurations Available",
-                    f"Vector store '{store_name}' not found and no configurations are available.\n"
-                    f"Please check your configuration file.",
+                    "No Retrievers Configured",
+                    f"Retriever '{retriever_name}' not found and no retrievers are configured.\n"
+                    "Add a 'retrievers:' section to your YAML configuration.",
                 )
             )
         return None
-    except Exception as e:
-        console.print(create_error_panel("Error", f"Failed to create vector store: {e}"))
+    except Exception as exc:
+        console.print(create_error_panel("Error", f"Failed to create retriever: {exc}"))
         return None
 
 
+# ---------------------------------------------------------------------------
+# Command class
+# ---------------------------------------------------------------------------
+
+
 class RagCommands(CliTopCommand):
-    description: str = "Vector store operations for RAG (Retrieval Augmented Generation"
+    description: str = "RAG (Retrieval-Augmented Generation) operations"
 
     def get_description(self) -> tuple[str, str]:
         return "rag", self.description
 
-    def register_sub_commands(self, cli_app: typer.Typer) -> None:
+    def register_sub_commands(self, cli_app: typer.Typer) -> None:  # noqa: C901, PLR0912, PLR0915
+
+        # ------------------------------------------------------------------ #
+        # add-files
+        # ------------------------------------------------------------------ #
         @cli_app.command("add-files")
         def add_files(
             root_dir: Annotated[str, typer.Argument(help="Root directory containing files to ingest")],
-            store_name: Annotated[
-                str, typer.Option("--store", "-s", help="Name of the vector store configuration")
+            retriever_name: Annotated[
+                str, typer.Option("--retriever", "-r", "--store", "-s", help="Retriever configuration name")
             ] = "default",
             include: Annotated[
                 Optional[list[str]],
-                typer.Option("--include", "-i", help="Include patterns (can be specified multiple times)"),
+                typer.Option("--include", "-i", help="Include glob patterns (repeatable)"),
             ] = None,
             exclude: Annotated[
                 Optional[list[str]],
-                typer.Option("--exclude", "-e", help="Exclude patterns (can be specified multiple times)"),
+                typer.Option("--exclude", "-e", help="Exclude glob patterns (repeatable)"),
             ] = None,
-            recursive: Annotated[
-                bool, typer.Option("--recursive/--no-recursive", "-r", help="Search recursively")
-            ] = True,
-            force: Annotated[bool, typer.Option("--force", "-f", help="Reprocess all files, ignoring hashes")] = False,
-            batch_size: Annotated[
-                int, typer.Option("--batch-size", "-b", help="Number of files to process in parallel")
-            ] = 10,
-            chunk_size: Annotated[int, typer.Option("--chunk-size", help="Maximum size of each chunk in tokens")] = 512,
+            recursive: Annotated[bool, typer.Option("--recursive/--no-recursive")] = True,
+            force: Annotated[bool, typer.Option("--force", "-f", help="Reprocess all files")] = False,
+            batch_size: Annotated[int, typer.Option("--batch-size", "-b")] = 10,
+            chunk_size: Annotated[int, typer.Option("--chunk-size", help="Max chunk size in tokens")] = 512,
         ) -> None:
-            """Ingest files into a vector store with parallel processing.
-
-            Process files from a root directory using glob patterns, chunk them,
-            and add them to a vector store. Uses file hashes to avoid reprocessing
-            unchanged files unless --force is specified.
-
-            For Markdown files, uses header-aware chunking; for other files, uses
-            recursive character splitting.
-
-            Examples:
-                ```bash
-                # Ingest all files in a directory
-                cli rag add-files ./docs --store chroma_indexed
-
-                # Ingest with custom patterns
-                cli rag add-files ./docs --store chroma_indexed \\
-                    --include "*.md" --include "*.txt" \\
-                    --exclude "*draft*" --recursive
-
-                # Force reprocessing of all files
-                cli rag add-files ./docs --store chroma_indexed --force
-
-                # Custom chunking parameters
-                cli rag add-files ./docs --store chroma_indexed --chunk-size 768
-
-                # Process with larger batch size for better parallelism
-                cli rag add-files ./docs --store chroma_indexed \\
-                    --batch-size 20
-
-                # Use config variables
-                cli rag add-files '${paths.data_root}/docs' --store chroma_indexed
-                ```
-            """
-            console = Console()
-
-            # Resolve YAML config variables in path
+            """Ingest files from a directory into a retriever store."""
             from genai_tk.utils.file_patterns import resolve_config_path
             from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel, create_warning_panel
 
-            resolved_root_dir = resolve_config_path(root_dir)
+            console = Console()
+            resolved = resolve_config_path(root_dir)
+            root_path = Path(resolved)
 
-            # Validate root directory
-            root_path = Path(resolved_root_dir)
-            if not root_path.exists():
-                console.print(
-                    create_error_panel(
-                        "Invalid Path",
-                        f"Root directory does not exist: {root_dir}"
-                        + (f"\n(Resolved to: {resolved_root_dir})" if resolved_root_dir != root_dir else ""),
-                    )
-                )
+            if not root_path.exists() or not root_path.is_dir():
+                console.print(create_error_panel("Invalid Path", f"Directory not found: {root_dir}"))
                 raise typer.Exit(1)
 
-            if not root_path.is_dir():
-                console.print(
-                    create_error_panel(
-                        "Invalid Path",
-                        f"Path is not a directory: {root_dir}"
-                        + (f"\n(Resolved to: {resolved_root_dir})" if resolved_root_dir != root_dir else ""),
-                    )
-                )
-                raise typer.Exit(1)
-
-            # Validate vector store
-            vector_store = _get_embeddings_store_safe(store_name)
-            if not vector_store:
-                raise typer.Exit(1)
-
-            # Default include patterns
             if include is None:
                 include = ["**/*"]
 
-            # Log the operation (show resolved path if different)
-            display_path = (
-                f"'{root_dir}'"
-                if resolved_root_dir == root_dir
-                else f"'{root_dir}' (resolved to '{resolved_root_dir}')"
-            )
-            console.print(f"[bold cyan]Starting file ingestion from {display_path} to store '{store_name}'[/bold cyan]")
-            if include:
-                console.print(f"  Include patterns: {', '.join(include)}")
-            if exclude:
-                console.print(f"  Exclude patterns: {', '.join(exclude)}")
-            console.print(f"  Recursive: {recursive}")
-            console.print(f"  Force: {force}")
-            console.print(f"  Batch size: {batch_size}")
-            console.print(f"  Chunk size: {chunk_size}")
+            console.print(f"[bold cyan]Ingesting '{root_dir}' → retriever '{retriever_name}'[/bold cyan]")
 
             try:
                 from genai_tk.extra.prefect.runtime import run_flow_ephemeral
@@ -258,8 +147,8 @@ class RagCommands(CliTopCommand):
 
                 result = run_flow_ephemeral(
                     rag_file_ingestion_flow,
-                    root_dir=resolved_root_dir,
-                    store_name=store_name,
+                    root_dir=resolved,
+                    retriever_name=retriever_name,
                     max_chunk_tokens=chunk_size,
                     include_patterns=include,
                     exclude_patterns=exclude,
@@ -268,369 +157,287 @@ class RagCommands(CliTopCommand):
                     batch_size=batch_size,
                 )
 
-                # Display results
                 result_table = Table(title="Ingestion Results", show_header=True, header_style="bold green")
                 result_table.add_column("Metric", style="cyan")
                 result_table.add_column("Value", style="white")
-
                 result_table.add_row("Total Files Found", str(result["total_files"]))
                 result_table.add_row("Files Processed", str(result["processed_files"]))
                 result_table.add_row("Files Skipped", str(result["skipped_files"]))
                 result_table.add_row("Total Chunks Created", str(result["total_chunks"]))
-
                 console.print(result_table)
 
                 if result["processed_files"] > 0:
                     console.print(
                         create_success_panel(
                             "Ingestion Complete",
-                            f"Successfully ingested {result['processed_files']} files "
-                            f"({result['total_chunks']} chunks) into vector store '{store_name}'",
+                            f"Ingested {result['processed_files']} files ({result['total_chunks']} chunks) "
+                            f"into retriever '{retriever_name}'",
                         )
                     )
                 else:
                     console.print(
-                        create_warning_panel(
-                            "No New Files",
-                            "No new files were processed. Use --force to reprocess existing files.",
-                        )
+                        create_warning_panel("No New Files", "No new files processed. Use --force to reprocess.")
                     )
+            except Exception as exc:
+                console.print(create_error_panel("Ingestion Failed", f"{exc}"))
+                raise typer.Exit(1) from exc
 
-            except Exception as e:
-                console.print(create_error_panel("Ingestion Failed", f"Failed to ingest files: {e}"))
-                raise typer.Exit(1) from e
-
-        @cli_app.command()
-        def delete(
-            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")] = "default",
-            force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation prompt")] = False,
-        ) -> None:
-            """Delete all documents from a vector store.
-
-            This command clears all documents from the specified vector store while keeping
-            the store configuration intact. Requires confirmation unless --force is used.
-            """
-            from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel, create_warning_panel
-
-            console = Console()
-
-            vector_store = _get_embeddings_store_safe(store_name)
-            if not vector_store:
-                return
-
-            try:
-                # Check if store has any documents first
-                stats = vector_store.get_stats()
-                doc_count = stats.get("document_count", "unknown")
-
-                if doc_count == 0:
-                    console.print(
-                        create_warning_panel("Nothing to Delete", f"Vector store '{store_name}' is already empty.")
-                    )
-                    return
-
-                # Ask for confirmation unless --force is used
-                if not force:
-                    if isinstance(doc_count, int):
-                        message = (
-                            f"Are you sure you want to delete {doc_count} documents from vector store '{store_name}'?"
-                        )
-                    else:
-                        message = f"Are you sure you want to clear vector store '{store_name}'?"
-
-                    confirmed = typer.confirm(message, default=False)
-                    if not confirmed:
-                        console.print(create_warning_panel("Cancelled", "Deletion cancelled by user."))
-                        return
-
-                success = vector_store.clear()
-                if success:
-                    if isinstance(doc_count, int):
-                        message = f"Successfully deleted {doc_count} documents from vector store '{store_name}'"
-                    else:
-                        message = f"Successfully cleared vector store '{store_name}'"
-                    console.print(create_success_panel("Deletion Complete", message))
-                else:
-                    console.print(
-                        create_error_panel(
-                            "Deletion Failed", f"Failed to clear vector store '{store_name}'. Check logs for details."
-                        )
-                    )
-            except Exception as e:
-                console.print(create_error_panel("Error", f"Failed to delete documents: {e}"))
-
-        @cli_app.command()
-        def embed(
-            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")] = "default",
-            text: Annotated[
-                Optional[str], typer.Option("--text", "-t", help="Text to embed (or read from stdin)")
-            ] = None,
-            metadata: Annotated[
-                Optional[str], typer.Option("--metadata", "-m", help="JSON metadata to attach to document")
-            ] = None,
-        ) -> None:
-            """Embed text and store it in a vector store.
-
-            The text can be provided via the --text option or read from stdin.
-            Optional metadata can be provided as a JSON string.
-            """
-            from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel
-
-            console = Console()
-
-            vector_store = _get_embeddings_store_safe(store_name)
-            if not vector_store:
-                return
-
-            # Get text from argument or stdin
-            if text is None:
-                if not sys.stdin.isatty():
-                    text = sys.stdin.read().strip()
-                else:
-                    console.print(
-                        create_error_panel("No Input", "Please provide text via --text option or pipe it through stdin")
-                    )
-                    return
-
-            if not text:
-                console.print(create_error_panel("Empty Input", "No text provided to embed"))
-                return
-
-            # Parse metadata if provided
-            parsed_metadata = None
-            if metadata:
-                try:
-                    parsed_metadata = json.loads(metadata)
-                    if not isinstance(parsed_metadata, dict):
-                        raise ValueError("Metadata must be a JSON object")
-                except (json.JSONDecodeError, ValueError) as e:
-                    console.print(create_error_panel("Invalid Metadata", f"Failed to parse metadata JSON: {e}"))
-                    return
-
-            try:
-                # Embed the text
-                vector_store.embed_text(text, parsed_metadata)
-
-                # Show success message with stats
-                stats = vector_store.get_stats()
-                doc_count = stats.get("document_count", "unknown")
-
-                message = f"Successfully embedded text into vector store '{store_name}'"
-                if isinstance(doc_count, int):
-                    message += f"\nTotal documents in store: {doc_count}"
-
-                console.print(create_success_panel("Embedding Complete", message))
-
-                # Show a preview of what was embedded
-                preview_table = Table(title="Embedded Document", show_header=True, header_style="bold green")
-                preview_table.add_column("Property", style="cyan")
-                preview_table.add_column("Value", style="white")
-
-                preview_text = text[:200] + "..." if len(text) > 200 else text
-                preview_table.add_row("Text", preview_text)
-                if parsed_metadata:
-                    preview_table.add_row("Metadata", json.dumps(parsed_metadata, indent=2))
-
-                console.print(preview_table)
-
-            except Exception as e:
-                console.print(create_error_panel("Embedding Failed", f"Failed to embed text: {e}"))
-
+        # ------------------------------------------------------------------ #
+        # query
+        # ------------------------------------------------------------------ #
         @cli_app.command()
         def query(
-            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")] = "default",
-            query_text: Annotated[str, typer.Argument(help="Query text to search for")] = "",
-            k: Annotated[int, typer.Option("--k", help="Number of results to return")] = 4,
-            filter: Annotated[
+            query_text: Annotated[str, typer.Argument(help="Query text")] = "",
+            retriever_name: Annotated[
+                str, typer.Option("--retriever", "-r", "--store", "-s", help="Retriever configuration name")
+            ] = "default",
+            k: Annotated[int, typer.Option("--k", help="Number of results")] = 4,
+            filter: Annotated[  # noqa: A002
                 Optional[str],
-                typer.Option("--filter", help='Metadata filter as JSON string (e.g., \'{"file_hash": "abc123"}\')'),
+                typer.Option("--filter", help='Metadata filter JSON, e.g. \'{"source": "docs"}\''),
             ] = None,
             full: Annotated[bool, typer.Option("--full", help="Show full document content")] = False,
-            max_length: Annotated[
-                int, typer.Option("--max-length", "-l", help="Maximum length of content to display per document")
-            ] = 100,
+            max_length: Annotated[int, typer.Option("--max-length", "-l")] = 100,
         ) -> None:
-            """Query a vector store for similar documents.
-
-            Search for documents similar to the provided query text and display
-            the results in a formatted table. Optionally filter by metadata.
-
-            Example:
-                cli rag query "CNES" --filter '{"file_hash": "1fa730def69ff25e"}'
-            """
+            """Search a retriever for documents similar to the query."""
             from genai_tk.utils.rich_widgets import create_error_panel, create_warning_panel
 
             console = Console()
+            managed = _get_retriever_safe(retriever_name)
+            if not managed:
+                raise typer.Exit(1)
 
-            embeddings_store = _get_embeddings_store_safe(store_name)
-            if not embeddings_store:
-                return
-
-            if k < 1:
-                console.print(create_error_panel("Invalid Parameter", "k must be at least 1"))
-                return
-
-            # Parse metadata filter if provided
-            metadata_filter = None
+            metadata_filter: dict | None = None
             if filter:
                 try:
                     metadata_filter = json.loads(filter)
-                except json.JSONDecodeError as e:
-                    console.print(create_error_panel("Invalid Filter", f"Failed to parse filter JSON: {e}"))
-                    return
+                except json.JSONDecodeError as exc:
+                    console.print(create_error_panel("Invalid Filter", f"{exc}"))
+                    raise typer.Exit(1) from exc
 
             try:
-                # Perform the query (async)
-                results = asyncio.run(embeddings_store.query(query_text, k=k, filter=metadata_filter))
+                results = asyncio.run(managed.aquery(query_text, k=k, filter=metadata_filter))
+            except Exception as exc:
+                console.print(create_error_panel("Query Failed", f"{exc}"))
+                raise typer.Exit(1) from exc
 
-                if not results:
-                    message = f"No results found for query: '{query_text}'"
-                    if metadata_filter:
-                        message += f" (filter: {json.dumps(metadata_filter)})"
-                    console.print(create_warning_panel("No Results", message))
-                    return
+            if not results:
+                console.print(create_warning_panel("No Results", f"No results for: '{query_text}'"))
+                return
 
-                # Display results with full content if requested
-                if full:
-                    for i, doc in enumerate(results, 1):
-                        console.print(f"\n[bold cyan]Document {i}[/bold cyan]")
-                        console.print(f"[bold]Content:[/bold]\n{doc.page_content}")
-                        if doc.metadata:
-                            console.print("\n[bold]Metadata:[/bold]")
-                            for key, value in doc.metadata.items():
-                                console.print(f"  {key}: {value}")
-                        console.print("-" * 80)
-                else:
-                    console.print(_create_documents_table(results, max_length=max_length))
+            if full:
+                for i, doc in enumerate(results, 1):
+                    console.print(f"\n[bold cyan]Document {i}[/bold cyan]")
+                    console.print(f"[bold]Content:[/bold]\n{doc.page_content}")
+                    if doc.metadata:
+                        console.print("\n[bold]Metadata:[/bold]")
+                        for key, value in doc.metadata.items():
+                            console.print(f"  {key}: {value}")
+                    console.print("-" * 80)
+            else:
+                console.print(_create_documents_table(results, max_length=max_length))
 
-                # Show query summary
-                summary_table = Table(title="Query Summary", show_header=True, header_style="bold blue")
-                summary_table.add_column("Property", style="cyan")
-                summary_table.add_column("Value", style="white")
+            summary = Table(title="Query Summary", show_header=True, header_style="bold blue")
+            summary.add_column("Property", style="cyan")
+            summary.add_column("Value", style="white")
+            summary.add_row("Retriever", retriever_name)
+            summary.add_row("Query", query_text)
+            summary.add_row("Results Found", str(len(results)))
+            if metadata_filter:
+                summary.add_row("Filter", json.dumps(metadata_filter))
+            console.print(summary)
 
-                summary_table.add_row("Query", query_text)
-                summary_table.add_row("Results Found", str(len(results)))
-                summary_table.add_row("Requested (k)", str(k))
-                if metadata_filter:
-                    summary_table.add_row("Metadata Filter", json.dumps(metadata_filter))
-
-                console.print(summary_table)
-
-            except Exception as e:
-                console.print(create_error_panel("Query Failed", f"Failed to query vector store: {e}"))
-                import traceback
-
-                console.print(f"[dim]{traceback.format_exc()}[/dim]")
-
+        # ------------------------------------------------------------------ #
+        # embed
+        # ------------------------------------------------------------------ #
         @cli_app.command()
-        def info(
-            store_name: Annotated[str, typer.Argument(help="Name of the vector store configuration")] = "default",
+        def embed(
+            retriever_name: Annotated[
+                str, typer.Argument(help="Retriever configuration name")
+            ] = "default",
+            text: Annotated[Optional[str], typer.Option("--text", "-t")] = None,
+            metadata: Annotated[Optional[str], typer.Option("--metadata", "-m", help="JSON metadata")] = None,
         ) -> None:
-            """Get information and statistics about a vector store.
+            """Embed a single text snippet and store it in the retriever."""
+            from langchain_core.documents import Document
 
-            Display detailed information about the vector store configuration,
-            document count, and other relevant statistics.
-            """
-            from genai_tk.utils.rich_widgets import create_error_panel
+            from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel
 
             console = Console()
+            managed = _get_retriever_safe(retriever_name)
+            if not managed:
+                raise typer.Exit(1)
 
-            vector_store = _get_embeddings_store_safe(store_name)
-            if not vector_store:
+            if text is None:
+                text = sys.stdin.read().strip() if not sys.stdin.isatty() else None
+            if not text:
+                console.print(create_error_panel("No Input", "Provide text via --text or stdin"))
+                raise typer.Exit(1)
+
+            parsed_meta: dict | None = None
+            if metadata:
+                try:
+                    parsed_meta = json.loads(metadata)
+                except json.JSONDecodeError as exc:
+                    console.print(create_error_panel("Invalid Metadata", f"{exc}"))
+                    raise typer.Exit(1) from exc
+
+            doc = Document(page_content=text, metadata=parsed_meta or {"source": "cli-embed"})
+            try:
+                asyncio.run(managed.aadd_documents([doc]))
+                console.print(create_success_panel("Embedded", f"Text stored in retriever '{retriever_name}'"))
+            except Exception as exc:
+                console.print(create_error_panel("Failed", f"{exc}"))
+
+        # ------------------------------------------------------------------ #
+        # delete
+        # ------------------------------------------------------------------ #
+        @cli_app.command()
+        def delete(
+            retriever_name: Annotated[str, typer.Argument(help="Retriever configuration name")] = "default",
+            force: Annotated[bool, typer.Option("--force", "-f", help="Skip confirmation")] = False,
+        ) -> None:
+            """Delete/clear all stored documents for a retriever."""
+            from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel, create_warning_panel
+
+            console = Console()
+            managed = _get_retriever_safe(retriever_name)
+            if not managed:
+                raise typer.Exit(1)
+
+            if not force and not typer.confirm(
+                f"Delete all stored documents for retriever '{retriever_name}'?", default=False
+            ):
+                console.print(create_warning_panel("Cancelled", "Deletion cancelled."))
                 return
 
             try:
-                stats = vector_store.get_stats()
-                console.print(_create_info_table(stats))
-
-            except Exception as e:
-                console.print(create_error_panel("Info Failed", f"Failed to get vector store info: {e}"))
-
-        @cli_app.command()
-        def list_configs() -> None:
-            """List all available vector store configurations.
-
-            Display all vector store configurations that can be used with the
-            other RAG commands, including backend type and storage information.
-            """
-            console = Console()
-            from genai_tk.core.embeddings_store import EmbeddingsStore
-            from genai_tk.utils.rich_widgets import create_error_panel, create_warning_panel
-
-            try:
-                configs = EmbeddingsStore.list_available_configs()
-
-                if not configs:
+                success = asyncio.run(managed.adelete_store())
+                if success:
                     console.print(
-                        create_warning_panel(
-                            "No Configurations",
-                            "No vector store configurations found. Check your YAML configuration file.",
-                        )
+                        create_success_panel("Deleted", f"Store for retriever '{retriever_name}' cleared.")
                     )
-                    return
+                else:
+                    console.print(create_error_panel("Failed", "Could not delete store. Check logs."))
+            except NotImplementedError as exc:
+                console.print(create_error_panel("Not Supported", str(exc)))
+            except Exception as exc:
+                console.print(create_error_panel("Error", f"{exc}"))
 
-                table = Table(title="Available Vector Store Configurations", show_header=True, header_style="bold cyan")
-                table.add_column("Configuration Name", style="green", width=20)
-                table.add_column("Backend", style="blue", width=10)
-                table.add_column("Storage", style="yellow", width=11)
-                table.add_column("Embeddings", style="magenta", width=15)
-                table.add_column("Usage Example", style="dim white")
+        # ------------------------------------------------------------------ #
+        # info
+        # ------------------------------------------------------------------ #
+        @cli_app.command()
+        def info(
+            retriever_name: Annotated[str, typer.Argument(help="Retriever configuration name")] = "default",
+        ) -> None:
+            """Show configuration and statistics for a retriever."""
+            from genai_tk.utils.rich_widgets import create_error_panel
 
-                for config in sorted(configs):
-                    # Try to get detailed info about each config
-                    backend = "Unknown"
-                    storage = "Unknown"
-                    embeddings = "Unknown"
+            console = Console()
+            managed = _get_retriever_safe(retriever_name)
+            if not managed:
+                raise typer.Exit(1)
+            try:
+                console.print(_create_info_table(managed.get_stats()))
+            except Exception as exc:
+                console.print(create_error_panel("Error", f"{exc}"))
 
-                    try:
-                        # Safely create the vector store to get its info
-                        store = EmbeddingsStore.create_from_config(config)
-                        backend = store.backend or "Unknown"
+        # ------------------------------------------------------------------ #
+        # list-retrievers
+        # ------------------------------------------------------------------ #
+        @cli_app.command("list-retrievers")
+        def list_retrievers() -> None:
+            """List all configured retrievers from the ``retrievers:`` YAML section."""
+            from genai_tk.core.retriever_factory import RetrieverFactory
+            from genai_tk.utils.rich_widgets import create_warning_panel
 
-                        # Get embeddings information
-                        embeddings_id = store.embeddings_factory.embeddings_id or "default"
-                        # Simplify the embeddings ID for display
-                        if "@" in embeddings_id:
-                            # Extract model part before @ (e.g., "ada_002@openai" -> "ada_002")
-                            embeddings = embeddings_id.split("@")[0]
-                        else:
-                            embeddings = embeddings_id
+            console = Console()
+            configs = RetrieverFactory.list_available_configs()
 
-                        # Determine storage type
-                        if backend == "Chroma":
-                            storage_config = store.config.get("storage", "::memory::")
-                            storage = "Memory" if storage_config == "::memory::" else "Persistent"
-                        elif backend == "InMemory":
-                            storage = "Memory"
-                        elif backend == "Sklearn":
-                            storage = "Memory"
-                        elif backend == "PgVector":
-                            storage = "Database"
-                        else:
-                            storage = "Unknown"
+            if not configs:
+                console.print(
+                    create_warning_panel(
+                        "No Retrievers",
+                        "No retriever configurations found. Add a 'retrievers:' section to your YAML config.",
+                    )
+                )
+                return
 
-                    except Exception:
-                        # If we can't create the store, show what we can
-                        backend = "Error"
-                        storage = "Error"
-                        embeddings = "Error"
+            table = Table(title="Available Retrievers", show_header=True, header_style="bold cyan")
+            table.add_column("Name", style="green", width=24)
+            table.add_column("Type", style="blue", width=14)
+            table.add_column("Details", style="yellow")
 
-                    table.add_row(config, backend, storage, embeddings, f"uv run cli rag info {config}")
+            for name in sorted(configs):
+                try:
+                    raw = _get_retriever_raw_config(name)
+                    rtype = raw.get("type", "unknown")
+                    details = _summarise_retriever_config(rtype, raw)
+                except Exception:
+                    rtype, details = "?", ""
+                table.add_row(name, rtype, details)
 
-                console.print(table)
+            console.print(table)
 
-            except Exception as e:
-                console.print(create_error_panel("List Failed", f"Failed to list configurations: {e}"))
+        # ------------------------------------------------------------------ #
+        # list-configs  (legacy: embeddings_store configs)
+        # ------------------------------------------------------------------ #
+        @cli_app.command("list-configs")
+        def list_configs() -> None:
+            """List embeddings_store configurations (legacy, use list-retrievers instead)."""
+            from genai_tk.core.embeddings_store import EmbeddingsStore
+            from genai_tk.utils.rich_widgets import create_warning_panel
+
+            console = Console()
+            configs = EmbeddingsStore.list_available_configs()
+
+            if not configs:
+                console.print(create_warning_panel("No Configs", "No embeddings_store configurations found."))
+                return
+
+            table = Table(title="Embeddings Store Configurations", show_header=True, header_style="bold cyan")
+            table.add_column("Name", style="green", width=24)
+            table.add_column("Backend", style="blue", width=10)
+            table.add_column("Storage", style="yellow", width=12)
+            table.add_column("Embeddings", style="magenta")
+
+            for name in sorted(configs):
+                try:
+                    store = EmbeddingsStore.create_from_config(name)
+                    backend = store.backend or "?"
+                    storage = "memory" if store.config.get("storage") == "::memory::" else "disk"
+                    emb = (store.embeddings_factory.embeddings_id or "").split("@")[0]
+                except Exception:
+                    backend = storage = emb = "?"
+                table.add_row(name, backend, storage, emb)
+
+            console.print(table)
 
 
-def register_commands(cli_app: typer.Typer) -> None:
-    """Register RAG commands with the CLI application.
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
 
-    This function creates an instance of RagCommands and registers its
-    sub-commands with the provided Typer application.
 
-    Args:
-        cli_app: The Typer app instance to register commands to
-    """
-    rag_commands = RagCommands()
-    rag_commands.register(cli_app)
+def _get_retriever_raw_config(name: str) -> dict:
+    from genai_tk.utils.config_mngr import global_config
+
+    return global_config().get_dict(f"retrievers.{name}")
+
+
+def _summarise_retriever_config(rtype: str, raw: dict) -> str:
+    if rtype == "vector":
+        return f"embeddings_store={raw.get('embeddings_store', '?')}, top_k={raw.get('top_k', 4)}"
+    if rtype == "bm25":
+        return f"preprocessing={raw.get('preprocessing', 'default')}, k={raw.get('k', 4)}"
+    if rtype == "pg_hybrid":
+        return f"postgres={raw.get('postgres', 'default')}, hybrid={raw.get('hybrid_search', True)}"
+    if rtype == "ensemble":
+        refs = [c.get("ref", "?") for c in raw.get("retrievers", [])]
+        return "refs=[" + ", ".join(refs) + "]"
+    if rtype == "reranked":
+        return f"base={raw.get('retriever', '?')}, reranker={raw.get('reranker', 'embeddings')}"
+    if rtype == "zero_entropy":
+        return f"collection={raw.get('collection_name', '?')}"
+    return ""

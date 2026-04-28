@@ -15,7 +15,7 @@ from loguru import logger
 from prefect import flow, task
 from upath import UPath
 
-from genai_tk.core.embeddings_store import EmbeddingsStore
+from genai_tk.core.retriever_factory import ManagedRetriever, RetrieverFactory
 from genai_tk.extra.rag.markdown_chunking import chunk_markdown_content
 from genai_tk.utils.file_patterns import resolve_files
 from genai_tk.utils.hashing import file_digest
@@ -84,14 +84,14 @@ def _chunk_file_content(path: UPath, content: str, max_chunk_tokens: int) -> lis
 def _prepare_files(
     files: list[UPath],
     force: bool,
-    vector_store: EmbeddingsStore,
+    managed: ManagedRetriever,
 ) -> tuple[list[FileToProcess], int]:
     """Prepare files for processing, filtering out already processed files unless force is True.
 
     Args:
         files: List of file paths to process
         force: If True, process all files regardless of existing hashes
-        vector_store: Vector store instance to check for existing files
+        managed: ManagedRetriever used to check for existing file hashes (Chroma only)
 
     Returns:
         Tuple of (files_to_process, skipped_count)
@@ -99,20 +99,19 @@ def _prepare_files(
     to_process: list[FileToProcess] = []
     skipped = 0
 
-    # Get existing document metadata from vector store if available
+    # Attempt fast hash-based dedup for Chroma-backed vector stores
     existing_hashes: set[str] = set()
-    if not force and vector_store.backend == "Chroma":
+    vs = managed._vector_store
+    if not force and vs is not None and hasattr(vs, "_collection"):
         try:
-            # Try to get existing file hashes from vector store metadata
-            vs = vector_store.get_vector_store()
-            all_docs = vs._collection.get(include=["metadatas"])  # type: ignore
+            all_docs = vs._collection.get(include=["metadatas"])  # type: ignore[attr-defined]
             if all_docs and "metadatas" in all_docs:
                 for metadata in all_docs["metadatas"]:
                     if metadata and "file_hash" in metadata:
                         existing_hashes.add(metadata["file_hash"])
             logger.debug("Found {} existing file hashes in vector store", len(existing_hashes))
-        except Exception as e:
-            logger.warning("Could not retrieve existing file hashes: {}", e)
+        except Exception as exc:
+            logger.warning("Could not retrieve existing file hashes: {}", exc)
 
     for path in files:
         try:
@@ -145,69 +144,61 @@ def _prepare_files(
 @task
 def process_file_task(
     file_info: FileToProcess,
-    store_name: str,
+    retriever_name: str,
     max_chunk_tokens: int,
     root_dir: UPath | None = None,
 ) -> int:
-    """Process a single file and add its chunks to the vector store.
+    """Process a single file and add its chunks to the retriever store.
 
     Args:
         file_info: File information including path, hash, and content
-        store_name: Name of the vector store configuration
+        retriever_name: Name of the retriever configuration
         max_chunk_tokens: Maximum token count per chunk
         root_dir: Root directory for computing relative paths
 
     Returns:
-        Number of chunks added to the vector store
+        Number of chunks added to the retriever store
     """
     logger.info("Processing file: {}", file_info.path)
 
-    # Chunk the content
-    chunks = _chunk_file_content(
-        file_info.path,
-        file_info.content,
-        max_chunk_tokens=max_chunk_tokens,
-    )
-
+    chunks = _chunk_file_content(file_info.path, file_info.content, max_chunk_tokens=max_chunk_tokens)
     if not chunks:
         logger.warning("No chunks created for {}", file_info.path)
         return 0
 
-    # Compute relative path
     try:
         relative_path = file_info.path.relative_to(root_dir)
         file_name = str(relative_path)
     except ValueError:
-        # If file is not under root_dir, use absolute path
         file_name = str(file_info.path)
 
-    # Create documents with metadata
-    documents = []
-    for i, chunk_text in enumerate(chunks):
-        metadata = {
-            "source": file_name,
-            "file_hash": file_info.content_hash,
-            "chunk_index": i,
-            "total_chunks": len(chunks),
-        }
-        doc = Document(page_content=chunk_text, metadata=metadata)
-        documents.append(doc)
+    documents = [
+        Document(
+            page_content=chunk_text,
+            metadata={
+                "source": file_name,
+                "file_hash": file_info.content_hash,
+                "chunk_index": i,
+                "total_chunks": len(chunks),
+            },
+        )
+        for i, chunk_text in enumerate(chunks)
+    ]
 
-    # Add to vector store
-    vector_store = EmbeddingsStore.create_from_config(store_name)
-    _ = vector_store.add_documents(documents)
+    managed = RetrieverFactory.create(retriever_name)
+    managed.add_documents(documents)
 
-    logger.info("Added {} chunks from {} to vector store", len(documents), file_info.path)
+    logger.info("Added {} chunks from {} to retriever '{}'", len(documents), file_info.path, retriever_name)
     return len(documents)
 
 
 @flow(
     name="RAG File Ingestion",
-    description="Ingest files into RAG vector store with parallel processing",
+    description="Ingest files into a RAG retriever store with parallel processing",
 )
 def rag_file_ingestion_flow(
     root_dir: str,
-    store_name: str,
+    retriever_name: str,
     max_chunk_tokens: int,
     include_patterns: list[str] | None = None,
     exclude_patterns: list[str] | None = None,
@@ -215,11 +206,11 @@ def rag_file_ingestion_flow(
     force: bool = False,
     batch_size: int = 10,
 ) -> dict[str, Any]:
-    """Ingest files into a RAG vector store with parallel processing.
+    """Ingest files into a RAG retriever store with parallel processing.
 
     Args:
         root_dir: Root directory containing files to process
-        store_name: Name of the vector store configuration
+        retriever_name: Name of the retriever configuration
         max_chunk_tokens: Maximum token count per chunk
         include_patterns: List of glob patterns for files to include
         exclude_patterns: List of glob patterns for files to exclude
@@ -230,9 +221,8 @@ def rag_file_ingestion_flow(
     Returns:
         Dictionary with statistics about the ingestion process
     """
-    logger.info("Starting RAG file ingestion from '{}' to store '{}'", root_dir, store_name)
+    logger.info("Starting RAG file ingestion from '{}' to retriever '{}'", root_dir, retriever_name)
 
-    # Resolve files
     root_path = UPath(root_dir)
     if not root_path.exists():
         raise ValueError(f"Root directory does not exist: {root_dir}")
@@ -250,58 +240,37 @@ def rag_file_ingestion_flow(
     logger.info("Found {} files matching patterns", len(files))
 
     if not files:
-        logger.warning("No files found to process")
-        return {
-            "total_files": 0,
-            "processed_files": 0,
-            "skipped_files": 0,
-            "total_chunks": 0,
-        }
+        return {"total_files": 0, "processed_files": 0, "skipped_files": 0, "total_chunks": 0}
 
-    # Get vector store instance for checking existing files
-    vector_store = EmbeddingsStore.create_from_config(store_name)
-
-    # Prepare files
-    files_to_process, skipped = _prepare_files(files, force, vector_store)
+    managed = RetrieverFactory.create(retriever_name)
+    files_to_process, skipped = _prepare_files(files, force, managed)
 
     logger.info("Processing {} files, skipping {} already processed files", len(files_to_process), skipped)
 
     if not files_to_process:
-        logger.info("No new files to process")
-        return {
-            "total_files": len(files),
-            "processed_files": 0,
-            "skipped_files": skipped,
-            "total_chunks": 0,
-        }
+        return {"total_files": len(files), "processed_files": 0, "skipped_files": skipped, "total_chunks": 0}
 
-    # Process files in batches
     total_chunks = 0
     for i in range(0, len(files_to_process), batch_size):
         batch = files_to_process[i : i + batch_size]
-        logger.info("Processing batch {} with {} files", i // batch_size + 1, len(batch))
+        logger.info("Processing batch {} ({} files)", i // batch_size + 1, len(batch))
 
-        # Submit tasks for the batch
-        futures = []
-        for file_info in batch:
-            future = process_file_task.submit(
-                file_info=file_info,
-                store_name=store_name,
+        futures = [
+            process_file_task.submit(
+                file_info=fi,
+                retriever_name=retriever_name,
                 max_chunk_tokens=max_chunk_tokens,
                 root_dir=root_path,
             )
-            futures.append(future)
-
-        # Wait for batch to complete and collect results
+            for fi in batch
+        ]
         for future in futures:
             try:
-                chunk_count = future.result()
-                total_chunks += chunk_count
-            except Exception as e:
-                logger.error("Error processing file in batch: {}", e)
+                total_chunks += future.result()
+            except Exception as exc:
+                logger.error("Error processing file: {}", exc)
 
-    logger.info("Completed RAG file ingestion: {} files, {} chunks", len(files_to_process), total_chunks)
-
+    logger.info("Completed: {} files, {} chunks", len(files_to_process), total_chunks)
     return {
         "total_files": len(files),
         "processed_files": len(files_to_process),

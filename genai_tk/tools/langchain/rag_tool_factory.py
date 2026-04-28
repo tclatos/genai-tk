@@ -1,9 +1,21 @@
-"""RAG Tool Factory for LangChain Integration.
+"""RAG Tool Factory for LangChain agents.
 
-This module provides a factory for creating RAG (Retrieval-Augmented Generation)
-tools that can be used with LangChain agents. The factory creates tools that perform
-similarity searches against vector stores with optional metadata filtering.
+Creates LangChain tools that perform async similarity searches via a
+:class:`~genai_tk.core.retriever_factory.ManagedRetriever`.
+
+Configuration example (agent YAML profile)::
+
+    tools:
+      - spec: rag_search
+        config:
+          retriever: hybrid_ensemble
+          tool_name: knowledge_search
+          tool_description: "Search the company knowledge base"
+          default_filter: {source: docs}
+          top_k: 5
 """
+
+from __future__ import annotations
 
 import json
 from typing import Any
@@ -12,193 +24,158 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
-from genai_tk.core.embeddings_store import EmbeddingsStore
-
 
 class RAGToolConfig(BaseModel):
-    """Configuration for RAG tool factory.
+    """Configuration for the RAG tool factory.
 
     Example:
-        ```
+        ```python
         config = RAGToolConfig(
-            embeddings_store="default",
+            retriever="hybrid_ensemble",
             tool_name="knowledge_base",
-            tool_description="Search company knowledge base for relevant documents",
-            default_filter={"source": "docs"},
+            tool_description="Search company knowledge base",
+            default_filter={"department": "engineering"},
             top_k=5,
         )
         ```
     """
 
-    embeddings_store: str = Field(description="Name of vector store configuration to use")
-    tool_name: str = Field(default="rag_search", description="Name of the generated tool")
+    retriever: str = Field(description="Retriever config tag (key in ``retrievers:`` YAML section)")
+    tool_name: str = Field(default="rag_search", description="Name of the generated LangChain tool")
     tool_description: str = Field(
-        default="Search vector store for relevant documents. Accepts a query string and optional metadata filter in JSON format.",
-        description="Description of what the tool does",
+        default=(
+            "Search the knowledge base for relevant documents. "
+            "Accepts a query string and an optional metadata filter in JSON format."
+        ),
+        description="Description shown to the LLM agent",
     )
     default_filter: dict[str, Any] | None = Field(
-        default=None, description="Default metadata filter to apply to queries (merged with runtime filter)"
+        default=None,
+        description="Default metadata filter merged with any runtime filter",
     )
-    top_k: int = Field(default=4, description="Default maximum number of results to return")
+    top_k: int = Field(default=4, description="Maximum number of results to return")
 
 
 class RAGToolFactory:
-    """Factory for creating RAG (Retrieval-Augmented Generation) tools for LangChain agents.
-
-    This factory creates tools that can execute similarity searches against vector stores
-    using the EmbeddingsStore with optional metadata filtering capabilities.
+    """Factory for creating RAG search tools backed by a ManagedRetriever.
 
     Example:
-        ```
+        ```python
         config = RAGToolConfig(
-            embeddings_store="knowledge_base",
+            retriever="hybrid_ensemble",
             tool_name="search_docs",
             tool_description="Search technical documentation",
-            default_filter={"category": "technical"},
             top_k=5,
         )
-
         factory = RAGToolFactory(llm)
-        tool = factory.create_tool(config)
-
-        # The tool accepts a query and optional filter
-        result = tool.invoke({"query": "Python best practices", "filter": '{"author": "John"}'})
+        search_tool = factory.create_tool(config)
+        result = await search_tool.ainvoke({"query": "vector search", "filter": '{"source": "docs"}'})
         ```
     """
 
     def __init__(self, llm: BaseChatModel) -> None:
-        """Initialize the factory with a language model.
-
-        Args:
-            llm: Language model (kept for compatibility, not currently used)
-        """
         self.llm = llm
 
     def create_tool(self, config: RAGToolConfig) -> BaseTool:
-        """Create a RAG tool based on the provided configuration.
+        """Create a RAG tool from the given configuration.
 
         Args:
-            config: Configuration specifying vector store and tool behavior
+            config: Tool configuration including retriever tag and metadata.
 
         Returns:
-            Configured LangChain tool for RAG search that accepts query and optional filter
-
-        Raises:
-            ValueError: If embeddings store configuration is invalid
+            Async LangChain tool that accepts ``query`` and optional ``filter``.
         """
-        # Create embeddings store from configuration
+        from genai_tk.core.retriever_factory import RetrieverFactory
+
         try:
-            embeddings_store = EmbeddingsStore.create_from_config(config.embeddings_store)
-        except Exception as e:
-            raise ValueError(f"Failed to create embeddings store '{config.embeddings_store}': {e}") from e
+            managed = RetrieverFactory.create(config.retriever)
+        except ValueError as exc:
+            raise ValueError(f"Failed to create retriever '{config.retriever}': {exc}") from exc
+
+        default_filter = config.default_filter
+        top_k = config.top_k
 
         @tool
-        async def rag_search_tool(query: str, filter: str | None = None) -> str:
-            """Search vector store for relevant documents.
+        async def rag_search_tool(query: str, filter: str | None = None) -> str:  # noqa: A002
+            """Search the knowledge base for relevant documents.
 
             Args:
-                query: The search query string
-                filter: Optional metadata filter as JSON string (e.g., '{"file_hash": "abc123"}')
+                query: The search query string.
+                filter: Optional metadata filter as JSON (e.g. ``'{"source": "docs"}'``).
 
             Returns:
-                Formatted string containing relevant documents
+                Formatted string with matching document content and metadata.
             """
+            # Parse runtime filter
+            runtime_filter: dict[str, Any] | None = None
+            if filter:
+                try:
+                    runtime_filter = json.loads(filter)
+                except json.JSONDecodeError as exc:
+                    return f"Error: invalid filter JSON — {exc}"
+
+            # Merge filters
+            merged: dict[str, Any] | None = None
+            if default_filter or runtime_filter:
+                merged = dict(default_filter or {})
+                if runtime_filter:
+                    merged.update(runtime_filter)
+
             try:
-                # Parse runtime filter if provided
-                runtime_filter = None
-                if filter:
-                    try:
-                        runtime_filter = json.loads(filter)
-                    except json.JSONDecodeError as e:
-                        return f"Error: Invalid filter JSON format: {e}"
+                docs = await managed.aquery(query, k=top_k, filter=merged)
+            except Exception as exc:  # noqa: BLE001
+                return f"Error searching knowledge base: {exc}"
 
-                # Merge default filter with runtime filter
-                merged_filter = None
-                if config.default_filter or runtime_filter:
-                    merged_filter = {}
-                    if config.default_filter:
-                        merged_filter.update(config.default_filter)
-                    if runtime_filter:
-                        merged_filter.update(runtime_filter)
+            if not docs:
+                return "No relevant documents found."
 
-                # Perform similarity search using embeddings_store.query
-                docs = await embeddings_store.query(query, k=config.top_k, filter=merged_filter)
+            parts: list[str] = []
+            for i, doc in enumerate(docs, 1):
+                parts.append(f"Document {i}:\n{doc.page_content}")
+                if doc.metadata:
+                    meta_str = ", ".join(f"{k}={v}" for k, v in doc.metadata.items())
+                    parts.append(f"Metadata: {meta_str}")
+            return "\n\n".join(parts)
 
-                # Format documents into a single string
-                if not docs:
-                    return "No relevant documents found."
-
-                result_parts = []
-                for i, doc in enumerate(docs, 1):
-                    result_parts.append(f"Document {i}:\n{doc.page_content}")
-                    if doc.metadata:
-                        metadata_str = ", ".join(f"{k}={v}" for k, v in doc.metadata.items())
-                        result_parts.append(f"Metadata: {metadata_str}")
-
-                return "\n\n".join(result_parts)
-            except Exception as e:
-                return f"Error searching vector store: {str(e)}"
-
-        # Set the tool name and description after creation
         rag_search_tool.name = config.tool_name
         rag_search_tool.description = config.tool_description
-
         return rag_search_tool
 
     def create_tool_from_dict(self, config_dict: dict[str, Any]) -> BaseTool:
-        """Create a RAG tool from a dictionary configuration.
+        """Create a RAG tool from a plain dictionary.
 
         Args:
-            config_dict: Dictionary containing tool configuration
+            config_dict: Dictionary matching :class:`RAGToolConfig` fields.
 
         Returns:
-            Configured LangChain tool for RAG search
+            Configured LangChain tool.
         """
-        config = RAGToolConfig(**config_dict)
-        return self.create_tool(config)
+        return self.create_tool(RAGToolConfig(**config_dict))
 
 
 def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | str = "default") -> BaseTool:
-    """Create a RAG tool from a configuration dictionary.
-
-    This function provides a simple interface for creating RAG tools
-    from configuration files or dictionaries.
+    """Convenience function to create a RAG tool from a config dict.
 
     Args:
-        config: Configuration dictionary with tool settings
-        llm: Language model instance or LLM identifier string (use "default" for configured default)
+        config: Tool configuration dict (see :class:`RAGToolConfig`).
+        llm: LangChain chat model or identifier string (``"default"`` for the
+            configured default LLM).
 
     Returns:
-        Configured RAG search tool
+        Configured async RAG search tool.
 
     Example:
-        ```
-        config = {
-            "embeddings_store": "knowledge_base",
-            "tool_name": "search_documents",
-            "tool_description": "Search company documents for relevant information",
-            "default_filter": {"department": "engineering"},
+        ```python
+        tool = create_rag_tool_from_config({
+            "retriever": "hybrid_ensemble",
+            "tool_name": "knowledge_search",
             "top_k": 5,
-        }
-
-        tool = create_rag_tool_from_config(config)
-
-        # Use the tool with a query
-        result = tool.invoke({"query": "What are the coding standards?"})
-
-        # Use the tool with a query and additional filter
-        result = tool.invoke({"query": "Python best practices", "filter": '{"author": "John Smith"}'})
+        })
         ```
     """
     if isinstance(llm, str):
-        if llm == "default":
-            from genai_tk.core.llm_factory import get_llm
+        from genai_tk.core.llm_factory import get_llm
 
-            llm = get_llm()
-        else:
-            from genai_tk.core.llm_factory import LlmFactory
+        llm = get_llm(llm if llm != "default" else None)
 
-            llm = LlmFactory(llm=llm).get()
-
-    factory = RAGToolFactory(llm)
-    return factory.create_tool_from_dict(config)
+    return RAGToolFactory(llm).create_tool(RAGToolConfig(**config))
