@@ -181,26 +181,36 @@ When either signal indicates sensitivity, the LLM is switched to a pre-configure
 
 ```python
 from genai_tk.agents.langchain.middleware.sensitivity_router_middleware import (
+    SensitivityRouterConfig,
     SensitivityRouterMiddleware,
-    RouterConfig,
 )
-from genai_tk.agents.langchain.middleware.sensitivity_scorer import SensitivityScorerConfig
+from genai_tk.agents.langchain.middleware.sensitivity_scorer import (
+    DefaultScorerConfig,
+    DefaultSensitivityScorer,
+)
+from genai_tk.agents.langchain.middleware.presidio_detector import PresidioDetectorConfig
 
-config = RouterConfig(
-    safe_llm="gpt_4mini@openai",  # fallback for sensitive content
-    sensitive_file_patterns=[
+# Build a scorer with custom thresholds
+scorer = DefaultSensitivityScorer(
+    DefaultScorerConfig(
+        sensitivity_threshold=0.30,
+        detector=PresidioDetectorConfig(enable_spacy=True),
+    )
+)
+
+config = SensitivityRouterConfig(
+    safe_llm="ollama_local",
+    sensitive_source_patterns=[
         "**/hr/**",
-        "**/executive/**",
-        "**/medical/**",
-        "**/*confidential*",
+        "**/confidential/**",
     ],
-    scorer_config=SensitivityScorerConfig(
-        threshold=0.5,  # 0.0-1.0; higher = less sensitive
-    ),
 )
 
-middleware = SensitivityRouterMiddleware(config=config)
+# Pass the pre-built scorer directly — scorer_class / scorer_kwargs are ignored
+middleware = SensitivityRouterMiddleware(config=config, scorer=scorer)
 ```
+
+When no `scorer` is passed, the middleware builds one from `config.scorer_class` and `config.scorer_kwargs` (useful for YAML-driven setups).
 
 ### YAML Configuration
 

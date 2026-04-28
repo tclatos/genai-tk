@@ -295,7 +295,7 @@ class TestCommands(CliTopCommand):
             from rich.console import Console
             from rich.table import Table
 
-            from genai_tk.core.notebook_runner import run_notebook
+            from genai_tk.utils.notebook_runner import run_notebook
 
             console = Console()
 

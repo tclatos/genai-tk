@@ -104,13 +104,21 @@ class SensitivityRouterMiddleware(AgentMiddleware):
     Args:
         config: Full router config.  Alternatively, pass keyword arguments
             matching :class:`SensitivityRouterConfig` fields directly (YAML style).
+        scorer: Pre-built scorer instance.  When provided, ``config.scorer_class``
+            and ``config.scorer_kwargs`` are ignored.  Use this for programmatic
+            setup where the scorer requires non-serializable configuration.
     """
 
-    def __init__(self, config: SensitivityRouterConfig | None = None, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        config: SensitivityRouterConfig | None = None,
+        scorer: SensitivityScorer | None = None,
+        **kwargs: Any,
+    ) -> None:
         if config is None:
             config = SensitivityRouterConfig(**kwargs)
         self._config = config
-        self._scorer: SensitivityScorer = self._build_scorer()
+        self._scorer: SensitivityScorer = scorer if scorer is not None else self._build_scorer()
         self._safe_model: BaseChatModel | None = None  # lazy-resolved
         # sensitive_sources[thread_id] = set of matched source paths
         self._sensitive_sources: dict[str, set[str]] = {}

@@ -1,8 +1,8 @@
 """Lightweight Jupyter notebook executor for regression testing.
 
 Executes code cells in `.ipynb` files in order, using a shared ``exec()``
-namespace — the same approach recommended by the lightweight notebook testing
-article.  Skips empty cells and (optionally) cells that install packages.
+namespace. Skips empty cells and (optionally) cells that install packages.
+Ideas taken from : https://medium.com/codetodeploy/automating-jupyter-notebook-testing-a-liteweight-approach-f723273eeacf
 
 Intentionally dependency-free beyond the standard library and Rich so it can
 be used in CI without a full Jupyter stack.
@@ -72,7 +72,7 @@ def _strip_magics(source: str) -> str:
     cleaned = []
     for line in source.splitlines(keepends=True):
         lstripped = line.lstrip()
-        if lstripped.startswith("%") or lstripped.startswith("!"):
+        if lstripped.startswith(("%", "!")):
             cleaned.append("# " + line)  # comment out so line numbers stay aligned
         else:
             cleaned.append(line)

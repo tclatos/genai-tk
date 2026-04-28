@@ -4,6 +4,7 @@ llm:
   models:
     default: gpt_oss120@openrouter
     fake: parrot_local@fake 
+    safe_llm: mistral-small@edenai
     
     cheap_model: claude-haiku@openrouter
     fast_model: claude-haiku@openrouter
