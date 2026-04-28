@@ -36,7 +36,7 @@ Configuration example:
 Usage:
     ```python
     es = EmbeddingsStore.create_from_config("default")
-    vs = es.get_vector_store()            # returns LangChain VectorStore
+    vs = es.get_vector_store()  # returns LangChain VectorStore
     results = vs.similarity_search("query", k=4)
     ```
 """
@@ -195,13 +195,10 @@ class EmbeddingsStore(BaseModel):
             Configured EmbeddingsStore instance.
         """
         try:
-            cfg = _EmbeddingsStoreConfig.model_validate(
-                global_config().get_dict(f"embeddings_store.{config_tag}")
-            )
+            cfg = _EmbeddingsStoreConfig.model_validate(global_config().get_dict(f"embeddings_store.{config_tag}"))
         except (ValueError, KeyError) as exc:
             raise ValueError(
-                f"embeddings_store configuration '{config_tag}' not found. "
-                f"Available: {cls.list_available_configs()}"
+                f"embeddings_store configuration '{config_tag}' not found. Available: {cls.list_available_configs()}"
             ) from exc
 
         instance = cls.model_construct(
@@ -227,13 +224,10 @@ class EmbeddingsStore(BaseModel):
             logger.warning("Chroma_in_memory is deprecated — use backend='Chroma' with storage='::memory::'")
             backend = "Chroma"
         if backend == "Sklearn":
-            raise ValueError(
-                "The Sklearn backend has been removed. Use 'Chroma' or 'InMemory' instead."
-            )
+            raise ValueError("The Sklearn backend has been removed. Use 'Chroma' or 'InMemory' instead.")
         if backend not in get_args(VECTOR_STORE_ENGINE):
             raise ValueError(
-                f"Unknown vector store backend: '{backend}'. "
-                f"Supported: {list(get_args(VECTOR_STORE_ENGINE))}"
+                f"Unknown vector store backend: '{backend}'. Supported: {list(get_args(VECTOR_STORE_ENGINE))}"
             )
         return backend
 
@@ -326,9 +320,7 @@ class EmbeddingsStore(BaseModel):
             persist_directory = storage
         else:
             try:
-                persist_directory = str(
-                    global_config().get_dir_path("vector_store.storage", create_if_not_exists=True)
-                )
+                persist_directory = str(global_config().get_dir_path("vector_store.storage", create_if_not_exists=True))
             except (ValueError, KeyError):
                 persist_directory = storage
 

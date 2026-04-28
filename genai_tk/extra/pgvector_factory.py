@@ -31,7 +31,6 @@ from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import ProgrammingError
 
-
 # ---------------------------------------------------------------------------
 # Pydantic config models
 # ---------------------------------------------------------------------------
@@ -104,8 +103,7 @@ def create_pg_vector_store(
         )
     except ImportError as exc:
         raise ImportError(
-            "langchain-postgres is required for PGVectorStore. "
-            "Install it with: uv add langchain-postgres"
+            "langchain-postgres is required for PGVectorStore. Install it with: uv add langchain-postgres"
         ) from exc
 
     from genai_tk.extra.postgres import get_pg_engine

@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Optional
 
@@ -207,6 +206,10 @@ class RagCommands(CliTopCommand):
             if not managed:
                 raise typer.Exit(1)
 
+            if k < 1:
+                console.print(create_error_panel("Invalid Parameter", "k must be at least 1"))
+                raise typer.Exit(1)
+
             metadata_filter: dict | None = None
             if filter:
                 try:
@@ -252,9 +255,7 @@ class RagCommands(CliTopCommand):
         # ------------------------------------------------------------------ #
         @cli_app.command()
         def embed(
-            retriever_name: Annotated[
-                str, typer.Argument(help="Retriever configuration name")
-            ] = "default",
+            retriever_name: Annotated[str, typer.Argument(help="Retriever configuration name")] = "default",
             text: Annotated[Optional[str], typer.Option("--text", "-t")] = None,
             metadata: Annotated[Optional[str], typer.Option("--metadata", "-m", help="JSON metadata")] = None,
         ) -> None:
@@ -269,7 +270,10 @@ class RagCommands(CliTopCommand):
                 raise typer.Exit(1)
 
             if text is None:
-                text = sys.stdin.read().strip() if not sys.stdin.isatty() else None
+                import click
+
+                stdin = click.get_text_stream("stdin")
+                text = stdin.read().strip() if not stdin.isatty() else None
             if not text:
                 console.print(create_error_panel("No Input", "Provide text via --text or stdin"))
                 raise typer.Exit(1)
@@ -314,9 +318,7 @@ class RagCommands(CliTopCommand):
             try:
                 success = asyncio.run(managed.adelete_store())
                 if success:
-                    console.print(
-                        create_success_panel("Deleted", f"Store for retriever '{retriever_name}' cleared.")
-                    )
+                    console.print(create_success_panel("Deleted", f"Store for retriever '{retriever_name}' cleared."))
                 else:
                     console.print(create_error_panel("Failed", "Could not delete store. Check logs."))
             except NotImplementedError as exc:
@@ -441,3 +443,16 @@ def _summarise_retriever_config(rtype: str, raw: dict) -> str:
     if rtype == "zero_entropy":
         return f"collection={raw.get('collection_name', '?')}"
     return ""
+
+
+def register_commands(cli_app: typer.Typer) -> None:
+    """Register the RAG command group onto *cli_app*.
+
+    Convenience function used by integration tests and any caller that wants
+    to mount the ``rag`` sub-commands without going through the full
+    ``CliTopCommand`` discovery mechanism.
+
+    Args:
+        cli_app: Typer application to add the ``rag`` sub-app to.
+    """
+    RagCommands().register(cli_app)

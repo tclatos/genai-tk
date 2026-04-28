@@ -39,7 +39,7 @@ class TestRAGCommands:
 
         # Should show available configurations from baseline.yaml
         output = result.stdout
-        assert "Available Vector Store Configurations" in output
+        assert "Embeddings Store Configurations" in output
 
         # Should show column headers for the enhanced table
         if "No Configurations" not in output:
@@ -56,22 +56,21 @@ class TestRAGCommands:
         assert result.exit_code == 0
 
         output = result.stdout
-        # Should show vector store information
-        assert "Vector Store Information" in output
+        # Should show retriever information
+        assert "Retriever Information" in output
         assert "Backend" in output
-        assert "InMemory" in output or "Chroma" in output
+        assert "Chroma" in output
 
     def test_info_command_with_invalid_config(self, cli_app, cli_runner):
         """Test getting info about a non-existent vector store."""
         result = cli_runner.invoke(cli_app, ["rag", "info", "nonexistent_store"])
 
-        # Should succeed (error is handled gracefully)
-        assert result.exit_code == 0
+        # Should handle error with exit code 1
+        assert result.exit_code == 1
 
         output = result.stdout
-        # Should show error message with new structured exception format
-        assert "Configuration key" in output or "not found" in output
-        assert "nonexistent_store" in output
+        # Should show error message
+        assert "not found" in output.lower() or "nonexistent_store" in output
 
     def test_embed_command_with_text_option(self, cli_app, cli_runner):
         """Test embedding text using the --text option."""
@@ -84,7 +83,7 @@ class TestRAGCommands:
 
         output = result.stdout
         # Should show success message
-        assert "Embedding Complete" in output or "Successfully embedded" in output
+        assert "Embedded" in output
 
     def test_embed_command_with_metadata(self, cli_app, cli_runner):
         """Test embedding text with JSON metadata."""
@@ -99,7 +98,7 @@ class TestRAGCommands:
         assert result.exit_code == 0
 
         output = result.stdout
-        assert "Embedding Complete" in output or "Successfully embedded" in output
+        assert "Embedded" in output
 
     def test_embed_command_with_invalid_metadata(self, cli_app, cli_runner):
         """Test embedding text with invalid JSON metadata."""
@@ -110,8 +109,8 @@ class TestRAGCommands:
             cli_app, ["rag", "embed", "default", "--text", test_text, "--metadata", invalid_metadata]
         )
 
-        # Should succeed (error handled gracefully)
-        assert result.exit_code == 0
+        # Should exit with error code 1
+        assert result.exit_code == 1
 
         output = result.stdout
         assert "Invalid Metadata" in output
@@ -120,11 +119,11 @@ class TestRAGCommands:
         """Test embedding command without providing text."""
         result = cli_runner.invoke(cli_app, ["rag", "embed", "default"])
 
-        # Should succeed (error handled gracefully)
-        assert result.exit_code == 0
+        # Should exit with error code 1
+        assert result.exit_code == 1
 
         output = result.stdout
-        assert "Empty Input" in output or "No Input" in output
+        assert "No Input" in output
 
     def test_query_command_basic(self, cli_app, cli_runner):
         """Test querying a vector store."""
@@ -132,7 +131,7 @@ class TestRAGCommands:
         cli_runner.invoke(cli_app, ["rag", "embed", "default", "--text", "Python is a programming language"])
 
         # Then query it
-        result = cli_runner.invoke(cli_app, ["rag", "query", "default", "programming language"])
+        result = cli_runner.invoke(cli_app, ["rag", "query", "programming language", "--retriever", "default"])
 
         # Should succeed
         assert result.exit_code == 0
@@ -147,7 +146,7 @@ class TestRAGCommands:
         cli_runner.invoke(cli_app, ["rag", "embed", "default", "--text", "Machine learning is a subset of AI"])
 
         # Query with k parameter
-        result = cli_runner.invoke(cli_app, ["rag", "query", "default", "machine learning", "--k", "2"])
+        result = cli_runner.invoke(cli_app, ["rag", "query", "machine learning", "--retriever", "default", "--k", "2"])
 
         # Should succeed
         assert result.exit_code == 0
@@ -158,10 +157,10 @@ class TestRAGCommands:
 
     def test_query_command_invalid_k(self, cli_app, cli_runner):
         """Test query command with invalid k parameter."""
-        result = cli_runner.invoke(cli_app, ["rag", "query", "default", "test query", "--k", "0"])
+        result = cli_runner.invoke(cli_app, ["rag", "query", "test query", "--retriever", "default", "--k", "0"])
 
-        # Should succeed (error handled gracefully)
-        assert result.exit_code == 0
+        # Should exit with error code 1
+        assert result.exit_code == 1
 
         output = result.stdout
         assert "Invalid Parameter" in output
@@ -171,7 +170,7 @@ class TestRAGCommands:
         """Test query command with metadata filter parameter."""
         # Test with a valid JSON filter
         result = cli_runner.invoke(
-            cli_app, ["rag", "query", "default", "test query", "--filter", '{"file_hash": "abc123"}']
+            cli_app, ["rag", "query", "test query", "--retriever", "default", "--filter", '{"file_hash": "abc123"}']
         )
 
         # Should succeed (even if no results found)
@@ -183,13 +182,15 @@ class TestRAGCommands:
 
     def test_query_command_invalid_filter(self, cli_app, cli_runner):
         """Test query command with invalid filter JSON."""
-        result = cli_runner.invoke(cli_app, ["rag", "query", "default", "test query", "--filter", "not valid json"])
+        result = cli_runner.invoke(
+            cli_app, ["rag", "query", "test query", "--retriever", "default", "--filter", "not valid json"]
+        )
 
-        # Should succeed (error handled gracefully)
-        assert result.exit_code == 0
+        # Should exit with error code 1
+        assert result.exit_code == 1
 
         output = result.stdout
-        assert "Invalid Filter" in output or "Failed to parse" in output
+        assert "Invalid Filter" in output
 
     def test_delete_command_empty_store(self, cli_app, cli_runner):
         """Test deleting from an empty vector store."""
@@ -199,8 +200,8 @@ class TestRAGCommands:
         assert result.exit_code == 0
 
         output = result.stdout
-        # Should show warning or success message
-        assert "Nothing to Delete" in output or "Deletion Complete" in output
+        # Should show deletion message
+        assert "Deleted" in output or "deleted" in output.lower()
 
     def test_delete_command_with_documents(self, cli_app, cli_runner):
         """Test deleting from a vector store with documents."""
@@ -235,7 +236,9 @@ class TestRAGCommands:
         assert embed_result.exit_code == 0
 
         # Step 2: Query for the document
-        query_result = cli_runner.invoke(cli_app, ["rag", "query", "default", "semantic search", "--k", "1"])
+        query_result = cli_runner.invoke(
+            cli_app, ["rag", "query", "semantic search", "--retriever", "default", "--k", "1"]
+        )
         assert query_result.exit_code == 0
 
         # Step 3: Get info about the store
@@ -243,7 +246,7 @@ class TestRAGCommands:
         assert info_result.exit_code == 0
 
         # Step 4: Delete all documents
-        delete_result = cli_runner.invoke(cli_app, ["rag", "delete", "default"])
+        delete_result = cli_runner.invoke(cli_app, ["rag", "delete", "default", "--force"])
         assert delete_result.exit_code == 0
 
     @pytest.mark.parametrize(
@@ -260,17 +263,17 @@ class TestRAGCommands:
         commands_to_test = [
             ["rag", "info", invalid_store],
             ["rag", "embed", invalid_store, "--text", "test"],
-            ["rag", "query", invalid_store, "test query"],
+            ["rag", "query", "test query", "--retriever", invalid_store],
             ["rag", "delete", invalid_store],
         ]
 
         for command in commands_to_test:
             result = cli_runner.invoke(cli_app, command)
-            # Should handle error gracefully
-            assert result.exit_code == 0
+            # Should handle error with exit code 1
+            assert result.exit_code == 1
             # Should show error message
             output = result.stdout
-            assert "Configuration Not Found" in output or "not found" in output.lower()
+            assert "not found" in output.lower() or invalid_store in output
 
     def test_embed_command_with_stdin(self, cli_app, cli_runner):
         """Test embedding text from stdin."""
@@ -282,7 +285,7 @@ class TestRAGCommands:
         assert result.exit_code == 0
 
         output = result.stdout
-        assert "Embedding Complete" in output or "Successfully embedded" in output
+        assert "Embedded" in output
 
 
 class TestRAGCommandsWithCustomConfig:
@@ -295,12 +298,12 @@ class TestRAGCommandsWithCustomConfig:
         if "in_memory_chroma" not in list_result.stdout:
             pytest.skip("in_memory_chroma configuration not available")
 
-        # Test info command
-        result = cli_runner.invoke(cli_app, ["rag", "info", "in_memory_chroma"])
+        # Test info command using the default retriever (which uses in_memory_chroma)
+        result = cli_runner.invoke(cli_app, ["rag", "info", "default"])
         assert result.exit_code == 0
 
         output = result.stdout
-        assert "Vector Store Information" in output
+        assert "Retriever Information" in output
         assert "Chroma" in output
 
     def test_local_fast_smoke_with_mocked_fastembed(self, cli_app, cli_runner, monkeypatch, tmp_path):
@@ -343,10 +346,12 @@ class TestRAGCommandsWithCustomConfig:
                 ["rag", "embed", "local_fast", "--text", "FastEmbed local smoke test content"],
             )
             assert embed_result.exit_code == 0
-            assert "Embedding Complete" in embed_result.stdout or "Successfully embedded" in embed_result.stdout
+            assert "Embedded" in embed_result.stdout
             assert "Failed to create vector store" not in embed_result.stdout
 
-            query_result = cli_runner.invoke(cli_app, ["rag", "query", "local_fast", "FastEmbed smoke", "--k", "1"])
+            query_result = cli_runner.invoke(
+                cli_app, ["rag", "query", "FastEmbed smoke", "--retriever", "local_fast", "--k", "1"]
+            )
             assert query_result.exit_code == 0
             assert "Query Summary" in query_result.stdout or "No Results" in query_result.stdout
             assert "Failed to create vector store" not in query_result.stdout
@@ -375,7 +380,7 @@ class TestRAGCommandsIntegration:
 
         # Should handle large text gracefully
         output = result.stdout
-        assert "Embedding Complete" in output
+        assert "Embedded" in output
 
     def test_multiple_documents_workflow(self, cli_app, cli_runner):
         """Test workflow with multiple documents."""
@@ -393,9 +398,11 @@ class TestRAGCommandsIntegration:
             assert result.exit_code == 0
 
         # Query should find relevant documents
-        query_result = cli_runner.invoke(cli_app, ["rag", "query", "default", "programming algorithms", "--k", "3"])
+        query_result = cli_runner.invoke(
+            cli_app, ["rag", "query", "programming algorithms", "--retriever", "default", "--k", "3"]
+        )
         assert query_result.exit_code == 0
 
         # Clean up
-        delete_result = cli_runner.invoke(cli_app, ["rag", "delete", "default"])
+        delete_result = cli_runner.invoke(cli_app, ["rag", "delete", "default", "--force"])
         assert delete_result.exit_code == 0

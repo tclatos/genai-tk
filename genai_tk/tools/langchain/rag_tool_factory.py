@@ -166,11 +166,13 @@ def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | str
 
     Example:
         ```python
-        tool = create_rag_tool_from_config({
-            "retriever": "hybrid_ensemble",
-            "tool_name": "knowledge_search",
-            "top_k": 5,
-        })
+        tool = create_rag_tool_from_config(
+            {
+                "retriever": "hybrid_ensemble",
+                "tool_name": "knowledge_search",
+                "top_k": 5,
+            }
+        )
         ```
     """
     if isinstance(llm, str):

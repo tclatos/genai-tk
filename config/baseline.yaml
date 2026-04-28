@@ -99,6 +99,12 @@ retrievers:
     top_k: 3
     fetch_k: 10
 
+  # Local FastEmbed-backed retriever (persistent Chroma)
+  local_fast:
+    type: vector
+    embeddings_store: local_fast
+    top_k: 4
+
   # PostgreSQL hybrid search (requires postgres dependency group)
   # pg_hybrid:
   #   type: pg_hybrid
