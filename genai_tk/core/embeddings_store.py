@@ -43,7 +43,6 @@ Usage:
 
 from __future__ import annotations
 
-import importlib
 from typing import Annotated, Any, Literal, get_args
 
 from langchain_core.embeddings import Embeddings
@@ -225,17 +224,10 @@ class EmbeddingsStore(BaseModel):
             backend = "Chroma"
         if backend == "Sklearn":
             raise ValueError("The Sklearn backend has been removed. Use 'Chroma' or 'InMemory' instead.")
-        # Accept qualified class names and normalise to the short alias
-        from genai_tk.core.vector_backends import ALIASES
-
-        _qualified_to_short = {v: k for k, v in ALIASES.items()}
-        if backend in _qualified_to_short:
-            backend = _qualified_to_short[backend]
         if backend not in get_args(VECTOR_STORE_ENGINE):
             raise ValueError(
                 f"Unknown vector store backend: '{backend}'. "
-                f"Supported short names: {list(get_args(VECTOR_STORE_ENGINE))}. "
-                f"Or use a qualified name like 'genai_tk.core.vector_backends.ChromaBackend'."
+                f"Supported: {list(get_args(VECTOR_STORE_ENGINE))}"
             )
         return backend
 
@@ -249,12 +241,18 @@ class EmbeddingsStore(BaseModel):
         Returns:
             Configured vector store instance ready for add_documents / similarity_search.
         """
-        from genai_tk.core.vector_backends import ALIASES
+        from genai_tk.core.vector_backends import ChromaBackend, InMemoryBackend, PgVectorBackend
 
         embeddings = self.embeddings_factory.get()
-        qualified = ALIASES.get(self.backend or "", self.backend or "")
-        module_path, _, class_name = qualified.rpartition(".")
-        backend_cls = getattr(importlib.import_module(module_path), class_name)
+
+        if self.backend == "Chroma":
+            backend_cls = ChromaBackend
+        elif self.backend == "InMemory":
+            backend_cls = InMemoryBackend
+        elif self.backend == "PgVector":
+            backend_cls = PgVectorBackend
+        else:
+            raise ValueError(f"Unknown vector store backend: '{self.backend}'")
 
         if self.backend == "PgVector":
             vector_store = backend_cls.create_from_factory(

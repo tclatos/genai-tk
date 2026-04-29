@@ -549,9 +549,9 @@ class RetrieverFactory:
     def create(cls, config_tag: str) -> ManagedRetriever:
         """Build a ``ManagedRetriever`` from the named configuration.
 
-        The ``type`` field in the YAML entry can be either a short alias
-        (``"vector"``, ``"bm25"`` …) or a fully-qualified class name
-        (``"genai_tk.core.retrievers.VectorRetriever"``).
+        The ``type`` field must be a fully-qualified class name such as
+        ``genai_tk.core.retrievers.VectorRetriever`` or a custom
+        ``mypackage.retrievers.MyRetriever``.
 
         Args:
             config_tag: Key in the ``retrievers`` YAML section.
@@ -559,6 +559,8 @@ class RetrieverFactory:
         Returns:
             Configured ``ManagedRetriever`` ready for use.
         """
+        from genai_tk.utils.import_utils import ImportResolver
+
         try:
             raw = global_config().get_dict(f"retrievers.{config_tag}")
         except (ValueError, KeyError) as exc:
@@ -566,7 +568,14 @@ class RetrieverFactory:
             raise ValueError(f"Retriever configuration '{config_tag}' not found. Available: {available}") from exc
 
         type_str = raw.get("type", "")
-        builder_cls = _resolve_builder_class(type_str)
+        if not type_str:
+            raise ValueError(f"Retriever config '{config_tag}' is missing the required 'type' field.")
+
+        try:
+            builder_cls = ImportResolver.import_from_qualified(type_str)
+        except (ImportError, AttributeError, ValueError) as exc:
+            raise ValueError(f"Cannot load retriever builder '{type_str}': {exc}") from exc
+
         cfg_dict = {k: v for k, v in raw.items() if k != "type"}
         cfg = builder_cls.config_model.model_validate(cfg_dict)
         return builder_cls.build(cfg, config_tag, cls.create)

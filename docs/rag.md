@@ -44,14 +44,14 @@ The RAG layer is built around two central abstractions:
 
 ## Retriever Types
 
-### `vector` — dense similarity search
+### `VectorRetriever` — dense similarity search
 
 Backed by an `EmbeddingsStore` (Chroma, InMemory, or PgVector).
 
 ```yaml
 retrievers:
   my_store:
-    type: vector
+    type: genai_tk.core.retrievers.VectorRetriever
     embeddings_store: chroma_indexed   # key in embeddings_store: section
     top_k: 4
     search_type: similarity            # or mmr
@@ -61,14 +61,14 @@ retrievers:
 - Uses `asimilarity_search(query, k=k, filter=filter)` directly on the vector store.
 - If the backing store is persistent and `record_manager_url` is not set, a SQLite record manager is **auto-created** at `data/record_manager/<config_tag>.db` to deduplicate ingested documents.
 
-### `bm25` — keyword / sparse search
+### `BM25Retriever` — keyword / sparse search
 
 Uses the `bm25s` library. The index is built from documents and persisted to disk.
 
 ```yaml
 retrievers:
   bm25_local:
-    type: bm25
+    type: genai_tk.core.retrievers.BM25Retriever
     k: 4
     preprocessing: default    # or "spacy" for lemmatisation
     spacy_model: en_core_web_sm
@@ -84,14 +84,14 @@ Index files:
 
 The index is rebuilt from scratch on each `aadd_documents()` call. `get_or_load_retriever()` lazy-loads from disk on first query after a restart.
 
-### `ensemble` — weighted fusion
+### `EnsembleRetriever` — weighted fusion
 
 Combines any number of other named retrievers using `EnsembleRetriever` (Reciprocal Rank Fusion).
 
 ```yaml
 retrievers:
   hybrid:
-    type: ensemble
+    type: genai_tk.core.retrievers.EnsembleRetriever
     retrievers:
       - ref: my_store      # must be a key in retrievers:
         weight: 0.7
@@ -101,14 +101,14 @@ retrievers:
 
 Weights are normalised to sum to 1.0 before being passed to `EnsembleRetriever`. Each `ref` is resolved by calling `RetrieverFactory.create()` recursively.
 
-### `reranked` — contextual compression / reranking
+### `RerankedRetriever` — contextual compression / reranking
 
 Wraps another retriever with a reranking step that re-scores and filters results.
 
 ```yaml
 retrievers:
   best_results:
-    type: reranked
+    type: genai_tk.core.retrievers.RerankedRetriever
     retriever: hybrid          # any key in retrievers:
     reranker: embeddings       # "embeddings" | "cohere" | "cross_encoder"
     top_k: 3
@@ -122,14 +122,14 @@ retrievers:
 | `cohere` | `CohereRerank` | `uv add langchain-cohere` |
 | `cross_encoder` | `HuggingFaceCrossEncoder` | `uv add sentence-transformers` |
 
-### `pg_hybrid` — PostgreSQL vector + full-text search
+### `PgHybridRetriever` — PostgreSQL vector + full-text search
 
 Combines pgvector similarity with PostgreSQL full-text search (tsvector) in a single query.
 
 ```yaml
 retrievers:
   pg_hybrid:
-    type: pg_hybrid
+    type: genai_tk.core.retrievers.PgHybridRetriever
     embeddings: default        # key in embeddings: section
     postgres: default          # key in postgres: section
     table_name_prefix: embeddings
@@ -152,14 +152,14 @@ For embedded PostgreSQL (no server needed):
 uv add pgembed pgembed-pgvector
 ```
 
-### `zero_entropy` — ZeroEntropy external retriever
+### `ZeroEntropyRetriever` — ZeroEntropy external retriever
 
 Read-only retriever backed by the ZeroEntropy document search SDK.
 
 ```yaml
 retrievers:
   ze_docs:
-    type: zero_entropy
+    type: genai_tk.core.retrievers.ZeroEntropyRetriever
     collection_name: my_collection
     k: 5
     retrieval_type: documents
@@ -171,53 +171,41 @@ retrievers:
 
 All retriever config lives under the `retrievers:` top-level key. The `postgres:` key configures PG connection sources.
 
-### Retriever `type` field — short aliases vs qualified names
+### Retriever `type` field — fully-qualified class names
 
-The `type` field in each retriever config accepts either:
+The `type` field must be a fully-qualified class name pointing to a builder in `genai_tk.core.retrievers` (or any custom builder in your own codebase):
 
-1. **Short aliases** (backward compatible):
-   ```yaml
-   type: vector
-   type: bm25
-   type: ensemble
-   type: reranked
-   type: pg_hybrid
-   type: zero_entropy
-   ```
+```yaml
+type: genai_tk.core.retrievers.VectorRetriever
+type: genai_tk.core.retrievers.BM25Retriever
+type: genai_tk.core.retrievers.EnsembleRetriever
+type: genai_tk.core.retrievers.RerankedRetriever
+type: genai_tk.core.retrievers.PgHybridRetriever
+type: genai_tk.core.retrievers.ZeroEntropyRetriever
+```
 
-2. **Fully-qualified class names** (stable, recommended for new code):
-   ```yaml
-   type: genai_tk.core.retrievers.VectorRetriever
-   type: genai_tk.core.retrievers.BM25Retriever
-   type: genai_tk.core.retrievers.EnsembleRetriever
-   type: genai_tk.core.retrievers.RerankedRetriever
-   type: genai_tk.core.retrievers.PgHybridRetriever
-   type: genai_tk.core.retrievers.ZeroEntropyRetriever
-   ```
+This allows you to write **custom retriever builders** in your own codebase without modifying genai-tk. See [Extending with custom retrievers](#extending-with-custom-retrievers) below.
 
-Qualified names allow you to write **custom retriever builders** in your own codebase without modifying genai-tk. See [Extending with custom retrievers](#extending-with-custom-retrievers) below.
+### Backend `backend` field — fully-qualified class names
 
-### Backend `backend` field — short aliases vs qualified names
-
-Vector store backends in `embeddings_store:` blocks also accept short aliases or qualified names:
+Vector store backends in `embeddings_store:` blocks must also be fully-qualified class names:
 
 ```yaml
 embeddings_store:
   my_store:
-    backend: Chroma                                    # short alias
-    # OR
-    backend: genai_tk.core.vector_backends.ChromaBackend   # qualified name
+    backend: genai_tk.core.vector_backends.ChromaBackend
+    embeddings: default
     config:
       storage: '::memory::'
 ```
 
 Supported backends:
 
-| Short alias | Qualified name | Backend |
-|-----------|---|---------|
-| `Chroma` | `genai_tk.core.vector_backends.ChromaBackend` | Chroma (in-memory or persistent) |
-| `InMemory` | `genai_tk.core.vector_backends.InMemoryBackend` | Ephemeral in-process store |
-| `PgVector` | `genai_tk.core.vector_backends.PgVectorBackend` | PostgreSQL with pgvector + full-text |
+| Qualified name | Backend |
+|---|----------|
+| `genai_tk.core.vector_backends.ChromaBackend` | Chroma (in-memory or persistent) |
+| `genai_tk.core.vector_backends.InMemoryBackend` | Ephemeral in-process store |
+| `genai_tk.core.vector_backends.PgVectorBackend` | PostgreSQL with pgvector + full-text |
 
 ### Full reference
 
@@ -228,20 +216,20 @@ retrievers:
 
   # ── vector ──────────────────────────────────────────────
   default:
-    type: vector
-    embeddings_store: in_memory_chroma  # key in embeddings_store:
+    type: genai_tk.core.retrievers.VectorRetriever
+    embeddings_store: in_memory_chroma
     top_k: 4
     search_type: similarity             # similarity | mmr
     record_manager_url: ~               # null → auto SQLite for persistent stores
 
   persistent:
-    type: vector
+    type: genai_tk.core.retrievers.VectorRetriever
     embeddings_store: chroma_indexed
     top_k: 4
 
   # ── bm25 ────────────────────────────────────────────────
   bm25_local:
-    type: bm25
+    type: genai_tk.core.retrievers.BM25Retriever
     k: 4
     preprocessing: default              # default | spacy
     spacy_model: en_core_web_sm
@@ -249,7 +237,7 @@ retrievers:
 
   # ── ensemble ────────────────────────────────────────────
   hybrid_ensemble:
-    type: ensemble
+    type: genai_tk.core.retrievers.EnsembleRetriever
     retrievers:
       - ref: persistent
         weight: 0.7
@@ -258,7 +246,7 @@ retrievers:
 
   # ── reranked ────────────────────────────────────────────
   hybrid_reranked:
-    type: reranked
+    type: genai_tk.core.retrievers.RerankedRetriever
     retriever: hybrid_ensemble
     reranker: embeddings                # embeddings | cohere | cross_encoder
     top_k: 3
@@ -266,7 +254,7 @@ retrievers:
 
   # ── pg_hybrid (requires postgres dependency) ────────────
   # pg_hybrid:
-  #   type: pg_hybrid
+  #   type: genai_tk.core.retrievers.PgHybridRetriever
   #   embeddings: default
   #   postgres: default
   #   hybrid_search: true
@@ -286,33 +274,31 @@ postgres:
   #   extensions: [vector]
 ```
 
-### `embeddings_store:` blocks (used by `type: vector`)
+### `embeddings_store:` blocks (used by `type: VectorRetriever`)
 
-These are referenced from `retrievers.<tag>.embeddings_store`:
+These are referenced from `retrievers.<tag>.embeddings_store`::
 
-```yaml
-embeddings_store:
-  in_memory_chroma:
-    backend: Chroma
-    embeddings: default
-    table_name_prefix: embeddings
-    config:
-      storage: '::memory::'         # in-memory (no persistence)
+    embeddings_store:
+      in_memory_chroma:
+        backend: genai_tk.core.vector_backends.ChromaBackend
+        embeddings: default
+        table_name_prefix: embeddings
+        config:
+          storage: '::memory::'         # in-memory (no persistence)
 
-  chroma_indexed:
-    backend: Chroma
-    embeddings: default
-    table_name_prefix: embeddings
-    config:
-      storage: ${paths.data_root}/vector_store   # persistent on disk
+      chroma_indexed:
+        backend: genai_tk.core.vector_backends.ChromaBackend
+        embeddings: default
+        table_name_prefix: embeddings
+        config:
+          storage: ${paths.data_root}/vector_store   # persistent on disk
 
-  local_fast:
-    backend: Chroma
-    embeddings: bge-small-en@local  # local FastEmbed model
-    table_name_prefix: embeddings
-    config:
-      storage: ${paths.data_root}/vector_store_local_fast
-```
+      local_fast:
+        backend: genai_tk.core.vector_backends.ChromaBackend
+        embeddings: bge-small-en@local  # local FastEmbed model
+        table_name_prefix: embeddings
+        config:
+          storage: ${paths.data_root}/vector_store_local_fast
 
 ---
 

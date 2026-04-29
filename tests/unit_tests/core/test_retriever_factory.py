@@ -316,7 +316,7 @@ class TestRetrieverFactory:
     def test_build_vector_retriever(self) -> None:
         with patch("genai_tk.core.retriever_factory.global_config") as mock_cfg:
             mock_cfg.return_value.get_dict.return_value = {
-                "type": "vector",
+                "type": "genai_tk.core.retrievers.VectorRetriever",
                 "embeddings_store": "in_memory",
                 "top_k": 3,
             }
@@ -330,7 +330,10 @@ class TestRetrieverFactory:
             patch("genai_tk.core.retriever_factory.global_config") as mock_cfg,
             patch("genai_tk.core.retriever_factory._bm25_cache_dir", return_value=tmp_path / "cache"),
         ):
-            mock_cfg.return_value.get_dict.return_value = {"type": "bm25", "k": 4}
+            mock_cfg.return_value.get_dict.return_value = {
+                "type": "genai_tk.core.retrievers.BM25Retriever",
+                "k": 4,
+            }
             managed = RetrieverFactory.create("my_bm25")
             assert managed is not None
             assert managed.has_store is True
