@@ -92,7 +92,7 @@ class BM25FastRetriever(BaseRetriever):
         texts_processed = [preprocess_func(t) for t in texts]
         bm25_params = bm25_params or {}
         vectorizer = bm25s.BM25(**bm25_params)
-        vectorizer.index(texts_processed, show_progress=True)
+        vectorizer.index(texts_processed, show_progress=False)
         metadatas = metadatas or ({} for _ in texts)
         docs = [Document(page_content=t, metadata=m) for t, m in zip(texts, metadatas, strict=False)]
 
