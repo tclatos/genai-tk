@@ -32,30 +32,30 @@ embeddings_store:
   #     storage: ${paths.data_root}/vector_store  # Persistent storage on disk
   
   in_memory:
-    backend: InMemory
+    backend: genai_tk.core.vector_backends.InMemoryBackend
   
-  in_memory_chroma: &default_store  # Anchor is defined here first
-    backend: Chroma
+  in_memory_chroma: &default_store
+    backend: genai_tk.core.vector_backends.ChromaBackend
     embeddings: default
     table_name_prefix: embeddings
     config:
-      storage: '::memory::'  # In-memory Chroma storage
+      storage: '::memory::'
 
   local_fast:
-    backend: Chroma
+    backend: genai_tk.core.vector_backends.ChromaBackend
     embeddings: bge-small-en@local
     table_name_prefix: embeddings
     config:
-      storage: ${paths.data_root}/vector_store_local_fast  # Persistent local FastEmbed-backed store
+      storage: ${paths.data_root}/vector_store_local_fast
   
-  default: *default_store  # Now we can reference it
+  default: *default_store
   
   chroma_indexed:
-    backend: Chroma
+    backend: genai_tk.core.vector_backends.ChromaBackend
     embeddings: default
     table_name_prefix: embeddings
     config:
-      storage: ${paths.data_root}/vector_store  # Persistent storage on disk
+      storage: ${paths.data_root}/vector_store
 
 
 # ============================================================

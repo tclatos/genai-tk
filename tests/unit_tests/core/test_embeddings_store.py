@@ -129,12 +129,9 @@ def test_vector_store_factory_known_items() -> None:
     known_items = EmbeddingsStore.known_items()
     assert isinstance(known_items, list)
     assert len(known_items) > 0
-    assert "InMemory" in known_items
-    assert "Chroma" in known_items
-    assert "PgVector" in known_items
-    assert "Sklearn" not in known_items
-    # Ensure deprecated Chroma_in_memory is no longer in known items
-    assert "Chroma_in_memory" not in known_items
+    assert "genai_tk.core.vector_backends.InMemoryBackend" in known_items
+    assert "genai_tk.core.vector_backends.ChromaBackend" in known_items
+    assert "genai_tk.core.vector_backends.PgVectorBackend" in known_items
 
 
 def test_vector_store_empty_search(fresh_embeddings_store) -> None:
@@ -184,7 +181,7 @@ def test_vector_store_performance(sample_documents, performance_threshold) -> No
 def test_chroma_memory_storage(sample_documents) -> None:
     """Test Chroma with in-memory storage using new storage field."""
     embeddings_store = EmbeddingsStore.create_from_config("in_memory_chroma")
-    assert embeddings_store.backend == "Chroma"
+    assert embeddings_store.backend == "genai_tk.core.vector_backends.ChromaBackend"
     assert embeddings_store.config.get("storage") == "::memory::"
 
     db = embeddings_store.get_vector_store()
@@ -198,7 +195,7 @@ def test_chroma_memory_storage(sample_documents) -> None:
 def test_local_fast_store_config_is_available() -> None:
     """Test that local_fast configuration resolves with local FastEmbed model."""
     embeddings_store = EmbeddingsStore.create_from_config("local_fast")
-    assert embeddings_store.backend == "Chroma"
+    assert embeddings_store.backend == "genai_tk.core.vector_backends.ChromaBackend"
     assert embeddings_store.embeddings_factory.embeddings_id == "bge-small-en@local"
     assert embeddings_store.config.get("storage")
 
@@ -208,13 +205,13 @@ def test_legacy_id_key_supported_in_embeddings_store_config() -> None:
     global_config().set(
         "embeddings_store.legacy_id_store",
         {
-            "id": "InMemory",
+            "id": "genai_tk.core.vector_backends.InMemoryBackend",
             "embeddings": "fake",
         },
     )
 
     embeddings_store = EmbeddingsStore.create_from_config("legacy_id_store")
-    assert embeddings_store.backend == "InMemory"
+    assert embeddings_store.backend == "genai_tk.core.vector_backends.InMemoryBackend"
     assert embeddings_store.embeddings_factory.embeddings_id == "embeddings_768@fake"
 
 
