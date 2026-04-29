@@ -10,6 +10,8 @@ be used in CI without a full Jupyter stack.
 
 from __future__ import annotations
 
+import ast
+import asyncio
 import json
 import time
 from dataclasses import dataclass, field
@@ -79,6 +81,38 @@ def _strip_magics(source: str) -> str:
     return "".join(cleaned)
 
 
+def _has_top_level_await(source: str) -> bool:
+    """Return True if *source* contains top-level await/async-for/async-with.
+
+    Uses ``compile()`` which (unlike ``ast.parse``) rejects top-level await
+    even on Python 3.12+.
+    """
+    try:
+        compile(source, "<cell>", "exec")
+        return False
+    except SyntaxError:
+        # Check it's specifically an await issue, not some other syntax error
+        return "await" in source or "async for" in source or "async with" in source
+
+
+def _wrap_async_cell(source: str) -> str:
+    """Wrap cell source containing top-level await in an async function + asyncio.run().
+
+    Variables assigned in the cell are propagated back to the caller's namespace
+    via ``locals()`` update, so subsequent cells can reference them.
+    """
+    indented = "\n".join("    " + line if line.strip() else "" for line in source.splitlines())
+    return (
+        "import asyncio as __asyncio__\n"
+        "\n"
+        "async def __cell__(__ns__):\n"
+        f"{indented}\n"
+        "    __ns__.update({k: v for k, v in locals().items() if not k.startswith('__')})\n"
+        "\n"
+        "__asyncio__.run(__cell__(globals()))\n"
+    )
+
+
 def run_notebook(path: Path, allow_pip: bool = False) -> NotebookResult:
     """Execute all code cells in *path* and return a :class:`NotebookResult`.
 
@@ -104,6 +138,8 @@ def run_notebook(path: Path, allow_pip: bool = False) -> NotebookResult:
             continue
 
         executable = _strip_magics(source)
+        if _has_top_level_await(executable):
+            executable = _wrap_async_cell(executable)
         t0 = time.perf_counter()
         try:
             exec(executable, env)  # noqa: S102

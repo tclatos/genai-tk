@@ -202,7 +202,13 @@ class VectorDocumentStore:
 
 
 class BM25DocumentStore:
-    """Ingestion + retrieval store backed by a BM25 index persisted to disk."""
+    """Ingestion + retrieval store backed by a BM25 index persisted to disk.
+
+    Following the same pattern as LangChain's ``BaseRetriever``:
+    sync methods are the primary implementation; async methods delegate to
+    them via ``run_in_executor`` so they never block the event loop.
+    Notebooks and CLI call the sync methods directly.
+    """
 
     def __init__(
         self,
@@ -228,35 +234,28 @@ class BM25DocumentStore:
             return get_spacy_preprocess_fn(self.spacy_model)
         return default_preprocessing_func
 
-    # -- ingestion -----------------------------------------------------------
+    # -- sync core -----------------------------------------------------------
 
-    async def aadd_documents(self, docs: list[Document]) -> list[str]:
+    def add_documents(self, docs: list[Document]) -> list[str]:
+        """Build (or rebuild) the BM25 index from *docs* and persist it to disk."""
         from genai_tk.extra.retrievers.bm25s_retriever import BM25FastRetriever
 
         index_path = self.cache_dir / "bm25_index"
         docs_path = self.cache_dir / "documents.json"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        preprocess = self._preprocess_func()
-        params = self.bm25_params
 
-        def _build() -> Any:
-            retriever = BM25FastRetriever.from_documents(
-                documents=list(docs),
-                preprocess_func=preprocess,
-                cache_dir=index_path,
-                bm25_params=params,
-            )
-            doc_data = [{"page_content": d.page_content, "metadata": d.metadata} for d in docs]
-            docs_path.write_text(json.dumps(doc_data, ensure_ascii=False))
-            return retriever
-
-        loop = asyncio.get_running_loop()
-        self._current_retriever = await loop.run_in_executor(None, _build)
+        self._current_retriever = BM25FastRetriever.from_documents(
+            documents=list(docs),
+            preprocess_func=self._preprocess_func(),
+            cache_dir=index_path,
+            bm25_params=self.bm25_params,
+        )
+        doc_data = [{"page_content": d.page_content, "metadata": d.metadata} for d in docs]
+        docs_path.write_text(json.dumps(doc_data, ensure_ascii=False))
         return [str(i) for i in range(len(docs))]
 
-    # -- retrieval -----------------------------------------------------------
-
     def get_or_load_retriever(self, k: int = 4) -> Any | None:
+        """Return the in-memory retriever, loading from disk cache if necessary."""
         if self._current_retriever is not None:
             self._current_retriever.k = k
             return self._current_retriever
@@ -276,7 +275,7 @@ class BM25DocumentStore:
                 preprocess_func=self._preprocess_func(),
                 k=k,
             )
-            # Override docs with the richer metadata versions stored in documents.json
+            # documents.json preserves full metadata; override the retriever's plain-text docs
             retriever.docs = loaded_docs
             self._current_retriever = retriever
             return retriever
@@ -284,13 +283,25 @@ class BM25DocumentStore:
             logger.warning("Failed to load BM25 index from {}: {}", index_path, exc)
             return None
 
-    async def aget_relevant_documents(self, query: str, k: int = 4) -> list[Document]:
+    def get_relevant_documents(self, query: str, k: int = 4) -> list[Document]:
+        """Return BM25-ranked documents for *query* (sync)."""
         retriever = self.get_or_load_retriever(k=k)
         if retriever is None:
             logger.warning("BM25 index not yet built. Call add_documents() first.")
             return []
+        return retriever.invoke(query)
+
+    # -- async wrappers (delegate to sync via executor) ----------------------
+
+    async def aadd_documents(self, docs: list[Document]) -> list[str]:
+        """Async wrapper for :meth:`add_documents`. Runs in a thread executor."""
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, retriever.invoke, query)
+        return await loop.run_in_executor(None, self.add_documents, list(docs))
+
+    async def aget_relevant_documents(self, query: str, k: int = 4) -> list[Document]:
+        """Async wrapper for :meth:`get_relevant_documents`. Runs in a thread executor."""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, self.get_relevant_documents, query, k)
 
 
 class CompositeDocumentStore:
@@ -668,7 +679,7 @@ class RetrieverFactory:
 
     @classmethod
     def _build_reranked(cls, cfg: RerankedRetrieverConfig, config_tag: str) -> ManagedRetriever:
-        from langchain.retrievers import ContextualCompressionRetriever
+        from langchain_classic.retrievers import ContextualCompressionRetriever
 
         base = cls.create(cfg.retriever)
         compressor = _build_compressor(cfg)
@@ -720,7 +731,7 @@ def _build_compressor(cfg: RerankedRetrieverConfig) -> Any:
 
     if cfg.reranker == "cross_encoder":
         try:
-            from langchain.retrievers.document_compressors import CrossEncoderReranker
+            from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
             from langchain_community.cross_encoders import HuggingFaceCrossEncoder
         except ImportError as exc:
             raise ImportError(
@@ -730,7 +741,7 @@ def _build_compressor(cfg: RerankedRetrieverConfig) -> Any:
         return CrossEncoderReranker(model=model, top_n=cfg.top_k)
 
     if cfg.reranker == "embeddings":
-        from langchain.retrievers.document_compressors import EmbeddingsFilter
+        from langchain_classic.retrievers.document_compressors import EmbeddingsFilter
 
         from genai_tk.core.embeddings_factory import EmbeddingsFactory
 
