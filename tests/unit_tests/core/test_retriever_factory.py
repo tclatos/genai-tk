@@ -320,7 +320,7 @@ class TestRetrieverFactory:
                 "embeddings_store": "in_memory",
                 "top_k": 3,
             }
-            with patch("genai_tk.core.retriever_factory.RetrieverFactory._build_vector") as mock_build:
+            with patch("genai_tk.core.retrievers.vector.VectorRetriever.build") as mock_build:
                 mock_build.return_value = MagicMock(spec=ManagedRetriever)
                 managed = RetrieverFactory.create("my_vector")
                 mock_build.assert_called_once()

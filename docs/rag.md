@@ -171,6 +171,54 @@ retrievers:
 
 All retriever config lives under the `retrievers:` top-level key. The `postgres:` key configures PG connection sources.
 
+### Retriever `type` field — short aliases vs qualified names
+
+The `type` field in each retriever config accepts either:
+
+1. **Short aliases** (backward compatible):
+   ```yaml
+   type: vector
+   type: bm25
+   type: ensemble
+   type: reranked
+   type: pg_hybrid
+   type: zero_entropy
+   ```
+
+2. **Fully-qualified class names** (stable, recommended for new code):
+   ```yaml
+   type: genai_tk.core.retrievers.VectorRetriever
+   type: genai_tk.core.retrievers.BM25Retriever
+   type: genai_tk.core.retrievers.EnsembleRetriever
+   type: genai_tk.core.retrievers.RerankedRetriever
+   type: genai_tk.core.retrievers.PgHybridRetriever
+   type: genai_tk.core.retrievers.ZeroEntropyRetriever
+   ```
+
+Qualified names allow you to write **custom retriever builders** in your own codebase without modifying genai-tk. See [Extending with custom retrievers](#extending-with-custom-retrievers) below.
+
+### Backend `backend` field — short aliases vs qualified names
+
+Vector store backends in `embeddings_store:` blocks also accept short aliases or qualified names:
+
+```yaml
+embeddings_store:
+  my_store:
+    backend: Chroma                                    # short alias
+    # OR
+    backend: genai_tk.core.vector_backends.ChromaBackend   # qualified name
+    config:
+      storage: '::memory::'
+```
+
+Supported backends:
+
+| Short alias | Qualified name | Backend |
+|-----------|---|---------|
+| `Chroma` | `genai_tk.core.vector_backends.ChromaBackend` | Chroma (in-memory or persistent) |
+| `InMemory` | `genai_tk.core.vector_backends.InMemoryBackend` | Ephemeral in-process store |
+| `PgVector` | `genai_tk.core.vector_backends.PgVectorBackend` | PostgreSQL with pgvector + full-text |
+
 ### Full reference
 
 ```yaml
@@ -268,7 +316,95 @@ embeddings_store:
 
 ---
 
-## Python API
+## Extending with Custom Retrievers
+
+You can define a custom retriever builder in your own codebase and reference it by its fully-qualified class name in YAML — no need to modify genai-tk.
+
+### Step 1: Define a builder class
+
+Create a module in your project with a builder class that has:
+- `config_model` — a Pydantic v2 config class for parsing the sub-dict
+- `build(cfg, config_tag, resolver)` — a classmethod that returns a `ManagedRetriever`
+
+**Example: `myapp/retrievers/custom.py`**
+
+```python
+from pydantic import BaseModel
+from collections.abc import Callable
+from typing import Any
+
+from genai_tk.core.retriever_factory import ManagedRetriever
+
+
+class MyCustomConfig(BaseModel):
+    """Config for MyCustomRetriever."""
+    service_url: str
+    api_key: str
+    top_k: int = 4
+
+
+class MyCustomRetriever:
+    """Builder for custom retrievers backed by an external service."""
+
+    config_model = MyCustomConfig
+
+    @classmethod
+    def build(
+        cls,
+        cfg: MyCustomConfig,
+        config_tag: str,
+        resolver: Callable[[str], Any],
+    ) -> ManagedRetriever:
+        """Build a ManagedRetriever backed by a custom service."""
+        from langchain_core.retrievers import BaseRetriever
+        from langchain_core.documents import Document
+
+        class CustomServiceRetriever(BaseRetriever):
+            def _get_relevant_documents(self, query: str, **kwargs) -> list[Document]:
+                # Call your service
+                import requests
+                resp = requests.get(
+                    f"{cfg.service_url}/search",
+                    params={"q": query, "top_k": cfg.top_k},
+                    headers={"Authorization": f"Bearer {cfg.api_key}"},
+                )
+                docs = [Document(page_content=r["content"], metadata=r.get("meta", {}))
+                        for r in resp.json()]
+                return docs
+
+            async def _aget_relevant_documents(self, query: str, **kwargs) -> list[Document]:
+                return self._get_relevant_documents(query)  # fallback to sync
+
+        retriever = CustomServiceRetriever()
+        return ManagedRetriever(
+            retriever=retriever,
+            store=None,  # read-only
+            default_k=cfg.top_k,
+            config_tag=config_tag,
+        )
+```
+
+### Step 2: Reference in YAML
+
+```yaml
+retrievers:
+  my_custom_service:
+    type: myapp.retrievers.custom.MyCustomRetriever
+    service_url: https://search.example.com/api
+    api_key: ${oc.env:MY_SERVICE_API_KEY}
+    top_k: 5
+```
+
+### Step 3: Use it like any other retriever
+
+```python
+from genai_tk.core.retriever_factory import RetrieverFactory
+
+managed = RetrieverFactory.create("my_custom_service")
+docs = await managed.aquery("my question")
+```
+
+The `resolver` parameter in `build()` is a reference to `RetrieverFactory.create`, which you can use to recursively build composed retrievers (e.g., if you want to wrap another retriever).
 
 ### Creating a retriever
 

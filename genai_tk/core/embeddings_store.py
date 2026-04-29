@@ -43,7 +43,7 @@ Usage:
 
 from __future__ import annotations
 
-import os
+import importlib
 from typing import Annotated, Any, Literal, get_args
 
 from langchain_core.embeddings import Embeddings
@@ -225,9 +225,17 @@ class EmbeddingsStore(BaseModel):
             backend = "Chroma"
         if backend == "Sklearn":
             raise ValueError("The Sklearn backend has been removed. Use 'Chroma' or 'InMemory' instead.")
+        # Accept qualified class names and normalise to the short alias
+        from genai_tk.core.vector_backends import ALIASES
+
+        _qualified_to_short = {v: k for k, v in ALIASES.items()}
+        if backend in _qualified_to_short:
+            backend = _qualified_to_short[backend]
         if backend not in get_args(VECTOR_STORE_ENGINE):
             raise ValueError(
-                f"Unknown vector store backend: '{backend}'. Supported: {list(get_args(VECTOR_STORE_ENGINE))}"
+                f"Unknown vector store backend: '{backend}'. "
+                f"Supported short names: {list(get_args(VECTOR_STORE_ENGINE))}. "
+                f"Or use a qualified name like 'genai_tk.core.vector_backends.ChromaBackend'."
             )
         return backend
 
@@ -241,18 +249,27 @@ class EmbeddingsStore(BaseModel):
         Returns:
             Configured vector store instance ready for add_documents / similarity_search.
         """
+        from genai_tk.core.vector_backends import ALIASES
+
         embeddings = self.embeddings_factory.get()
+        qualified = ALIASES.get(self.backend or "", self.backend or "")
+        module_path, _, class_name = qualified.rpartition(".")
+        backend_cls = getattr(importlib.import_module(module_path), class_name)
 
-        if self.backend == "Chroma":
-            vector_store = self._create_chroma_vector_store(embeddings)
-        elif self.backend == "InMemory":
-            from langchain_core.vectorstores import InMemoryVectorStore
-
-            vector_store = InMemoryVectorStore(embedding=embeddings)
-        elif self.backend == "PgVector":
-            vector_store = self._create_pg_vector_store()
+        if self.backend == "PgVector":
+            vector_store = backend_cls.create_from_factory(
+                embeddings_factory=self.embeddings_factory,
+                table_name=self.table_name,
+                config=self.config,
+                collection_metadata=self.collection_metadata,
+            )
         else:
-            raise ValueError(f"Unknown vector store backend: '{self.backend}'")
+            vector_store = backend_cls.create(
+                embeddings=embeddings,
+                table_name=self.table_name,
+                config=self.config,
+                collection_metadata=self.collection_metadata,
+            )
 
         logger.debug("Created vector store: {}", self.description)
         return vector_store
@@ -304,49 +321,28 @@ class EmbeddingsStore(BaseModel):
         except Exception:
             return []
 
-    # ------------------------------------------------------------------
-    # Backend-specific helpers
-    # ------------------------------------------------------------------
+    # Backend-specific helpers kept for existing callers that may import them directly.
+    # New code should use get_vector_store() which dispatches via the backend class.
 
     def _create_chroma_vector_store(self, embeddings: Embeddings) -> VectorStore:
-        from langchain_chroma import Chroma
+        from genai_tk.core.vector_backends.chroma import ChromaBackend
 
-        storage = self.config.get("storage", "::memory::")
-        persist_directory: str | None
-
-        if storage == "::memory::":
-            persist_directory = None
-        elif os.path.isabs(storage):
-            persist_directory = storage
-        else:
-            try:
-                persist_directory = str(global_config().get_dir_path("vector_store.storage", create_if_not_exists=True))
-            except (ValueError, KeyError):
-                persist_directory = storage
-
-        return Chroma(
-            embedding_function=embeddings,
-            persist_directory=persist_directory,
-            collection_name=self.table_name,
+        return ChromaBackend.create(
+            embeddings=embeddings,
+            table_name=self.table_name,
+            config=self.config,
             collection_metadata=self.collection_metadata,
         )
 
     def _create_pg_vector_store(self) -> VectorStore:
-        from genai_tk.extra.pgvector_factory import PgVectorConfig, create_pg_vector_store
+        from genai_tk.core.vector_backends.pgvector import PgVectorBackend
 
-        pg_cfg = PgVectorConfig(
-            postgres=self.config.get("postgres", "default"),
-            schema_name=self.config.get("postgres_schema", "public"),
-            metadata_columns=self.config.get("metadata_columns", []),
-            hybrid_search=self.config.get("hybrid_search", False),
-            hybrid_search_config=self.config.get("hybrid_search_config", {}),
-        )
-        vector_store, _ = create_pg_vector_store(
+        return PgVectorBackend.create_from_factory(
             embeddings_factory=self.embeddings_factory,
             table_name=self.table_name,
-            config=pg_cfg,
+            config=self.config,
+            collection_metadata=self.collection_metadata,
         )
-        return vector_store
 
 
 # ---------------------------------------------------------------------------

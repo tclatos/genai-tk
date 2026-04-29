@@ -4,28 +4,22 @@ Provides a unified ``ManagedRetriever`` that wraps a LangChain ``BaseRetriever``
 with optional document ingestion support, and a ``RetrieverFactory`` that builds
 any retriever type from a YAML config tag.
 
-Supported retriever types
-    ``vector``         — simple vector-similarity via EmbeddingsStore
-    ``bm25``           — BM25 full-text retrieval, persisted to disk
-    ``pg_hybrid``      — PostgreSQL vector + full-text (PGVectorStore)
-    ``ensemble``       — recursive composition (vector + BM25, etc.)
-    ``reranked``       — any retriever wrapped with a reranking step
-    ``zero_entropy``   — ZeroEntropy SDK retriever
-
-YAML configuration example::
+The ``type`` field in the YAML entry accepts either a short alias or a
+fully-qualified class name pointing to a builder in ``genai_tk.core.retrievers``
+(or any custom builder following the same protocol)::
 
     retrievers:
       default:
-        type: vector
+        type: genai_tk.core.retrievers.VectorRetriever   # qualified name (preferred)
         embeddings_store: in_memory_chroma
         top_k: 4
 
       bm25_local:
-        type: bm25
+        type: bm25                                        # short alias (backward compat)
         k: 4
 
       hybrid_ensemble:
-        type: ensemble
+        type: genai_tk.core.retrievers.EnsembleRetriever
         retrievers:
           - ref: default
             weight: 0.7
@@ -33,13 +27,13 @@ YAML configuration example::
             weight: 0.3
 
       pg_hybrid:
-        type: pg_hybrid
+        type: genai_tk.core.retrievers.PgHybridRetriever
         embeddings: default
         postgres: default
         hybrid_search: true
 
       reranked_default:
-        type: reranked
+        type: genai_tk.core.retrievers.RerankedRetriever
         retriever: hybrid_ensemble
         reranker: embeddings
         top_k: 3
@@ -164,6 +158,38 @@ def _parse_retriever_config(data: dict[str, Any]) -> RetrieverConfig:
     from pydantic import TypeAdapter
 
     return TypeAdapter(RetrieverConfig).validate_python(data)
+
+
+def _resolve_builder_class(type_str: str) -> Any:
+    """Resolve a retriever ``type`` string to its builder class.
+
+    Accepts:
+    - Short aliases: ``"vector"``, ``"bm25"``, ``"ensemble"`` …
+    - Qualified names: ``"genai_tk.core.retrievers.VectorRetriever"``
+      or any custom ``"mypackage.mymodule.MyRetrieverBuilder"``.
+    """
+    import importlib
+
+    from genai_tk.core.retrievers import ALIASES
+
+    if not type_str:
+        raise ValueError("Retriever config is missing the required 'type' field.")
+
+    resolved = ALIASES.get(type_str, type_str)  # short alias → qualified name (or keep as-is)
+
+    if "." not in resolved:
+        raise ValueError(
+            f"Unknown retriever type '{type_str}'. "
+            f"Known aliases: {sorted(ALIASES)}. "
+            "Or provide a fully-qualified class name like 'mypackage.module.MyRetrieverBuilder'."
+        )
+
+    module_path, _, class_name = resolved.rpartition(".")
+    try:
+        module = importlib.import_module(module_path)
+        return getattr(module, class_name)
+    except (ImportError, AttributeError) as exc:
+        raise ValueError(f"Cannot load retriever builder '{resolved}': {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -523,6 +549,10 @@ class RetrieverFactory:
     def create(cls, config_tag: str) -> ManagedRetriever:
         """Build a ``ManagedRetriever`` from the named configuration.
 
+        The ``type`` field in the YAML entry can be either a short alias
+        (``"vector"``, ``"bm25"`` …) or a fully-qualified class name
+        (``"genai_tk.core.retrievers.VectorRetriever"``).
+
         Args:
             config_tag: Key in the ``retrievers`` YAML section.
 
@@ -535,8 +565,11 @@ class RetrieverFactory:
             available = cls.list_available_configs()
             raise ValueError(f"Retriever configuration '{config_tag}' not found. Available: {available}") from exc
 
-        cfg = _parse_retriever_config(raw)
-        return cls._build(cfg, config_tag)
+        type_str = raw.get("type", "")
+        builder_cls = _resolve_builder_class(type_str)
+        cfg_dict = {k: v for k, v in raw.items() if k != "type"}
+        cfg = builder_cls.config_model.model_validate(cfg_dict)
+        return builder_cls.build(cfg, config_tag, cls.create)
 
     @classmethod
     def list_available_configs(cls) -> list[str]:
