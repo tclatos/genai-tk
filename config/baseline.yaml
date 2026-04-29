@@ -65,26 +65,26 @@ embeddings_store:
 retrievers:
   # Simple in-memory vector retriever (good for tests/demos)
   default:
-    type: vector
+    type: genai_tk.core.retrievers.VectorRetriever
     embeddings_store: in_memory_chroma
     top_k: 4
 
   # Persistent Chroma vector retriever with record_manager dedup
   persistent:
-    type: vector
+    type: genai_tk.core.retrievers.VectorRetriever
     embeddings_store: chroma_indexed
     top_k: 4
     # record_manager_url: auto-generated SQLite under ${paths.data_root}/record_manager/
 
   # BM25 retriever (index persisted under ${paths.data_root}/bm25_cache/bm25_local/)
   bm25_local:
-    type: bm25
+    type: genai_tk.core.retrievers.BM25Retriever
     k: 4
     preprocessing: default   # or "spacy" for lemmatisation
 
   # Ensemble: dense + sparse (good baseline for hybrid retrieval without Postgres)
   hybrid_ensemble:
-    type: ensemble
+    type: genai_tk.core.retrievers.EnsembleRetriever
     retrievers:
       - ref: default
         weight: 0.7
@@ -93,7 +93,7 @@ retrievers:
 
   # Reranked ensemble using semantic embeddings filter
   hybrid_reranked:
-    type: reranked
+    type: genai_tk.core.retrievers.RerankedRetriever
     retriever: hybrid_ensemble
     reranker: embeddings   # or "cohere" / "cross_encoder"
     top_k: 3
@@ -101,13 +101,13 @@ retrievers:
 
   # Local FastEmbed-backed retriever (persistent Chroma)
   local_fast:
-    type: vector
+    type: genai_tk.core.retrievers.VectorRetriever
     embeddings_store: local_fast
     top_k: 4
 
   # PostgreSQL hybrid search (requires postgres dependency group)
   # pg_hybrid:
-  #   type: pg_hybrid
+  #   type: genai_tk.core.retrievers.PgHybridRetriever
   #   embeddings: default
   #   postgres: default
   #   hybrid_search: true

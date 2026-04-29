@@ -186,14 +186,14 @@ type: genai_tk.core.retrievers.ZeroEntropyRetriever
 
 This allows you to write **custom retriever builders** in your own codebase without modifying genai-tk. See [Extending with custom retrievers](#extending-with-custom-retrievers) below.
 
-### Backend `backend` field — fully-qualified class names
+### Backend `backend` field — short names (for EmbeddingsStore)
 
-Vector store backends in `embeddings_store:` blocks must also be fully-qualified class names:
+Vector store backends in `embeddings_store:` blocks use **short names** (not qualified names). The EmbeddingsStore factory uses a different dispatch mechanism than retrievers:
 
 ```yaml
 embeddings_store:
   my_store:
-    backend: genai_tk.core.vector_backends.ChromaBackend
+    backend: Chroma                # short name (not qualified)
     embeddings: default
     config:
       storage: '::memory::'
@@ -201,11 +201,13 @@ embeddings_store:
 
 Supported backends:
 
-| Qualified name | Backend |
+| Short name | Backend |
 |---|----------|
-| `genai_tk.core.vector_backends.ChromaBackend` | Chroma (in-memory or persistent) |
-| `genai_tk.core.vector_backends.InMemoryBackend` | Ephemeral in-process store |
-| `genai_tk.core.vector_backends.PgVectorBackend` | PostgreSQL with pgvector + full-text |
+| `Chroma` | Chroma (in-memory or persistent) |
+| `InMemory` | Ephemeral in-process store |
+| `PgVector` | PostgreSQL with pgvector + full-text |
+
+> **Note:** Only `RetrieverFactory` uses fully-qualified class names. `EmbeddingsStore` backends use short names for simpler configuration.
 
 ### Full reference
 
@@ -280,21 +282,21 @@ These are referenced from `retrievers.<tag>.embeddings_store`::
 
     embeddings_store:
       in_memory_chroma:
-        backend: genai_tk.core.vector_backends.ChromaBackend
+        backend: Chroma
         embeddings: default
         table_name_prefix: embeddings
         config:
           storage: '::memory::'         # in-memory (no persistence)
 
       chroma_indexed:
-        backend: genai_tk.core.vector_backends.ChromaBackend
+        backend: Chroma
         embeddings: default
         table_name_prefix: embeddings
         config:
           storage: ${paths.data_root}/vector_store   # persistent on disk
 
       local_fast:
-        backend: genai_tk.core.vector_backends.ChromaBackend
+        backend: Chroma
         embeddings: bge-small-en@local  # local FastEmbed model
         table_name_prefix: embeddings
         config:
