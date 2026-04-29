@@ -276,6 +276,9 @@ class TestCommands(CliTopCommand):
             glob: Annotated[
                 str, typer.Option("--glob", help="Glob pattern for discovering notebooks in a directory")
             ] = "**/*.ipynb",
+            quiet: Annotated[
+                bool, typer.Option("--quiet", "-q", help="Suppress execution output; only show summary table")
+            ] = False,
         ) -> None:
             """Execute Jupyter notebooks and report pass/fail for each.
 
@@ -290,6 +293,7 @@ class TestCommands(CliTopCommand):
                 cli test notebooks notebooks/my_demo.ipynb
                 cli test notebooks --glob "*.ipynb"
                 cli test notebooks --allow-pip
+                cli test notebooks --quiet
             """
             from rich import box
             from rich.console import Console
@@ -311,7 +315,8 @@ class TestCommands(CliTopCommand):
                 console.print(f"[yellow]No notebooks found in[/yellow] {target}")
                 raise typer.Exit(0)
 
-            console.print(f"\n[bold]Running {len(nb_files)} notebook(s)[/bold] from [cyan]{target}[/cyan]\n")
+            if not quiet:
+                console.print(f"\n[bold]Running {len(nb_files)} notebook(s)[/bold] from [cyan]{target}[/cyan]\n")
 
             table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
             table.add_column("Notebook", style="cyan", no_wrap=True)
@@ -323,18 +328,21 @@ class TestCommands(CliTopCommand):
             failed: list[str] = []
 
             for nb_path in nb_files:
-                console.print(f"  [dim]executing[/dim] {nb_path.name} ...", end="")
-                result = run_notebook(nb_path, allow_pip=allow_pip)
+                if not quiet:
+                    console.print(f"  [dim]executing[/dim] {nb_path.name} ...", end="")
+                result = run_notebook(nb_path, allow_pip=allow_pip, suppress_output=quiet)
                 status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
-                console.print(f"\r  {status} {nb_path.name}          ")
+                if not quiet:
+                    console.print(f"\r  {status} {nb_path.name}          ")
 
                 if not result.passed:
                     failed.append(str(nb_path))
-                    for cell_res in result.failed_cells:
-                        console.print(
-                            f"    [red]Cell {cell_res.cell_index}:[/red] "
-                            f"{type(cell_res.error).__name__}: {cell_res.error}"
-                        )
+                    if not quiet:
+                        for cell_res in result.failed_cells:
+                            console.print(
+                                f"    [red]Cell {cell_res.cell_index}:[/red] "
+                                f"{type(cell_res.error).__name__}: {cell_res.error}"
+                            )
 
                 table.add_row(
                     str(nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path),
@@ -344,7 +352,8 @@ class TestCommands(CliTopCommand):
                     status,
                 )
 
-            console.print()
+            if not quiet:
+                console.print()
             console.print(table)
 
             if failed:

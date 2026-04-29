@@ -10,8 +10,6 @@ be used in CI without a full Jupyter stack.
 
 from __future__ import annotations
 
-import ast
-import asyncio
 import json
 import time
 from dataclasses import dataclass, field
@@ -113,17 +111,21 @@ def _wrap_async_cell(source: str) -> str:
     )
 
 
-def run_notebook(path: Path, allow_pip: bool = False) -> NotebookResult:
+def run_notebook(path: Path, allow_pip: bool = False, suppress_output: bool = False) -> NotebookResult:
     """Execute all code cells in *path* and return a :class:`NotebookResult`.
 
     Args:
         path: Path to the ``.ipynb`` file.
         allow_pip: When ``True``, cells with ``%pip`` / ``!pip`` are executed
             instead of skipped.
+        suppress_output: When ``True``, capture and discard cell print output.
 
     Returns:
         Aggregated result for the notebook.
     """
+    import io
+    import sys
+
     notebook = json.loads(path.read_text(encoding="utf-8"))
     cells = notebook.get("cells", [])
     env: dict = {}
@@ -142,7 +144,14 @@ def run_notebook(path: Path, allow_pip: bool = False) -> NotebookResult:
             executable = _wrap_async_cell(executable)
         t0 = time.perf_counter()
         try:
-            exec(executable, env)  # noqa: S102
+            if suppress_output:
+                old_stdout, old_stderr = sys.stdout, sys.stderr
+                sys.stdout, sys.stderr = io.StringIO(), io.StringIO()
+            try:
+                exec(executable, env)  # noqa: S102
+            finally:
+                if suppress_output:
+                    sys.stdout, sys.stderr = old_stdout, old_stderr
             duration = time.perf_counter() - t0
             result.cell_results.append(CellResult(idx, source, passed=True, duration=duration))
         except Exception as exc:  # noqa: BLE001
