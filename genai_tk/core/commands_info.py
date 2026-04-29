@@ -44,7 +44,6 @@ class InfoCommands(CliTopCommand):
             from rich.table import Table
 
             from genai_tk.core.embeddings_factory import EmbeddingsFactory
-            from genai_tk.core.embeddings_store import EmbeddingsStore
             from genai_tk.core.llm_factory import PROVIDER_INFO, LlmFactory
 
             console = Console()
@@ -61,11 +60,6 @@ class InfoCommands(CliTopCommand):
                 default_embeddings_id = str(default_embeddings.embeddings_id)
             except Exception:
                 default_embeddings_id = str(global_config().get("embeddings.models.default", "—"))
-            try:
-                default_vector_store = EmbeddingsStore.create_from_config("default")
-                default_vector_id = str(default_vector_store.backend)
-            except Exception:
-                default_vector_id = str(global_config().get("vector_store.default", "—"))
 
             models_table = Table(title="Default Components", show_header=True, header_style="bold magenta")
             models_table.add_column("Type", style="cyan")
@@ -73,7 +67,6 @@ class InfoCommands(CliTopCommand):
 
             models_table.add_row("LLM", str(default_llm_id))
             models_table.add_row("Embeddings", default_embeddings_id)
-            models_table.add_row("Vector-store", default_vector_id)
 
             console.print(models_table)
 
@@ -257,7 +250,6 @@ class InfoCommands(CliTopCommand):
             from rich.text import Text
 
             from genai_tk.core.embeddings_factory import EmbeddingsFactory
-            from genai_tk.core.embeddings_store import EmbeddingsStore
             from genai_tk.core.llm_factory import LlmFactory
             from genai_tk.core.providers import PROVIDER_INFO
 
@@ -288,21 +280,16 @@ class InfoCommands(CliTopCommand):
 
             llm_panel = Panel(prov_table, title="[bold blue]LLM Providers[/bold blue]", border_style="blue")
 
-            # --- Embeddings & Vector stores as compact bullet lists ---
+            # --- Embeddings as compact bullet list ---
             embeddings_items = EmbeddingsFactory.known_items()
-            vector_items = EmbeddingsStore.known_items()
             embeddings_content = Columns([f"• {item}" for item in embeddings_items], equal=True, expand=True)
-            vector_content = Columns([f"• {item}" for item in vector_items], equal=True, expand=True)
             embeddings_panel = Panel(
                 embeddings_content, title="[bold green]Embeddings[/bold green]", border_style="green"
-            )
-            vector_panel = Panel(
-                vector_content, title="[bold magenta]Vector Stores[/bold magenta]", border_style="magenta"
             )
 
             console.print(llm_panel)
             console.print()
-            console.print(Columns([embeddings_panel, vector_panel], equal=True, expand=True))
+            console.print(embeddings_panel)
 
         @cli_app.command("llm-profile")
         def llm_profile(

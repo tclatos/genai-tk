@@ -226,8 +226,7 @@ class EmbeddingsStore(BaseModel):
             raise ValueError("The Sklearn backend has been removed. Use 'Chroma' or 'InMemory' instead.")
         if backend not in get_args(VECTOR_STORE_ENGINE):
             raise ValueError(
-                f"Unknown vector store backend: '{backend}'. "
-                f"Supported: {list(get_args(VECTOR_STORE_ENGINE))}"
+                f"Unknown vector store backend: '{backend}'. Supported: {list(get_args(VECTOR_STORE_ENGINE))}"
             )
         return backend
 
