@@ -277,7 +277,10 @@ class TestCommands(CliTopCommand):
                 str, typer.Option("--glob", help="Glob pattern for discovering notebooks in a directory")
             ] = "**/*.ipynb",
             quiet: Annotated[
-                bool, typer.Option("--quiet", "-q", help="Suppress execution output; only show summary table")
+                bool,
+                typer.Option(
+                    "--quiet", "-q", help="Suppress execution output; show progress spinner and summary table"
+                ),
             ] = False,
         ) -> None:
             """Execute Jupyter notebooks and report pass/fail for each.
@@ -297,6 +300,7 @@ class TestCommands(CliTopCommand):
             """
             from rich import box
             from rich.console import Console
+            from rich.progress import Progress, SpinnerColumn, TextColumn
             from rich.table import Table
 
             from genai_tk.utils.notebook_runner import run_notebook
@@ -327,33 +331,60 @@ class TestCommands(CliTopCommand):
 
             failed: list[str] = []
 
-            for nb_path in nb_files:
-                if not quiet:
+            if quiet:
+                # Use Progress context for quiet mode with spinner and filename display
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    task = progress.add_task("[cyan]Processing notebooks...", total=len(nb_files))
+
+                    for nb_path in nb_files:
+                        # Update progress with current notebook name
+                        progress.update(task, description=f"[cyan]{nb_path.name}[/cyan]")
+
+                        result = run_notebook(nb_path, allow_pip=allow_pip, suppress_output=quiet)
+                        status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
+
+                        if not result.passed:
+                            failed.append(str(nb_path))
+
+                        table.add_row(
+                            str(nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path),
+                            str(len(result.cell_results)),
+                            str(result.skipped),
+                            f"{result.total_duration:.2f}s",
+                            status,
+                        )
+
+                        progress.advance(task)
+            else:
+                # Verbose mode with per-notebook status updates
+                for nb_path in nb_files:
                     console.print(f"  [dim]executing[/dim] {nb_path.name} ...", end="")
-                result = run_notebook(nb_path, allow_pip=allow_pip, suppress_output=quiet)
-                status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
-                if not quiet:
+                    result = run_notebook(nb_path, allow_pip=allow_pip, suppress_output=quiet)
+                    status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
                     console.print(f"\r  {status} {nb_path.name}          ")
 
-                if not result.passed:
-                    failed.append(str(nb_path))
-                    if not quiet:
+                    if not result.passed:
+                        failed.append(str(nb_path))
                         for cell_res in result.failed_cells:
                             console.print(
                                 f"    [red]Cell {cell_res.cell_index}:[/red] "
                                 f"{type(cell_res.error).__name__}: {cell_res.error}"
                             )
 
-                table.add_row(
-                    str(nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path),
-                    str(len(result.cell_results)),
-                    str(result.skipped),
-                    f"{result.total_duration:.2f}s",
-                    status,
-                )
+                    table.add_row(
+                        str(nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path),
+                        str(len(result.cell_results)),
+                        str(result.skipped),
+                        f"{result.total_duration:.2f}s",
+                        status,
+                    )
 
-            if not quiet:
                 console.print()
+
             console.print(table)
 
             if failed:

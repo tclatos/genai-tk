@@ -99,6 +99,9 @@ class AnonymizationMiddleware(AgentMiddleware):
         self._faker = self._build_faker()
         # mapping[thread_id][original_text] = fake_value
         self._mapping: dict[str, dict[str, str]] = {}
+        # track message IDs that have already been anonymized to prevent re-anonymization
+        # on subsequent before_model calls within the same agent loop
+        self._anonymized_msg_ids: dict[str, set[str]] = {}
 
     # ------------------------------------------------------------------
     # Middleware hooks
@@ -111,6 +114,7 @@ class AnonymizationMiddleware(AgentMiddleware):
             return None
 
         thread_id = self._thread_id(runtime)
+        seen_ids = self._anonymized_msg_ids.setdefault(thread_id, set())
 
         # Find and anonymize the last human message
         updated: list[AnyMessage] = list(messages)
@@ -118,10 +122,15 @@ class AnonymizationMiddleware(AgentMiddleware):
         for i in range(len(messages) - 1, -1, -1):
             msg = messages[i]
             if isinstance(msg, HumanMessage):
+                # Skip messages already anonymized in a previous before_model call
+                if msg.id and msg.id in seen_ids:
+                    break
                 new_msg, did_change = self._anonymize_message(msg, thread_id)
                 if did_change:
                     updated[i] = new_msg
                     changed = True
+                    if new_msg.id:
+                        seen_ids.add(new_msg.id)
                 break  # only last human message
 
         if not changed:
@@ -162,6 +171,7 @@ class AnonymizationMiddleware(AgentMiddleware):
             thread_id: The thread identifier to clean up.
         """
         self._mapping.pop(thread_id, None)
+        self._anonymized_msg_ids.pop(thread_id, None)
 
     # ------------------------------------------------------------------
     # Internal helpers

@@ -13,7 +13,7 @@ llm:
 
 embeddings:
   models:
-    default: ada_002@openai
+    default: qwen3_06b@deepinfra
     local: artic_22@ollama
     fake: embeddings_768@fake  # For testing
   cache: data/hf_models
