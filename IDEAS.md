@@ -1,11 +1,10 @@
 # Genai-Tk Evolution Ideas - Roadmap candidates - 
 
 
-- Merge  genai_tk/extra/retrievers into  genai_tk/core/retrievers. Move genai_tk/core/retriever_factory.py there.  Simplify file structure. Update documentation and tests
-
+- Merge  genai_tk/extra/retrievers into  genai_tk/core/retrievers.  Simplify file structure. 
 - move extra/rag to core/rag
 - remove /home/tcl/prj/genai-tk/genai_tk/extra/loaders/markdown_loader.py
-
+Update documentation and tests
 
 
 
@@ -13,18 +12,17 @@
 # Splitter 
 
 We want to improve the text chunking in RAG.  Today when  calling 'cli rag add-files', it calls _chunk_file_content that select among 2 Chonkie provided "BaseChunker". 
-A more flexible approach using Factories defined in YAML would be better : define in a YAML file a list of chunkers, with for each a class (descendant of Langchain TextSplitter) with its arguments (size, overlapp, ...),as we do in other cases.
-Start with a 'default" one that could be the classic Langchain RecursiveCharacterTextSplitter, a Choknkie Markdown one based on existing code, and Chonkie recursive, with common parameters. 
+A more flexible approach using Factories defined in YAML would be better : define in a YAML file a list of chunkers, with for each a class (qualified name, descendant of Langchain TextSplitter) with its arguments (size, overlapp, ...),as we do in other cases.
+Start with the classic Langchain RecursiveCharacterTextSplitter and a Chonkie Markdown one based on markdown_chunking.py, and a Chonkie recursive, with common parameters. 
 
-Update genai_tk/extra/rag/markdown_chunking.py to it can create Langchain Documents objects (with "start_index" metadata set) 
+Update genai_tk/extra/rag/markdown_chunking.py so it inherit TextSplitter and returns Langchain Documents objects and (with "start_index" metadata set , and number of token, even it's not a standard information for Langchain ) . Have something generic so other Chonkie chunkers can be used in LangChain ecosystem/
 
 
-Update cli rag add-files to select the chunker.
+Update cli rag add-files to select the chunker. Have an "auto" choice so the chunker is selected according to the extension of the file (md => Markdown, ...) 
 
 Have a rag.yaml for these definition. Move the embeddings_store and retrievers definition there (from baseline.yaml). Update app_conf.yaml accordingly.
 
-/home/tcl/prj/genai-graph/genai_graph/webapp/pages/demos/kg_lineage.py
-
+Update /home/tcl/prj/genai-graph/genai_graph/webapp/pages/demos/kg_lineage.py so its take a chunker definition.
 
 
 Ask questions, suggest improvement or alternative approach.

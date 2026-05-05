@@ -9,30 +9,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from chonkie import RecursiveChunker
-from langchain_core.documents import Document
 from loguru import logger
 from prefect import flow, task
 from upath import UPath
 
 from genai_tk.core.retriever_factory import ManagedRetriever, RetrieverFactory
-from genai_tk.extra.rag.markdown_chunking import chunk_markdown_content
+from genai_tk.extra.rag.chunker_factory import ChunkerFactory
 from genai_tk.utils.file_patterns import resolve_files
 from genai_tk.utils.hashing import file_digest
-
-# Initialize text chunker once (it is reusable and thread-safe)
-_text_chunker: RecursiveChunker | None = None
-
-
-def _get_text_chunker(max_chunk_tokens: int) -> RecursiveChunker:
-    """Get or create a text chunker."""
-    global _text_chunker
-    if _text_chunker is None or _text_chunker.chunk_size != max_chunk_tokens:
-        _text_chunker = RecursiveChunker(
-            chunk_size=max_chunk_tokens,
-            tokenizer="character",
-        )
-    return _text_chunker
 
 
 @dataclass(slots=True)
@@ -51,34 +35,6 @@ def _load_file_content(path: UPath) -> str:
     except Exception as e:
         logger.error("Error reading {}: {}", path, e)
         raise
-
-
-def _chunk_markdown(content: str, max_chunk_tokens: int) -> list[str]:
-    """Chunk markdown content using the markdown_chunking module.
-
-    Uses chunk_markdown_content to parse markdown and extract tables, code blocks,
-    and text chunks separately. Returns only the text content of each chunk.
-    """
-
-    chunks = chunk_markdown_content(content, max_tokens=max_chunk_tokens)
-    return [chunk.content for chunk in chunks]
-
-
-def _chunk_text(content: str, max_chunk_tokens: int) -> list[str]:
-    """Chunk text content using chonkie's RecursiveChunker."""
-    chunker = _get_text_chunker(max_chunk_tokens)
-    chunks = chunker.chunk(content)
-    return [chunk.text for chunk in chunks]
-
-
-def _chunk_file_content(path: UPath, content: str, max_chunk_tokens: int) -> list[str]:
-    """Chunk file content based on file type."""
-    if path.suffix.lower() in {".md", ".markdown"}:
-        logger.debug("Using MarkdownChef for {}", path)
-        return _chunk_markdown(content, max_chunk_tokens=max_chunk_tokens)
-    else:
-        logger.debug("Using text chunker for {}", path)
-        return _chunk_text(content, max_chunk_tokens=max_chunk_tokens)
 
 
 def _prepare_files(
@@ -146,6 +102,7 @@ def process_file_task(
     file_info: FileToProcess,
     retriever_name: str,
     max_chunk_tokens: int,
+    chunker_name: str = "auto",
     root_dir: UPath | None = None,
 ) -> int:
     """Process a single file and add its chunks to the retriever store.
@@ -153,37 +110,48 @@ def process_file_task(
     Args:
         file_info: File information including path, hash, and content
         retriever_name: Name of the retriever configuration
-        max_chunk_tokens: Maximum token count per chunk
+        max_chunk_tokens: Maximum token count per chunk (used if chunker_name specifies size)
+        chunker_name: Chunker configuration name ("auto" detects by file extension)
         root_dir: Root directory for computing relative paths
 
     Returns:
         Number of chunks added to the retriever store
     """
-    logger.info("Processing file: {}", file_info.path)
-
-    chunks = _chunk_file_content(file_info.path, file_info.content, max_chunk_tokens=max_chunk_tokens)
-    if not chunks:
-        logger.warning("No chunks created for {}", file_info.path)
-        return 0
+    logger.info("Processing file: {} (chunker: {})", file_info.path, chunker_name)
 
     try:
-        relative_path = file_info.path.relative_to(root_dir)
+        # Get the appropriate chunker (auto-select based on file extension if needed)
+        splitter = ChunkerFactory.create_for_file(file_info.path, chunker_name=chunker_name)
+    except KeyError as exc:
+        logger.error("Chunker configuration error for {}: {}", file_info.path, exc)
+        raise
+
+    # Create a Document from the file content and chunk it
+    try:
+        relative_path = file_info.path.relative_to(root_dir) if root_dir else file_info.path
         file_name = str(relative_path)
     except ValueError:
         file_name = str(file_info.path)
 
-    documents = [
-        Document(
-            page_content=chunk_text,
-            metadata={
-                "source": file_name,
-                "file_hash": file_info.content_hash,
-                "chunk_index": i,
-                "total_chunks": len(chunks),
-            },
-        )
-        for i, chunk_text in enumerate(chunks)
-    ]
+    # Split the document and create chunks with metadata
+    base_metadata = {
+        "source": file_name,
+        "file_hash": file_info.content_hash,
+    }
+
+    documents = splitter.create_documents(
+        [file_info.content],
+        metadatas=[base_metadata],
+    )
+
+    if not documents:
+        logger.warning("No chunks created for {}", file_info.path)
+        return 0
+
+    # Add chunk index to metadata
+    for i, doc in enumerate(documents):
+        doc.metadata["chunk_index"] = i
+        doc.metadata["total_chunks"] = len(documents)
 
     managed = RetrieverFactory.create(retriever_name)
     managed.add_documents(documents)
@@ -200,6 +168,7 @@ def rag_file_ingestion_flow(
     root_dir: str,
     retriever_name: str,
     max_chunk_tokens: int,
+    chunker_name: str = "auto",
     include_patterns: list[str] | None = None,
     exclude_patterns: list[str] | None = None,
     recursive: bool = True,
@@ -212,6 +181,7 @@ def rag_file_ingestion_flow(
         root_dir: Root directory containing files to process
         retriever_name: Name of the retriever configuration
         max_chunk_tokens: Maximum token count per chunk
+        chunker_name: Chunker configuration name ("auto" detects by file extension)
         include_patterns: List of glob patterns for files to include
         exclude_patterns: List of glob patterns for files to exclude
         recursive: Whether to search directories recursively
@@ -260,6 +230,7 @@ def rag_file_ingestion_flow(
                 file_info=fi,
                 retriever_name=retriever_name,
                 max_chunk_tokens=max_chunk_tokens,
+                chunker_name=chunker_name,
                 root_dir=root_path,
             )
             for fi in batch

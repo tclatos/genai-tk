@@ -10,6 +10,7 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
   - ${paths.config}/baseline.yaml
   - ${paths.config}/providers/llm.yaml
   - ${paths.config}/providers/embeddings.yaml
+  - ${paths.config}/rag.yaml
   - ${paths.config}/overrides.yaml
   - ${paths.config}/mcp_servers.yaml
   - ${paths.config}/webapp.yaml

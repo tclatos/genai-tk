@@ -1,6 +1,6 @@
 # RAG Systems (`genai_tk.extra.rag` · `genai_tk.core.retriever_factory`)
 
-> **Quick nav:** [Design](#design) · [Retriever Types](#retriever-types) · [Configuration](#yaml-configuration) · [Python API](#python-api) · [CLI](#cli-commands) · [Batch Ingestion](#batch-ingestion-prefect-flow) · [Agent Tools](#using-retrievers-as-agent-tools) · [PostgreSQL](#postgresql-hybrid-search)
+> **Quick nav:** [Design](#design) · [Retriever Types](#retriever-types) · [Configuration](#yaml-configuration) · [Chunking](#document-chunking) · [Python API](#python-api) · [CLI](#cli-commands) · [Batch Ingestion](#batch-ingestion--prefect-flow) · [Agent Tools](#using-retrievers-as-agent-tools) · [PostgreSQL](#postgresql-hybrid-search)
 
 ---
 
@@ -506,6 +506,272 @@ results = await store.aget_relevant_documents("my query", k=3)
 
 ---
 
+## Document Chunking
+
+The chunking layer intelligently splits documents into manageable pieces (chunks) suitable for embedding and retrieval. Different file types benefit from different chunking strategies.
+
+### Overview
+
+```
+Document file
+    │
+    ▼ ChunkerFactory.create_for_file(path, chunker="auto")
+    │
+    ├── File extension lookup (e.g., .md → markdown)
+    └── Instantiate TextSplitter from config
+            │
+            ├── MarkdownChef (intelligent markdown parsing)
+            ├── RecursiveCharacterTextSplitter (structure-preserving text split)
+            └── CustomSplitter (user-defined)
+                    │
+                    ▼ splitter.create_documents(texts, metadatas)
+                    │
+                    └── list[Document] with metadata:
+                        - start_index: character offset
+                        - token_count: token count using tiktoken
+                        - chunk_type: "text" | "table" | "code" | "mixed"
+                        - source, file_hash, chunk_index, total_chunks (from ingestion)
+```
+
+### Chunking Strategies
+
+#### Markdown Chunker
+
+Recommended for documentation (`.md`, `.markdown`, `.rst`).
+
+```python
+from genai_tk.extra.rag.chunker_factory import ChunkerFactory
+
+splitter = ChunkerFactory.create("markdown")
+docs = splitter.create_documents(
+    [markdown_text],
+    metadatas=[{"source": "guide.md"}]
+)
+```
+
+**Configuration:**
+
+```yaml
+chunkers:
+  markdown:
+    class: genai_tk.extra.rag.chonkie_splitter.ChonkieTextSplitter
+    params:
+      chunker_type: markdown     # Uses MarkdownChef
+      max_tokens: 300            # Target chunk size
+      min_tokens: 50             # Merge smaller chunks
+      merge_small_chunks: true   # Forward-merge small chunks with substantial ones
+      encoding_name: o200k_base  # Tiktoken encoding for token counting
+```
+
+**Features:**
+- Parses markdown structure (headers, code blocks, tables, text)
+- Preserves document hierarchy
+- Merges small chunks to prevent fragmentation
+- Extracts chunk type (text/code/table/mixed) automatically
+
+#### Recursive Chunker
+
+Recommended for code and text files (`.py`, `.js`, `.txt`, etc.).
+
+```python
+splitter = ChunkerFactory.create("recursive")
+docs = splitter.create_documents([text], metadatas=[{"source": "code.py"}])
+```
+
+**Configuration:**
+
+```yaml
+chunkers:
+  recursive:
+    class: langchain_text_splitters.RecursiveCharacterTextSplitter
+    params:
+      chunk_size: 512       # Target chunk size in characters
+      chunk_overlap: 50     # Overlap between chunks
+      separators: ["\n\n", "\n", " ", ""]  # Try separators in order
+```
+
+**Features:**
+- Respects document structure (paragraphs, lines, words)
+- Fast and memory-efficient
+- Configurable overlap for context preservation
+
+#### Chonkie Recursive
+
+Alternative chunking strategy using Chonkie's RecursiveChunker with token counting.
+
+```yaml
+chunkers:
+  chonkie_recursive:
+    class: genai_tk.extra.rag.chonkie_splitter.ChonkieTextSplitter
+    params:
+      chunker_type: recursive
+      max_tokens: 512
+      encoding_name: o200k_base
+```
+
+### Auto-Detection
+
+The system automatically selects the right chunker based on file extension:
+
+```yaml
+chunker_auto_map:
+  ".md": markdown
+  ".markdown": markdown
+  ".rst": markdown
+  ".txt": recursive
+  ".py": recursive
+  ".js": recursive
+  ".java": recursive
+  ".default": recursive  # Fallback for unknown extensions
+```
+
+### Using Auto-Detection
+
+```bash
+# Auto-detect chunker by extension (recommended)
+uv run cli rag add-files ./documents --chunker auto
+
+# Explicit chunker (overrides auto-detection)
+uv run cli rag add-files ./documents --chunker markdown
+
+# Custom chunk size
+uv run cli rag add-files ./documents --chunker auto --chunk-size 256
+```
+
+```python
+from genai_tk.extra.rag.chunker_factory import ChunkerFactory
+from upath import UPath
+
+# Auto-detect
+splitter = ChunkerFactory.create_for_file(UPath("doc.md"), "auto")
+splitter = ChunkerFactory.create_for_file(UPath("code.py"), "auto")
+
+# Explicit
+splitter = ChunkerFactory.create_for_file(UPath("doc.md"), "markdown")
+```
+
+### Document Metadata
+
+All chunks carry comprehensive metadata:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `start_index` | int | Character offset in the original document |
+| `token_count` | int | Tokens using tiktoken o200k_base encoding |
+| `chunk_type` | str | "text" / "code" / "table" / "mixed" |
+| `source` | str | Source file path (added by ingestion) |
+| `file_hash` | str | SHA256 hash (used for deduplication) |
+| `chunk_index` | int | Chunk index within file |
+| `total_chunks` | int | Total chunks from this file |
+
+**Example:**
+
+```python
+doc.metadata == {
+    "source": "docs/guide.md",
+    "file_hash": "abc123...",
+    "chunk_index": 2,
+    "total_chunks": 10,
+    "start_index": 245,
+    "token_count": 287,
+    "chunk_type": "text"
+}
+```
+
+### Custom Chunkers
+
+Define your own chunker in `config/rag.yaml`:
+
+```yaml
+chunkers:
+  my_splitter:
+    class: myapp.chunkers.MySplitter
+    params:
+      param1: value1
+      param2: value2
+```
+
+Your class must inherit from `langchain_text_splitters.TextSplitter`:
+
+```python
+from langchain_text_splitters import TextSplitter
+from langchain_core.documents import Document
+
+class MySplitter(TextSplitter):
+    def split_text(self, text: str) -> list[str]:
+        # Return list of chunk strings
+        return chunks
+    
+    def create_documents(self, texts, metadatas=None):
+        # Optional: custom metadata handling
+        docs = [Document(page_content=t, metadata=m) for t, m in zip(texts, metadatas or [])]
+        return docs
+```
+
+Then use it:
+
+```python
+splitter = ChunkerFactory.create("my_splitter")
+```
+
+### Tuning Chunk Size
+
+Different use cases benefit from different chunk sizes:
+
+| Use Case | Size | Rationale |
+|----------|------|-----------|
+| Dense embedding models | 200-400 | Match model's training context |
+| Sparse (BM25) | 300-600 | Larger chunks for keyword density |
+| Mixed/hybrid | 400-800 | Balance dense + sparse strengths |
+| Code analysis | 512-1024 | Preserve function/class context |
+| Long-form docs | 1000+ | Minimize fragmentation |
+
+**Adjustment:**
+
+```bash
+# Smaller chunks
+uv run cli rag add-files ./docs --chunk-size 256
+
+# Larger chunks
+uv run cli rag add-files ./docs --chunk-size 1024
+```
+
+```python
+from genai_tk.extra.rag.chunker_factory import ChunkerFactory
+
+# Temporarily override chunk size
+splitter = ChunkerFactory.create("recursive")
+# Note: Cannot override size directly from factory yet
+# Use YAML override or create manually:
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+splitter = RecursiveCharacterTextSplitter(
+    chunk_size=256,
+    chunk_overlap=25,
+)
+```
+
+### Token Counting
+
+Chunks include a `token_count` field using OpenAI's `o200k_base` encoding (ChatGPT 4 encoding):
+
+```python
+# Chunks are pre-counted
+assert doc.metadata["token_count"] <= 512  # For max_tokens=512 config
+```
+
+To count manually:
+
+```python
+import tiktoken
+
+encoding = tiktoken.get_encoding("o200k_base")
+tokens = encoding.encode(text)
+print(f"Token count: {len(tokens)}")
+```
+
+---
+
 ## CLI Commands
 
 All RAG operations are available under `cli rag`:
@@ -523,6 +789,7 @@ uv run cli rag add-files ./my_docs/ --retriever persistent
 | Option | Short | Default | Description |
 |--------|-------|---------|-------------|
 | `--retriever` | `-r` | `default` | Retriever config tag |
+| `--chunker` | | `auto` | Chunking strategy: "auto" (detect by extension), or config tag like "markdown", "recursive" |
 | `--include` | `-i` | `**/*` | Glob patterns to include (repeatable) |
 | `--exclude` | `-e` | — | Glob patterns to exclude (repeatable) |
 | `--recursive/--no-recursive` | | `--recursive` | Search subdirectories |
@@ -531,12 +798,21 @@ uv run cli rag add-files ./my_docs/ --retriever persistent
 | `--chunk-size` | | 512 | Max tokens per chunk |
 
 ```bash
-# Only Markdown files, exclude drafts
-uv run cli rag add-files ./docs/ -r hybrid_ensemble \
+# Auto-detect chunker by file extension (recommended)
+uv run cli rag add-files ./docs/
+
+# Explicit markdown chunker
+uv run cli rag add-files ./docs/ --chunker markdown
+
+# Only Markdown files, with auto-detection
+uv run cli rag add-files ./docs/ \
     --include "**/*.md" --exclude "**/drafts/**"
 
-# Re-index everything
-uv run cli rag add-files ./docs/ -r persistent --force
+# Re-index everything with explicit chunker
+uv run cli rag add-files ./docs/ --retriever persistent --chunker recursive --force
+
+# Smaller chunks
+uv run cli rag add-files ./docs/ --chunker auto --chunk-size 256
 ```
 
 ### `query` — search a retriever
@@ -610,6 +886,7 @@ result = run_flow_ephemeral(
     root_dir="./documents",
     retriever_name="persistent",
     max_chunk_tokens=512,
+    chunker_name="auto",              # NEW: auto-detect or specify chunker
     include_patterns=["**/*.md", "**/*.txt"],
     exclude_patterns=["**/node_modules/**"],
     recursive=True,

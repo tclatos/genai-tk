@@ -1,0 +1,145 @@
+# RAG Configuration: Chunkers, Embeddings Stores, and Retrievers
+# This file centralizes all RAG-related configurations, moved from baseline.yaml
+
+# ============================================================
+# Text Chunkers — configurable splitters for document ingestion
+# See: genai_tk.extra.rag.chunker_factory
+# ============================================================
+chunkers:
+  # LangChain RecursiveCharacterTextSplitter
+  recursive:
+    class: langchain_text_splitters.RecursiveCharacterTextSplitter
+    params:
+      chunk_size: 512
+      chunk_overlap: 50
+      separators: ["\n\n", "\n", " ", ""]
+
+  # Chonkie-based markdown chunker with intelligent parsing
+  # Preserves structure: text, tables, code blocks
+  # Merges small chunks forward to keep headers with content
+  markdown:
+    class: genai_tk.extra.rag.chonkie_splitter.ChonkieTextSplitter
+    params:
+      chunker_type: markdown
+      max_tokens: 300
+      min_tokens: 50
+      merge_small_chunks: true
+      encoding_name: o200k_base
+
+  # Chonkie RecursiveChunker for general text
+  chonkie_recursive:
+    class: genai_tk.extra.rag.chonkie_splitter.ChonkieTextSplitter
+    params:
+      chunker_type: recursive
+      max_tokens: 512
+      encoding_name: o200k_base
+
+# Auto-detection map: file extension → chunker name
+# Used when chunker_name="auto" in rag add-files
+chunker_auto_map:
+  ".md": markdown
+  ".markdown": markdown
+  ".rst": markdown
+  ".txt": recursive
+  ".py": recursive
+  ".js": recursive
+  ".java": recursive
+  ".default": recursive
+
+
+# ============================================================
+# Embeddings Stores — vector database backends
+# See: genai_tk.core.embeddings_store.EmbeddingsStore
+# ============================================================
+embeddings_store:
+  # In-memory non-persistent store (good for tests/demos)
+  in_memory:
+    backend: genai_tk.core.vector_backends.InMemoryBackend
+
+  # In-memory Chroma backend (ephemeral)
+  in_memory_chroma: &default_store
+    backend: genai_tk.core.vector_backends.ChromaBackend
+    embeddings: default
+    table_name_prefix: embeddings
+    config:
+      storage: '::memory::'
+
+  # Local FastEmbed-backed store with persistent Chroma storage
+  local_fast:
+    backend: genai_tk.core.vector_backends.ChromaBackend
+    embeddings: bge-small-en@local
+    table_name_prefix: embeddings
+    config:
+      storage: ${paths.data_root}/vector_store_local_fast
+
+  # Default: in-memory Chroma
+  default: *default_store
+
+  # Persistent Chroma store on disk
+  chroma:
+    backend: genai_tk.core.vector_backends.ChromaBackend
+    embeddings: default
+    table_name_prefix: embeddings
+    config:
+      storage: ${paths.data_root}/vector_store
+
+
+# ============================================================
+# Retrievers — composable RAG retrievers (RetrieverFactory)
+# See: genai_tk.core.retriever_factory
+# ============================================================
+retrievers:
+  # Simple in-memory vector retriever (good for tests/demos)
+  default:
+    type: genai_tk.core.retrievers.VectorRetriever
+    embeddings_store: in_memory_chroma
+    top_k: 4
+
+  # Persistent Chroma vector retriever with record_manager dedup
+  persistent:
+    type: genai_tk.core.retrievers.VectorRetriever
+    embeddings_store: chroma
+    top_k: 4
+    # record_manager_url: auto-generated SQLite under ${paths.data_root}/record_manager/
+
+  # BM25 retriever (index persisted under ${paths.data_root}/bm25_cache/bm25_local/)
+  bm25_local:
+    type: genai_tk.core.retrievers.BM25Retriever
+    k: 4
+    preprocessing: default   # or "spacy" for lemmatisation
+
+  # Ensemble: dense + sparse (good baseline for hybrid retrieval without Postgres)
+  hybrid_ensemble:
+    type: genai_tk.core.retrievers.EnsembleRetriever
+    retrievers:
+      - ref: default
+        weight: 0.7
+      - ref: bm25_local
+        weight: 0.3
+
+  # Reranked ensemble using semantic embeddings filter
+  hybrid_reranked:
+    type: genai_tk.core.retrievers.RerankedRetriever
+    retriever: hybrid_ensemble
+    reranker: embeddings   # or "cohere" / "cross_encoder"
+    top_k: 3
+    fetch_k: 10
+
+  # Local FastEmbed-backed retriever (persistent Chroma)
+  local_fast:
+    type: genai_tk.core.retrievers.VectorRetriever
+    embeddings_store: local_fast
+    top_k: 4
+
+  # PostgreSQL hybrid search (requires postgres dependency group)
+  # pg_hybrid:
+  #   type: genai_tk.core.retrievers.PgHybridRetriever
+  #   embeddings: default
+  #   postgres: default
+  #   hybrid_search: true
+  #   top_k: 4
+  #   hybrid_search_config:
+  #     tsv_lang: pg_catalog.english
+  #     fusion_function_parameters:
+  #       primary_results_weight: 0.7
+  #       secondary_results_weight: 0.3

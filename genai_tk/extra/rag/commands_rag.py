@@ -122,6 +122,13 @@ class RagCommands(CliTopCommand):
             force: Annotated[bool, typer.Option("--force", "-f", help="Reprocess all files")] = False,
             batch_size: Annotated[int, typer.Option("--batch-size", "-b")] = 10,
             chunk_size: Annotated[int, typer.Option("--chunk-size", help="Max chunk size in tokens")] = 512,
+            chunker: Annotated[
+                str,
+                typer.Option(
+                    "--chunker",
+                    help='Chunker name (e.g. "markdown", "recursive") or "auto" to detect by file extension',
+                ),
+            ] = "auto",
         ) -> None:
             """Ingest files from a directory into a retriever store."""
             from genai_tk.utils.file_patterns import resolve_config_path
@@ -149,6 +156,7 @@ class RagCommands(CliTopCommand):
                     root_dir=resolved,
                     retriever_name=retriever_name,
                     max_chunk_tokens=chunk_size,
+                    chunker_name=chunker,
                     include_patterns=include,
                     exclude_patterns=exclude,
                     recursive=recursive,
