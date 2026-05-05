@@ -61,7 +61,6 @@ from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.import_utils import ImportResolver
 
-
 # ---------------------------------------------------------------------------
 # Internal config model (parsed from YAML)
 # ---------------------------------------------------------------------------

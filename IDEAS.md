@@ -1,22 +1,31 @@
 # Genai-Tk Evolution Ideas - Roadmap candidates - 
 
-# Rag Retriever 
 
-We want to improve RAG in our framework,  notably to facilitate Hybrid Search, that today can be done either with a vector store + bm-25 like + Ensemble retriever, or with PostgreSQL with hybrid search.
-The genai_tk/core/embeddings_store.py is not perfect, has it does not nicely fit with an hybrid search definition. 
+- Merge  genai_tk/extra/retrievers into  genai_tk/core/retrievers. Move genai_tk/core/retriever_factory.py there.  Simplify file structure. Update documentation and tests
 
-The idea I have is to use the factory pattern, used several time in the toolkit.  We could have factories that return a Langcchain retriever - that could be a simple vector store, or the curent "PostgreSQL with hybrid search", or an Ensemble retriever (vector store + bm25s), or new one (not necesseraly linked to a vector store).   Such factory should be recursive (ex: Esnsemble retriever factory) . They can be  configured in YAML. 
-
-Such retrovers will usualy be accessed by a Langchain tool. There's already a genai_tk/tools/langchain/rag_tool_factory.py -  that can likely be improved. 
+- move extra/rag to core/rag
+- remove /home/tcl/prj/genai-tk/genai_tk/extra/loaders/markdown_loader.py
 
 
-However, we need to take into accout that, before being retrieved, the data need to be stored.  Do the factories return object should also have the ability to store Documents with their metadata (like Langchain Vector Store). In case of ensemble retriever, the data (more precisely the index) should be sored in bith vector store and BM25 like. 
-We want also to avoid recalculation - typically using Langchain record_manager feature (as today).
 
 
-We want also to facilitate tests and deployement with Postgres, using  pgembed (https://github.com/Ladybug-Memory/pgembed). So have a nice way to select our way to access Postgres.  Be aware that some tools need async version, other can't (so there is a hack somewhere)
 
-Analyse the code, including the cli rag commands, and propose a plan to refactor, simplify and easier to maintain and update. You can change everything : don't care about legacy code.  Plan to update tests and cod, and to create one or two notebooks to illustre how things work.
+# Splitter 
+
+We want to improve the text chunking in RAG.  Today when  calling 'cli rag add-files', it calls _chunk_file_content that select among 2 Chonkie provided "BaseChunker". 
+A more flexible approach using Factories defined in YAML would be better : define in a YAML file a list of chunkers, with for each a class (descendant of Langchain TextSplitter) with its arguments (size, overlapp, ...),as we do in other cases.
+Start with a 'default" one that could be the classic Langchain RecursiveCharacterTextSplitter, a Choknkie Markdown one based on existing code, and Chonkie recursive, with common parameters. 
+
+Update genai_tk/extra/rag/markdown_chunking.py to it can create Langchain Documents objects (with "start_index" metadata set) 
+
+
+Update cli rag add-files to select the chunker.
+
+Have a rag.yaml for these definition. Move the embeddings_store and retrievers definition there (from baseline.yaml). Update app_conf.yaml accordingly.
+
+/home/tcl/prj/genai-graph/genai_graph/webapp/pages/demos/kg_lineage.py
+
+
 
 Ask questions, suggest improvement or alternative approach.
 

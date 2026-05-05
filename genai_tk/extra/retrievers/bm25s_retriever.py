@@ -98,7 +98,7 @@ class BM25FastRetriever(BaseRetriever):
 
         if cache_path is not None:
             logger.info("Save BM25 cache")
-            vectorizer.save(cache_path, corpus=None, allow_pickle=True)
+            vectorizer.save(cache_path, corpus=None, allow_pickle=True, show_progress = false) )
 
         return cls(vectorizer=vectorizer, docs=docs, preprocess_func=preprocess_func, **kwargs)
 
