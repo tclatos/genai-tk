@@ -75,7 +75,7 @@ cli:
 ### Using LLMs
 
 ```python
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 
 # Get default LLM (configured in baseline.yaml)
 llm = get_llm()
@@ -90,7 +90,7 @@ llm = get_llm("default", streaming=True, temperature=0.7)
 ### Building LCEL Chains
 
 ```python
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 from genai_tk.core.prompts import def_prompt
 from langchain_core.output_parsers import StrOutputParser
 
@@ -103,7 +103,7 @@ result = chain.invoke({"question": "What is 2+2?"})
 ### Creating Agents
 
 ```python
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 from langchain_core.messages import HumanMessage
 from langgraph.prebuilt import create_react_agent
 

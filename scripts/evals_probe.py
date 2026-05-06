@@ -101,7 +101,7 @@ if _enabled("raw_llm"):
 
     from langchain_core.messages import HumanMessage
 
-    from genai_tk.core.llm_factory import get_llm
+    from genai_tk.core.factories.llm_factory import get_llm
 
     def _raw_invoke():
         m = get_llm(JUDGE_MODEL)
@@ -136,7 +136,7 @@ if _enabled("raw_llm"):
 
 def _make_judge():
     """Return the configured JUDGE_MODEL for use as an openevals judge."""
-    from genai_tk.core.llm_factory import get_llm
+    from genai_tk.core.factories.llm_factory import get_llm
 
     return get_llm(JUDGE_MODEL)
 

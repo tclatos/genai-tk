@@ -2,11 +2,8 @@
 # LLM service provider
 ########################
 
-# Registered LLMs Services
+# Registered LLMs Services, extending or overriding the models in models.dev (data/models_dev.json) 
 
-# LLM_id should follow Python variables constraints - ie no '-' no space etc
-# Use pattern {self.model_family_name}_{version}
-# model_name is provider specific.  It can contains several fields decoded in the factory.
 
 # Capabilities can be : 'thinking', 'structured_outputs', 'pdf', 'vision'
 # Capabilities, max_tokens, and context_window are automatically derived from the models.dev

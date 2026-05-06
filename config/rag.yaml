@@ -3,7 +3,7 @@
 
 # ============================================================
 # Text Chunkers — configurable splitters for document ingestion
-# See: genai_tk.extra.rag.chunker_factory
+# See: genai_tk.core.factories.chunker_factory
 # ============================================================
 chunkers:
   # LangChain RecursiveCharacterTextSplitter

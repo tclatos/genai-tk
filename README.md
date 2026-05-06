@@ -170,8 +170,8 @@ custom pages, and running from a new project via `cli init --name "My Project"`.
 
 ```python
 # config is auto-discovered from the current directory upwards
-from genai_tk.core.llm_factory import get_llm
-from genai_tk.core.embeddings_factory import get_embeddings
+from genai_tk.core.factories.llm_factory import get_llm
+from genai_tk.core.factories.embeddings_factory import get_embeddings
 
 llm = get_llm()                          # uses default model from config
 llm = get_llm("gpt41mini@openai")        # explicit model

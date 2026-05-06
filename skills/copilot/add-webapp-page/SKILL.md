@@ -21,7 +21,7 @@ Create a new file in `<package>/webapp/pages/demos/my_page.py`:
 import streamlit as st
 from streamlit import session_state as sss
 
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 from genai_tk.webapp.ui_components.llm_selector import render_llm_selector
 
 st.set_page_config(page_title="My Page", page_icon="🔧", layout="wide")

@@ -25,12 +25,14 @@ embeddings:
 
     - model_id: text_3_small
       providers:
+        - edenai: openai/text-embedding-3-small
         - openai: text-embedding-3-small
         - openrouter: openai/text-embedding-3-small
       dimension: 1536
 
     - model_id: qwen3_06b
       providers:
+        #- edenai: deepinfra/Qwen/Qwen3-Embedding-0.6
         - deepinfra: Qwen/Qwen3-Embedding-0.6B
         - openrouter: qwen/qwen3-embedding-0.6b  # Listed but may have no active endpoints
       dimension: 1024
@@ -44,6 +46,11 @@ embeddings:
       providers:
         - local: BAAI/bge-small-en-v1.5
       dimension: 384
+
+    # - model_id: mistral
+    #   providers:
+    #     - edenai: mistral/mistral-embed
+    #   dimension: 
 
     - model_id: embeddings_768  # fake embeddings for tests
       providers:

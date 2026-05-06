@@ -19,7 +19,7 @@ Create a new file in `<package>/chains/my_chain.py`:
 """My custom chain — describe what it does."""
 
 from genai_tk.core.chain_registry import Example, RunnableItem, register_runnable
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 from genai_tk.core.prompts import def_prompt
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import Runnable
@@ -113,8 +113,8 @@ chain = prompt | llm.with_structured_output(Answer)
 
 ### RAG Chain
 ```python
-from genai_tk.core.llm_factory import get_llm
-from genai_tk.core.embeddings_factory import get_embeddings_store
+from genai_tk.core.factories.llm_factory import get_llm
+from genai_tk.core.factories.embeddings_factory import get_embeddings_store
 
 store = get_embeddings_store()
 retriever = store.as_retriever(search_kwargs={"k": 4})

@@ -41,7 +41,6 @@ from langchain_core.embeddings import Embeddings
 from loguru import logger
 from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
-            from langchain_openai import OpenAIEmbeddings
 
 from genai_tk.extra.kv_store_registry import KvStoreRegistry
 from genai_tk.utils.config_mngr import global_config
@@ -483,6 +482,7 @@ class EmbeddingsFactory(BaseModel):
 
             # provider, _, model = self.info.model.partition("/")
             # emb = EdenAiEmbeddings(model=model, provider=provider, edenai_api_key=api_key)
+            from langchain_openai import OpenAIEmbeddings
 
             emb = OpenAIEmbeddings(
                 model=self.info.model,

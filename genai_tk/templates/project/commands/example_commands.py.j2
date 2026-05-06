@@ -32,7 +32,7 @@ class ExampleCommands(CliTopCommand):
             model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
         ) -> None:
             """Ask the LLM to tell a joke — simplest possible LLM call."""
-            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.factories.llm_factory import get_llm
             from genai_tk.core.prompts import def_prompt
 
             llm = get_llm(model)
@@ -49,7 +49,7 @@ class ExampleCommands(CliTopCommand):
             """Run a LangChain LCEL chain — demonstrates prompt | llm | parser composition."""
             from langchain_core.output_parsers import StrOutputParser
 
-            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.factories.llm_factory import get_llm
             from genai_tk.core.prompts import def_prompt
 
             llm = get_llm(model)
@@ -70,7 +70,7 @@ class ExampleCommands(CliTopCommand):
             from langchain_core.messages import HumanMessage
             from langgraph.prebuilt import create_react_agent
 
-            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.factories.llm_factory import get_llm
 
             llm = get_llm(model)
 
