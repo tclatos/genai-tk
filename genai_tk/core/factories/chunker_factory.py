@@ -28,7 +28,8 @@ from langchain_text_splitters import TextSplitter
 from loguru import logger
 from upath import UPath
 
-from genai_tk.utils.config_mngr import global_config, import_from_qualified
+from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.import_utils import ImportResolver
 
 
 class ChunkerFactory:
@@ -73,7 +74,7 @@ class ChunkerFactory:
         logger.debug("Creating chunker '{}' from class {}", config_tag, class_path)
 
         # Import the class
-        splitter_cls = import_from_qualified(class_path)
+        splitter_cls = ImportResolver.import_from_qualified(class_path)
 
         # Instantiate with parameters
         try:

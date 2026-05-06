@@ -121,7 +121,8 @@ from genai_tk.utils.config_exceptions import (
     ConfigTypeError,
     ConfigValidationError,
 )
-from genai_tk.utils.config_mngr import global_config, import_from_qualified
+from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.import_utils import ImportResolver
 from genai_tk.utils.logger_factory import setup_logging
 
 load_dotenv(verbose=True)
@@ -167,7 +168,7 @@ def load_and_register_commands(cli_app: typer.Typer) -> None:
     # Import and register commands from each module
     for module in modules:
         try:
-            imported = import_from_qualified(module)
+            imported = ImportResolver.import_from_qualified(module)
 
             # Check if it's a class or function
             if isinstance(imported, type):

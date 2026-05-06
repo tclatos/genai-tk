@@ -214,33 +214,3 @@ class ImportResolver:
                 logger.debug(f"Instantiated: {qname}")
 
         return instances
-
-
-# ---------------------------------------------------------------------------
-# Module-level convenience aliases (backward-compatible with old config_mngr exports)
-# ---------------------------------------------------------------------------
-
-
-def split_qualified_name(qualified_name: str) -> tuple[str, str]:
-    """Alias for ``ImportResolver.split_qualified_name()``."""
-    return ImportResolver.split_qualified_name(qualified_name)
-
-
-def get_module_from_qualified(qualified_name: str) -> str:
-    """Alias for ``ImportResolver.get_module()``."""
-    return ImportResolver.get_module(qualified_name)
-
-
-def get_object_name_from_qualified(qualified_name: str) -> str:
-    """Alias for ``ImportResolver.get_object_name()``."""
-    return ImportResolver.get_object_name(qualified_name)
-
-
-def import_from_qualified(qualified_name: str) -> Callable:
-    """Alias for ``ImportResolver.import_from_qualified()``."""
-    return ImportResolver.import_from_qualified(qualified_name)
-
-
-def instantiate_from_qualified_names(qualified_names: list[str], logger: object | None = None) -> list[object]:
-    """Alias for ``ImportResolver.instantiate_from_qualified_names()``."""
-    return ImportResolver.instantiate_from_qualified_names(qualified_names, logger=logger)

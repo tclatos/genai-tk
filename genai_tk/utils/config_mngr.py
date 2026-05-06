@@ -38,13 +38,7 @@ from genai_tk.utils.config_exceptions import (
     ConfigValidationError,
     yaml_config_validation,
 )
-from genai_tk.utils.import_utils import (
-    ImportResolver,
-    get_module_from_qualified,
-    get_object_name_from_qualified,
-    import_from_qualified,
-    split_qualified_name,
-)
+from genai_tk.utils.import_utils import ImportResolver
 from genai_tk.utils.singleton import once
 
 # Sentinel used to distinguish "no default provided" from "default=None".
@@ -768,10 +762,6 @@ def get_raw_config() -> DictConfig:
 # ---------------------------------------------------------------------------
 __all__ = [
     "ImportResolver",
-    "import_from_qualified",
-    "split_qualified_name",
-    "get_module_from_qualified",
-    "get_object_name_from_qualified",
 ]
 
 

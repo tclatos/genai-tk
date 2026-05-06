@@ -41,6 +41,7 @@ from langchain_core.embeddings import Embeddings
 from loguru import logger
 from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+            from langchain_openai import OpenAIEmbeddings
 
 from genai_tk.extra.kv_store_registry import KvStoreRegistry
 from genai_tk.utils.config_mngr import global_config
@@ -478,10 +479,17 @@ class EmbeddingsFactory(BaseModel):
                 kwargs["cache_dir"] = cache
             emb = FastEmbedEmbeddings(**kwargs)
         elif self.info.provider == "edenai":
-            from langchain_community.embeddings.edenai import EdenAiEmbeddings
+            # from langchain_community.embeddings.edenai import EdenAiEmbeddings
 
-            provider, _, model = self.info.model.partition("/")
-            emb = EdenAiEmbeddings(model=model, provider=provider, edenai_api_key=api_key)
+            # provider, _, model = self.info.model.partition("/")
+            # emb = EdenAiEmbeddings(model=model, provider=provider, edenai_api_key=api_key)
+
+            emb = OpenAIEmbeddings(
+                model=self.info.model,
+                api_key=api_key,
+                base_url=self.info.get_api_base(),
+            )
+
         elif self.info.provider == "azure":
             from langchain_openai import AzureOpenAIEmbeddings
 

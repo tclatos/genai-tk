@@ -98,11 +98,11 @@ dependencies = [
     "readabilipy>=0.3.0", # Web article extraction and readability parsing
     "edgeparse>=0.2.2",
     "fastembed>=0.8.0",
-    "jinja2>=3.1.0",    # Template engine for project scaffolding (cli init)
+    "jinja2>=3.1.0",      # Template engine for project scaffolding (cli init)
     # ============================================
     # Web Interface (Streamlit)
     # ============================================
-    "streamlit>=1.49", # Interactive webapp framework
+    "streamlit>=1.49",              # Interactive webapp framework
     "pillow>=11.0",
     "presidio-analyzer>=2.2.362",
     "presidio-anonymizer>=2.2.362",
@@ -207,7 +207,11 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["genai_tk"]
-# genai_tk/default_config/ is a symlink to config/ — auto-included as package data.
+
+[tool.hatch.build.targets.wheel.force-include]
+# Explicitly bundle config/ as package data under genai_tk/default_config/ in the wheel.
+# The symlink genai_tk/default_config -> ../config serves editable (dev) installs only.
+"config" = "genai_tk/default_config"
 
 [build-system]
 requires = ["hatchling"]

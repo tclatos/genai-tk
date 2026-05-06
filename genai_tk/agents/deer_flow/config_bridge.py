@@ -31,7 +31,7 @@ from omegaconf import OmegaConf
 
 from genai_tk.core.factories.llm_factory import LlmFactory
 from genai_tk.core.providers import PROVIDER_INFO
-from genai_tk.utils.import_utils import get_module_from_qualified, get_object_name_from_qualified
+from genai_tk.utils.import_utils import ImportResolver
 
 
 @dataclass
@@ -53,8 +53,8 @@ def _to_colon_notation(qualified_name: str) -> str:
     Deer-flow's resolver expects ``module.path:ClassName`` but GenAI Toolkit
     uses ``module.path.ClassName`` internally.
     """
-    module = get_module_from_qualified(qualified_name)
-    obj = get_object_name_from_qualified(qualified_name)
+    module = ImportResolver.get_module(qualified_name)
+    obj = ImportResolver.get_object_name(qualified_name)
     return f"{module}:{obj}"
 
 

@@ -12,7 +12,7 @@ from langchain_core.tools import BaseTool
 from loguru import logger
 
 from genai_tk.tools.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec, ToolSpec
-from genai_tk.utils.config_mngr import import_from_qualified
+from genai_tk.utils.import_utils import ImportResolver
 
 
 def process_langchain_tools_from_config(tools_config: list[ToolSpec] | None, llm: Any = "default") -> list[BaseTool]:
@@ -46,7 +46,7 @@ def process_langchain_tools_from_config(tools_config: list[ToolSpec] | None, llm
 
 
 def _process_function_tool(spec: FunctionToolSpec) -> list[BaseTool]:
-    tool_func = import_from_qualified(spec.function)
+    tool_func = ImportResolver.import_from_qualified(spec.function)
     if isinstance(tool_func, BaseTool):
         return [tool_func]
     if callable(tool_func):
@@ -60,7 +60,7 @@ def _process_function_tool(spec: FunctionToolSpec) -> list[BaseTool]:
 
 def _process_class_tool(spec: ClassToolSpec) -> BaseTool | None:
     try:
-        tool_class = import_from_qualified(spec.tool_class)
+        tool_class = ImportResolver.import_from_qualified(spec.tool_class)
         instance = tool_class(**spec.extra_params)
         if isinstance(instance, BaseTool):
             return instance
@@ -78,7 +78,7 @@ def _process_class_tool(spec: ClassToolSpec) -> BaseTool | None:
 def _process_factory_tool(spec: FactoryToolSpec, llm: Any = "default") -> list[BaseTool]:
     params = dict(spec.extra_params)
     try:
-        factory_func = import_from_qualified(spec.factory)
+        factory_func = ImportResolver.import_from_qualified(spec.factory)
         if "llm" in inspect.signature(factory_func).parameters:
             params["llm"] = llm
         tool_result = factory_func(**params)

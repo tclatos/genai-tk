@@ -756,9 +756,9 @@ def _build_cli_middlewares(profile_middlewares: list[str]) -> list:
     tracing automatically, regardless of what the profile config lists.
     """
     from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
-    from genai_tk.utils.import_utils import instantiate_from_qualified_names
+    from genai_tk.utils.import_utils import ImportResolver
 
-    user_mws = instantiate_from_qualified_names(profile_middlewares, logger=logger)
+    user_mws = ImportResolver.instantiate_from_qualified_names(profile_middlewares, logger=logger)
     # Avoid duplicates if the profile already lists RichToolCallMiddleware.
     if not any(isinstance(m, RichToolCallMiddleware) for m in user_mws):
         user_mws.insert(0, RichToolCallMiddleware(console=console))

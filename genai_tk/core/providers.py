@@ -12,7 +12,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, SecretStr
 
-from genai_tk.utils.config_mngr import QualifiedClassName, get_module_from_qualified, get_object_name_from_qualified
+from genai_tk.utils.config_mngr import QualifiedClassName
+from genai_tk.utils.import_utils import ImportResolver
 from genai_tk.utils.singleton import once
 
 DEEPSEEK_API_BASE = "https://api.deepseek.com"
@@ -66,12 +67,12 @@ class ProviderInfo(BaseModel):
     @property
     def module(self) -> str:
         """Extract module path from use string."""
-        return get_module_from_qualified(self.use)
+        return ImportResolver.get_module(self.use)
 
     @property
     def langchain_class(self) -> str:
         """Extract class name from use string."""
-        return get_object_name_from_qualified(self.use)
+        return ImportResolver.get_object_name(self.use)
 
     def get_use_string(self) -> str:
         """Get the 'use' string in module:ClassName format."""

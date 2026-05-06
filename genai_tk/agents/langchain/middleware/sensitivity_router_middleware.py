@@ -304,9 +304,9 @@ class SensitivityRouterMiddleware(AgentMiddleware):
             return DefaultSensitivityScorer()
 
         try:
-            from genai_tk.utils.config_mngr import import_from_qualified
+            from genai_tk.utils.import_utils import ImportResolver
 
-            cls = import_from_qualified(self._config.scorer_class)
+            cls = ImportResolver.import_from_qualified(self._config.scorer_class)
             return cls(**self._config.scorer_kwargs)
         except Exception as exc:
             logger.warning(

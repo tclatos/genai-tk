@@ -322,9 +322,9 @@ def _ensure_runtime(profile_name: str) -> tuple[EmbeddedDeerFlowClient, DeerFlow
             verbose=False,
         )
     )
-    from genai_tk.utils.import_utils import instantiate_from_qualified_names
+    from genai_tk.utils.import_utils import ImportResolver
 
-    middlewares = instantiate_from_qualified_names(prepared_profile.middlewares)
+    middlewares = ImportResolver.instantiate_from_qualified_names(prepared_profile.middlewares)
     available_skills = set(prepared_profile.available_skills) if prepared_profile.available_skills is not None else None
     client = EmbeddedDeerFlowClient(
         config_path=config_path,

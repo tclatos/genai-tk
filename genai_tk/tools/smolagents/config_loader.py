@@ -14,7 +14,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from smolagents import Tool as SmolAgentTool
 
 from genai_tk.tools.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec, ToolSpec
-from genai_tk.utils.config_mngr import import_from_qualified, load_yaml_configs, paths_config
+from genai_tk.utils.config_mngr import load_yaml_configs, paths_config
+from genai_tk.utils.import_utils import ImportResolver
 
 # ---------------------------------------------------------------------------
 # Configuration Models
@@ -48,12 +49,12 @@ def instantiate_tools_from_specs(tool_specs: list[ToolSpec]) -> list[Any]:
     for spec in tool_specs:
         try:
             if isinstance(spec, ClassToolSpec):
-                tool_class = import_from_qualified(spec.tool_class)
+                tool_class = ImportResolver.import_from_qualified(spec.tool_class)
                 tools.append(tool_class(**spec.extra_params))
             elif isinstance(spec, FunctionToolSpec):
-                tools.append(import_from_qualified(spec.function))
+                tools.append(ImportResolver.import_from_qualified(spec.function))
             elif isinstance(spec, FactoryToolSpec):
-                result = import_from_qualified(spec.factory)(**spec.extra_params)
+                result = ImportResolver.import_from_qualified(spec.factory)(**spec.extra_params)
                 tools.extend(result if isinstance(result, list) else [result])
         except ModuleNotFoundError as ex:
             missing_module = str(ex).split("'")[1] if "'" in str(ex) else str(ex)
