@@ -24,7 +24,7 @@ from rich.table import Table
 from genai_tk.cli.base import CliTopCommand
 
 if TYPE_CHECKING:
-    from genai_tk.core.retriever_factory import ManagedRetriever
+    from genai_tk.core.factories.retriever_factory import ManagedRetriever
 
 
 # ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ def _create_documents_table(documents: list, max_length: int = 100) -> Table:
 
 
 def _get_retriever_safe(retriever_name: str) -> "ManagedRetriever | None":
-    from genai_tk.core.retriever_factory import RetrieverFactory
+    from genai_tk.core.factories.retriever_factory import RetrieverFactory
     from genai_tk.utils.rich_widgets import create_error_panel
 
     console = Console()
@@ -359,7 +359,7 @@ class RagCommands(CliTopCommand):
         @cli_app.command("list-retrievers")
         def list_retrievers() -> None:
             """List all configured retrievers from the ``retrievers:`` YAML section."""
-            from genai_tk.core.retriever_factory import RetrieverFactory
+            from genai_tk.core.factories.retriever_factory import RetrieverFactory
             from genai_tk.utils.rich_widgets import create_warning_panel
 
             console = Console()

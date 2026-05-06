@@ -163,7 +163,7 @@ def _resolve_model_name(llm_identifier: str) -> str:
     Returns:
         Resolved LLM ID string.
     """
-    from genai_tk.core.llm_factory import LlmFactory
+    from genai_tk.core.factories.llm_factory import LlmFactory
 
     llm_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm_identifier)
     if error_msg:

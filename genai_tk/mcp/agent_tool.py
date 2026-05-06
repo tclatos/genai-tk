@@ -105,7 +105,7 @@ async def _build_agent(agent_cfg: MCPAgentConfig, extra_tools: list[BaseTool]) -
     # No profile: build a minimal prebuilt ReAct agent with the provided tools
     from langgraph.prebuilt import create_react_agent
 
-    from genai_tk.core.llm_factory import get_llm
+    from genai_tk.core.factories.llm_factory import get_llm
 
     llm = get_llm(agent_cfg.llm) if agent_cfg.llm else get_llm()
     return create_react_agent(llm, extra_tools, checkpointer=MemorySaver())

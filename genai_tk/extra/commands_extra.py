@@ -237,7 +237,7 @@ class ExtraCommands(CliTopCommand):
             """
             from browser_use import Agent, BrowserSession
 
-            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.factories.llm_factory import get_llm
             from genai_tk.wip.browser_use_langchain import ChatLangchain
 
             print(f"Running browser agent with task: {task}")

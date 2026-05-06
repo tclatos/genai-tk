@@ -29,7 +29,7 @@ import yaml
 from loguru import logger
 from omegaconf import OmegaConf
 
-from genai_tk.core.llm_factory import LlmFactory
+from genai_tk.core.factories.llm_factory import LlmFactory
 from genai_tk.core.providers import PROVIDER_INFO
 from genai_tk.utils.import_utils import get_module_from_qualified, get_object_name_from_qualified
 

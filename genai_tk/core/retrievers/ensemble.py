@@ -30,7 +30,7 @@ class EnsembleRetriever:
     def build(cls, cfg: EnsembleRetrieverConfig, config_tag: str, resolver: Callable[[str], Any]) -> Any:
         from langchain_classic.retrievers import EnsembleRetriever as LangchainEnsembleRetriever
 
-        from genai_tk.core.retriever_factory import CompositeDocumentStore, ManagedRetriever
+        from genai_tk.core.factories.retriever_factory import CompositeDocumentStore, ManagedRetriever
 
         children = [resolver(child.ref) for child in cfg.retrievers]
         weights = [child.weight for child in cfg.retrievers]

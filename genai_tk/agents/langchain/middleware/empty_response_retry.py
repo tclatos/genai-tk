@@ -84,7 +84,7 @@ class EmptyResponseRetryMiddleware(AgentMiddleware):
         if self._fallback_model is not None:
             return self._fallback_model
         if self._fallback_llm and self._resolved_fallback is None:
-            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.factories.llm_factory import get_llm
 
             self._resolved_fallback = get_llm(llm=self._fallback_llm)
         return self._resolved_fallback

@@ -655,7 +655,7 @@ class RetrieverFactory:
 
     @classmethod
     def _build_pg_hybrid(cls, cfg: PgHybridRetrieverConfig, config_tag: str) -> ManagedRetriever:
-        from genai_tk.core.embeddings_factory import EmbeddingsFactory
+        from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
         from genai_tk.extra.pgvector_factory import (
             MetadataColumn,
             PgHybridSearchConfig,
@@ -785,7 +785,7 @@ def _build_compressor(cfg: RerankedRetrieverConfig) -> Any:
     if cfg.reranker == "embeddings":
         from langchain_classic.retrievers.document_compressors import EmbeddingsFilter
 
-        from genai_tk.core.embeddings_factory import EmbeddingsFactory
+        from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
 
         ef = EmbeddingsFactory(embeddings=cfg.embeddings) if cfg.embeddings else EmbeddingsFactory()
         return EmbeddingsFilter(embeddings=ef.get(), similarity_threshold=0.7)

@@ -160,7 +160,7 @@ def embeddings_config() -> EmbeddingsSection:
 
     Example:
         ```python
-        from genai_tk.core.embeddings_factory import embeddings_config
+        from genai_tk.core.factories.embeddings_factory import embeddings_config
 
         default_model = embeddings_config().models.default
         hf_cache = embeddings_config().cache

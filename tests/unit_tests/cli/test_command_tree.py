@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 from rich.tree import Tree
 
-from genai_tk.cli.command_tree import build_command_tree, display_command_tree
+from genai_tk.utils.typer_display import build_command_tree, display_command_tree
 
 
 def _make_app() -> typer.Typer:

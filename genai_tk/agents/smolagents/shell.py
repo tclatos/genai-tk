@@ -12,7 +12,7 @@ from rich.panel import Panel
 from rich.text import Text
 from smolagents import CodeAgent, LiteLLMModel, MCPClient
 
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 from genai_tk.core.mcp_client import get_mcp_servers_dict
 from genai_tk.utils.tracing import monitoring_config
 

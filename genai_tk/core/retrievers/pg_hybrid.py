@@ -29,8 +29,12 @@ class PgHybridRetriever:
 
     @classmethod
     def build(cls, cfg: PgHybridRetrieverConfig, config_tag: str, resolver: Callable[[str], Any]) -> Any:
-        from genai_tk.core.embeddings_factory import EmbeddingsFactory
-        from genai_tk.core.retriever_factory import ManagedRetriever, VectorDocumentStore, _make_record_manager
+        from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
+        from genai_tk.core.factories.retriever_factory import (
+            ManagedRetriever,
+            VectorDocumentStore,
+            _make_record_manager,
+        )
         from genai_tk.extra.pgvector_factory import (
             MetadataColumn,
             PgHybridSearchConfig,

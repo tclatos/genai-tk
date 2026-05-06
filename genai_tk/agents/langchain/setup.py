@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from genai_tk.core.cache import CacheMethod, LlmCache
-from genai_tk.core.llm_factory import LlmFactory
+from genai_tk.core.factories.llm_factory import LlmFactory
 from genai_tk.utils.config_mngr import global_config
 
 

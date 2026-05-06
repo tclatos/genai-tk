@@ -43,8 +43,8 @@ class InfoCommands(CliTopCommand):
             from rich.panel import Panel
             from rich.table import Table
 
-            from genai_tk.core.embeddings_factory import EmbeddingsFactory
-            from genai_tk.core.llm_factory import PROVIDER_INFO, LlmFactory
+            from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
+            from genai_tk.core.factories.llm_factory import PROVIDER_INFO, LlmFactory
 
             console = Console()
 
@@ -249,8 +249,8 @@ class InfoCommands(CliTopCommand):
             from rich.table import Table
             from rich.text import Text
 
-            from genai_tk.core.embeddings_factory import EmbeddingsFactory
-            from genai_tk.core.llm_factory import LlmFactory
+            from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
+            from genai_tk.core.factories.llm_factory import LlmFactory
             from genai_tk.core.providers import PROVIDER_INFO
 
             console = Console()
@@ -332,7 +332,7 @@ class InfoCommands(CliTopCommand):
             from rich.table import Table
             from rich.text import Text
 
-            from genai_tk.core.llm_factory import LlmFactory, lookup_model_entry, resolve_model
+            from genai_tk.core.factories.llm_factory import LlmFactory, lookup_model_entry, resolve_model
             from genai_tk.core.models_db import get_models_db
             from genai_tk.core.providers import PROVIDER_INFO
 
@@ -362,7 +362,7 @@ class InfoCommands(CliTopCommand):
                 if llm_info is None:
                     compact, _, provider_id = model_id.rpartition("@")
                     try:
-                        from genai_tk.core.llm_factory import LlmInfo
+                        from genai_tk.core.factories.llm_factory import LlmInfo
 
                         canon, _fp, fuzzy_alternatives = resolve_model(compact, provider_id)
                         resolved_canonical = canon
@@ -703,7 +703,7 @@ class InfoCommands(CliTopCommand):
             Example:
                 uv run cli info commands
             """
-            from genai_tk.cli.command_tree import display_command_tree
+            from genai_tk.utils.typer_display import display_command_tree
 
             display_command_tree(
                 cli_app,

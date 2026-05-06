@@ -4,7 +4,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from genai_tk.core.commands_core import CoreCommands
+from genai_tk.cli.commands_core import CoreCommands
 
 
 @pytest.fixture

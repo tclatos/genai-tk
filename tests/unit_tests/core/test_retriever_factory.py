@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from langchain_core.documents import Document
 
-from genai_tk.core.retriever_factory import (
+from genai_tk.core.factories.retriever_factory import (
     BM25DocumentStore,
     BM25RetrieverConfig,
     CompositeDocumentStore,
@@ -314,7 +314,7 @@ class TestRetrieverFactory:
         assert "default" in configs or len(configs) >= 0  # may be empty in test env
 
     def test_build_vector_retriever(self) -> None:
-        with patch("genai_tk.core.retriever_factory.global_config") as mock_cfg:
+        with patch("genai_tk.core.factories.retriever_factory.global_config") as mock_cfg:
             mock_cfg.return_value.get_dict.return_value = {
                 "type": "genai_tk.core.retrievers.VectorRetriever",
                 "embeddings_store": "in_memory",
@@ -327,8 +327,8 @@ class TestRetrieverFactory:
 
     def test_build_bm25_retriever(self, tmp_path: Path) -> None:
         with (
-            patch("genai_tk.core.retriever_factory.global_config") as mock_cfg,
-            patch("genai_tk.core.retriever_factory._bm25_cache_dir", return_value=tmp_path / "cache"),
+            patch("genai_tk.core.factories.retriever_factory.global_config") as mock_cfg,
+            patch("genai_tk.core.factories.retriever_factory._bm25_cache_dir", return_value=tmp_path / "cache"),
         ):
             mock_cfg.return_value.get_dict.return_value = {
                 "type": "genai_tk.core.retrievers.BM25Retriever",
@@ -370,7 +370,7 @@ class TestRecordManager:
         assert rm is None
 
     def test_auto_sqlite_for_persistent(self, tmp_path: Path) -> None:
-        with patch("genai_tk.core.retriever_factory._data_root", return_value=tmp_path):
+        with patch("genai_tk.core.factories.retriever_factory._data_root", return_value=tmp_path):
             rm = _make_record_manager(
                 None, backend="Chroma", table_name="my_table", config_tag="my_cfg", is_persistent=True
             )

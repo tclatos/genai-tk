@@ -464,7 +464,7 @@ def instantiate_middlewares(
         # Resolve any LLM name in 'model' kwarg using LlmFactory
         if "model" in kwargs and isinstance(kwargs["model"], str):
             try:
-                from genai_tk.core.llm_factory import LlmFactory
+                from genai_tk.core.factories.llm_factory import LlmFactory
 
                 kwargs["model"] = LlmFactory.resolve_llm_identifier(kwargs["model"])
             except Exception:

@@ -7,9 +7,9 @@ work correctly with fake models, ensuring fast and reliable testing.
 import pytest
 from langchain_core.documents import Document
 
-from genai_tk.core.embeddings_factory import EmbeddingsFactory, get_embeddings
 from genai_tk.core.embeddings_store import EmbeddingsStore
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory, get_embeddings
+from genai_tk.core.factories.llm_factory import get_llm
 
 # Constants
 FAKE_LLM_ID = "parrot_local@fake"

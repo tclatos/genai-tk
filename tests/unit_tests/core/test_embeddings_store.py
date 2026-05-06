@@ -7,8 +7,8 @@ using fake embeddings to ensure fast, reliable testing.
 import pytest
 from langchain_core.documents import Document
 
-from genai_tk.core.embeddings_factory import EmbeddingsFactory
 from genai_tk.core.embeddings_store import EmbeddingsStore
+from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
 from genai_tk.utils.config_mngr import global_config
 
 # Fake model constants

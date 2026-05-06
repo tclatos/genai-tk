@@ -134,7 +134,7 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
     configured for that specific LLM.
     """
 
-    from genai_tk.core.llm_factory import LlmFactory
+    from genai_tk.core.factories.llm_factory import LlmFactory
 
     try:
         llm_factory = LlmFactory(llm=llm_identifier, llm_params={"temperature": temperature})

@@ -348,7 +348,7 @@ def _llm_section() -> LlmSection:
 
     Example:
         ```python
-        from genai_tk.core.llm_factory import _llm_section
+        from genai_tk.core.factories.llm_factory import _llm_section
 
         default_model = _llm_section().models.default
         all_tags = _llm_section().models.all_tags()
@@ -1171,7 +1171,7 @@ def get_print_chain(string: str = "") -> RunnableLambda:
 
     Example:
     ```
-        from genai_tk.core.llm_factory import configurable, get_print_chain
+        from genai_tk.core.factories.llm_factory import configurable, get_print_chain
 
         add_1 = get_print_chain("before") | RunnableLambda(lambda x: x + 1) | get_print_chain("after")
         chain = add_1.with_config(configurable({"my_conf": "my_conf_value"}))

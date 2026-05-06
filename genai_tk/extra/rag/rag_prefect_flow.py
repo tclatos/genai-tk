@@ -13,8 +13,8 @@ from loguru import logger
 from prefect import flow, task
 from upath import UPath
 
-from genai_tk.core.retriever_factory import ManagedRetriever, RetrieverFactory
-from genai_tk.extra.rag.chunker_factory import ChunkerFactory
+from genai_tk.core.factories.chunker_factory import ChunkerFactory
+from genai_tk.core.factories.retriever_factory import ManagedRetriever, RetrieverFactory
 from genai_tk.utils.file_patterns import resolve_files
 from genai_tk.utils.hashing import file_digest
 

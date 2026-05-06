@@ -14,7 +14,7 @@ def project_dir(tmp_path: Path) -> Path:
     config.mkdir()
     # Write a minimal app_conf.yaml
     (config / "app_conf.yaml").write_text(
-        "cli:\n  commands:\n    - genai_tk.core.commands_core.CoreCommands\n    - genai_tk.main.cli.register_commands\n"
+        "cli:\n  commands:\n    - genai_tk.cli.commands_core.CoreCommands\n    - genai_tk.main.cli.register_commands\n"
     )
     # Write a minimal webapp.yaml
     (config / "webapp.yaml").write_text(

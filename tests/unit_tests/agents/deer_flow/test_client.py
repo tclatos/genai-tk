@@ -373,7 +373,7 @@ def test_resolve_model_name_delegates_to_resolve_llm_identifier() -> None:
     from genai_tk.agents.deer_flow.cli_commands import _resolve_model_name
 
     with patch(
-        "genai_tk.core.llm_factory.LlmFactory.resolve_llm_identifier_safe",
+        "genai_tk.core.factories.llm_factory.LlmFactory.resolve_llm_identifier_safe",
         return_value=("openai/gpt-oss-120b@openrouter", None),
     ):
         assert _resolve_model_name("gpt_oss120@openrouter") == "openai/gpt-oss-120b@openrouter"
@@ -388,7 +388,7 @@ def test_resolve_model_name_error_raises_exit() -> None:
     from genai_tk.agents.deer_flow.cli_commands import _resolve_model_name
 
     with patch(
-        "genai_tk.core.llm_factory.LlmFactory.resolve_llm_identifier_safe",
+        "genai_tk.core.factories.llm_factory.LlmFactory.resolve_llm_identifier_safe",
         return_value=(None, "Unknown LLM: 'ghost@nowhere'"),
     ):
         with pytest.raises(typer.Exit):
@@ -529,7 +529,7 @@ def test_config_bridge_to_embedded_client_name_consistency() -> None:
 
     # Simulate a model resolved via models.dev (gateway model not in llm.yaml)
     with patch(
-        "genai_tk.core.llm_factory.LlmFactory.resolve_llm_identifier_safe",
+        "genai_tk.core.factories.llm_factory.LlmFactory.resolve_llm_identifier_safe",
         return_value=("openai/gpt-oss-120b@openrouter", None),
     ):
         resolved = _resolve_model_name("gpt_oss120@openrouter")

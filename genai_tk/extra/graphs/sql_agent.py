@@ -19,7 +19,7 @@ from langgraph.graph import START, StateGraph
 from langgraph.pregel import Pregel
 from typing_extensions import Annotated
 
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 from genai_tk.core.prompts import dedent_ws, def_prompt
 
 

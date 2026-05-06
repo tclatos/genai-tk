@@ -217,7 +217,7 @@ def test_resolve_identifier_raises_on_bad_id():
     from genai_tk.agents.deepagent_cli.llm_bridge import _resolve_identifier
 
     with patch.object(
-        __import__("genai_tk.core.llm_factory", fromlist=["LlmFactory"]).LlmFactory,
+        __import__("genai_tk.core.factories.llm_factory", fromlist=["LlmFactory"]).LlmFactory,
         "resolve_llm_identifier_safe",
         return_value=(None, "Unknown model: bad_id"),
     ):
@@ -232,7 +232,7 @@ def test_resolve_identifier_creates_model():
     fake_model = MagicMock()
     with (
         patch.object(
-            __import__("genai_tk.core.llm_factory", fromlist=["LlmFactory"]).LlmFactory,
+            __import__("genai_tk.core.factories.llm_factory", fromlist=["LlmFactory"]).LlmFactory,
             "resolve_llm_identifier_safe",
             return_value=("gpt41mini@openai", None),
         ),

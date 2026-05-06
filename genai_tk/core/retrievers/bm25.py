@@ -25,7 +25,7 @@ class BM25Retriever:
 
     @classmethod
     def build(cls, cfg: BM25RetrieverConfig, config_tag: str, resolver: Callable[[str], Any]) -> Any:
-        from genai_tk.core.retriever_factory import (
+        from genai_tk.core.factories.retriever_factory import (
             BM25DocumentStore,
             ManagedRetriever,
             _bm25_cache_dir,

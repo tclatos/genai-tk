@@ -6,8 +6,8 @@ import pytest
 from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitter
 from upath import UPath
 
+from genai_tk.core.factories.chunker_factory import ChunkerFactory
 from genai_tk.extra.rag.chonkie_splitter import ChonkieTextSplitter
-from genai_tk.extra.rag.chunker_factory import ChunkerFactory
 
 
 class TestChunkerFactoryCreate:

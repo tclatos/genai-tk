@@ -249,7 +249,7 @@ def main() -> None:
 
     # Check if --help is requested or no arguments provided (show custom tree instead of default help)
     if len(sys.argv) == 1 or ("--help" in sys.argv and len(sys.argv) == 2):
-        from genai_tk.cli.command_tree import display_command_tree
+        from genai_tk.utils.typer_display import display_command_tree
 
         display_command_tree(cli_app)
         return

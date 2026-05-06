@@ -236,7 +236,7 @@ class ChonkieTextSplitter(TextSplitter):
         for chunk in chunks:
             # Safely extract text from chunk (different chunk types may have different attributes)
             chunk_text = getattr(chunk, "text", None) or getattr(chunk, "content", None)
-            
+
             # Skip chunks that don't have text content
             if not chunk_text:
                 merged.append(chunk)

@@ -23,7 +23,7 @@ Standard Reasoning + Acting agent built from scratch using LangGraph's Functiona
 **Usage:**
 ```python
 from genai_tk.extra.graphs.custom_react_agent import create_custom_react_agent
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 from langgraph.checkpoint.memory import MemorySaver
 
 # Create agent
@@ -144,7 +144,7 @@ print(result.output.key_points)
 **Quick reference:**
 
 ```python
-from genai_tk.core.retriever_factory import RetrieverFactory
+from genai_tk.core.factories.retriever_factory import RetrieverFactory
 
 # Create retriever from YAML config tag
 managed = RetrieverFactory.create("hybrid_ensemble")
@@ -283,7 +283,7 @@ Computer vision capabilities for image understanding and analysis.
 **Usage:**
 ```python
 from genai_tk.extra.image_analysis import image_query_message
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 
 # Build a multimodal message with an image
 llm = get_llm()

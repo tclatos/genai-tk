@@ -14,11 +14,10 @@ This is a **genai-tk** based AI application project.
 ## Core Imports
 
 ```python
-from genai_tk.core.llm_factory import get_llm          # Create LLM instances
+from genai_tk.core.factories import get_llm              # Create LLM instances
 from genai_tk.core.prompts import def_prompt            # Build prompts
 from genai_tk.cli.base import CliTopCommand             # CLI command groups
 from genai_tk.utils.config_mngr import global_config    # Access configuration
-from genai_tk.core.chain_registry import register_runnable  # Register chains
 ```
 
 ## Where to Put Things

@@ -183,7 +183,7 @@ def test_config_setting():
 ```python
 def test_error_handling(fake_llm):
     """Test error handling."""
-    from genai_tk.core.llm_factory import get_llm
+    from genai_tk.core.factories.llm_factory import get_llm
     import pytest
     
     # Test invalid model

@@ -59,7 +59,7 @@ class DeerFlowEvalClient:
         """
         from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
         from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
-        from genai_tk.core.llm_factory import LlmFactory
+        from genai_tk.core.factories.llm_factory import LlmFactory
 
         if model_name is None:
             resolved, err = LlmFactory.resolve_llm_identifier_safe("fast_model")

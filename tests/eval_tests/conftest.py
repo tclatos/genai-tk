@@ -117,6 +117,6 @@ def judge_llm(request):
     if not request.config.getoption("--include-real-models", default=False):
         pytest.skip("LLM-judged evals require --include-real-models")
 
-    from genai_tk.core.llm_factory import get_llm
+    from genai_tk.core.factories.llm_factory import get_llm
 
     return get_llm("fast_model")

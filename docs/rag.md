@@ -1,4 +1,4 @@
-# RAG Systems (`genai_tk.extra.rag` · `genai_tk.core.retriever_factory`)
+# RAG Systems (`genai_tk.extra.rag` · `genai_tk.core.factories.retriever_factory`)
 
 > **Quick nav:** [Design](#design) · [Retriever Types](#retriever-types) · [Configuration](#yaml-configuration) · [Chunking](#document-chunking) · [Python API](#python-api) · [CLI](#cli-commands) · [Batch Ingestion](#batch-ingestion--prefect-flow) · [Agent Tools](#using-retrievers-as-agent-tools) · [PostgreSQL](#postgresql-hybrid-search)
 
@@ -10,8 +10,8 @@ The RAG layer is built around two central abstractions:
 
 | Class | Module | Role |
 |-------|--------|------|
-| `ManagedRetriever` | `genai_tk.core.retriever_factory` | Wraps any LangChain `BaseRetriever`. Adds async query, document ingestion, and deletion. |
-| `RetrieverFactory` | `genai_tk.core.retriever_factory` | Reads a `retrievers.<tag>` block from YAML and returns a `ManagedRetriever`. |
+| `ManagedRetriever` | `genai_tk.core.factories.retriever_factory` | Wraps any LangChain `BaseRetriever`. Adds async query, document ingestion, and deletion. |
+| `RetrieverFactory` | `genai_tk.core.factories.retriever_factory` | Reads a `retrievers.<tag>` block from YAML and returns a `ManagedRetriever`. |
 
 ### Layered architecture
 
@@ -321,7 +321,7 @@ from pydantic import BaseModel
 from collections.abc import Callable
 from typing import Any
 
-from genai_tk.core.retriever_factory import ManagedRetriever
+from genai_tk.core.factories.retriever_factory import ManagedRetriever
 
 
 class MyCustomConfig(BaseModel):
@@ -386,7 +386,7 @@ retrievers:
 ### Step 3: Use it like any other retriever
 
 ```python
-from genai_tk.core.retriever_factory import RetrieverFactory
+from genai_tk.core.factories.retriever_factory import RetrieverFactory
 
 managed = RetrieverFactory.create("my_custom_service")
 docs = await managed.aquery("my question")
@@ -397,7 +397,7 @@ The `resolver` parameter in `build()` is a reference to `RetrieverFactory.create
 ### Creating a retriever
 
 ```python
-from genai_tk.core.retriever_factory import RetrieverFactory
+from genai_tk.core.factories.retriever_factory import RetrieverFactory
 
 managed = RetrieverFactory.create("hybrid_ensemble")
 ```
@@ -464,8 +464,8 @@ configs = RetrieverFactory.list_available_configs()
 ### Building a RAG chain
 
 ```python
-from genai_tk.core.retriever_factory import RetrieverFactory
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.retriever_factory import RetrieverFactory
+from genai_tk.core.factories.llm_factory import get_llm
 from genai_tk.core.prompts import def_prompt
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough
@@ -497,7 +497,7 @@ The `BM25DocumentStore` and `VectorDocumentStore` classes can be used independen
 
 ```python
 from pathlib import Path
-from genai_tk.core.retriever_factory import BM25DocumentStore
+from genai_tk.core.factories.retriever_factory import BM25DocumentStore
 
 store = BM25DocumentStore(cache_dir=Path("data/bm25_cache/my_index"))
 await store.aadd_documents(docs)
@@ -540,7 +540,7 @@ Document file
 Recommended for documentation (`.md`, `.markdown`, `.rst`).
 
 ```python
-from genai_tk.extra.rag.chunker_factory import ChunkerFactory
+from genai_tk.core.factories.chunker_factory import ChunkerFactory
 
 splitter = ChunkerFactory.create("markdown")
 docs = splitter.create_documents(
@@ -639,7 +639,7 @@ uv run cli rag add-files ./documents --chunker auto --chunk-size 256
 ```
 
 ```python
-from genai_tk.extra.rag.chunker_factory import ChunkerFactory
+from genai_tk.core.factories.chunker_factory import ChunkerFactory
 from upath import UPath
 
 # Auto-detect
@@ -737,7 +737,7 @@ uv run cli rag add-files ./docs --chunk-size 1024
 ```
 
 ```python
-from genai_tk.extra.rag.chunker_factory import ChunkerFactory
+from genai_tk.core.factories.chunker_factory import ChunkerFactory
 
 # Temporarily override chunk size
 splitter = ChunkerFactory.create("recursive")
@@ -937,7 +937,7 @@ langchain_agents:
 
 ```python
 from genai_tk.tools.langchain.rag_tool_factory import RAGToolConfig, RAGToolFactory
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 
 config = RAGToolConfig(
     retriever="hybrid_ensemble",

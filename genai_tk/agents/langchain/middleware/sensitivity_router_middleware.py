@@ -289,7 +289,7 @@ class SensitivityRouterMiddleware(AgentMiddleware):
     def _get_safe_model(self) -> BaseChatModel:
         """Lazily resolve the safe LLM (only when first needed)."""
         if self._safe_model is None:
-            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.factories.llm_factory import get_llm
 
             self._safe_model = get_llm(llm=self._config.safe_llm)
         return self._safe_model

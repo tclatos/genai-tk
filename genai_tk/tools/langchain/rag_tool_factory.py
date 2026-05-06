@@ -85,7 +85,7 @@ class RAGToolFactory:
         Returns:
             Async LangChain tool that accepts ``query`` and optional ``filter``.
         """
-        from genai_tk.core.retriever_factory import RetrieverFactory
+        from genai_tk.core.factories.retriever_factory import RetrieverFactory
 
         try:
             managed = RetrieverFactory.create(config.retriever)
@@ -176,7 +176,7 @@ def create_rag_tool_from_config(config: dict[str, Any], llm: BaseChatModel | str
         ```
     """
     if isinstance(llm, str):
-        from genai_tk.core.llm_factory import get_llm
+        from genai_tk.core.factories.llm_factory import get_llm
 
         llm = get_llm(llm if llm != "default" else None)
 

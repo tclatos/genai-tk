@@ -28,7 +28,7 @@ class RerankedRetriever:
     def build(cls, cfg: RerankedRetrieverConfig, config_tag: str, resolver: Callable[[str], Any]) -> Any:
         from langchain_classic.retrievers import ContextualCompressionRetriever
 
-        from genai_tk.core.retriever_factory import ManagedRetriever
+        from genai_tk.core.factories.retriever_factory import ManagedRetriever
 
         base = resolver(cfg.retriever)
         compressor = _build_compressor(cfg)
@@ -69,7 +69,7 @@ def _build_compressor(cfg: RerankedRetrieverConfig) -> Any:
     if cfg.reranker == "embeddings":
         from langchain_classic.retrievers.document_compressors import EmbeddingsFilter
 
-        from genai_tk.core.embeddings_factory import EmbeddingsFactory
+        from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
 
         ef = EmbeddingsFactory(embeddings=cfg.embeddings) if cfg.embeddings else EmbeddingsFactory()
         return EmbeddingsFilter(embeddings=ef.get(), similarity_threshold=0.7)

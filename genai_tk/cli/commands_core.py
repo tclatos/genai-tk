@@ -14,7 +14,6 @@ The commands are registered with a Typer CLI application and provide:
 """
 
 import sys
-from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
@@ -22,7 +21,6 @@ from typer import Option
 
 from genai_tk.cli.base import CliTopCommand
 from genai_tk.core.cache import CacheMethod
-from genai_tk.utils.config_mngr import global_config
 
 
 class CoreCommands(CliTopCommand):
@@ -71,7 +69,7 @@ class CoreCommands(CliTopCommand):
             from rich import print as pprint
 
             from genai_tk.agents.langchain_setup import setup_langchain
-            from genai_tk.core.llm_factory import LlmFactory
+            from genai_tk.core.factories.llm_factory import LlmFactory
 
             try:
                 llm_id = LlmFactory.resolve_llm_identifier(llm)
@@ -158,105 +156,6 @@ class CoreCommands(CliTopCommand):
                 )
 
         @cli_app.command()
-        def run(
-            runnable_name: Annotated[str, typer.Argument(help="Name of registered Runnable to execute")],
-            input: Annotated[
-                str | None, typer.Option("--input", "-i", help="Input text or '-' to read from stdin")
-            ] = None,
-            path: Annotated[Path | None, typer.Option(help="File path input for the chain")] = None,
-            cache: Annotated[str, typer.Option(help="Cache strategy: 'sqlite', 'memory' or 'no_cache'")] = "memory",
-            temperature: Annotated[
-                float, Option("--temperature", "--temp", min=0.0, max=1.0, help="Model temperature (0-1)")
-            ] = 0.0,
-            stream: Annotated[bool, Option("--stream", "-s", help="Stream output progressively")] = False,
-            reasoning: Annotated[
-                bool, Option("--reasoning", help="Enable reasoning/thinking mode (for compatible models)")
-            ] = False,
-            lc_verbose: Annotated[bool, Option("--verbose", "-v", help="Enable LangChain verbose mode")] = False,
-            lc_debug: Annotated[bool, Option("--debug", "-d", help="Enable LangChain debug mode")] = False,
-            llm: Annotated[str, Option("--llm", "-m", help="LLM identifier (ID or tag from config)")] = "default",
-        ) -> None:
-            """
-            Run a Runnable or directly invoke an LLM.
-
-            If no runnable_name is provided, uses the default LLM to directly process the input, that
-            can be either taken from stdin (Unix pipe), or given with the --input param
-            If runnable_name is provided, runs the specified Runnable with the given input.
-
-            The LLM can be changed using --llm. This can be either an LLM ID or a tag defined in config (e.g., 'fake', 'powerful_model').
-            If not specified, the default model is used.
-            'cache' is the prompt caching strategy, and it can be either 'sqlite' (default) or 'memory'.
-
-            Examples:
-                uv run cli core run joke --input "bears"
-                uv run cli core run joke --input "bears" --llm fake
-                uv run cli core run joke --input "bears" --llm parrot_local_fake
-            """
-
-            from devtools import pprint
-
-            from genai_tk.agents.langchain_setup import setup_langchain
-            from genai_tk.core.chain_registry import ChainRegistry
-            from genai_tk.core.llm_factory import LlmFactory
-
-            resolved_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm)
-            if error_msg:
-                print(error_msg)
-                return
-            llm_id = resolved_id
-
-            if not setup_langchain(llm_id, lc_debug, lc_verbose, cache):
-                return
-
-            # Handle input from stdin if no input parameter provided
-            if not input and not sys.stdin.isatty():  # Check if stdin has data (pipe/redirect)
-                input = str(sys.stdin.read())
-                if len(input.strip()) < 3:  # Ignore very short inputs
-                    input = None
-
-            chain_registry = ChainRegistry.instance()
-            ChainRegistry.load_modules()
-            # If runnable_name is provided, proceed with existing logic
-            runnables_list = sorted([f"'{o.name}'" for o in chain_registry.get_runnable_list()])
-            runnables_list_str = ", ".join(runnables_list)
-            runnable_item = chain_registry.find(runnable_name)
-            if runnable_item:
-                first_example = runnable_item.examples[0]
-                llm_args = {"temperature": temperature}
-                if reasoning:
-                    llm_args["reasoning"] = reasoning
-                # Use the resolved llm_id or default
-                try:
-                    final_llm_id = llm_id or global_config().get_str("llm.models.default")
-                except Exception as e:
-                    print(f"Error: {e}")
-                    return
-
-                config = {
-                    "llm": final_llm_id,
-                    "llm_args": llm_args,
-                }
-                if path:
-                    config |= {"path": path}
-                elif first_example.path:
-                    config |= {"path": first_example.path}
-                if not input:
-                    input = first_example.query[0]
-
-                chain = runnable_item.get().with_config(configurable=config)
-            else:
-                print(f"Runnable '{runnable_name}' not found in config. Should be in: {runnables_list_str}")
-                return
-
-            if stream:
-                for s in chain.stream(input):
-                    print(s, end="", flush=True)
-                print("\n")
-            else:
-                result = chain.invoke(input)
-                pprint(result)
-
-        @cli_app.command()
         def embedd(
             input: Annotated[str, typer.Argument(help="Text to embed")],
             model: Annotated[str, Option("--model", "-m", help="Embeddings model ID or tag")] = "default",
@@ -270,7 +169,7 @@ class CoreCommands(CliTopCommand):
             from rich.console import Console
             from rich.table import Table
 
-            from genai_tk.core.embeddings_factory import EmbeddingsFactory
+            from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
 
             factory = EmbeddingsFactory(
                 embeddings=model,
@@ -402,7 +301,7 @@ class CoreCommands(CliTopCommand):
             """
             from langchain_community.utils.math import cosine_similarity
 
-            from genai_tk.core.embeddings_factory import EmbeddingsFactory, get_embeddings
+            from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory, get_embeddings
 
             if len(sentences) < 2:
                 print("Error: At least 2 sentences are required")

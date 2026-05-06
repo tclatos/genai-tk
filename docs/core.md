@@ -32,7 +32,7 @@ llm:
 
 **Usage:**
 ```python
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 
 # Get default LLM from config
 llm = get_llm()
@@ -78,7 +78,7 @@ embeddings:
 
 **Usage:**
 ```python
-from genai_tk.core.embeddings_factory import get_embeddings, EmbeddingsFactory
+from genai_tk.core.factories.embeddings_factory import get_embeddings, EmbeddingsFactory
 
 # Get default embeddings
 embeddings = get_embeddings()
@@ -344,7 +344,7 @@ See [docs/configuration.md](configuration.md) for the full system reference.
 
 ### Pattern 1: Multi-Model Comparison
 ```python
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 
 models = ["gpt_4o@openai", "claude_3@anthropic", "mixtral@groq"]
 
@@ -356,7 +356,7 @@ for model_id in models:
 
 ### Pattern 2: Structured Output with Caching
 ```python
-from genai_tk.core.llm_factory import get_llm
+from genai_tk.core.factories.llm_factory import get_llm
 from pydantic import BaseModel
 
 class Result(BaseModel):
@@ -370,7 +370,7 @@ response = llm.with_structured_output(Result).invoke("prompt")
 
 ### Pattern 3: RAG with Embeddings
 ```python
-from genai_tk.core.embeddings_factory import get_embeddings
+from genai_tk.core.factories.embeddings_factory import get_embeddings
 from genai_tk.core.embeddings_store import EmbeddingsStore
 
 # Get embeddings and store

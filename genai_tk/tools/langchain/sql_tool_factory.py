@@ -40,11 +40,11 @@ def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | str = "defa
 
     if isinstance(llm, str):
         if llm == "default":
-            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.factories.llm_factory import get_llm
 
             llm = get_llm()
         else:
-            from genai_tk.core.llm_factory import LlmFactory
+            from genai_tk.core.factories.llm_factory import LlmFactory
 
             llm = LlmFactory(llm=llm).get()
 
@@ -181,11 +181,11 @@ def create_sql_tool_from_config(config: dict[str, Any], llm: BaseChatModel | str
     """
     if isinstance(llm, str):
         if llm == "default":
-            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.factories.llm_factory import get_llm
 
             llm = get_llm()
         else:
-            from genai_tk.core.llm_factory import LlmFactory
+            from genai_tk.core.factories.llm_factory import LlmFactory
 
             llm = LlmFactory(llm=llm).get()
 

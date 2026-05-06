@@ -25,7 +25,7 @@ class VectorRetriever:
     @classmethod
     def build(cls, cfg: VectorRetrieverConfig, config_tag: str, resolver: Callable[[str], Any]) -> Any:
         from genai_tk.core.embeddings_store import EmbeddingsStore
-        from genai_tk.core.retriever_factory import (
+        from genai_tk.core.factories.retriever_factory import (
             ManagedRetriever,
             VectorDocumentStore,
             _is_persistent,

@@ -8,7 +8,7 @@ Supports both explicit chunker selection and automatic selection based on file e
 
 Example:
     ```python
-    from genai_tk.extra.rag.chunker_factory import ChunkerFactory
+    from genai_tk.core.factories import ChunkerFactory
 
     # Create a named chunker from config
     splitter = ChunkerFactory.create("markdown")

@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 from langchain_core.messages.human import HumanMessage
 
-from genai_tk.core.llm_factory import (
+from genai_tk.core.factories.llm_factory import (
     LlmFactory,
     LlmInfo,
     configurable,
@@ -184,7 +184,7 @@ def test_known_items_dict() -> None:
 def test_complex_provider_config_parsing() -> None:
     """Test that complex provider configurations are parsed correctly."""
     # Test the parsing logic by checking the raw data structure
-    from genai_tk.core.llm_factory import _read_llm_list_file
+    from genai_tk.core.factories.llm_factory import _read_llm_list_file
 
     llms = _read_llm_list_file()
 
@@ -309,7 +309,7 @@ def test_edenai_v3_uses_openai_compatible_endpoint() -> None:
     )
 
     with (
-        patch("genai_tk.core.llm_factory.get_provider_api_key", return_value="test-key"),
+        patch("genai_tk.core.factories.llm_factory.get_provider_api_key", return_value="test-key"),
         patch("langchain_openai.ChatOpenAI", mock_chat_openai),
     ):
         factory.model_factory()

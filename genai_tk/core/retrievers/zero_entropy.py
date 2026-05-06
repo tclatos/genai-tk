@@ -23,7 +23,7 @@ class ZeroEntropyRetriever:
 
     @classmethod
     def build(cls, cfg: ZeroEntropyRetrieverConfig, config_tag: str, resolver: Callable[[str], Any]) -> Any:
-        from genai_tk.core.retriever_factory import ManagedRetriever
+        from genai_tk.core.factories.retriever_factory import ManagedRetriever
         from genai_tk.extra.retrievers.zeroentropy import ZeroEntropyConfig
         from genai_tk.extra.retrievers.zeroentropy import ZeroEntropyRetriever as _ZERetriever
 

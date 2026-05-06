@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from genai_tk.core.retriever_factory import RetrieverFactory
+from genai_tk.core.factories.retriever_factory import RetrieverFactory
 from genai_tk.extra.prefect.runtime import run_flow_ephemeral
 from genai_tk.extra.rag.rag_prefect_flow import rag_file_ingestion_flow
 

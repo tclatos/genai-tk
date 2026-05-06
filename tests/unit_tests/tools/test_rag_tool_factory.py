@@ -62,7 +62,7 @@ class TestRAGToolFactory:
             top_k=3,
         )
 
-    @patch("genai_tk.core.retriever_factory.RetrieverFactory")
+    @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
     def test_create_tool_success(self, mock_factory_cls, factory, basic_config):
         mock_managed = Mock()
         mock_managed.aquery = AsyncMock(
@@ -79,14 +79,14 @@ class TestRAGToolFactory:
         assert tool.description == "Test search tool"
         mock_factory_cls.create.assert_called_once_with("test_retriever")
 
-    @patch("genai_tk.core.retriever_factory.RetrieverFactory")
+    @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
     def test_create_tool_embeddings_store_error(self, mock_factory_cls, factory, basic_config):
         mock_factory_cls.create.side_effect = ValueError("Retriever not found")
 
         with pytest.raises(ValueError, match="Failed to create retriever 'test_retriever'"):
             factory.create_tool(basic_config)
 
-    @patch("genai_tk.core.retriever_factory.RetrieverFactory")
+    @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
     @pytest.mark.asyncio
     async def test_tool_ainvoke_success(self, mock_factory_cls, factory, basic_config):
         mock_managed = Mock()
@@ -106,7 +106,7 @@ class TestRAGToolFactory:
         assert "Document 2:" in result
         assert "Second document content" in result
 
-    @patch("genai_tk.core.retriever_factory.RetrieverFactory")
+    @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
     @pytest.mark.asyncio
     async def test_tool_ainvoke_with_filter(self, mock_factory_cls, factory):
         config = RAGToolConfig(retriever="test_retriever", default_filter={"category": "technical"}, top_k=2)
@@ -122,7 +122,7 @@ class TestRAGToolFactory:
         assert "Document 1:" in result
         assert "Filtered document" in result
 
-    @patch("genai_tk.core.retriever_factory.RetrieverFactory")
+    @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
     @pytest.mark.asyncio
     async def test_tool_ainvoke_with_runtime_filter(self, mock_factory_cls, factory, basic_config):
         mock_managed = Mock()
@@ -135,7 +135,7 @@ class TestRAGToolFactory:
         mock_managed.aquery.assert_called_once_with("test query", k=3, filter={"author": "John"})
         assert "Document 1:" in result
 
-    @patch("genai_tk.core.retriever_factory.RetrieverFactory")
+    @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
     @pytest.mark.asyncio
     async def test_tool_ainvoke_no_results(self, mock_factory_cls, factory, basic_config):
         mock_managed = Mock()
@@ -147,7 +147,7 @@ class TestRAGToolFactory:
 
         assert result == "No relevant documents found."
 
-    @patch("genai_tk.core.retriever_factory.RetrieverFactory")
+    @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
     @pytest.mark.asyncio
     async def test_tool_ainvoke_search_error(self, mock_factory_cls, factory, basic_config):
         mock_managed = Mock()
@@ -183,7 +183,7 @@ class TestCreateRAGToolFromConfig:
     """Test convenience function create_rag_tool_from_config."""
 
     @patch("genai_tk.tools.langchain.rag_tool_factory.RAGToolFactory")
-    @patch("genai_tk.core.llm_factory.get_llm")
+    @patch("genai_tk.core.factories.llm_factory.get_llm")
     def test_create_rag_tool_from_config_with_default_llm(self, mock_get_llm, mock_factory_class):
         mock_llm = Mock(spec=BaseChatModel)
         mock_get_llm.return_value = mock_llm
