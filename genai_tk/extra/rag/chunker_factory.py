@@ -53,7 +53,10 @@ class ChunkerFactory:
             Exception: If instantiation fails (e.g., invalid parameters).
         """
         config = global_config()
-        chunker_config = config.get_dict(f"chunkers.{config_tag}")
+        try:
+            chunker_config = config.get_dict(f"chunkers.{config_tag}")
+        except Exception:
+            chunker_config = None
 
         if not chunker_config:
             raise KeyError(

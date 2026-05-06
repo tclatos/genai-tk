@@ -107,6 +107,7 @@ class ChonkieTextSplitter(TextSplitter):
         self.max_tokens = max_tokens
         self.min_tokens = min_tokens
         self.merge_small_chunks = merge_small_chunks
+        self.chunker_type = chunker_type
 
         if chunker is not None and chunker_type is not None:
             raise ValueError("Cannot specify both 'chunker' and 'chunker_type'")
@@ -230,30 +231,61 @@ class ChonkieTextSplitter(TextSplitter):
 
         merged: list[Any] = []
         small_chunk_buffer = None
+        small_chunk_buffer_text = None
 
         for chunk in chunks:
-            token_count = _count_tokens(chunk.text, self.encoding_name)
+            # Safely extract text from chunk (different chunk types may have different attributes)
+            chunk_text = getattr(chunk, "text", None) or getattr(chunk, "content", None)
+            
+            # Skip chunks that don't have text content
+            if not chunk_text:
+                merged.append(chunk)
+                continue
+
+            token_count = _count_tokens(chunk_text, self.encoding_name)
 
             if token_count < self.min_tokens:
                 # Accumulate small chunks
                 if small_chunk_buffer is None:
                     small_chunk_buffer = chunk
+                    small_chunk_buffer_text = chunk_text
                 else:
                     # Concatenate small chunks
-                    small_chunk_buffer.text += "\n\n" + chunk.text
+                    small_chunk_buffer_text += "\n\n" + chunk_text
                 continue
 
             # We have a substantial chunk
             if small_chunk_buffer is not None:
-                # Prepend accumulated small chunks
-                chunk.text = small_chunk_buffer.text + "\n\n" + chunk.text
+                # Prepend accumulated small chunks to this chunk
+                chunk_text = small_chunk_buffer_text + "\n\n" + chunk_text
+                # Update the text attribute if it exists
+                if hasattr(chunk, "text"):
+                    chunk.text = chunk_text
+                elif hasattr(chunk, "content"):
+                    chunk.content = chunk_text
                 small_chunk_buffer = None
+                small_chunk_buffer_text = None
 
             merged.append(chunk)
 
-        # Don't lose trailing small chunks (merge forward into last chunk if exists)
-        if small_chunk_buffer is not None and merged:
-            merged[-1].text += "\n\n" + small_chunk_buffer.text
+        # Don't lose trailing small chunks (merge into last text chunk, or emit as-is)
+        if small_chunk_buffer is not None:
+            flushed = False
+            if merged:
+                # Try to find the last chunk with text content
+                for last_chunk in reversed(merged):
+                    last_chunk_text = getattr(last_chunk, "text", None) or getattr(last_chunk, "content", None)
+                    if last_chunk_text:
+                        merged_text = last_chunk_text + "\n\n" + small_chunk_buffer_text
+                        if hasattr(last_chunk, "text"):
+                            last_chunk.text = merged_text
+                        elif hasattr(last_chunk, "content"):
+                            last_chunk.content = merged_text
+                        flushed = True
+                        break
+            if not flushed:
+                # No text chunk to merge into — emit the buffer as its own chunk
+                merged.append(small_chunk_buffer)
 
         return merged
 
@@ -272,7 +304,7 @@ class ChonkieTextSplitter(TextSplitter):
             return chunk_type
 
         # Fallback: inspect content for markers
-        text = chunk.text
+        text = getattr(chunk, "text", None) or getattr(chunk, "content", None) or ""
         if "```" in text or "    " in text.split("\n")[0]:  # Code block indicators
             return "code"
         elif "|" in text and "\n" in text:  # Table-like structure

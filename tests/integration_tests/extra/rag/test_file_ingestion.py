@@ -8,7 +8,13 @@ from pathlib import Path
 import pytest
 
 from genai_tk.core.retriever_factory import RetrieverFactory
+from genai_tk.extra.prefect.runtime import run_flow_ephemeral
 from genai_tk.extra.rag.rag_prefect_flow import rag_file_ingestion_flow
+
+
+def _run_ingestion(**kwargs):
+    """Run rag_file_ingestion_flow in ephemeral Prefect context."""
+    return run_flow_ephemeral(rag_file_ingestion_flow, **kwargs)
 
 
 class TestRagFileIngestionFlowChunkers:
@@ -61,7 +67,7 @@ def another_function():
         """Test file ingestion with auto-detected chunkers."""
         retriever_name = "default"
 
-        result = rag_file_ingestion_flow(
+        result = _run_ingestion(
             root_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
@@ -80,7 +86,7 @@ def another_function():
         """Test file ingestion with explicit markdown chunker for markdown files only."""
         retriever_name = "default"
 
-        result = rag_file_ingestion_flow(
+        result = _run_ingestion(
             root_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
@@ -99,7 +105,7 @@ def another_function():
         """Test file ingestion with explicit recursive chunker."""
         retriever_name = "default"
 
-        result = rag_file_ingestion_flow(
+        result = _run_ingestion(
             root_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
@@ -118,7 +124,7 @@ def another_function():
         """Test that ingested documents have proper metadata."""
         retriever_name = "default"
 
-        result = rag_file_ingestion_flow(
+        result = _run_ingestion(
             root_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
@@ -154,7 +160,7 @@ def another_function():
         retriever_name = "default"
 
         # First ingestion
-        result1 = rag_file_ingestion_flow(
+        result1 = _run_ingestion(
             root_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
@@ -167,7 +173,7 @@ def another_function():
         chunks1 = result1["total_chunks"]
 
         # Second ingestion with force=False (should skip)
-        result2 = rag_file_ingestion_flow(
+        result2 = _run_ingestion(
             root_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
@@ -186,7 +192,7 @@ def another_function():
         retriever_name = "default"
 
         # Small chunks
-        result_small = rag_file_ingestion_flow(
+        result_small = _run_ingestion(
             root_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=100,  # Small
@@ -196,7 +202,7 @@ def another_function():
         )
 
         # Large chunks (clear cache first by using force=True)
-        result_large = rag_file_ingestion_flow(
+        result_large = _run_ingestion(
             root_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=1000,  # Large
@@ -213,7 +219,7 @@ def another_function():
         """Test auto-detection with mixed file types."""
         retriever_name = "default"
 
-        result = rag_file_ingestion_flow(
+        result = _run_ingestion(
             root_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
@@ -232,7 +238,7 @@ def another_function():
     def test_ingestion_empty_directory(self) -> None:
         """Test ingestion with empty directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            result = rag_file_ingestion_flow(
+            result = _run_ingestion(
                 root_dir=tmpdir,
                 retriever_name="default",
                 max_chunk_tokens=512,
@@ -248,7 +254,7 @@ def another_function():
     def test_ingestion_invalid_directory_raises(self) -> None:
         """Test that invalid directory raises error."""
         with pytest.raises(ValueError, match="does not exist"):
-            rag_file_ingestion_flow(
+            _run_ingestion(
                 root_dir="/nonexistent/directory",
                 retriever_name="default",
                 max_chunk_tokens=512,

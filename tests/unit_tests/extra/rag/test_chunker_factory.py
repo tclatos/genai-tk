@@ -44,8 +44,8 @@ class TestChunkerFactoryCreate:
         # Recursive chunker should have chunk_size from config
         splitter = ChunkerFactory.create("recursive")
         assert isinstance(splitter, RecursiveCharacterTextSplitter)
-        # Check that it has a chunk_size (should be 512 from config)
-        assert hasattr(splitter, "chunk_size")
+        # RecursiveCharacterTextSplitter stores chunk_size as _chunk_size internally
+        assert hasattr(splitter, "_chunk_size")
 
 
 class TestChunkerFactoryCreateForFile:
@@ -147,11 +147,13 @@ class TestChunkerFactoryIntegration:
 
     def test_factory_multiple_chunker_types(self) -> None:
         """Test creating different chunker types."""
+        from langchain_core.documents import Document
+
         text = "Content"
 
         # Create each type and verify they work
         for config_name in ["recursive", "markdown", "chonkie_recursive"]:
             splitter = ChunkerFactory.create(config_name)
-            docs = splitter.split_documents([{"page_content": text}] if isinstance(splitter, TextSplitter) else [text])
+            docs = splitter.split_documents([Document(page_content=text)])
             # Just verify they don't crash
             assert splitter is not None
