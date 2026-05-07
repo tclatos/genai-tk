@@ -1,338 +1,101 @@
-"""File pattern matching utilities for resolving files based on include/exclude patterns.
+"""File matching utilities using .gitignore-style pathspecs.
 
-Provides simple utilities to resolve file lists from root directories using glob patterns,
-with support for include and exclude filters.
+Provides two thin functions:
+
+- ``resolve_config_path`` -- expand ``${config.key}`` references in a path string.
+- ``resolve_files``       -- walk *base_dir* and return files matched by pathspecs.
+  Patterns starting with ``!`` exclude files, exactly as in ``.gitignore``.
 """
 
 from __future__ import annotations
 
 import re
 
+import pathspec
 from loguru import logger
 from upath import UPath
 
 
 def resolve_config_path(path_str: str) -> str:
-    """Resolve YAML config references like ${paths.data_root} in path strings.
+    """Expand ``${config.key}`` references in a path string using the app config.
 
     Args:
-        path_str: Path string that may contain ${config.key} references
+        path_str: Path string that may contain ``${section.key}`` references.
 
     Returns:
-        Resolved path string with config references expanded
-
-    Example:
-        ```python
-        resolve_config_path("${paths.data_root}/files")
-        # Returns: "/home/user/data/files"
-        ```
+        Resolved path string; unresolvable references are kept as-is.
     """
     from genai_tk.utils.config_mngr import global_config
 
-    pattern = r"\$\{([^}]+)\}"
+    _pat = re.compile(r"\$\{([^}]+)\}")
 
-    def replace_match(match: re.Match) -> str:
-        config_key = match.group(1)
+    def _sub(m: re.Match) -> str:
+        key = m.group(1)
         try:
-            resolved = global_config().get_str(config_key)
-            if resolved is None:
-                logger.warning(f"Config key '{config_key}' not found, keeping original reference")
-                return match.group(0)
-            return str(resolved)
-        except Exception as e:
-            logger.warning(f"Failed to resolve config key '{config_key}': {e}")
-            return match.group(0)
+            val = global_config().get_str(key)
+            if val is None:
+                logger.warning("Config key {!r} not found", key)
+                return m.group(0)
+            return str(val)
+        except Exception as exc:
+            logger.warning("Failed to resolve config key {!r}: {}", key, exc)
+            return m.group(0)
 
-    return re.sub(pattern, replace_match, path_str)
+    return _pat.sub(_sub, path_str)
 
 
 def resolve_files(
-    root_dir: str,
+    base_dir: str,
     *,
-    include_patterns: list[str] | None = None,
-    exclude_patterns: list[str] | None = None,
-    recursive: bool = False,
-    case_sensitive: bool = False,
+    pathspecs: list[str] | None = None,
 ) -> list[UPath]:
-    """Resolve list of files from root directory using include/exclude patterns.
+    """Return all files under *base_dir* matched by *pathspecs*.
+
+    Pathspecs follow ``.gitignore`` / gitwildmatch semantics: plain patterns
+    select files; patterns prefixed with ``!`` de-select previously selected
+    files.  ``${config.key}`` references in *base_dir* are expanded.
 
     Args:
-        root_dir: Root directory to search (supports config variables like ${paths.data_root})
-        include_patterns: List of glob patterns to include (default: ["*.*"])
-        exclude_patterns: List of glob patterns to exclude (default: None)
-        recursive: Whether to search recursively
-        case_sensitive: Whether pattern matching is case-sensitive (default: False)
+        base_dir: Root directory to walk.  Supports ``${paths.*}`` config vars.
+        pathspecs: List of gitwildmatch patterns.  Defaults to ``["**/*"]``
+            (all files, recursive).
 
     Returns:
-        List of resolved file paths
+        Sorted list of matched UPath objects.
 
     Example:
         ```python
-        # Find all markdown files (case-insensitive by default)
-        files = resolve_files("/data", include_patterns=["*.md"])
-
-        # Find specific patterns, excluding some
         files = resolve_files(
-            "${paths.data_root}/docs",
-            include_patterns=["report_*.md", "summary_*.md"],
-            exclude_patterns=["*_draft.md"],
-            recursive=True,
+            base_dir="${paths.data_root}/docs",
+            pathspecs=["**/*.pdf", "!**/*_draft*"],
         )
-
-        # Case-insensitive matching allows single pattern
-        files = resolve_files("/data", include_patterns=["*_CNES_*"])  # matches CNES, cnes, Cnes, etc.
         ```
     """
-    resolved_root = resolve_config_path(root_dir)
-    if include_patterns is None:
-        include_patterns = ["*.*"]
+    resolved_root = resolve_config_path(base_dir)
+    root = UPath(resolved_root)
 
-    root_path = UPath(resolved_root)
-    if not root_path.exists():
-        logger.error(f"Root directory does not exist: {root_path}")
+    if not root.exists():
+        logger.error("base_dir does not exist: {}", root)
+        return []
+    if not root.is_dir():
+        logger.error("base_dir is not a directory: {}", root)
         return []
 
-    if not root_path.is_dir():
-        logger.error(f"Root path is not a directory: {root_path}")
-        return []
+    specs = pathspecs if pathspecs is not None else ["**/*"]
+    spec = pathspec.PathSpec.from_lines("gitignore", specs)
 
-    # Collect all matching files
-    if case_sensitive:
-        # Use standard glob (case-sensitive on case-sensitive filesystems)
-        matched_files: set[UPath] = set()
-        for pattern in include_patterns:
-            if recursive:
-                matches = root_path.rglob(pattern)
-            else:
-                matches = root_path.glob(pattern)
+    matched: list[UPath] = []
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        try:
+            rel = str(path.relative_to(root))
+        except ValueError:
+            continue
+        if spec.match_file(rel):
+            matched.append(UPath(str(path)))
 
-            for match in matches:
-                if match.is_file():
-                    matched_files.add(UPath(str(match)))
-    else:
-        # Case-insensitive: collect all files, then filter with fnmatch
-        all_files: set[UPath] = set()
-        if recursive:
-            all_files = {UPath(str(f)) for f in root_path.rglob("*") if f.is_file()}
-        else:
-            all_files = {UPath(str(f)) for f in root_path.glob("*") if f.is_file()}
-
-        matched_files = set()
-        for file_path in all_files:
-            # Get relative path for pattern matching
-            try:
-                rel_path = file_path.relative_to(root_path)
-
-                # Check if file matches any include pattern
-                for pattern in include_patterns:
-                    # Use pathlib.match() which properly handles ** globstar patterns
-                    # Also try without leading **/ to catch files at root level
-                    if rel_path.match(pattern):
-                        matched_files.add(file_path)
-                        break
-                    # If pattern starts with **/, also try without it to match root-level files
-                    elif pattern.startswith("**/"):
-                        alt_pattern = pattern[3:]  # Remove leading **/
-                        if rel_path.match(alt_pattern):
-                            matched_files.add(file_path)
-                            break
-            except ValueError:
-                # File is not relative to root_path, skip it
-                continue
-
-    if not matched_files:
-        logger.warning(f"No files matched include patterns in {root_path}")
-        return []
-
-    # Apply exclude patterns
-    if exclude_patterns:
-        excluded_files: set[UPath] = set()
-        if case_sensitive:
-            # Use standard glob
-            for pattern in exclude_patterns:
-                if recursive:
-                    matches = root_path.rglob(pattern)
-                else:
-                    matches = root_path.glob(pattern)
-
-                for match in matches:
-                    if match.is_file():
-                        excluded_files.add(UPath(str(match)))
-        else:
-            # Case-insensitive matching for exclude patterns
-            for file_path in matched_files:
-                try:
-                    rel_path = file_path.relative_to(root_path)
-
-                    for pattern in exclude_patterns:
-                        # Use pathlib.match() which properly handles ** globstar patterns
-                        if rel_path.match(pattern):
-                            excluded_files.add(file_path)
-                            break
-                        # If pattern starts with **/, also try without it to match root-level files
-                        elif pattern.startswith("**/"):
-                            alt_pattern = pattern[3:]  # Remove leading **/
-                            if rel_path.match(alt_pattern):
-                                excluded_files.add(file_path)
-                                break
-                except ValueError:
-                    continue
-
-        matched_files = matched_files - excluded_files
-        # logger.info(f"Excluded {len(excluded_files)} files based on exclude patterns")
-
-    result = sorted(matched_files)
-    # logger.info(f"Resolved {len(result)} files from {root_path}")
-    return result
-
-
-def resolve_entries(
-    root_dir: str,
-    *,
-    include_patterns: list[str] | None = None,
-    exclude_patterns: list[str] | None = None,
-    recursive: bool = False,
-    case_sensitive: bool = False,
-    include_files: bool = True,
-    include_directories: bool = True,
-) -> list[UPath]:
-    """Resolve list of files and/or directories from root directory using include/exclude patterns.
-
-    Args:
-        root_dir: Root directory to search (supports config variables like ${paths.data_root})
-        include_patterns: List of glob patterns to include (default: ["*"])
-        exclude_patterns: List of glob patterns to exclude (default: None)
-        recursive: Whether to search recursively
-        case_sensitive: Whether pattern matching is case-sensitive (default: False)
-        include_files: Whether to include files in results (default: True)
-        include_directories: Whether to include directories in results (default: True)
-
-    Returns:
-        List of resolved file and/or directory paths
-
-    Example:
-        ```python
-        # Find all entries (files and directories)
-        entries = resolve_entries("/data", include_patterns=["*"])
-
-        # Find only directories
-        dirs = resolve_entries("/data", include_directories=True, include_files=False)
-
-        # Find all .py files and directories matching pattern
-        entries = resolve_entries("${paths.data_root}/src", include_patterns=["*.py", "test*"], recursive=True)
-        ```
-    """
-    resolved_root = resolve_config_path(root_dir)
-    if include_patterns is None:
-        include_patterns = ["*"]
-
-    root_path = UPath(resolved_root)
-    if not root_path.exists():
-        logger.error(f"Root directory does not exist: {root_path}")
-        return []
-
-    if not root_path.is_dir():
-        logger.error(f"Root path is not a directory: {root_path}")
-        return []
-
-    # Collect all matching files and directories
-    if case_sensitive:
-        # Use standard glob (case-sensitive on case-sensitive filesystems)
-        matched_entries: set[UPath] = set()
-        for pattern in include_patterns:
-            if recursive:
-                matches = root_path.rglob(pattern)
-            else:
-                matches = root_path.glob(pattern)
-
-            for match in matches:
-                if (include_files and match.is_file()) or (include_directories and match.is_dir()):
-                    matched_entries.add(UPath(str(match)))
-    else:
-        # Case-insensitive: collect all entries, then filter with fnmatch
-        all_entries: set[UPath] = set()
-        if recursive:
-            if include_files and include_directories:
-                all_entries = {UPath(str(f)) for f in root_path.rglob("*")}
-            elif include_files:
-                all_entries = {UPath(str(f)) for f in root_path.rglob("*") if f.is_file()}
-            elif include_directories:
-                all_entries = {UPath(str(f)) for f in root_path.rglob("*") if f.is_dir()}
-        else:
-            if include_files and include_directories:
-                all_entries = {UPath(str(f)) for f in root_path.glob("*")}
-            elif include_files:
-                all_entries = {UPath(str(f)) for f in root_path.glob("*") if f.is_file()}
-            elif include_directories:
-                all_entries = {UPath(str(f)) for f in root_path.glob("*") if f.is_dir()}
-
-        matched_entries = set()
-        for entry_path in all_entries:
-            # Get relative path for pattern matching
-            try:
-                rel_path = entry_path.relative_to(root_path)
-
-                # Check if entry matches any include pattern
-                for pattern in include_patterns:
-                    # Use pathlib.match() which properly handles ** globstar patterns
-                    # Also try without leading **/ to catch entries at root level
-                    if rel_path.match(pattern):
-                        matched_entries.add(entry_path)
-                        break
-                    # If pattern starts with **/, also try without it to match root-level entries
-                    elif pattern.startswith("**/"):
-                        alt_pattern = pattern[3:]  # Remove leading **/
-                        if rel_path.match(alt_pattern):
-                            matched_entries.add(entry_path)
-                            break
-            except ValueError:
-                # Entry is not relative to root_path, skip it
-                continue
-
-    if not matched_entries:
-        entry_types = []
-        if include_files:
-            entry_types.append("files")
-        if include_directories:
-            entry_types.append("directories")
-        entry_type_str = " or ".join(entry_types) or "entries"
-        logger.warning(f"No {entry_type_str} matched include patterns in {root_path}")
-        return []
-
-    # Apply exclude patterns
-    if exclude_patterns:
-        excluded_entries: set[UPath] = set()
-        if case_sensitive:
-            # Use standard glob
-            for pattern in exclude_patterns:
-                if recursive:
-                    matches = root_path.rglob(pattern)
-                else:
-                    matches = root_path.glob(pattern)
-
-                for match in matches:
-                    if (include_files and match.is_file()) or (include_directories and match.is_dir()):
-                        excluded_entries.add(UPath(str(match)))
-        else:
-            # Case-insensitive: filter using fnmatch
-            for entry_path in matched_entries:
-                try:
-                    rel_path = entry_path.relative_to(root_path)
-                    # Check if entry matches any exclude pattern
-                    for pattern in exclude_patterns:
-                        if rel_path.match(pattern):
-                            excluded_entries.add(entry_path)
-                            break
-                        # If pattern starts with **/, also try without it to match root-level entries
-                        elif pattern.startswith("**/"):
-                            alt_pattern = pattern[3:]  # Remove leading **/
-                            if rel_path.match(alt_pattern):
-                                excluded_entries.add(entry_path)
-                                break
-                except ValueError:
-                    continue
-
-        matched_entries = matched_entries - excluded_entries
-
-    result = sorted(matched_entries)
-    return result
+    matched.sort()
+    if not matched:
+        logger.warning("No files matched pathspecs {} in {}", specs, root)
+    return matched

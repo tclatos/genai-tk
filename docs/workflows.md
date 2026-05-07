@@ -64,7 +64,7 @@ A **workflow** is a DAG (directed acyclic graph) of **steps**.  Each step has:
 |-------|---------|---------|
 | `id` | Unique step identifier | `ppt_to_pdf` |
 | `uses` | Dotted Python path to a flow or function | `genai_tk.extra.ppt2pdf_prefect_flow.ppt2pdf_flow` |
-| `inputs` | Static inputs passed to the flow | `{"root_dir": "/path/to/ppts"}` |
+| `inputs` | Static inputs passed to the flow | `{"base_dir": "/path/to/ppts"}` |
 | `params` | Parameters (CLI flags, options) | `{"batch_size": 5, "force": false}` |
 | `needs` | List of step IDs this depends on | `[ppt_to_pdf]` (execute after ppt_to_pdf) |
 | `concurrency` | `serial` or `parallel` | `serial` (default: `auto`) |
@@ -78,21 +78,23 @@ workflows:
     description: "Convert PDFs to markdown, then ingest into RAG"
     steps:
       - id: to_markdown
-        uses: genai_tk.extra.markdownize_prefect_flow.markdownize_flow
+        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
         inputs:
-          root_dir: "${profile.pdf_dir}"
+          base_dir: "${profile.pdf_dir}"
           output_dir: "${profile.md_dir}"
         params:
+          pathspecs: "${profile.pathspecs}"
           batch_size: "${profile.batch_size}"
         concurrency: serial
 
       - id: ingest
-        uses: genai_tk.extra.rag.rag_prefect_flow.rag_file_ingestion_flow
+        uses: genai_tk.extra.flows.rag_flow.rag_file_ingestion_flow
         needs: [to_markdown]  # Run after 'to_markdown'
         inputs:
-          root_dir: "${profile.md_dir}"
+          base_dir: "${profile.md_dir}"
         params:
           retriever_name: "${profile.retriever}"
+          pathspecs: "${profile.pathspecs}"
         concurrency: serial
 ```
 
@@ -123,7 +125,7 @@ workflow_profiles:
 
 ```yaml
 inputs:
-  root_dir: /path/to/docs       # becomes root_dir=/path/to/docs
+  base_dir: /path/to/docs       # becomes base_dir=/path/to/docs
   output_dir: /path/to/output   # becomes output_dir=/path/to/output
 ```
 
@@ -212,26 +214,32 @@ workflows:
   markdownize:
     steps:
       - id: convert
-        uses: genai_tk.extra.markdownize_prefect_flow.markdownize_flow
+        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
         inputs:
-          root_dir: "${profile.root_dir}"
+          base_dir: "${profile.base_dir}"
           output_dir: "${profile.output_dir}"
         params:
+          pathspecs: "${profile.pathspecs}"
           converter: "${profile.converter}"
 
 workflow_profiles:
   marketing_pdfs:
     workflow: markdownize
     values:
-      root_dir: /data/marketing/pdfs
+      base_dir: /data/marketing/pdfs
       output_dir: /data/marketing/markdown
+      pathspecs:
+        - "**/*.pdf"
       converter: mistral
 
   engineering_docs:
     workflow: markdownize
     values:
-      root_dir: /data/engineering/docs
+      base_dir: /data/engineering/docs
       output_dir: /data/engineering/markdown
+      pathspecs:
+        - "**/*.docx"
+        - "**/*.txt"
       converter: markitdown
 ```
 
@@ -250,29 +258,33 @@ workflows:
   full_pipeline:
     steps:
       - id: ppt_to_pdf
-        uses: genai_tk.extra.ppt2pdf_prefect_flow.ppt2pdf_flow
+        uses: genai_tk.extra.flows.ppt2pdf_flow.ppt2pdf_flow
         inputs:
-          root_dir: "${profile.ppt_dir}"
+          base_dir: "${profile.ppt_dir}"
           output_dir: "${profile.pdf_dir}"
         params:
           batch_size: "${profile.batch_size}"
 
       - id: pdf_to_markdown
-        uses: genai_tk.extra.markdownize_prefect_flow.markdownize_flow
+        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
         needs: [ppt_to_pdf]               # Run after ppt_to_pdf
         inputs:
-          root_dir: "${profile.pdf_dir}"  # Output dir from previous step
+          base_dir: "${profile.pdf_dir}"  # Output dir from previous step
           output_dir: "${profile.md_dir}"
         params:
+          pathspecs:
+            - "**/*.pdf"
           batch_size: "${profile.batch_size}"
 
       - id: ingest_to_rag
-        uses: genai_tk.extra.rag.rag_prefect_flow.rag_file_ingestion_flow
+        uses: genai_tk.extra.flows.rag_flow.rag_file_ingestion_flow
         needs: [pdf_to_markdown]
         inputs:
-          root_dir: "${profile.md_dir}"
+          base_dir: "${profile.md_dir}"
         params:
           retriever_name: "${profile.retriever}"
+          pathspecs:
+            - "**/*.md"
 
 workflow_profiles:
   production:
@@ -303,20 +315,22 @@ workflows:
   resilient_pipeline:
     steps:
       - id: try_mistral_ocr
-        uses: genai_tk.extra.markdownize_prefect_flow.markdownize_flow
+        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
         inputs:
-          root_dir: "${profile.pdf_dir}"
+          base_dir: "${profile.pdf_dir}"
           output_dir: "${profile.md_dir}"
         params:
+          pathspecs: ["**/*.pdf"]
           converter: mistral
         on_failure: skip        # If Mistral API fails, skip and continue
 
       - id: fallback_ocr
-        uses: genai_tk.extra.markdownize_prefect_flow.markdownize_flow
+        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
         inputs:
-          root_dir: "${profile.pdf_dir}"
+          base_dir: "${profile.pdf_dir}"
           output_dir: "${profile.md_dir}"
         params:
+          pathspecs: ["**/*.pdf"]
           converter: markitdown  # Use markitdown as fallback
         on_failure: abort        # If markitdown fails, stop the whole workflow
 ```

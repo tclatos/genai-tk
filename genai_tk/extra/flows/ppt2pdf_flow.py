@@ -1,13 +1,9 @@
 """Prefect-powered PowerPoint to PDF conversion using LibreOffice.
 
-This module provides a Prefect flow that converts PowerPoint files (PPT, PPTX, ODP)
-to PDF using LibreOffice in headless mode. Supports parallel batch processing with
-manifest-based tracking for incremental processing.
+Typical usage::
 
-Typical usage from the CLI:
-```bash
-uv run cli tools ppt2pdf ./presentations ./output --recursive --force
-```
+    uv run cli workflow run ppt2pdf \\
+        --pathspec '**/*.pptx' --to ./pdfs
 """
 
 from __future__ import annotations
@@ -27,7 +23,6 @@ from upath import UPath
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
 
-# Supported PowerPoint-like file extensions
 SUPPORTED_EXTENSIONS = {".ppt", ".pptx", ".odp"}
 
 
@@ -240,44 +235,30 @@ def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
 
 @flow(name="ppt2pdf", task_runner=ThreadPoolTaskRunner())  # type: ignore[call-arg]
 def ppt2pdf_flow(
-    root_dir: str,
+    base_dir: str,
     output_dir: str,
     *,
-    include_patterns: list[str] | None = None,
-    exclude_patterns: list[str] | None = None,
-    recursive: bool = False,
+    pathspecs: list[str] | None = None,
     batch_size: int = 5,
     force: bool = False,
 ) -> Ppt2PdfManifest:
     """Run PowerPoint to PDF conversion as a Prefect flow.
 
-    Uses LibreOffice in headless mode for conversion. Supports parallel
-    batch processing with manifest-based incremental processing.
-
     Args:
-        root_dir: Root directory to search for PowerPoint files
-        output_dir: Directory to write PDF files and manifest
-        include_patterns: List of glob patterns to include (default: *.ppt, *.pptx, *.odp)
-        exclude_patterns: List of glob patterns to exclude
-        recursive: Search recursively in subdirectories
-        batch_size: Number of files to process concurrently per batch
-        force: Reprocess files even if unchanged in manifest
+        base_dir: Root directory to walk.  Supports ``${paths.*}`` config vars.
+        output_dir: Directory to write PDF files and manifest.
+        pathspecs: Gitwildmatch patterns (``!`` prefix = exclude).  Defaults to
+            ``["**/*.ppt", "**/*.pptx", "**/*.odp"]``.
+        batch_size: Number of files to process concurrently per batch.
+        force: Reprocess files even if unchanged in manifest.
 
     Returns:
-        Updated manifest with processing results
+        Updated manifest with processing results.
     """
+    if pathspecs is None:
+        pathspecs = ["**/*.ppt", "**/*.pptx", "**/*.odp"]
 
-    # Default include patterns if not specified
-    if include_patterns is None:
-        include_patterns = ["*.ppt", "*.pptx", "*.odp"]
-
-    # Resolve file list using utility function
-    file_paths = resolve_files(
-        root_dir,
-        include_patterns=include_patterns,
-        exclude_patterns=exclude_patterns,
-        recursive=recursive,
-    )
+    file_paths = resolve_files(base_dir, pathspecs=pathspecs)
 
     if not file_paths:
         logger.warning("No PowerPoint files found to process")
@@ -285,7 +266,6 @@ def ppt2pdf_flow(
 
     logger.info("Discovered {} files to process", len(file_paths))
 
-    # Resolve output directory
     resolved_output = resolve_config_path(output_dir)
     output_upath = UPath(resolved_output)
     output_upath.mkdir(parents=True, exist_ok=True)
@@ -320,7 +300,7 @@ def ppt2pdf_flow(
             _process_single_file_task.submit(
                 file_info,
                 output_dir=str(output_upath),
-                root_dir=root_dir,
+                root_dir=resolved_output,
             )
             for file_info in batch
         ]

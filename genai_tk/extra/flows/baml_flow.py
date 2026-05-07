@@ -1,15 +1,11 @@
 """Prefect-powered structured extraction for BAML outputs.
 
-This module defines a Prefect flow that runs BAML-based structured
-extraction on Markdown files, writes results as JSON files to a directory
-rooted in the application configuration, and maintains a manifest file to
-avoid duplicate processing.
+Runs BAML-based structured extraction on Markdown files and writes results as
+JSON to an output directory, with a manifest to avoid duplicate processing.
 
-Typical usage from the CLI is similar to:
+Typical usage::
 
-```bash
-uv run cli baml prefect /path/to/docs --function ExtractRainbow --force
-```
+    uv run cli baml prefect --pathspec '**/*.md' --to ./output --function ExtractRainbow
 """
 
 from __future__ import annotations
@@ -28,7 +24,7 @@ from pydantic import BaseModel, Field
 from upath import UPath
 
 from genai_tk.extra.structured.baml_util import baml_invoke, prompt_fingerprint
-from genai_tk.utils.file_patterns import resolve_files
+from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
 
 
@@ -226,12 +222,10 @@ def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
 
 @flow(name="baml_structured_extraction", task_runner=ConcurrentTaskRunner())  # type: ignore[call-arg]
 def baml_structured_extraction_flow(
-    root_dir: str,
+    base_dir: str,
     output_dir: str,
     *,
-    include_patterns: list[str] | None = None,
-    exclude_patterns: list[str] | None = None,
-    recursive: bool = False,
+    pathspecs: list[str] | None = None,
     batch_size: int = 5,
     force: bool = False,
     function_name: str,
@@ -241,28 +235,23 @@ def baml_structured_extraction_flow(
     """Run BAML structured extraction as a Prefect flow.
 
     Args:
-        root_dir: Root directory to search for files (supports config variables)
-        output_dir: Directory to write output files and manifest (supports config variables)
-        include_patterns: List of glob patterns to include (default: ["*.md"])
-        exclude_patterns: List of glob patterns to exclude (default: None)
-        recursive: Search recursively in subdirectories
-        batch_size: Number of files to process concurrently per batch
-        force: Reprocess files even if unchanged in manifest
-        function_name: BAML function name to invoke
-        config_name: Configuration name from YAML config
-        llm: LLM identifier (use "default" to use configured default)
+        base_dir: Root directory to walk.  Supports ``${paths.*}`` config vars.
+        output_dir: Directory to write output files and manifest.
+        pathspecs: Gitwildmatch patterns (``!`` prefix = exclude).  Defaults to
+            ``["**/*.md"]``.
+        batch_size: Number of files to process concurrently per batch.
+        force: Reprocess files even if unchanged in manifest.
+        function_name: BAML function name to invoke.
+        config_name: Configuration name from YAML config.
+        llm: LLM identifier (``"default"`` = configured default).
 
     Returns:
-        Updated manifest with processing results
+        Updated manifest with processing results.
     """
+    if pathspecs is None:
+        pathspecs = ["**/*.md"]
 
-    # Resolve file list using utility function
-    file_paths = resolve_files(
-        root_dir,
-        include_patterns=include_patterns,
-        exclude_patterns=exclude_patterns,
-        recursive=recursive,
-    )
+    file_paths = resolve_files(base_dir, pathspecs=pathspecs)
 
     if not file_paths:
         logger.warning("No files found to process")
@@ -274,9 +263,6 @@ def baml_structured_extraction_flow(
         )
 
     logger.info("Discovered {} files to process", len(file_paths))
-
-    # Resolve output directory
-    from genai_tk.utils.file_patterns import resolve_config_path
 
     resolved_output = resolve_config_path(output_dir)
     structured_root_upath = UPath(resolved_output)

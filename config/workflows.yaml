@@ -1,14 +1,10 @@
 # ---------------------------------------------------------------------------
 # Workflow and Workflow Profile definitions
 # ---------------------------------------------------------------------------
-# Workflows define multi-step processing pipelines.
-# Workflow profiles provide reusable parameter sets for invoking workflows.
-#
 # Usage:
 #   cli workflow run markdownize_docs --dry-run
-#   cli tools markdownize --config markdownize_docs
-#   cli tools ppt2pdf --config ppt2pdf_docs
-#   cli rag add-files --config rag_ingest_docs
+#   cli workflow run markdownize --pathspec '**/*.pdf' --to ./output
+#   cli rag add-files ./docs --pathspec '**/*.md' --retriever default
 # ---------------------------------------------------------------------------
 
 workflows:
@@ -16,14 +12,12 @@ workflows:
     description: "Convert documents to Markdown format"
     steps:
       - id: convert
-        uses: genai_tk.extra.markdownize_prefect_flow.markdownize_flow
+        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
         inputs:
-          root_dir: "${profile.root_dir}"
+          base_dir: "${profile.base_dir}"
           output_dir: "${profile.output_dir}"
         params:
-          include_patterns: "${profile.include_patterns}"
-          exclude_patterns: "${profile.exclude_patterns}"
-          recursive: "${profile.recursive}"
+          pathspecs: "${profile.pathspecs}"
           batch_size: "${profile.batch_size}"
           converter: "${profile.converter}"
         concurrency: serial
@@ -32,14 +26,12 @@ workflows:
     description: "Convert PowerPoint files to PDF"
     steps:
       - id: convert
-        uses: genai_tk.extra.ppt2pdf_prefect_flow.ppt2pdf_flow
+        uses: genai_tk.extra.flows.ppt2pdf_flow.ppt2pdf_flow
         inputs:
-          root_dir: "${profile.root_dir}"
+          base_dir: "${profile.base_dir}"
           output_dir: "${profile.output_dir}"
         params:
-          include_patterns: "${profile.include_patterns}"
-          exclude_patterns: "${profile.exclude_patterns}"
-          recursive: "${profile.recursive}"
+          pathspecs: "${profile.pathspecs}"
           batch_size: "${profile.batch_size}"
         concurrency: serial
 
@@ -47,17 +39,15 @@ workflows:
     description: "Ingest files into a retriever store"
     steps:
       - id: ingest
-        uses: genai_tk.extra.rag.rag_prefect_flow.rag_file_ingestion_flow
+        uses: genai_tk.extra.flows.rag_flow.rag_file_ingestion_flow
         inputs:
-          root_dir: "${profile.root_dir}"
+          base_dir: "${profile.base_dir}"
         params:
           retriever_name: "${profile.retriever_name}"
-          include_patterns: "${profile.include_patterns}"
-          exclude_patterns: "${profile.exclude_patterns}"
-          recursive: "${profile.recursive}"
+          pathspecs: "${profile.pathspecs}"
           batch_size: "${profile.batch_size}"
-          chunk_size: "${profile.chunk_size}"
-          chunker: "${profile.chunker}"
+          max_chunk_tokens: "${profile.chunk_size}"
+          chunker_name: "${profile.chunker}"
         concurrency: serial
 
 
@@ -66,11 +56,12 @@ workflow_profiles:
   markdownize_docs:
     workflow: markdownize_documents
     values:
-      root_dir: "${paths.data_root}/documents"
+      base_dir: "${paths.data_root}/documents"
       output_dir: "${paths.data_root}/markdown"
-      include_patterns: null
-      exclude_patterns: null
-      recursive: true
+      pathspecs:
+        - "**/*.pdf"
+        - "**/*.docx"
+        - "**/*.pptx"
       batch_size: 5
       converter: markitdown
 
@@ -78,23 +69,22 @@ workflow_profiles:
   ppt2pdf_docs:
     workflow: ppt2pdf_documents
     values:
-      root_dir: "${paths.data_root}/presentations"
+      base_dir: "${paths.data_root}/presentations"
       output_dir: "${paths.data_root}/pdfs"
-      include_patterns: null
-      exclude_patterns: null
-      recursive: true
+      pathspecs:
+        - "**/*.pptx"
+        - "**/*.ppt"
+        - "**/*.odp"
       batch_size: 5
 
   # --- RAG profiles ---
   rag_ingest_docs:
     workflow: rag_add_files
     values:
-      root_dir: "${paths.data_root}/markdown"
+      base_dir: "${paths.data_root}/markdown"
       retriever_name: default
-      include_patterns:
+      pathspecs:
         - "**/*.md"
-      exclude_patterns: null
-      recursive: true
       batch_size: 10
       chunk_size: 512
       chunker: auto

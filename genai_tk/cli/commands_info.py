@@ -718,35 +718,21 @@ class InfoCommands(CliTopCommand):
                     help=("Directory to list. Supports config variables like ${paths.data_root}"),
                 ),
             ],
-            include_patterns: Annotated[
+            pathspec: Annotated[
                 list[str] | None,
                 typer.Option(
-                    "--include",
-                    "-i",
-                    help="Glob patterns to include (e.g., '*.py', 'test_*.py'). Default: ['*']",
+                    "--pathspec",
+                    "-p",
+                    help="Gitwildmatch pattern (repeatable; prefix ! to exclude). Default: all entries.",
                 ),
             ] = None,
-            exclude_patterns: Annotated[
-                list[str] | None,
-                typer.Option(
-                    "--exclude",
-                    "-e",
-                    help="Glob patterns to exclude (e.g., '__pycache__', '*.pyc')",
-                ),
-            ] = None,
-            recursive: bool = typer.Option(False, "--recursive", "-r", help="List directories recursively"),
             show_hidden: bool = typer.Option(False, "--all", "-a", help="Include hidden files (starting with .)"),
             long_format: bool = typer.Option(False, "--long", "-l", help="Use long listing format with details"),
         ) -> None:
-            """List directory contents with pattern matching and path resolution.
+            """List directory contents with pathspec matching and path resolution.
 
-            This command lists files and directories with support for:
-            - Configuration variable substitution (e.g., ${paths.data_root})
-            - Include/exclude glob patterns
-            - Recursive directory traversal
-            - Hidden file filtering
-
-            Primarily used to test path resolving and pattern matching capabilities.
+            Supports config variable substitution (e.g., ${paths.data_root}) and
+            gitwildmatch patterns (same semantics as .gitignore).
 
             Examples:
                 ```bash
@@ -757,18 +743,13 @@ class InfoCommands(CliTopCommand):
                 cli info ls '${paths.data_root}'
 
                 # List only Python files recursively
-                cli info ls ./src --include '*.py' --recursive
+                cli info ls ./src --pathspec '**/*.py'
 
                 # Exclude test and cache files
-                cli info ls ./src --recursive \\
-                    --include '*.py' \\
-                    --exclude 'test_*.py' --exclude '__pycache__'
+                cli info ls ./src --pathspec '**/*.py' --pathspec '!**/test_*'
 
                 # Long format with all files
                 cli info ls ./src --long --all
-
-                # Multiple include patterns
-                cli info ls ./docs --include '*.md' --include '*.rst' --recursive
                 ```
             """
             from pathlib import Path
@@ -777,20 +758,14 @@ class InfoCommands(CliTopCommand):
             from rich.console import Console
             from rich.table import Table
 
-            from genai_tk.utils.file_patterns import resolve_entries
+            from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 
             console = Console()
 
-            # Use resolve_entries to handle all pattern matching consistently (files and directories)
             try:
-                files = resolve_entries(
+                files = resolve_files(
                     target_dir,
-                    include_patterns=include_patterns,
-                    exclude_patterns=exclude_patterns,
-                    recursive=recursive,
-                    case_sensitive=False,
-                    include_files=True,
-                    include_directories=True,
+                    pathspecs=pathspec if pathspec else ["**/*"],
                 )
             except Exception as e:
                 logger.error("Failed to resolve entries: {}", e)

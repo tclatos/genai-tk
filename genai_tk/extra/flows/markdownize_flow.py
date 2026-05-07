@@ -1,17 +1,15 @@
 """Prefect-powered markdown conversion for various file formats.
 
-This module provides a Prefect flow that processes documents (PDF, DOCX, PPTX, etc.)
-and converts them to Markdown, with support for three converter backends:
-- ``markitdown`` (default): supports PDF, DOCX, PPTX, and image formats
-- ``mistral``: Mistral OCR API, PDFs only (falls back to markitdown for other formats)
-- ``edgeparse``: fast Rust-native engine, PDFs only (falls back to markitdown for other formats)
+Converts documents (PDF, DOCX, PPTX, etc.) to Markdown.  Three backends:
+- ``markitdown`` (default): PDF, DOCX, PPTX, images
+- ``mistral``: Mistral OCR API, PDFs only (falls back to markitdown)
+- ``edgeparse``: fast Rust engine, PDFs only (falls back to markitdown)
 
-Results are written to output directory with a manifest file to track processing.
+Typical usage::
 
-Typical usage from the CLI:
-```bash
-uv run cli tools markdownize ./docs ./output --recursive --converter edgeparse --force
-```
+    uv run cli workflow run markdownize \\
+        --pathspec '**/*.pdf' --pathspec '!**/*_draft*' \\
+        --to ./output
 """
 
 from __future__ import annotations
@@ -28,7 +26,7 @@ from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defin
 from pydantic import BaseModel, Field
 from upath import UPath
 
-from genai_tk.utils.file_patterns import resolve_files
+from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
 
 
@@ -475,12 +473,10 @@ def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
 
 @flow(name="markdownize", task_runner=ConcurrentTaskRunner())  # type: ignore[call-arg]
 def markdownize_flow(
-    root_dir: str,
+    base_dir: str,
     output_dir: str,
     *,
-    include_patterns: list[str] | None = None,
-    exclude_patterns: list[str] | None = None,
-    recursive: bool = False,
+    pathspecs: list[str] | None = None,
     batch_size: int = 5,
     force: bool = False,
     converter: str = "markitdown",
@@ -488,40 +484,28 @@ def markdownize_flow(
     """Run markdownize as a Prefect flow.
 
     Args:
-        root_dir: Root directory to search for files
-        output_dir: Directory to write markdown files and manifest
-        include_patterns: List of glob patterns to include (default: standard markdownize formats)
-        exclude_patterns: List of glob patterns to exclude
-        recursive: Search recursively in subdirectories
-        batch_size: Number of files to process concurrently per batch
-        force: Reprocess files even if unchanged in manifest
-        converter: Converter backend — ``"markitdown"`` (default), ``"mistral"``, or ``"edgeparse"``.
-            ``"mistral"`` and ``"edgeparse"`` only process PDFs; other formats fall back to markitdown.
+        base_dir: Root directory to walk.  Supports ``${paths.*}`` config vars.
+        output_dir: Directory to write markdown files and manifest.
+        pathspecs: Gitwildmatch patterns (``!`` prefix = exclude).  Defaults to
+            common document extensions.
+        batch_size: Number of files to process concurrently per batch.
+        force: Reprocess files even if unchanged in manifest.
+        converter: Backend -- ``"markitdown"`` (default), ``"mistral"``, or
+            ``"edgeparse"``.
 
     Returns:
-        Updated manifest with processing results
+        Updated manifest with processing results.
     """
+    if pathspecs is None:
+        pathspecs = ["**/*.pdf", "**/*.docx", "**/*.pptx", "**/*.jpg", "**/*.jpeg", "**/*.png", "**/*.gif", "**/*.bmp"]
 
-    # Default include patterns if not specified
-    if include_patterns is None:
-        include_patterns = ["*.pdf", "*.docx", "*.pptx", "*.jpg", "*.jpeg", "*.png", "*.gif", "*.bmp"]
-
-    # Resolve file list using utility function
-    file_paths = resolve_files(
-        root_dir,
-        include_patterns=include_patterns,
-        exclude_patterns=exclude_patterns,
-        recursive=recursive,
-    )
+    file_paths = resolve_files(base_dir, pathspecs=pathspecs)
 
     if not file_paths:
         logger.warning("No files found to process")
         return MarkdownizeManifest()
 
     logger.info(f"Discovered {len(file_paths)} files to process")
-
-    # Resolve output directory
-    from genai_tk.utils.file_patterns import resolve_config_path
 
     resolved_output = resolve_config_path(output_dir)
     output_upath = UPath(resolved_output)
@@ -567,7 +551,7 @@ def markdownize_flow(
             _process_single_file_task.submit(
                 file_info,
                 output_dir=str(output_upath),
-                root_dir=root_dir,
+                root_dir=resolved_output,
                 converter=converter,
             )
             for file_info in batch

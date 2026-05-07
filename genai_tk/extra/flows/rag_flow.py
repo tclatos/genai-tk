@@ -1,7 +1,9 @@
 """Prefect-powered file ingestion for RAG vector stores.
 
-This module defines a Prefect flow that processes files, chunks them,
-and adds them to a vector store with deduplication based on file hashes.
+Typical usage::
+
+    uv run cli workflow run rag_ingest \\
+        --pathspec '**/*.md' --to my_retriever
 """
 
 from __future__ import annotations
@@ -165,47 +167,32 @@ def process_file_task(
     description="Ingest files into a RAG retriever store with parallel processing",
 )
 def rag_file_ingestion_flow(
-    root_dir: str,
+    base_dir: str,
     retriever_name: str,
     max_chunk_tokens: int,
     chunker_name: str = "auto",
-    include_patterns: list[str] | None = None,
-    exclude_patterns: list[str] | None = None,
-    recursive: bool = True,
+    pathspecs: list[str] | None = None,
     force: bool = False,
     batch_size: int = 10,
 ) -> dict[str, Any]:
     """Ingest files into a RAG retriever store with parallel processing.
 
     Args:
-        root_dir: Root directory containing files to process
-        retriever_name: Name of the retriever configuration
-        max_chunk_tokens: Maximum token count per chunk
-        chunker_name: Chunker configuration name ("auto" detects by file extension)
-        include_patterns: List of glob patterns for files to include
-        exclude_patterns: List of glob patterns for files to exclude
-        recursive: Whether to search directories recursively
-        force: If True, reprocess all files regardless of existing hashes
-        batch_size: Number of files to process in parallel
+        base_dir: Root directory to walk.  Supports ``${paths.*}`` config vars.
+        retriever_name: Name of the retriever configuration.
+        max_chunk_tokens: Maximum token count per chunk.
+        chunker_name: Chunker configuration name (``"auto"`` = detect by extension).
+        pathspecs: Gitwildmatch patterns (``!`` prefix = exclude).  Defaults to
+            ``["**/*"]`` (all files, recursive).
+        force: Reprocess all files regardless of existing hashes.
+        batch_size: Number of files to process in parallel.
 
     Returns:
-        Dictionary with statistics about the ingestion process
+        Dictionary with ingestion statistics.
     """
-    logger.info("Starting RAG file ingestion from '{}' to retriever '{}'", root_dir, retriever_name)
+    logger.info("Starting RAG file ingestion from '{}' to retriever '{}'", base_dir, retriever_name)
 
-    root_path = UPath(root_dir)
-    if not root_path.exists():
-        raise ValueError(f"Root directory does not exist: {root_dir}")
-
-    if include_patterns is None:
-        include_patterns = ["**/*"]
-
-    files = resolve_files(
-        str(root_path),
-        include_patterns=include_patterns,
-        exclude_patterns=exclude_patterns,
-        recursive=recursive,
-    )
+    files = resolve_files(base_dir, pathspecs=pathspecs)
 
     logger.info("Found {} files matching patterns", len(files))
 
@@ -231,7 +218,7 @@ def rag_file_ingestion_flow(
                 retriever_name=retriever_name,
                 max_chunk_tokens=max_chunk_tokens,
                 chunker_name=chunker_name,
-                root_dir=root_path,
+                root_dir=None,
             )
             for fi in batch
         ]

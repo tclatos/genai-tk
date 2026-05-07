@@ -878,18 +878,16 @@ uv run cli rag list-retrievers
 `rag_file_ingestion_flow` processes directories in parallel batches using Prefect tasks.
 
 ```python
-from genai_tk.extra.prefect.runtime import run_flow_ephemeral
-from genai_tk.extra.rag.rag_prefect_flow import rag_file_ingestion_flow
+from genai_tk.utils.prefect_run import run_flow_ephemeral
+from genai_tk.extra.flows.rag_flow import rag_file_ingestion_flow
 
 result = run_flow_ephemeral(
     rag_file_ingestion_flow,
-    root_dir="./documents",
+    base_dir="./documents",
     retriever_name="persistent",
     max_chunk_tokens=512,
-    chunker_name="auto",              # NEW: auto-detect or specify chunker
-    include_patterns=["**/*.md", "**/*.txt"],
-    exclude_patterns=["**/node_modules/**"],
-    recursive=True,
+    chunker_name="auto",              # auto-detect or specify chunker
+    pathspecs=["**/*.md", "**/*.txt", "!**/node_modules/**"],  # gitignore-style
     force=False,
     batch_size=10,
 )

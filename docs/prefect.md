@@ -326,23 +326,23 @@ workflows:
   ingest_pipeline:
     steps:
       - id: convert_ppts
-        uses: genai_tk.extra.ppt2pdf_prefect_flow.ppt2pdf_flow
+        uses: genai_tk.extra.flows.ppt2pdf_flow.ppt2pdf_flow
         inputs:
-          root_dir: "${profile.ppt_dir}"
+          base_dir: "${profile.ppt_dir}"
           output_dir: "${profile.pdf_dir}"
 
       - id: to_markdown
-        uses: genai_tk.extra.markdownize_prefect_flow.markdownize_flow
+        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
         needs: [convert_ppts]
         inputs:
-          root_dir: "${profile.pdf_dir}"
+          base_dir: "${profile.pdf_dir}"
           output_dir: "${profile.md_dir}"
 
       - id: ingest_to_rag
-        uses: genai_tk.extra.rag.rag_prefect_flow.rag_ingest_flow
+        uses: genai_tk.extra.flows.rag_flow.rag_file_ingestion_flow
         needs: [to_markdown]
         inputs:
-          root_dir: "${profile.md_dir}"
+          base_dir: "${profile.md_dir}"
 
 workflow_profiles:
   marketing:

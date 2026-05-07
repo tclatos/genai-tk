@@ -136,7 +136,7 @@ class BamlCommands(CliTopCommand):
 
             # Execute using Prefect flow
             from genai_tk.extra.prefect.runtime import run_flow_ephemeral
-            from genai_tk.extra.structured.baml_prefect_flow import baml_single_input_flow
+            from genai_tk.extra.flows.baml_flow import baml_single_input_flow
 
             try:
                 result, model_name = run_flow_ephemeral(
@@ -169,10 +169,10 @@ class BamlCommands(CliTopCommand):
 
         @cli_app.command("extract")
         def extract(
-            root_dir: Annotated[
+            base_dir: Annotated[
                 str,
                 typer.Argument(
-                    help=("Root directory to search for files. Supports config variables like ${paths.data_root}"),
+                    help=("Root directory to walk. Supports \${paths.*} config vars."),
                 ),
             ],
             output_dir: Annotated[
@@ -180,7 +180,7 @@ class BamlCommands(CliTopCommand):
                 typer.Argument(
                     help=(
                         "Output directory for extracted data and manifest. "
-                        "Supports config variables like ${paths.data_root}/structured"
+                        "Supports \${paths.*} config vars."
                     ),
                 ),
             ],
@@ -191,23 +191,14 @@ class BamlCommands(CliTopCommand):
                     help="BAML function name (e.g., ExtractRainbow, ExtractResume)",
                 ),
             ],
-            include_patterns: Annotated[
+            pathspec: Annotated[
                 list[str] | None,
                 typer.Option(
-                    "--include",
-                    "-i",
-                    help="Glob patterns to include (e.g., '*.md', 'report_*.md'). Default: ['*.md']",
+                    "--pathspec",
+                    "-p",
+                    help="Gitwildmatch pattern (repeatable; prefix ! to exclude). Default: **/*.md",
                 ),
             ] = None,
-            exclude_patterns: Annotated[
-                list[str] | None,
-                typer.Option(
-                    "--exclude",
-                    "-e",
-                    help="Glob patterns to exclude (e.g., '*_draft.md')",
-                ),
-            ] = None,
-            recursive: bool = typer.Option(False, help="Search for files recursively"),
             batch_size: int = typer.Option(5, help="Number of files to process concurrently in each batch"),
             force: bool = typer.Option(False, "--force", help="Reprocess files even if unchanged in manifest"),
             config_name: Annotated[
@@ -224,68 +215,44 @@ class BamlCommands(CliTopCommand):
         ) -> None:
             """Extract structured data from files using BAML.
 
-            Process files from a root directory using glob patterns and save
-            extracted structured data as JSON files. The manifest file tracks
-            processed files and is written to the output directory.
+            Process files matched by pathspecs and save extracted structured data as
+            JSON files to output_dir.  A manifest tracks processed files.
 
             Examples:
                 ```bash
-                # Process all .md files in a directory
-                cli baml extract ./docs ./output --recursive
+                cli baml extract ./docs ./output --function ExtractRainbow
 
-                # Use config variables
-                cli baml extract '${paths.data_root}/reviews' '${paths.data_root}/structured' \\
-                    --recursive --function ExtractRainbow
+                cli baml extract '\${paths.data_root}/reviews' '\${paths.data_root}/structured' \\
+                    --pathspec '**/*.md' --function ExtractRainbow
 
-                # Custom include/exclude patterns
                 cli baml extract ./reports ./output \\
-                    --include 'report_*.md' --include 'summary_*.md' \\
-                    --exclude '*_draft.md' \\
-                    --recursive --force
-
-                # Process specific patterns only
-                cli baml extract ./docs ./output \\
-                    --include '2024_*.md' --include '2025_*.md' \\
-                    --function ExtractResume
+                    --pathspec '**/*.md' --pathspec '!**/*_draft.md' \\
+                    --force --function ExtractResume
                 ```
             """
 
             os.environ["BAML_LOG"] = "warn"
-
-            # Default include patterns to markdown if not specified
-            if include_patterns is None:
-                include_patterns = ["*.md"]
-
-            # Validate that all include patterns are markdown files
-            for pattern in include_patterns:
-                if not any(pattern.endswith(ext) for ext in [".md", ".MD", ".markdown", ".MARKDOWN"]):
-                    logger.warning(
-                        f"Include pattern '{pattern}' does not have a markdown extension. "
-                        f"Only .md and .markdown files are supported."
-                    )
 
             if llm:
                 logger.info("Using LLM: {}", llm)
 
             logger.info(
                 "Starting BAML extraction from '{}' to '{}' with function '{}' and config '{}'",
-                root_dir,
+                base_dir,
                 output_dir,
                 function_name,
                 config_name,
             )
 
-            from genai_tk.extra.prefect.runtime import run_flow_ephemeral
-            from genai_tk.extra.structured.baml_prefect_flow import baml_structured_extraction_flow
+            from genai_tk.extra.flows.baml_flow import baml_structured_extraction_flow
+            from genai_tk.utils.prefect_run import run_flow_ephemeral
 
             try:
                 run_flow_ephemeral(
                     baml_structured_extraction_flow,
-                    root_dir=root_dir,
+                    base_dir=base_dir,
                     output_dir=output_dir,
-                    include_patterns=include_patterns,
-                    exclude_patterns=exclude_patterns,
-                    recursive=recursive,
+                    pathspecs=pathspec,
                     batch_size=batch_size,
                     force=force,
                     function_name=function_name,

@@ -64,20 +64,46 @@ class WorkflowCommands(CliTopCommand):
                 list[str] | None,
                 typer.Option("--set", help="Override values using KEY=VALUE syntax", metavar="KEY=VALUE"),
             ] = None,
+            pathspec: Annotated[
+                list[str] | None,
+                typer.Option("--pathspec", "-p", help="Gitwildmatch pattern; maps to values.pathspecs (repeatable, prefix ! to exclude)"),
+            ] = None,
+            to: Annotated[
+                str | None,
+                typer.Option("--to", help="Output directory; maps to values.output_dir"),
+            ] = None,
             force: Annotated[
                 bool, typer.Option("--force", help="Force recomputation even if caches are valid")
             ] = False,
             dry_run: Annotated[bool, typer.Option("--dry-run", help="Resolve the workflow and print the plan")] = False,
         ) -> None:
-            """Resolve a workflow or workflow profile.
+            """Resolve and execute a workflow or workflow profile.
 
-            The initial implementation supports workflow resolution and dry-run
-            inspection. Execution is intentionally left for the next slice.
+            Shorthand options ``--pathspec`` and ``--to`` map to ``values.pathspecs``
+            and ``values.output_dir`` respectively, equivalent to using
+            ``--set pathspecs='[...]'`` and ``--set output_dir=PATH``.
+
+            Examples:
+                ```bash
+                # Run a named profile
+                cli workflow run markdownize_docs --dry-run
+
+                # Ad-hoc invocation with shorthands
+                cli workflow run markdownize \\
+                    --pathspec '**/*.pdf' --pathspec '!**/*_draft*' \\
+                    --to ./output
+
+                # Override via --set
+                cli workflow run markdownize_docs --set batch_size=10
+                ```
             """
-
             console = Console()
             try:
                 cli_overrides = parse_cli_overrides(set_values)
+                if pathspec:
+                    cli_overrides["pathspecs"] = pathspec
+                if to:
+                    cli_overrides["output_dir"] = to
                 invocation = resolve_workflow_invocation(
                     workflow_or_profile,
                     profile_name=profile,

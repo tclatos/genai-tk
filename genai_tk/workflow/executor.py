@@ -79,7 +79,7 @@ def execute_workflow(invocation: ResolvedWorkflowInvocation) -> dict[str, Any]:
     Runs each step in topological order using Prefect ephemeral mode.
     Returns a mapping of step_id -> result.
     """
-    from genai_tk.extra.prefect.runtime import run_flow_ephemeral
+    from genai_tk.utils.prefect_run import run_flow_ephemeral
 
     workflow = invocation.workflow
     values = invocation.values
