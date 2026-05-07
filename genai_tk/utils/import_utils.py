@@ -214,3 +214,8 @@ class ImportResolver:
                 logger.debug(f"Instantiated: {qname}")
 
         return instances
+
+
+# Module-level aliases for convenience
+import_from_qualified = ImportResolver.import_from_qualified
+instantiate_from_qualified_names = ImportResolver.instantiate_from_qualified_names

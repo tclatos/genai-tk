@@ -148,7 +148,8 @@ Current docs index:
 | `docs/extra.md` | Agent graphs, RAG, data loaders, anonymization, image analysis, KV store |
 | `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, all retriever types, CLI, Prefect flow, agent tools |
 | `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |
-| `docs/prefect.md` | Prefect flows — ephemeral vs. server mode, available flows, writing new flows |
+| `docs/workflows.md` | YAML-driven task orchestration — defining workflows, profiles, CLI integration, multi-step pipelines |
+| `docs/prefect.md` | Prefect flows — ephemeral vs. server mode, available flows, writing new flows, workflow engine integration |
 | `docs/agents.md` | LangChain / SmolAgents / DeerFlow / DeepAgents profiles and config |
 | `docs/mcp-servers.md` | MCP server configuration, CLI, and standalone scripts |
 | `docs/browser_control.md` | Browser automation (sandbox vs. direct Playwright) |

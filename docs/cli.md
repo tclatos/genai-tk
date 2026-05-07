@@ -264,7 +264,66 @@ uv run cli tools ppt2pdf ./slides ./pdfs --recursive
 
 # GPT Researcher
 uv run cli tools gpt-researcher "Latest AI trends 2025"
+
+# Integration with workflow profiles (see workflows.md for full details)
+uv run cli tools markdownize --config marketing_pdfs --dry-run
+uv run cli tools markdownize --config marketing_pdfs --set batch_size=20
 ```
+
+---
+
+### `workflow` — YAML-Driven Task Orchestration
+
+Compose multi-step Prefect workflows using YAML configuration files.  Workflows chain
+together steps (document conversion, RAG ingestion, KG creation, etc.) with dependency
+tracking, error handling, and composable profiles.
+
+```bash
+# List all workflows and profiles
+uv run cli workflow list                   # Show everything
+uv run cli workflow list workflows         # Show just workflows
+uv run cli workflow list profiles          # Show just profiles
+
+# Dry-run: resolve a profile, show the execution plan
+uv run cli workflow run marketing_docs --dry-run
+
+# Execute a workflow or profile
+uv run cli workflow run marketing_docs
+
+# Use a specific profile for a named workflow
+uv run cli workflow run markdownize --profile engineering_docs
+
+# Override values at the command line
+uv run cli workflow run marketing_docs --set batch_size=20 --set converter=mistral
+
+# Force re-execution (bypass caches)
+uv run cli workflow run marketing_docs --force
+```
+
+**Key options:**
+
+| Option | Description |
+|--------|-------------|
+| `--profile PROFILE` | Explicit profile (for workflows with multiple profiles) |
+| `--set KEY=VALUE` | Override a value (repeatable) |
+| `--force` | Force re-execution, bypassing caches |
+| `--dry-run` | Resolve and show the plan without executing |
+
+**Examples:**
+
+```bash
+# See the full execution plan for a 3-step pipeline
+uv run cli workflow run full_kg_pipeline --dry-run
+
+# Execute a profile with CLI overrides
+uv run cli workflow run rag_ingest_docs --set retriever=hybrid_search --force
+
+# List available workflows and find a good profile to use
+uv run cli workflow list
+```
+
+See [workflows.md](workflows.md) for the complete guide to defining workflows, creating
+profiles, and integrating with existing commands.
 
 ---
 

@@ -57,6 +57,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.tools.tool_specs import ToolSpec
 from genai_tk.utils.config_mngr import QualifiedClassName, load_yaml_configs, paths_config
+from genai_tk.utils.import_utils import ImportResolver
+
+import_from_qualified = ImportResolver.import_from_qualified
 
 if TYPE_CHECKING:
     from deepagents.backends.protocol import BackendProtocol
@@ -411,7 +414,7 @@ def create_checkpointer(config: CheckpointerConfig | None, force_memory: bool = 
     if config.type == "class":
         if not config.class_path:
             raise ValueError("checkpointer.class is required when type is 'class'")
-        cls = ImportResolver.import_from_qualified(config.class_path)
+        cls = import_from_qualified(config.class_path)
         return cls(**config.kwargs)
 
     raise ValueError(f"Unknown checkpointer type: {config.type!r}")
@@ -442,7 +445,7 @@ def instantiate_middlewares(
 
     for cfg in configs:
         try:
-            cls = ImportResolver.import_from_qualified(cfg.class_path)
+            cls = import_from_qualified(cfg.class_path)
         except Exception as e:
             logger.warning(f"Failed to import middleware '{cfg.class_path}': {e}")
             continue
@@ -536,7 +539,7 @@ async def instantiate_backend(config: BackendConfig | None) -> BackendProtocol |
     if config.type == "class":
         if not config.class_path:
             raise ValueError("backend.class is required when type is 'class'")
-        cls = ImportResolver.import_from_qualified(config.class_path)
+        cls = import_from_qualified(config.class_path)
         return cls(**config.kwargs)
 
     raise ValueError(f"Unknown backend type: {config.type!r}")

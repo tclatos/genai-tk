@@ -15,13 +15,92 @@ The commands are registered with a Typer CLI application and provide:
 
 import asyncio
 import sys
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from loguru import logger
+from rich.console import Console
+from rich.table import Table
 from typer import Option
 
 from genai_tk.cli.base import CliTopCommand
+
+
+def _resolve_document_flow_params(
+    *,
+    root_dir: str | None,
+    output_dir: str | None,
+    include_patterns: list[str] | None,
+    exclude_patterns: list[str] | None,
+    recursive: bool,
+    batch_size: int,
+    force: bool,
+    workflow_config: str | None,
+    extra_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve parameters for markdownize/ppt2pdf from config profile or CLI args."""
+    if workflow_config:
+        from genai_tk.workflow.resolver import resolve_workflow_invocation
+
+        cli_overrides: dict[str, Any] = {}
+        if root_dir is not None:
+            cli_overrides["root_dir"] = root_dir
+        if output_dir is not None:
+            cli_overrides["output_dir"] = output_dir
+        if include_patterns is not None:
+            cli_overrides["include_patterns"] = include_patterns
+        if exclude_patterns is not None:
+            cli_overrides["exclude_patterns"] = exclude_patterns
+        if recursive:
+            cli_overrides["recursive"] = recursive
+        if batch_size != 5:
+            cli_overrides["batch_size"] = batch_size
+        if extra_overrides:
+            cli_overrides.update(extra_overrides)
+
+        invocation = resolve_workflow_invocation(
+            workflow_config,
+            cli_overrides=cli_overrides,
+            force=force,
+        )
+        values = invocation.values
+        effective_root = values.get("root_dir")
+        effective_output = values.get("output_dir")
+        if not effective_root or not effective_output:
+            raise typer.BadParameter("Resolved workflow invocation is missing required 'root_dir' and/or 'output_dir'.")
+        return {
+            "root_dir": str(effective_root),
+            "output_dir": str(effective_output),
+            "include_patterns": values.get("include_patterns"),
+            "exclude_patterns": values.get("exclude_patterns"),
+            "recursive": bool(values.get("recursive", False)),
+            "batch_size": int(values.get("batch_size", 5)),
+            "force": force,
+            "converter": values.get("converter", "markitdown"),
+        }
+
+    if root_dir is None or output_dir is None:
+        raise typer.BadParameter("root_dir and output_dir are required when --config is not used.")
+
+    return {
+        "root_dir": root_dir,
+        "output_dir": output_dir,
+        "include_patterns": include_patterns,
+        "exclude_patterns": exclude_patterns,
+        "recursive": recursive,
+        "batch_size": batch_size,
+        "force": force,
+    }
+
+
+def _print_document_flow_params(console: Console, title: str, params: dict[str, Any]) -> None:
+    """Render resolved document flow parameters."""
+    table = Table(title=f"{title} Resolution", show_header=True, header_style="bold cyan")
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="white")
+    for key, value in params.items():
+        table.add_row(key, str(value))
+    console.print(table)
 
 
 class ExtraCommands(CliTopCommand):
@@ -68,17 +147,17 @@ class ExtraCommands(CliTopCommand):
         @cli_app.command()
         def markdownize(
             root_dir: Annotated[
-                str,
+                str | None,
                 typer.Argument(
                     help="Root directory to search for files to convert",
                 ),
-            ],
+            ] = None,
             output_dir: Annotated[
-                str,
+                str | None,
                 typer.Argument(
                     help="Output directory for markdown files and manifest",
                 ),
-            ],
+            ] = None,
             include_patterns: Annotated[
                 list[str] | None,
                 typer.Option(
@@ -103,6 +182,13 @@ class ExtraCommands(CliTopCommand):
                 "--converter",
                 help="Converter to use: 'markitdown' (default), 'mistral' (Mistral OCR, PDFs only), 'edgeparse' (fast Rust engine, PDFs only)",
             ),
+            workflow_config: Annotated[
+                str | None,
+                typer.Option("--config", help="Workflow or workflow profile name to resolve parameters from"),
+            ] = None,
+            dry_run: Annotated[
+                bool, typer.Option("--dry-run", help="Resolve parameters and print plan without executing")
+            ] = False,
         ) -> None:
             """Convert documents to Markdown using markitdown, Mistral OCR, or edgeparse.
 
@@ -114,33 +200,49 @@ class ExtraCommands(CliTopCommand):
                 ```bash
                 cli tools markdownize ./docs ./output --recursive
 
+                cli tools markdownize --config markdownize_docs --dry-run
+
                 cli tools markdownize ./data ./output --include '*.pdf' --converter mistral
 
-                cli tools markdownize ./data ./output --include '*.pdf' --converter edgeparse
-
                 cli tools markdownize '${paths.data}' '${paths.markdown}' --recursive --force --batch-size 10
-
-                cli tools markdownize ./documents ./output --exclude '*_draft*' --recursive
                 ```
             """
             from genai_tk.extra.markdownize_prefect_flow import markdownize_flow
             from genai_tk.extra.prefect.runtime import run_flow_ephemeral
 
+            console = Console()
+            params = _resolve_document_flow_params(
+                root_dir=root_dir,
+                output_dir=output_dir,
+                include_patterns=include_patterns,
+                exclude_patterns=exclude_patterns,
+                recursive=recursive,
+                batch_size=batch_size,
+                force=force,
+                workflow_config=workflow_config,
+                extra_overrides={"converter": converter} if converter != "markitdown" else {},
+            )
+
+            if dry_run:
+                _print_document_flow_params(console, "Markdownize", params)
+                return
+
             logger.info(
-                f"Starting markdownize from '{root_dir}' to '{output_dir}' with batch_size {batch_size}",
+                f"Starting markdownize from '{params['root_dir']}' to '{params['output_dir']}' "
+                f"with batch_size {params['batch_size']}",
             )
 
             try:
                 run_flow_ephemeral(
                     markdownize_flow,
-                    root_dir=root_dir,
-                    output_dir=output_dir,
-                    include_patterns=include_patterns,
-                    exclude_patterns=exclude_patterns,
-                    recursive=recursive,
-                    batch_size=batch_size,
-                    force=force,
-                    converter=converter,
+                    root_dir=params["root_dir"],
+                    output_dir=params["output_dir"],
+                    include_patterns=params.get("include_patterns"),
+                    exclude_patterns=params.get("exclude_patterns"),
+                    recursive=params["recursive"],
+                    batch_size=params["batch_size"],
+                    force=params["force"],
+                    converter=params.get("converter", "markitdown"),
                 )
             except Exception as exc:
                 logger.error("Markdownize conversion failed: {}", exc)
@@ -151,17 +253,17 @@ class ExtraCommands(CliTopCommand):
         @cli_app.command()
         def ppt2pdf(
             root_dir: Annotated[
-                str,
+                str | None,
                 typer.Argument(
                     help="Root directory to search for PowerPoint files to convert",
                 ),
-            ],
+            ] = None,
             output_dir: Annotated[
-                str,
+                str | None,
                 typer.Argument(
                     help="Output directory for PDF files and manifest",
                 ),
-            ],
+            ] = None,
             include_patterns: Annotated[
                 list[str] | None,
                 typer.Option(
@@ -181,6 +283,13 @@ class ExtraCommands(CliTopCommand):
             recursive: bool = typer.Option(False, help="Search for files recursively"),
             batch_size: int = typer.Option(5, help="Number of files to process concurrently in each batch"),
             force: bool = typer.Option(False, "--force", help="Reprocess files even if unchanged in manifest"),
+            workflow_config: Annotated[
+                str | None,
+                typer.Option("--config", help="Workflow or workflow profile name to resolve parameters from"),
+            ] = None,
+            dry_run: Annotated[
+                bool, typer.Option("--dry-run", help="Resolve parameters and print plan without executing")
+            ] = False,
         ) -> None:
             """Convert PowerPoint files to PDF using LibreOffice headless mode.
 
@@ -192,30 +301,47 @@ class ExtraCommands(CliTopCommand):
                 ```bash
                 cli tools ppt2pdf ./presentations ./output --recursive
 
+                cli tools ppt2pdf --config ppt2pdf_docs --dry-run
+
                 cli tools ppt2pdf ./data ./pdfs --include '*.pptx' --force
 
                 cli tools ppt2pdf '${paths.rainbow_ppt}' '${paths.rainbow_pdf}' --recursive --batch-size 10
-
-                cli tools ppt2pdf ./documents ./output --exclude '*_draft*' --recursive
                 ```
             """
             from genai_tk.extra.ppt2pdf_prefect_flow import ppt2pdf_flow
             from genai_tk.extra.prefect.runtime import run_flow_ephemeral
 
+            console = Console()
+            params = _resolve_document_flow_params(
+                root_dir=root_dir,
+                output_dir=output_dir,
+                include_patterns=include_patterns,
+                exclude_patterns=exclude_patterns,
+                recursive=recursive,
+                batch_size=batch_size,
+                force=force,
+                workflow_config=workflow_config,
+            )
+
+            if dry_run:
+                _print_document_flow_params(console, "PPT to PDF", params)
+                return
+
             logger.info(
-                f"Starting ppt2pdf from '{root_dir}' to '{output_dir}' with batch_size {batch_size}",
+                f"Starting ppt2pdf from '{params['root_dir']}' to '{params['output_dir']}' "
+                f"with batch_size {params['batch_size']}",
             )
 
             try:
                 run_flow_ephemeral(
                     ppt2pdf_flow,
-                    root_dir=root_dir,
-                    output_dir=output_dir,
-                    include_patterns=include_patterns,
-                    exclude_patterns=exclude_patterns,
-                    recursive=recursive,
-                    batch_size=batch_size,
-                    force=force,
+                    root_dir=params["root_dir"],
+                    output_dir=params["output_dir"],
+                    include_patterns=params.get("include_patterns"),
+                    exclude_patterns=params.get("exclude_patterns"),
+                    recursive=params["recursive"],
+                    batch_size=params["batch_size"],
+                    force=params["force"],
                 )
             except Exception as exc:
                 logger.error("PowerPoint to PDF conversion failed: {}", exc)

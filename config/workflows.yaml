@@ -1,0 +1,100 @@
+# ---------------------------------------------------------------------------
+# Workflow and Workflow Profile definitions
+# ---------------------------------------------------------------------------
+# Workflows define multi-step processing pipelines.
+# Workflow profiles provide reusable parameter sets for invoking workflows.
+#
+# Usage:
+#   cli workflow run markdownize_docs --dry-run
+#   cli tools markdownize --config markdownize_docs
+#   cli tools ppt2pdf --config ppt2pdf_docs
+#   cli rag add-files --config rag_ingest_docs
+# ---------------------------------------------------------------------------
+
+workflows:
+  markdownize_documents:
+    description: "Convert documents to Markdown format"
+    steps:
+      - id: convert
+        uses: genai_tk.extra.markdownize_prefect_flow.markdownize_flow
+        inputs:
+          root_dir: "${profile.root_dir}"
+          output_dir: "${profile.output_dir}"
+        params:
+          include_patterns: "${profile.include_patterns}"
+          exclude_patterns: "${profile.exclude_patterns}"
+          recursive: "${profile.recursive}"
+          batch_size: "${profile.batch_size}"
+          converter: "${profile.converter}"
+        concurrency: serial
+
+  ppt2pdf_documents:
+    description: "Convert PowerPoint files to PDF"
+    steps:
+      - id: convert
+        uses: genai_tk.extra.ppt2pdf_prefect_flow.ppt2pdf_flow
+        inputs:
+          root_dir: "${profile.root_dir}"
+          output_dir: "${profile.output_dir}"
+        params:
+          include_patterns: "${profile.include_patterns}"
+          exclude_patterns: "${profile.exclude_patterns}"
+          recursive: "${profile.recursive}"
+          batch_size: "${profile.batch_size}"
+        concurrency: serial
+
+  rag_add_files:
+    description: "Ingest files into a retriever store"
+    steps:
+      - id: ingest
+        uses: genai_tk.extra.rag.rag_prefect_flow.rag_file_ingestion_flow
+        inputs:
+          root_dir: "${profile.root_dir}"
+        params:
+          retriever_name: "${profile.retriever_name}"
+          include_patterns: "${profile.include_patterns}"
+          exclude_patterns: "${profile.exclude_patterns}"
+          recursive: "${profile.recursive}"
+          batch_size: "${profile.batch_size}"
+          chunk_size: "${profile.chunk_size}"
+          chunker: "${profile.chunker}"
+        concurrency: serial
+
+
+workflow_profiles:
+  # --- Markdownize profiles ---
+  markdownize_docs:
+    workflow: markdownize_documents
+    values:
+      root_dir: "${paths.data_root}/documents"
+      output_dir: "${paths.data_root}/markdown"
+      include_patterns: null
+      exclude_patterns: null
+      recursive: true
+      batch_size: 5
+      converter: markitdown
+
+  # --- PPT to PDF profiles ---
+  ppt2pdf_docs:
+    workflow: ppt2pdf_documents
+    values:
+      root_dir: "${paths.data_root}/presentations"
+      output_dir: "${paths.data_root}/pdfs"
+      include_patterns: null
+      exclude_patterns: null
+      recursive: true
+      batch_size: 5
+
+  # --- RAG profiles ---
+  rag_ingest_docs:
+    workflow: rag_add_files
+    values:
+      root_dir: "${paths.data_root}/markdown"
+      retriever_name: default
+      include_patterns:
+        - "**/*.md"
+      exclude_patterns: null
+      recursive: true
+      batch_size: 10
+      chunk_size: 512
+      chunker: auto

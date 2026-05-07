@@ -112,16 +112,18 @@ class ChonkieTextSplitter(TextSplitter):
         if chunker is not None and chunker_type is not None:
             raise ValueError("Cannot specify both 'chunker' and 'chunker_type'")
 
+        tokenizer = _get_tiktoken_encoding(encoding_name)
+
         if chunker is not None:
             self.chunker = chunker
         elif chunker_type == "markdown":
-            self.chunker = MarkdownChef(tokenizer=encoding_name)
+            self.chunker = MarkdownChef(tokenizer=tokenizer)
             # Markdown uses forward-merge by default
             self.merge_small_chunks = True
         elif chunker_type == "recursive":
             self.chunker = RecursiveChunker(
                 chunk_size=max_tokens,
-                tokenizer=encoding_name,
+                tokenizer=tokenizer,
             )
         else:
             raise ValueError(

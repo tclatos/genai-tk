@@ -30,9 +30,23 @@ Example:
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+
+# Module-level cache: config JSON → AnalyzerEngine instance.
+# Avoids reloading the spaCy model (or presidio's default NLP engine) on every
+# PresidioDetector instantiation.  Thread-safe via _CACHE_LOCK.
+_ANALYZER_CACHE: dict[str, Any] = {}
+
+# Separate cache for NlpEngine objects, keyed by (language, model_name).
+# Two detector configs that share the same spaCy model but differ in other
+# fields (analyzed_fields, custom_recognizers, …) reuse the same loaded
+# NlpEngine rather than paying the spaCy load cost again.
+_NLP_ENGINE_CACHE: dict[tuple[str, str], Any] = {}
+
+_CACHE_LOCK = threading.Lock()
 
 
 class CustomRecognizerConfig(BaseModel):
@@ -100,9 +114,6 @@ class PresidioDetector(BaseModel):
     config: PresidioDetectorConfig = Field(default_factory=PresidioDetectorConfig)
     _analyzer: Any = PrivateAttr(default=None)
 
-    def model_post_init(self, __context: Any) -> None:
-        self._analyzer = self._build_analyzer()
-
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -110,12 +121,18 @@ class PresidioDetector(BaseModel):
     def detect(self, text: str) -> list[DetectedEntity]:
         """Detect PII entities in *text*.
 
+        The Presidio ``AnalyzerEngine`` is built lazily on the first call so
+        that constructing a ``PresidioDetector`` does not trigger spaCy model
+        loading.
+
         Args:
             text: Input text to analyze.
 
         Returns:
             List of detected entities sorted by start position.
         """
+        if self._analyzer is None:
+            self._analyzer = self._build_analyzer()
         if not text or not text.strip():
             return []
 
@@ -149,7 +166,24 @@ class PresidioDetector(BaseModel):
     # ------------------------------------------------------------------
 
     def _build_analyzer(self) -> Any:
-        """Build and configure the Presidio AnalyzerEngine."""
+        """Return a cached (or newly built) Presidio AnalyzerEngine.
+
+        The engine is cached per unique config so the expensive spaCy model
+        load (or presidio's default NLP engine initialisation) only happens
+        once per process per distinct configuration.
+        """
+        cache_key = self.config.model_dump_json()
+        if cache_key in _ANALYZER_CACHE:
+            return _ANALYZER_CACHE[cache_key]
+        with _CACHE_LOCK:
+            if cache_key in _ANALYZER_CACHE:
+                return _ANALYZER_CACHE[cache_key]
+            analyzer = self._build_analyzer_uncached()
+            _ANALYZER_CACHE[cache_key] = analyzer
+        return analyzer
+
+    def _build_analyzer_uncached(self) -> Any:
+        """Build and configure the Presidio AnalyzerEngine (no caching)."""
         from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
 
         if self.config.enable_spacy:
@@ -164,7 +198,17 @@ class PresidioDetector(BaseModel):
             else:
                 analyzer = AnalyzerEngine()
         else:
-            analyzer = AnalyzerEngine()
+            # Pass an explicit empty NLP engine so presidio does not trigger its
+            # default NlpEngineProvider which loads en_core_web_sm even when spaCy
+            # support is not needed.  Pattern-based recognizers (email, phone,
+            # credit card, …) work without any NLP engine.
+            from presidio_analyzer import RecognizerRegistry
+            from presidio_analyzer.nlp_engine import SpacyNlpEngine
+
+            nlp_engine = SpacyNlpEngine(models=[])
+            registry = RecognizerRegistry()
+            registry.load_predefined_recognizers(languages=[self.config.language])
+            analyzer = AnalyzerEngine(nlp_engine=nlp_engine, registry=registry)
 
         # Register custom recognizers
         for rec_cfg in self.config.custom_recognizers:
@@ -191,7 +235,25 @@ class PresidioDetector(BaseModel):
             pass  # Best-effort: if setup fails, Presidio will try to load anyway
 
     def _build_spacy_nlp_engine(self) -> Any | None:
-        """Build a spaCy-backed NLP engine for Presidio."""
+        """Build (or return a cached) spaCy-backed NLP engine for Presidio.
+
+        The loaded spaCy model is cached in ``_NLP_ENGINE_CACHE`` keyed by
+        ``(language, model_name)``.  Configs that share the same model name
+        (but differ in other fields) reuse the already-loaded engine instead
+        of paying the spaCy load cost again.
+        """
+        cache_key = (self.config.language, self.config.spacy_model)
+        if cache_key in _NLP_ENGINE_CACHE:
+            return _NLP_ENGINE_CACHE[cache_key]
+        with _CACHE_LOCK:
+            if cache_key in _NLP_ENGINE_CACHE:
+                return _NLP_ENGINE_CACHE[cache_key]
+            engine = self._build_spacy_nlp_engine_uncached()
+            _NLP_ENGINE_CACHE[cache_key] = engine
+        return engine
+
+    def _build_spacy_nlp_engine_uncached(self) -> Any | None:
+        """Build a fresh spaCy-backed NLP engine for Presidio (no caching)."""
         try:
             from presidio_analyzer.nlp_engine import NlpEngineProvider
 

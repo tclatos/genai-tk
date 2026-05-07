@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Any, Optional
 
 import typer
 from rich.console import Console
@@ -88,6 +88,115 @@ def _get_retriever_safe(retriever_name: str) -> "ManagedRetriever | None":
         return None
 
 
+def _resolve_add_files_params(
+    *,
+    root_dir: str | None,
+    retriever_name: str | None,
+    include: list[str] | None,
+    exclude: list[str] | None,
+    recursive: bool | None,
+    force: bool,
+    batch_size: int | None,
+    chunk_size: int | None,
+    chunker: str | None,
+    workflow_config: str | None,
+    config: Any = None,
+) -> tuple[dict[str, Any], Any | None]:
+    """Resolve effective parameters for ``rag add-files``.
+
+    When ``workflow_config`` is provided, values are loaded from a workflow or
+    workflow profile and merged with explicit CLI overrides. Otherwise the
+    legacy direct-CLI behavior is used.
+    """
+    if workflow_config:
+        from genai_tk.workflow.resolver import WorkflowResolutionError, resolve_workflow_invocation
+
+        cli_overrides: dict[str, Any] = {}
+        if root_dir is not None:
+            cli_overrides["root_dir"] = root_dir
+        if retriever_name is not None:
+            cli_overrides["retriever_name"] = retriever_name
+        if include is not None:
+            cli_overrides["include_patterns"] = include
+        if exclude is not None:
+            cli_overrides["exclude_patterns"] = exclude
+        if recursive is not None:
+            cli_overrides["recursive"] = recursive
+        if batch_size is not None:
+            cli_overrides["batch_size"] = batch_size
+        if chunk_size is not None:
+            cli_overrides["chunk_size"] = chunk_size
+        if chunker is not None:
+            cli_overrides["chunker"] = chunker
+
+        invocation = resolve_workflow_invocation(
+            workflow_config,
+            cli_overrides=cli_overrides,
+            config=config,
+            force=force,
+        )
+        if invocation.workflow_name != "rag_add_files":
+            raise WorkflowResolutionError(
+                f"Workflow/profile '{workflow_config}' resolves to '{invocation.workflow_name}', expected 'rag_add_files'."
+            )
+
+        values = invocation.values
+        effective_root_dir = values.get("root_dir")
+        if not effective_root_dir:
+            raise WorkflowResolutionError("Resolved rag_add_files invocation is missing required value 'root_dir'.")
+
+        return (
+            {
+                "root_dir": str(effective_root_dir),
+                "retriever_name": str(values.get("retriever_name", "default")),
+                "include": values.get("include_patterns", ["**/*"]),
+                "exclude": values.get("exclude_patterns"),
+                "recursive": bool(values.get("recursive", True)),
+                "force": force,
+                "batch_size": int(values.get("batch_size", 10)),
+                "chunk_size": int(values.get("chunk_size", 512)),
+                "chunker": str(values.get("chunker", "auto")),
+            },
+            invocation,
+        )
+
+    if root_dir is None:
+        raise ValueError("root_dir is required when --config/--profile is not used")
+
+    return (
+        {
+            "root_dir": root_dir,
+            "retriever_name": retriever_name or "default",
+            "include": include or ["**/*"],
+            "exclude": exclude,
+            "recursive": True if recursive is None else recursive,
+            "force": force,
+            "batch_size": 10 if batch_size is None else batch_size,
+            "chunk_size": 512 if chunk_size is None else chunk_size,
+            "chunker": chunker or "auto",
+        },
+        None,
+    )
+
+
+def _print_add_files_resolution(console: Console, params: dict[str, Any], invocation: Any | None) -> None:
+    """Render the effective ``rag add-files`` parameters."""
+    table = Table(title="RAG Add-Files Resolution", show_header=True, header_style="bold cyan")
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="white")
+    table.add_row("Workflow", getattr(invocation, "workflow_name", "<legacy>"))
+    table.add_row("Profile", getattr(invocation, "profile_name", "<none>") or "<none>")
+    table.add_row("Root Dir", str(params["root_dir"]))
+    table.add_row("Retriever", str(params["retriever_name"]))
+    table.add_row("Recursive", str(params["recursive"]))
+    table.add_row("Batch Size", str(params["batch_size"]))
+    table.add_row("Chunk Size", str(params["chunk_size"]))
+    table.add_row("Chunker", str(params["chunker"]))
+    table.add_row("Include", json.dumps(params["include"]))
+    table.add_row("Exclude", json.dumps(params["exclude"]))
+    console.print(table)
+
+
 # ---------------------------------------------------------------------------
 # Command class
 # ---------------------------------------------------------------------------
@@ -106,10 +215,18 @@ class RagCommands(CliTopCommand):
         # ------------------------------------------------------------------ #
         @cli_app.command("add-files")
         def add_files(
-            root_dir: Annotated[str, typer.Argument(help="Root directory containing files to ingest")],
+            root_dir: Annotated[
+                str | None,
+                typer.Argument(help="Root directory containing files to ingest", show_default=False),
+            ] = None,
+            workflow_config: Annotated[
+                str | None,
+                typer.Option("--config", "--profile", help="Workflow profile or workflow name for YAML-driven mode"),
+            ] = None,
             retriever_name: Annotated[
-                str, typer.Option("--retriever", "-r", "--store", "-s", help="Retriever configuration name")
-            ] = "default",
+                str | None,
+                typer.Option("--retriever", "-r", "--store", "-s", help="Retriever configuration name"),
+            ] = None,
             include: Annotated[
                 Optional[list[str]],
                 typer.Option("--include", "-i", help="Include glob patterns (repeatable)"),
@@ -118,34 +235,60 @@ class RagCommands(CliTopCommand):
                 Optional[list[str]],
                 typer.Option("--exclude", "-e", help="Exclude glob patterns (repeatable)"),
             ] = None,
-            recursive: Annotated[bool, typer.Option("--recursive/--no-recursive")] = True,
+            recursive: Annotated[bool | None, typer.Option("--recursive/--no-recursive")] = None,
             force: Annotated[bool, typer.Option("--force", "-f", help="Reprocess all files")] = False,
-            batch_size: Annotated[int, typer.Option("--batch-size", "-b")] = 10,
-            chunk_size: Annotated[int, typer.Option("--chunk-size", help="Max chunk size in tokens")] = 512,
+            dry_run: Annotated[
+                bool, typer.Option("--dry-run", help="Resolve parameters without executing ingestion")
+            ] = False,
+            batch_size: Annotated[int | None, typer.Option("--batch-size", "-b")] = None,
+            chunk_size: Annotated[int | None, typer.Option("--chunk-size", help="Max chunk size in tokens")] = None,
             chunker: Annotated[
-                str,
+                str | None,
                 typer.Option(
                     "--chunker",
                     help='Chunker name (e.g. "markdown", "recursive") or "auto" to detect by file extension',
                 ),
-            ] = "auto",
+            ] = None,
         ) -> None:
             """Ingest files from a directory into a retriever store."""
             from genai_tk.utils.file_patterns import resolve_config_path
             from genai_tk.utils.rich_widgets import create_error_panel, create_success_panel, create_warning_panel
+            from genai_tk.workflow.resolver import WorkflowResolutionError
 
             console = Console()
-            resolved = resolve_config_path(root_dir)
+
+            try:
+                params, invocation = _resolve_add_files_params(
+                    root_dir=root_dir,
+                    retriever_name=retriever_name,
+                    include=include,
+                    exclude=exclude,
+                    recursive=recursive,
+                    force=force,
+                    batch_size=batch_size,
+                    chunk_size=chunk_size,
+                    chunker=chunker,
+                    workflow_config=workflow_config,
+                )
+            except (ValueError, WorkflowResolutionError) as exc:
+                console.print(create_error_panel("Invalid Parameters", str(exc)))
+                raise typer.Exit(1) from exc
+
+            _print_add_files_resolution(console, params, invocation)
+            if dry_run:
+                console.print(create_success_panel("Dry Run", "Resolved parameters only; no ingestion was executed."))
+                return
+
+            resolved = resolve_config_path(params["root_dir"])
             root_path = Path(resolved)
 
             if not root_path.exists() or not root_path.is_dir():
-                console.print(create_error_panel("Invalid Path", f"Directory not found: {root_dir}"))
+                console.print(create_error_panel("Invalid Path", f"Directory not found: {params['root_dir']}"))
                 raise typer.Exit(1)
 
-            if include is None:
-                include = ["**/*"]
-
-            console.print(f"[bold cyan]Ingesting '{root_dir}' → retriever '{retriever_name}'[/bold cyan]")
+            console.print(
+                f"[bold cyan]Ingesting '{params['root_dir']}' → retriever '{params['retriever_name']}'[/bold cyan]"
+            )
 
             try:
                 from genai_tk.extra.prefect.runtime import run_flow_ephemeral
@@ -154,14 +297,14 @@ class RagCommands(CliTopCommand):
                 result = run_flow_ephemeral(
                     rag_file_ingestion_flow,
                     root_dir=resolved,
-                    retriever_name=retriever_name,
-                    max_chunk_tokens=chunk_size,
-                    chunker_name=chunker,
-                    include_patterns=include,
-                    exclude_patterns=exclude,
-                    recursive=recursive,
-                    force=force,
-                    batch_size=batch_size,
+                    retriever_name=params["retriever_name"],
+                    max_chunk_tokens=params["chunk_size"],
+                    chunker_name=params["chunker"],
+                    include_patterns=params["include"],
+                    exclude_patterns=params["exclude"],
+                    recursive=params["recursive"],
+                    force=params["force"],
+                    batch_size=params["batch_size"],
                 )
 
                 result_table = Table(title="Ingestion Results", show_header=True, header_style="bold green")
@@ -178,7 +321,7 @@ class RagCommands(CliTopCommand):
                         create_success_panel(
                             "Ingestion Complete",
                             f"Ingested {result['processed_files']} files ({result['total_chunks']} chunks) "
-                            f"into retriever '{retriever_name}'",
+                            f"into retriever '{params['retriever_name']}'",
                         )
                     )
                 else:

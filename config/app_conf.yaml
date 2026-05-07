@@ -14,6 +14,7 @@ default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
   - ${paths.config}/overrides.yaml
   - ${paths.config}/mcp_servers.yaml
   - ${paths.config}/webapp.yaml
+  - ${paths.config}/workflows.yaml
   # Agent configs are loaded on-demand by their respective loaders
   # (load_deepagent_config, load_deer_flow_profiles, load_unified_config,
   # load_all_demos_from_config) — no need to merge them globally here.
@@ -45,6 +46,7 @@ cli:
     - genai_tk.cli.commands_core.CoreCommands
     - genai_tk.cli.commands_info.InfoCommands
     - genai_tk.cli.commands_test.TestCommands
+    - genai_tk.workflow.commands.WorkflowCommands
     - genai_tk.extra.commands_extra.ExtraCommands
     - genai_tk.agents.commands_agents.AgentCommands
     - genai_tk.agents.sandbox.cli_commands.SandboxCommands

@@ -130,7 +130,7 @@ class TestSensitivityThreshold:
         assert result_high.is_sensitive is False
 
     def test_banword_always_sensitive_at_default_threshold(self) -> None:
-        scorer = DefaultSensitivityScorer()  # uses default threshold 0.35
+        scorer = DefaultSensitivityScorer(DefaultScorerConfig(detector=PresidioDetectorConfig(enable_spacy=False)))
         result = scorer.assess("The root password is abc")
         assert result.is_sensitive is True
 
