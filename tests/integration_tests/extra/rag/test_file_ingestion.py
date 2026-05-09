@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from genai_tk.core.factories.retriever_factory import RetrieverFactory
-from genai_tk.extra.prefect.runtime import run_flow_ephemeral
-from genai_tk.extra.rag.rag_prefect_flow import rag_file_ingestion_flow
+from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
+from genai_tk.workflow.prefect.run import run_flow_ephemeral
 
 
 def _run_ingestion(**kwargs):
@@ -68,11 +68,11 @@ def another_function():
         retriever_name = "default"
 
         result = _run_ingestion(
-            root_dir=str(temp_docs_dir),
+            base_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
             chunker_name="auto",
-            include_patterns=["**/*.md", "**/*.txt", "**/*.py"],
+            pathspecs=["**/*.md", "**/*.txt", "**/*.py"],
             force=True,
         )
 
@@ -87,11 +87,11 @@ def another_function():
         retriever_name = "default"
 
         result = _run_ingestion(
-            root_dir=str(temp_docs_dir),
+            base_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
             chunker_name="markdown",
-            include_patterns=["**/*.md"],
+            pathspecs=["**/*.md"],
             force=True,
         )
 
@@ -106,11 +106,11 @@ def another_function():
         retriever_name = "default"
 
         result = _run_ingestion(
-            root_dir=str(temp_docs_dir),
+            base_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
             chunker_name="recursive",
-            include_patterns=["**/*.txt"],
+            pathspecs=["**/*.txt"],
             force=True,
         )
 
@@ -125,11 +125,11 @@ def another_function():
         retriever_name = "default"
 
         result = _run_ingestion(
-            root_dir=str(temp_docs_dir),
+            base_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
             chunker_name="auto",
-            include_patterns=["**/*.md"],
+            pathspecs=["**/*.md"],
             force=True,
         )
 
@@ -161,11 +161,11 @@ def another_function():
 
         # First ingestion
         result1 = _run_ingestion(
-            root_dir=str(temp_docs_dir),
+            base_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
             chunker_name="auto",
-            include_patterns=["**/*.md"],
+            pathspecs=["**/*.md"],
             force=True,
         )
 
@@ -174,11 +174,11 @@ def another_function():
 
         # Second ingestion with force=False (should skip)
         result2 = _run_ingestion(
-            root_dir=str(temp_docs_dir),
+            base_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
             chunker_name="auto",
-            include_patterns=["**/*.md"],
+            pathspecs=["**/*.md"],
             force=False,
         )
 
@@ -193,21 +193,21 @@ def another_function():
 
         # Small chunks
         result_small = _run_ingestion(
-            root_dir=str(temp_docs_dir),
+            base_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=100,  # Small
             chunker_name="auto",
-            include_patterns=["**/*.md"],
+            pathspecs=["**/*.md"],
             force=True,
         )
 
         # Large chunks (clear cache first by using force=True)
         result_large = _run_ingestion(
-            root_dir=str(temp_docs_dir),
+            base_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=1000,  # Large
             chunker_name="auto",
-            include_patterns=["**/*.md"],
+            pathspecs=["**/*.md"],
             force=True,
         )
 
@@ -220,11 +220,11 @@ def another_function():
         retriever_name = "default"
 
         result = _run_ingestion(
-            root_dir=str(temp_docs_dir),
+            base_dir=str(temp_docs_dir),
             retriever_name=retriever_name,
             max_chunk_tokens=512,
             chunker_name="auto",  # Should auto-detect .md → markdown, .txt/.py → recursive
-            include_patterns=["**/*"],
+            pathspecs=["**/*"],
             exclude_patterns=["**/__pycache__"],
             force=True,
         )
@@ -239,7 +239,7 @@ def another_function():
         """Test ingestion with empty directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             result = _run_ingestion(
-                root_dir=tmpdir,
+                base_dir=tmpdir,
                 retriever_name="default",
                 max_chunk_tokens=512,
                 chunker_name="auto",
@@ -255,7 +255,7 @@ def another_function():
         """Test that invalid directory raises error."""
         with pytest.raises(ValueError, match="does not exist"):
             _run_ingestion(
-                root_dir="/nonexistent/directory",
+                base_dir="/nonexistent/directory",
                 retriever_name="default",
                 max_chunk_tokens=512,
                 chunker_name="auto",

@@ -252,10 +252,10 @@ class BM25DocumentStore:
     # -- preprocessing -------------------------------------------------------
 
     def _preprocess_func(self) -> Any:
-        from genai_tk.extra.retrievers.bm25s_retriever import default_preprocessing_func
+        from genai_tk.workflow.retrievers.bm25s_retriever import default_preprocessing_func
 
         if self.preprocessing == "spacy":
-            from genai_tk.extra.retrievers.bm25s_retriever import get_spacy_preprocess_fn
+            from genai_tk.workflow.retrievers.bm25s_retriever import get_spacy_preprocess_fn
 
             return get_spacy_preprocess_fn(self.spacy_model)
         return default_preprocessing_func
@@ -264,7 +264,7 @@ class BM25DocumentStore:
 
     def add_documents(self, docs: list[Document]) -> list[str]:
         """Build (or rebuild) the BM25 index from *docs* and persist it to disk."""
-        from genai_tk.extra.retrievers.bm25s_retriever import BM25FastRetriever
+        from genai_tk.workflow.retrievers.bm25s_retriever import BM25FastRetriever
 
         index_path = self.cache_dir / "bm25_index"
         docs_path = self.cache_dir / "documents.json"
@@ -286,7 +286,7 @@ class BM25DocumentStore:
             self._current_retriever.k = k
             return self._current_retriever
 
-        from genai_tk.extra.retrievers.bm25s_retriever import BM25FastRetriever
+        from genai_tk.workflow.retrievers.bm25s_retriever import BM25FastRetriever
 
         index_path = self.cache_dir / "bm25_index"
         docs_path = self.cache_dir / "documents.json"
@@ -656,7 +656,7 @@ class RetrieverFactory:
     @classmethod
     def _build_pg_hybrid(cls, cfg: PgHybridRetrieverConfig, config_tag: str) -> ManagedRetriever:
         from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
-        from genai_tk.extra.pgvector_factory import (
+        from genai_tk.core.vector_backends.pgvector import (
             MetadataColumn,
             PgHybridSearchConfig,
             PgVectorConfig,
@@ -742,7 +742,7 @@ class RetrieverFactory:
 
     @classmethod
     def _build_zero_entropy(cls, cfg: ZeroEntropyRetrieverConfig, config_tag: str) -> ManagedRetriever:
-        from genai_tk.extra.retrievers.zeroentropy import ZeroEntropyConfig, ZeroEntropyRetriever
+        from genai_tk.workflow.retrievers.zeroentropy import ZeroEntropyConfig, ZeroEntropyRetriever
 
         ze_cfg = ZeroEntropyConfig(
             collection_name=cfg.collection_name,

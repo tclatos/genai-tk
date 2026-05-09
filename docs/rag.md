@@ -1,4 +1,4 @@
-# RAG Systems (`genai_tk.extra.rag` · `genai_tk.core.factories.retriever_factory`)
+# RAG Systems (`genai_tk.workflow.rag` · `genai_tk.core.factories.retriever_factory`)
 
 > **Quick nav:** [Design](#design) · [Retriever Types](#retriever-types) · [Configuration](#yaml-configuration) · [Chunking](#document-chunking) · [Python API](#python-api) · [CLI](#cli-commands) · [Batch Ingestion](#batch-ingestion--prefect-flow) · [Agent Tools](#using-retrievers-as-agent-tools) · [PostgreSQL](#postgresql-hybrid-search)
 
@@ -554,7 +554,7 @@ docs = splitter.create_documents(
 ```yaml
 chunkers:
   markdown:
-    class: genai_tk.extra.rag.chonkie_splitter.ChonkieTextSplitter
+    class: genai_tk.workflow.rag.chonkie_splitter.ChonkieTextSplitter
     params:
       chunker_type: markdown     # Uses MarkdownChef
       max_tokens: 300            # Target chunk size
@@ -602,7 +602,7 @@ Alternative chunking strategy using Chonkie's RecursiveChunker with token counti
 ```yaml
 chunkers:
   chonkie_recursive:
-    class: genai_tk.extra.rag.chonkie_splitter.ChonkieTextSplitter
+    class: genai_tk.workflow.rag.chonkie_splitter.ChonkieTextSplitter
     params:
       chunker_type: recursive
       max_tokens: 512
@@ -878,8 +878,8 @@ uv run cli rag list-retrievers
 `rag_file_ingestion_flow` processes directories in parallel batches using Prefect tasks.
 
 ```python
-from genai_tk.utils.prefect_run import run_flow_ephemeral
-from genai_tk.extra.flows.rag_flow import rag_file_ingestion_flow
+from genai_tk.workflow.prefect.run import run_flow_ephemeral
+from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
 
 result = run_flow_ephemeral(
     rag_file_ingestion_flow,
@@ -1026,10 +1026,10 @@ retrievers:
 ### Python
 
 ```python
-from genai_tk.extra.postgres import get_pg_engine, get_postgres_url
+from genai_tk.core.vector_backends.pgvector import get_pg_engine, get_postgres_url
 
 # Get the async engine (singleton, cached per config tag)
-engine = await get_pg_engine("default")
+engine = get_pg_engine("default")
 
 # Get the connection URL string
 url = get_postgres_url("default")
@@ -1043,7 +1043,7 @@ url = get_postgres_url("default")
 File/text
     │
     ▼ cli rag add-files  /  managed.add_documents()
-rag_prefect_flow (batch, hash-dedup)
+rag_file_ingestion_flow (batch, hash-dedup)
     │
     ▼ MarkdownChunker (token-aware splitting)
 list[Document]

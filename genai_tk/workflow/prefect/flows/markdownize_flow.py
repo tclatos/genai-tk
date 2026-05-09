@@ -419,7 +419,7 @@ async def _process_single_file_task(
     # Try Mistral OCR for PDFs if selected
     elif converter == "mistral" and upath.suffix.lower() == ".pdf":
         try:
-            from genai_tk.extra.loaders.mistral_ocr import mistral_ocr as mistral_ocr_func
+            from genai_tk.workflow.loaders.mistral_ocr import mistral_ocr as mistral_ocr_func
 
             logger.info(f"Processing {upath.name} with Mistral OCR")
             ocr_response = mistral_ocr_func(upath, use_cache=False)

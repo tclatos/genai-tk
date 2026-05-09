@@ -765,7 +765,7 @@ class InfoCommands(CliTopCommand):
             try:
                 files = resolve_files(
                     target_dir,
-                    pathspecs=pathspec if pathspec else ["**/*"],
+                    pathspecs=pathspec or ["**/*"],
                 )
             except Exception as e:
                 logger.error("Failed to resolve entries: {}", e)
@@ -783,7 +783,6 @@ class InfoCommands(CliTopCommand):
                 return
 
             # Get resolved directory for display
-            from genai_tk.utils.file_patterns import resolve_config_path
 
             resolved_dir = resolve_config_path(target_dir)
             target_path = Path(resolved_dir)
@@ -840,13 +839,11 @@ class InfoCommands(CliTopCommand):
                 console.print(f"[bold cyan]📂 Directory:[/bold cyan] {resolved_dir}\n")
 
                 for entry in all_entries:
-                    # Show relative path if recursive, otherwise just name
-                    if recursive:
-                        try:
-                            display_name = str(entry.relative_to(target_path))
-                        except ValueError:
-                            display_name = entry.name
-                    else:
+                    # Show relative path when entries are in subdirectories
+                    try:
+                        rel = entry.relative_to(target_path)
+                        display_name = str(rel) if rel.parts else entry.name
+                    except ValueError:
                         display_name = entry.name
 
                     # Add indicator for directories

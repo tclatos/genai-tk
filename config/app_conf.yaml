@@ -36,7 +36,7 @@ test:
   unit: tests/unit_tests
   integration: tests/integration_tests
   evals: tests/eval_tests
-  notebooks: notebooks
+  notebooks: examples/notebooks
 
 
 
@@ -51,6 +51,6 @@ cli:
     - genai_tk.agents.commands_agents.AgentCommands
     - genai_tk.agents.sandbox.cli_commands.SandboxCommands
     - genai_tk.extra.structured.commands_baml.BamlCommands
-    - genai_tk.extra.rag.commands_rag.RagCommands
+    - genai_tk.workflow.rag.commands_rag.RagCommands
     - genai_tk.mcp.cli_commands.McpCommands
     - genai_tk.main.cli.register_commands

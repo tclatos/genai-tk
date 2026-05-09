@@ -145,7 +145,9 @@ Current docs index:
 | `docs/scaffolding.md` | `cli init` — full project scaffold, generated files, config auto-patching |
 | `docs/copilot-agent-support.md` | Copilot Agent skills, AGENTS.md, copilot-instructions.md |
 | `docs/core.md` | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, `LlmCache`, `ChainRegistry` |
-| `docs/extra.md` | Agent graphs, RAG, data loaders, anonymization, image analysis, KV store |
+| `docs/extra.md` | Non-pipeline tooling: agent graphs, anonymization, BAML, image analysis, KV store, PgVector |
+| `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, all retriever types, CLI, Prefect flow, agent tools |
+| `docs/prefect.md` | Prefect flows in `workflow/prefect/flows/` — markdownize, ppt2pdf, rag, baml |
 | `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, all retriever types, CLI, Prefect flow, agent tools |
 | `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |
 | `docs/workflows.md` | YAML-driven task orchestration — defining workflows, profiles, CLI integration, multi-step pipelines |

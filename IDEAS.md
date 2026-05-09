@@ -1,10 +1,9 @@
 # Genai-Tk Evolution Ideas - Roadmap candidates - 
 
 
-- Merge  genai_tk/extra/retrievers into  genai_tk/core/retrievers.  Simplify file structure. 
-- move extra/rag to core/rag
-- remove /home/tcl/prj/genai-tk/genai_tk/extra/loaders/markdown_loader.py
-Update documentation and tests
+- ~~Merge  genai_tk/extra/retrievers into  genai_tk/core/retrievers.~~ Done: moved to `workflow/retrievers/`.
+- ~~move extra/rag to core/rag~~ Done: moved to `workflow/rag/`.
+- ~~remove /home/tcl/prj/genai-tk/genai_tk/extra/loaders/markdown_loader.py~~ Done: moved to `workflow/loaders/`.
 
 
 
@@ -20,7 +19,7 @@ Inspiration is :
 
 The factory will be configured through a YAML file, like other factories.  Take inspiration of PageIndex parameters, use our own convention to select the LLM, the class, etc. 
 
-/home/tcl/prj/genai-tk/genai_tk/extra
+/home/tcl/prj/genai-tk/genai_tk/workflow
 
 
 
@@ -59,7 +58,7 @@ use  https://github.com/cpburnz/python-pathspec
 ## Other  
 
 ###  Markdown loader
-Refactor /extra/loaders/markdown_loader.py with improvement from /extra/rag/markdown_chunking.py.
+Refactor /workflow/loaders/markdown_loader.py with improvement from /workflow/rag/markdown_chunking.py.
 Keep a LangChain interface (ie Document + metadata instead of ChunkInfo - as TypedDict if possible - and inherit BaseLoader ).
 Replace code in genai-graph that uses markdown_chunking with the LangChain compatible loader/splitter. 
 Add test cases.
@@ -68,7 +67,7 @@ Consider using PageIndex (of be inspired by) to have a TOC and a better structur
 
 ###  RAG
 Refactor totaly  /home/tcl/prj/genai-tk/genai_tk/tools/langchain/rag_tool_factory.py .  
-The created LangChain tool should behave like the 'query' command in /home/tcl/prj/genai-tk/genai_tk/extra/rag/commands_rag.py, ie accept a query string and an optional metadata filter in JSON. 
+The created LangChain tool should behave like the 'query' command in /home/tcl/prj/genai-tk/genai_tk/workflow/rag/commands_rag.py, ie accept a query string and an optional metadata filter in JSON. 
 In the factory, we pass the name of the embedding store (to be used by EmbeddingsStore.create_from_config...) , 
 tool name, tool descripton and default metadata filter  (to be merge with the one given when calling the tool).
 look at /home/tcl/prj/genai-tk/genai_tk/tools/langchain/sql_tool_factory.py, that works.

@@ -552,7 +552,8 @@ tests/integration_tests/agents/
 ## See Also
 
 - [Core Module](core.md) - LLM Factory and configuration
-- [Extra Module](extra.md) - Advanced graphs and RAG
+- [Extra Module](extra.md) - Non-pipeline tooling: agent graphs, anonymization, BAML
+- [RAG & Workflow](rag.md) - RAG pipelines, retrievers, Prefect flows
 - [Configuration Guide](../config/README.md) - Detailed configuration
 - [MCP Servers](mcp-servers.md) - Model Context Protocol
 - [Sandbox Support](sandbox_support.md) - Sandboxed execution

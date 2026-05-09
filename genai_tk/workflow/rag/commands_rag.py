@@ -157,8 +157,8 @@ class RagCommands(CliTopCommand):
                 return
 
             try:
-                from genai_tk.extra.flows.rag_flow import rag_file_ingestion_flow
-                from genai_tk.utils.prefect_run import run_flow_ephemeral
+                from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
+                from genai_tk.workflow.prefect.run import run_flow_ephemeral
 
                 result = run_flow_ephemeral(
                     rag_file_ingestion_flow,

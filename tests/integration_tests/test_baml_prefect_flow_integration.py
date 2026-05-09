@@ -6,8 +6,8 @@ import pytest
 from pydantic import BaseModel
 from upath import UPath
 
-import genai_tk.extra.structured.baml_prefect_flow as mod
-from genai_tk.extra.structured.baml_prefect_flow import (
+import genai_tk.workflow.prefect.flows.baml_flow as mod
+from genai_tk.workflow.prefect.flows.baml_flow import (
     BamlExtractionManifest,
     BamlExtractionManifestEntry,
     baml_single_input_flow,
@@ -51,9 +51,8 @@ def test_baml_structured_extraction_flow_writes_manifest(tmp_path, monkeypatch) 
     monkeypatch.setattr(mod, "resolve_files", lambda *args, **kwargs: [str(p) for p in docs_dir.iterdir()])
 
     manifest = baml_structured_extraction_flow.fn(
-        root_dir=str(docs_dir),
+        base_dir=str(docs_dir),
         output_dir=str(output_dir),
-        recursive=False,
         batch_size=1,
         force=False,
         function_name="ExtractDummy",

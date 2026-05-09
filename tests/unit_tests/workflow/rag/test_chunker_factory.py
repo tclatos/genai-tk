@@ -7,7 +7,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitte
 from upath import UPath
 
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
-from genai_tk.extra.rag.chonkie_splitter import ChonkieTextSplitter
+from genai_tk.workflow.rag.chonkie_splitter import ChonkieTextSplitter
 
 
 class TestChunkerFactoryCreate:

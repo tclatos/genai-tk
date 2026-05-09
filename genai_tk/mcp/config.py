@@ -121,7 +121,13 @@ def load_mcp_server_definitions(config_path: Path | str | None = None) -> list[M
         logger.warning("Could not merge with global config for interpolation: {}", e)
         merged = raw_cfg
 
-    raw_dict = OmegaConf.to_container(merged, resolve=True)
+    # Resolve only the relevant section to avoid spurious failures from
+    # ${profile.*} placeholders in other config sections (e.g. workflows).
+    if "mcp_expose_servers" in merged:
+        resolved_section = OmegaConf.to_container(merged["mcp_expose_servers"], resolve=True)
+        raw_dict = {"mcp_expose_servers": resolved_section}
+    else:
+        raw_dict = {}
 
     entries = raw_dict.get("mcp_expose_servers", [])
     definitions = []

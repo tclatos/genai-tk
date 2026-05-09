@@ -493,11 +493,17 @@ Design and investigation notes: [`docs/design/`](docs/design/).
 ```
 genai_tk/
 ├── core/          # LLM factory, embeddings, vector stores, cache, MCP client
+│   └── vector_backends/  # Chroma, InMemory, PgVector (+ Postgres connection mgmt)
 ├── agents/
 │   ├── langchain/ # Unified ReAct / Deep / Custom agents + middleware
 │   ├── deer_flow/ # Deer-flow embedded client + CLI
 │   └── smolagents/
-├── extra/         # RAG, agent graphs, loaders, retrievers, anonymization, BAML
+├── workflow/      # ETL orchestration: Prefect flows, RAG, loaders, retrievers
+│   ├── prefect/   # run helpers + flows/ (markdownize, ppt2pdf, rag, baml)
+│   ├── rag/       # chunkers, RAG CLI commands
+│   ├── loaders/   # Markdown loader, Mistral OCR loader
+│   └── retrievers/ # BM25, ZeroEntropy
+├── extra/         # Non-pipeline tooling: agent graphs, anonymization, BAML, image analysis
 ├── tools/         # LangChain and SmolAgents tool sets
 ├── utils/         # Config manager, Pydantic helpers, LangGraph utilities
 └── main/          # CLI entry point + command modules

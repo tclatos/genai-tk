@@ -300,7 +300,9 @@ class TestCommands(CliTopCommand):
             """
             from rich import box
             from rich.console import Console
+            from rich.panel import Panel
             from rich.progress import Progress, SpinnerColumn, TextColumn
+            from rich.syntax import Syntax
             from rich.table import Table
 
             from genai_tk.utils.notebook_runner import run_notebook
@@ -330,62 +332,85 @@ class TestCommands(CliTopCommand):
             table.add_column("Status", justify="center")
 
             failed: list[str] = []
+            all_results = []
 
             if quiet:
-                # Use Progress context for quiet mode with spinner and filename display
+                # Quiet mode: spinner while running, all output suppressed, failures printed after
                 with Progress(
                     SpinnerColumn(),
                     TextColumn("[progress.description]{task.description}"),
                     console=console,
+                    transient=True,
                 ) as progress:
-                    task = progress.add_task("[cyan]Processing notebooks...", total=len(nb_files))
+                    task = progress.add_task(f"[cyan]Running {len(nb_files)} notebook(s)...", total=len(nb_files))
 
                     for nb_path in nb_files:
-                        # Update progress with current notebook name
                         progress.update(task, description=f"[cyan]{nb_path.name}[/cyan]")
-
-                        result = run_notebook(nb_path, allow_pip=allow_pip, suppress_output=quiet)
-                        status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
-
+                        result = run_notebook(
+                            nb_path, allow_pip=allow_pip, suppress_output=True, suppress_logs=True
+                        )
+                        all_results.append((nb_path, result))
                         if not result.passed:
                             failed.append(str(nb_path))
-
-                        table.add_row(
-                            str(nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path),
-                            str(len(result.cell_results)),
-                            str(result.skipped),
-                            f"{result.total_duration:.2f}s",
-                            status,
-                        )
-
                         progress.advance(task)
             else:
-                # Verbose mode with per-notebook status updates
+                # Verbose mode: live cell output, progress per notebook
                 for nb_path in nb_files:
-                    console.print(f"  [dim]executing[/dim] {nb_path.name} ...", end="")
-                    result = run_notebook(nb_path, allow_pip=allow_pip, suppress_output=quiet)
+                    console.print(f"\n  [dim]executing[/dim] [bold]{nb_path.name}[/bold] ...", end="")
+                    result = run_notebook(nb_path, allow_pip=allow_pip, suppress_output=False, suppress_logs=False)
+                    all_results.append((nb_path, result))
                     status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
                     console.print(f"\r  {status} {nb_path.name}          ")
 
                     if not result.passed:
                         failed.append(str(nb_path))
-                        for cell_res in result.failed_cells:
-                            console.print(
-                                f"    [red]Cell {cell_res.cell_index}:[/red] "
-                                f"{type(cell_res.error).__name__}: {cell_res.error}"
-                            )
 
-                    table.add_row(
-                        str(nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path),
-                        str(len(result.cell_results)),
-                        str(result.skipped),
-                        f"{result.total_duration:.2f}s",
-                        status,
-                    )
+            # Build summary table
+            for nb_path, result in all_results:
+                status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
+                table.add_row(
+                    str(nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path),
+                    str(len(result.cell_results)),
+                    str(result.skipped),
+                    f"{result.total_duration:.2f}s",
+                    status,
+                )
 
-                console.print()
-
+            console.print()
             console.print(table)
+
+            # Print detailed failure info after table (both modes)
+            for nb_path, result in all_results:
+                if result.passed:
+                    continue
+                for cell_res in result.failed_cells:
+                    rel = nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path
+                    console.print(
+                        f"\n  [red bold]FAIL[/red bold] [cyan]{rel}[/cyan]"
+                        f"  [dim]Cell {cell_res.cell_index + 1}[/dim]"
+                    )
+                    # Source preview
+                    preview = cell_res.source_preview(max_lines=5)
+                    console.print(
+                        Panel(
+                            Syntax(preview, "python", theme="ansi_dark", line_numbers=False),
+                            title=f"[dim]Cell {cell_res.cell_index + 1} source[/dim]",
+                            border_style="dim",
+                            expand=False,
+                        )
+                    )
+                    # Error + traceback
+                    err_type = type(cell_res.error).__name__
+                    console.print(f"    [red]{err_type}[/red]: {cell_res.error}")
+                    if cell_res.traceback:
+                        console.print(
+                            Panel(
+                                cell_res.traceback.strip(),
+                                title="[dim]Traceback[/dim]",
+                                border_style="red dim",
+                                expand=False,
+                            )
+                        )
 
             if failed:
                 console.print(f"\n[red bold]{len(failed)} notebook(s) FAILED[/red bold]")

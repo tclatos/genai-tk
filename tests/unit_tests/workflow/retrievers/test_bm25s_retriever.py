@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from langchain_core.documents import Document
 
-from genai_tk.extra.retrievers.bm25s_retriever import BM25FastRetriever
+from genai_tk.workflow.retrievers.bm25s_retriever import BM25FastRetriever
 
 # Test data constants
 SAMPLE_DOCUMENTS = [
@@ -131,8 +131,8 @@ def sample_documents():
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="spacy.*")
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="weasel.*")
 
-        from genai_tk.extra.retrievers.bm25s_retriever import get_spacy_preprocess_fn
         from genai_tk.utils.spacy_model_mngr import SpaCyModelManager
+        from genai_tk.workflow.retrievers.bm25s_retriever import get_spacy_preprocess_fn
 
         # Setup spacy model using SpaCyModelManager
         model_name = "en_core_web_sm"

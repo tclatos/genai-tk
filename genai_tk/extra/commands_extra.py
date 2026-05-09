@@ -125,7 +125,7 @@ class ExtraCommands(CliTopCommand):
 
             from upath import UPath
 
-            from genai_tk.extra.loaders.mistral_ocr import process_pdf_batch
+            from genai_tk.workflow.loaders.mistral_ocr import process_pdf_batch
 
             # Collect all PDF files matching the patterns
             all_files = []

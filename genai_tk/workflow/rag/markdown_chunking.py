@@ -42,7 +42,7 @@ def create_markdown_splitter(
         # docs have metadata: start_index, token_count, chunk_type
         ```
     """
-    from genai_tk.extra.rag.chonkie_splitter import ChonkieTextSplitter
+    from genai_tk.workflow.rag.chonkie_splitter import ChonkieTextSplitter
 
     return ChonkieTextSplitter(
         chunker_type="markdown",

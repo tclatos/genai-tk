@@ -124,7 +124,7 @@ def test_topological_sort_unknown_dep():
 # ---------------------------------------------------------------------------
 
 
-@patch("genai_tk.utils.prefect_run.run_flow_ephemeral")
+@patch("genai_tk.workflow.prefect.run.run_flow_ephemeral")
 def test_execute_workflow_single_step(mock_run):
     mock_run.return_value = {"files_processed": 5}
 
@@ -155,7 +155,7 @@ def test_execute_workflow_single_step(mock_run):
     assert call_kwargs[1]["batch_size"] == 5
 
 
-@patch("genai_tk.utils.prefect_run.run_flow_ephemeral")
+@patch("genai_tk.workflow.prefect.run.run_flow_ephemeral")
 def test_execute_workflow_force_flag(mock_run):
     mock_run.return_value = None
 
@@ -176,7 +176,7 @@ def test_execute_workflow_force_flag(mock_run):
     assert call_kwargs["force"] is True
 
 
-@patch("genai_tk.utils.prefect_run.run_flow_ephemeral")
+@patch("genai_tk.workflow.prefect.run.run_flow_ephemeral")
 def test_execute_workflow_step_failure_abort(mock_run):
     mock_run.side_effect = RuntimeError("disk full")
 
@@ -195,7 +195,7 @@ def test_execute_workflow_step_failure_abort(mock_run):
         execute_workflow(invocation)
 
 
-@patch("genai_tk.utils.prefect_run.run_flow_ephemeral")
+@patch("genai_tk.workflow.prefect.run.run_flow_ephemeral")
 def test_execute_workflow_step_failure_skip(mock_run):
     mock_run.side_effect = [RuntimeError("oops"), "ok"]
 

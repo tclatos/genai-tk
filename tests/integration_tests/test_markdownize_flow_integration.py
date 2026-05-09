@@ -5,8 +5,12 @@ from datetime import datetime, timezone
 import pytest
 from upath import UPath
 
-import genai_tk.extra.markdownize_prefect_flow as mod
-from genai_tk.extra.markdownize_prefect_flow import MarkdownizeManifest, MarkdownizeManifestEntry, markdownize_flow
+import genai_tk.workflow.prefect.flows.markdownize_flow as mod
+from genai_tk.workflow.prefect.flows.markdownize_flow import (
+    MarkdownizeManifest,
+    MarkdownizeManifestEntry,
+    markdownize_flow,
+)
 
 
 class _FakeFuture:
@@ -41,10 +45,9 @@ def test_markdownize_flow_creates_manifest(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(mod, "resolve_files", lambda *args, **kwargs: [str(p) for p in input_dir.iterdir()])
 
     manifest = markdownize_flow.fn(
-        root_dir=str(input_dir),
+        base_dir=str(input_dir),
         output_dir=str(output_dir),
-        include_patterns=["*.pdf"],
-        recursive=False,
+        pathspecs=["**/*.pdf"],
         batch_size=1,
         force=False,
         converter="markitdown",
@@ -81,20 +84,18 @@ def test_markdownize_flow_skips_unchanged(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(mod, "resolve_files", lambda *args, **kwargs: [str(p) for p in input_dir.iterdir()])
 
     manifest1 = markdownize_flow.fn(
-        root_dir=str(input_dir),
+        base_dir=str(input_dir),
         output_dir=str(output_dir),
-        include_patterns=["*.pdf"],
-        recursive=False,
+        pathspecs=["**/*.pdf"],
         batch_size=1,
         force=False,
         converter="markitdown",
     )
 
     manifest2 = markdownize_flow.fn(
-        root_dir=str(input_dir),
+        base_dir=str(input_dir),
         output_dir=str(output_dir),
-        include_patterns=["*.pdf"],
-        recursive=False,
+        pathspecs=["**/*.pdf"],
         batch_size=1,
         force=False,
         converter="markitdown",

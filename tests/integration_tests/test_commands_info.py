@@ -65,7 +65,7 @@ class TestLsCommand:
     def test_ls_with_include_pattern(self, info_app, runner, tmp_path) -> None:
         (tmp_path / "file.txt").write_text("content")
         (tmp_path / "other.md").write_text("content")
-        result = runner.invoke(info_app, ["info", "ls", str(tmp_path), "--include", "*.txt"])
+        result = runner.invoke(info_app, ["info", "ls", str(tmp_path), "--pathspec", "*.txt"])
         assert result.exit_code == 0
         assert "file.txt" in result.stdout
         assert "other.md" not in result.stdout
@@ -74,7 +74,7 @@ class TestLsCommand:
         subdir = tmp_path / "sub"
         subdir.mkdir()
         (subdir / "nested.py").write_text("code")
-        result = runner.invoke(info_app, ["info", "ls", str(tmp_path), "--recursive"])
+        result = runner.invoke(info_app, ["info", "ls", str(tmp_path), "--pathspec", "**/*.py"])
         assert result.exit_code == 0
         assert "nested.py" in result.stdout
 

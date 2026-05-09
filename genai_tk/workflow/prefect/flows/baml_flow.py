@@ -316,7 +316,7 @@ def baml_structured_extraction_flow(
                 config_name=config_name,
                 llm=llm,
                 structured_root=str(structured_root_upath),
-                root_dir=root_dir,
+                root_dir=base_dir,
             )
             for file_info in batch
         ]

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import time
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -29,6 +30,15 @@ class CellResult:
     passed: bool
     duration: float
     error: Exception | None = None
+    traceback: str | None = None
+
+    def source_preview(self, max_lines: int = 3) -> str:
+        """Return a short preview of the cell source."""
+        lines = self.source.strip().splitlines()
+        preview = "\n".join(lines[:max_lines])
+        if len(lines) > max_lines:
+            preview += f"\n  ... ({len(lines) - max_lines} more lines)"
+        return preview
 
 
 @dataclass
@@ -111,7 +121,12 @@ def _wrap_async_cell(source: str) -> str:
     )
 
 
-def run_notebook(path: Path, allow_pip: bool = False, suppress_output: bool = False) -> NotebookResult:
+def run_notebook(
+    path: Path,
+    allow_pip: bool = False,
+    suppress_output: bool = False,
+    suppress_logs: bool = False,
+) -> NotebookResult:
     """Execute all code cells in *path* and return a :class:`NotebookResult`.
 
     Args:
@@ -119,6 +134,7 @@ def run_notebook(path: Path, allow_pip: bool = False, suppress_output: bool = Fa
         allow_pip: When ``True``, cells with ``%pip`` / ``!pip`` are executed
             instead of skipped.
         suppress_output: When ``True``, capture and discard cell print output.
+        suppress_logs: When ``True``, temporarily silence loguru to reduce noise.
 
     Returns:
         Aggregated result for the notebook.
@@ -131,32 +147,52 @@ def run_notebook(path: Path, allow_pip: bool = False, suppress_output: bool = Fa
     env: dict = {}
     result = NotebookResult(path=path)
 
-    for idx, cell in enumerate(cells):
-        if cell.get("cell_type") != "code":
-            continue
-        source = "".join(cell.get("source", []))
-        if _should_skip(source, allow_pip):
-            result.skipped += 1
-            continue
-
-        executable = _strip_magics(source)
-        if _has_top_level_await(executable):
-            executable = _wrap_async_cell(executable)
-        t0 = time.perf_counter()
+    if suppress_logs:
         try:
-            if suppress_output:
-                old_stdout, old_stderr = sys.stdout, sys.stderr
-                sys.stdout, sys.stderr = io.StringIO(), io.StringIO()
+            from loguru import logger
+
+            logger.disable("")
+        except Exception:  # noqa: BLE001
+            pass
+
+    try:
+        for idx, cell in enumerate(cells):
+            if cell.get("cell_type") != "code":
+                continue
+            source = "".join(cell.get("source", []))
+            if _should_skip(source, allow_pip):
+                result.skipped += 1
+                continue
+
+            executable = _strip_magics(source)
+            if _has_top_level_await(executable):
+                executable = _wrap_async_cell(executable)
+            t0 = time.perf_counter()
             try:
-                exec(executable, env)  # noqa: S102
-            finally:
                 if suppress_output:
-                    sys.stdout, sys.stderr = old_stdout, old_stderr
-            duration = time.perf_counter() - t0
-            result.cell_results.append(CellResult(idx, source, passed=True, duration=duration))
-        except Exception as exc:  # noqa: BLE001
-            duration = time.perf_counter() - t0
-            result.cell_results.append(CellResult(idx, source, passed=False, duration=duration, error=exc))
-            break  # stop on first failure (notebook state is now undefined)
+                    old_stdout, old_stderr = sys.stdout, sys.stderr
+                    sys.stdout, sys.stderr = io.StringIO(), io.StringIO()
+                try:
+                    exec(executable, env)  # noqa: S102
+                finally:
+                    if suppress_output:
+                        sys.stdout, sys.stderr = old_stdout, old_stderr
+                duration = time.perf_counter() - t0
+                result.cell_results.append(CellResult(idx, source, passed=True, duration=duration))
+            except Exception as exc:  # noqa: BLE001
+                duration = time.perf_counter() - t0
+                tb = traceback.format_exc()
+                result.cell_results.append(
+                    CellResult(idx, source, passed=False, duration=duration, error=exc, traceback=tb)
+                )
+                break  # stop on first failure (notebook state is now undefined)
+    finally:
+        if suppress_logs:
+            try:
+                from loguru import logger
+
+                logger.enable("")
+            except Exception:  # noqa: BLE001
+                pass
 
     return result

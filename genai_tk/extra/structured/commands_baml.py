@@ -135,8 +135,8 @@ class BamlCommands(CliTopCommand):
             logger.info("Executing BAML function '{}' with config '{}'", function_name, config_name)
 
             # Execute using Prefect flow
-            from genai_tk.extra.prefect.runtime import run_flow_ephemeral
-            from genai_tk.extra.flows.baml_flow import baml_single_input_flow
+            from genai_tk.workflow.prefect.flows.baml_flow import baml_single_input_flow
+            from genai_tk.workflow.prefect.run import run_flow_ephemeral
 
             try:
                 result, model_name = run_flow_ephemeral(
@@ -172,7 +172,7 @@ class BamlCommands(CliTopCommand):
             base_dir: Annotated[
                 str,
                 typer.Argument(
-                    help=("Root directory to walk. Supports \${paths.*} config vars."),
+                    help=(r"Root directory to walk. Supports \${paths.*} config vars."),
                 ),
             ],
             output_dir: Annotated[
@@ -180,7 +180,7 @@ class BamlCommands(CliTopCommand):
                 typer.Argument(
                     help=(
                         "Output directory for extracted data and manifest. "
-                        "Supports \${paths.*} config vars."
+                        r"Supports \${paths.*} config vars."
                     ),
                 ),
             ],
@@ -222,7 +222,7 @@ class BamlCommands(CliTopCommand):
                 ```bash
                 cli baml extract ./docs ./output --function ExtractRainbow
 
-                cli baml extract '\${paths.data_root}/reviews' '\${paths.data_root}/structured' \\
+                cli baml extract '\\${paths.data_root}/reviews' '\\${paths.data_root}/structured' \\
                     --pathspec '**/*.md' --function ExtractRainbow
 
                 cli baml extract ./reports ./output \\
@@ -244,8 +244,8 @@ class BamlCommands(CliTopCommand):
                 config_name,
             )
 
-            from genai_tk.extra.flows.baml_flow import baml_structured_extraction_flow
-            from genai_tk.utils.prefect_run import run_flow_ephemeral
+            from genai_tk.workflow.prefect.flows.baml_flow import baml_structured_extraction_flow
+            from genai_tk.workflow.prefect.run import run_flow_ephemeral
 
             try:
                 run_flow_ephemeral(

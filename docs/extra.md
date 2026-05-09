@@ -1,10 +1,12 @@
 # Extra Module (`genai_tk.extra`)
 
-> **Quick nav:** [Agent Graphs](#agent-graphs-extragraphs) · [RAG Systems](#rag-systems-extrarag) · [Data Loaders](#data-loaders-extraloaders) · [Retrievers](#retrievers-extraretrievers) · [Anonymization](#anonymization-extraanonymization) · [BAML / Structured Extraction](#structured-extraction-baml-extrastructured) · [Image Analysis](#image-analysis-extraimage_analysis) · [KV Store](#kv-store-extrakv_store)
+> **Quick nav:** [Agent Graphs](#agent-graphs-extragraphs) · [RAG Systems](#rag-systems-workflowrag) · [Data Loaders](#data-loaders-workflowloaders) · [Retrievers](#retrievers-workflowretrievers) · [Anonymization](#anonymization-extraanonymization) · [BAML / Structured Extraction](#structured-extraction-baml-extrastructured) · [Image Analysis](#image-analysis-extraimage_analysis) · [KV Store](#kv-store-extrakv_store)
 
 ## Overview
 
-The `extra` module provides advanced AI capabilities beyond core agent functionality, including specialized agent graphs, RAG pipelines, data loaders, and utility functions for complex AI workflows.
+The `extra` module contains non-pipeline tooling: agent graphs, anonymization, image analysis, KV store, BAML extraction, and the Mistral OCR / PPT conversion commands.
+
+ETL-oriented components (RAG, loaders, retrievers, and Prefect flows) live in **`genai_tk.workflow`** — see [prefect.md](prefect.md) and [rag.md](rag.md) for full documentation.
 
 ## Agent Graphs (`extra.graphs`)
 
@@ -137,9 +139,11 @@ print(result.output.title)
 print(result.output.key_points)
 ```
 
-## RAG Systems (`extra.rag`)
+## RAG Systems (`workflow.rag`)
 
 > **Full documentation:** see **[rag.md](rag.md)** for the complete guide covering design, all retriever types, YAML config reference, Python API, CLI commands, Prefect batch ingestion, agent tool integration, and PostgreSQL hybrid search.
+
+RAG files live under `genai_tk/workflow/rag/` (chunkers, CLI commands) and `genai_tk/workflow/prefect/flows/rag_flow.py` (ingestion flow).
 
 **Quick reference:**
 
@@ -163,9 +167,9 @@ uv run cli rag query "hybrid search" --retriever hybrid_ensemble
 uv run cli rag list-retrievers
 ```
 
-## Data Loaders (`extra.loaders`)
+## Data Loaders (`workflow.loaders`)
 
-Utilities for loading and processing various document formats.
+Utilities for loading and processing various document formats.  Files live under `genai_tk/workflow/loaders/`.
 
 ### Markdown Loader (`markdown_loader.py`)
 
@@ -179,7 +183,7 @@ Loads and parses markdown files with metadata preservation.
 
 **Usage:**
 ```python
-from genai_tk.extra.loaders.markdown_loader import MarkdownLoader
+from genai_tk.workflow.loaders.markdown_loader import MarkdownLoader
 
 loader = MarkdownLoader()
 documents = loader.load_file("document.md")
@@ -214,7 +218,7 @@ extra:
 > **Requires:** `uv add mistralai`
 
 ```python
-from genai_tk.extra.loaders.mistral_ocr import MistralOCRLoader
+from genai_tk.workflow.loaders.mistral_ocr import MistralOCRLoader
 
 loader = MistralOCRLoader(api_key="your-key")
 
@@ -227,11 +231,11 @@ for page_num, text in enumerate(pages):
     print(f"Page {page_num}: {text}")
 ```
 
-## Retrievers (`extra.retrievers`)
+## Retrievers (`workflow.retrievers`)
 
 > See **[rag.md](rag.md)** for the full retriever documentation.
 
-Low-level retriever implementations used by `RetrieverFactory`:
+Low-level retriever implementations live under `genai_tk/workflow/retrievers/` and are used by `RetrieverFactory`:
 
 - `BM25FastRetriever` — bm25s-backed keyword retriever with optional Spacy preprocessing
 - `ZeroEntropyRetriever` — read-only retriever backed by the ZeroEntropy SDK
@@ -351,38 +355,52 @@ store.put("key", "value")
 value = store.get("key")
 ```
 
-### PGVector Factory (`pgvector_factory.py`)
+### PostgreSQL / PgVector (`core.vector_backends.pgvector`)
 
-PostgreSQL vector database integration for scalable embeddings.
+PostgreSQL vector database integration for scalable embeddings. All Postgres connection management and PgVector factory logic lives in `genai_tk/core/vector_backends/pgvector.py`.
 
 **Features:**
 - Vector similarity search
-- Hybrid search (keyword + semantic)
-- Composite indexes
-- Connection pooling
+- Hybrid search (keyword + semantic via pgvector)
+- Embedded PostgreSQL via pgembed (no server needed for dev)
+- Connection pooling / engine singleton per config tag
 
 **Configuration:**
 ```yaml
+postgres:
+  default:
+    mode: external
+    url: postgresql+asyncpg://${oc.env:POSTGRES_USER}:${oc.env:POSTGRES_PASSWORD}@localhost:5432/db
+  embedded:
+    mode: pgembed
+    data_dir: ${paths.data_root}/pgembed
+    extensions: [vector]
+
 embeddings_store:
-  type: pgvector
-  pgvector:
-    connection_string: postgresql://user:pass@localhost/db
-    collection_name: documents
-    distance_metric: cosine
+  pg_store:
+    backend: genai_tk.core.vector_backends.PgVectorBackend
+    embeddings: default
+    config:
+      postgres: default
+      hybrid_search: false
 ```
 
 **Usage:**
 ```python
-from genai_tk.extra.pgvector_factory import PGVectorStore
+from genai_tk.core.vector_backends.pgvector import get_pg_engine, PgVectorConfig
 
-store = PGVectorStore.from_config()
+# Get a cached async PGEngine
+engine = get_pg_engine("default")
 
-# Add embeddings
-store.add_documents(documents)
-
-# Search
-results = store.similarity_search("query", k=5)
+# Create a store via EmbeddingsStore
+from genai_tk.core.embeddings_store import EmbeddingsStore
+store = EmbeddingsStore.create_from_config("pg_store")
+vs = store.get_vector_store()
+vs.add_documents(documents)
+results = vs.similarity_search("query", k=5)
 ```
+
+> See [rag.md](rag.md) for full PostgreSQL hybrid search documentation.
 
 ## Structured Extraction (`extra.structured`)
 

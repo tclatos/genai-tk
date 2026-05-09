@@ -889,7 +889,16 @@ def load_yaml_configs(
             merged_node = file_node
 
         try:
-            resolved: dict[str, Any] = OmegaConf.to_container(merged_node, resolve=True)  # type: ignore[assignment]
+            # Resolve only the specific section we need, not the full merged config.
+            # This avoids spurious InterpolationKeyError from ${profile.*} placeholders
+            # in other sections (e.g. workflows step inputs) that are only valid at
+            # workflow execution time, not at config-load time.
+            if top_level_key in merged_node:
+                section = merged_node[top_level_key]
+                resolved_value = OmegaConf.to_container(section, resolve=True)
+                resolved: dict[str, Any] = {top_level_key: resolved_value}  # type: ignore[assignment]
+            else:
+                resolved = {}
         except Exception as exc:
             raise ConfigInterpolationError(
                 key=str(yaml_path),

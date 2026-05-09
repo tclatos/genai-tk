@@ -12,7 +12,7 @@ workflows:
     description: "Convert documents to Markdown format"
     steps:
       - id: convert
-        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
+        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
         inputs:
           base_dir: "${profile.base_dir}"
           output_dir: "${profile.output_dir}"
@@ -26,7 +26,7 @@ workflows:
     description: "Convert PowerPoint files to PDF"
     steps:
       - id: convert
-        uses: genai_tk.extra.flows.ppt2pdf_flow.ppt2pdf_flow
+        uses: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
         inputs:
           base_dir: "${profile.base_dir}"
           output_dir: "${profile.output_dir}"
@@ -39,7 +39,7 @@ workflows:
     description: "Ingest files into a retriever store"
     steps:
       - id: ingest
-        uses: genai_tk.extra.flows.rag_flow.rag_file_ingestion_flow
+        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
         inputs:
           base_dir: "${profile.base_dir}"
         params:

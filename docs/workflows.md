@@ -63,7 +63,7 @@ A **workflow** is a DAG (directed acyclic graph) of **steps**.  Each step has:
 | Field | Purpose | Example |
 |-------|---------|---------|
 | `id` | Unique step identifier | `ppt_to_pdf` |
-| `uses` | Dotted Python path to a flow or function | `genai_tk.extra.ppt2pdf_prefect_flow.ppt2pdf_flow` |
+| `uses` | Dotted Python path to a flow or function | `genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow` |
 | `inputs` | Static inputs passed to the flow | `{"base_dir": "/path/to/ppts"}` |
 | `params` | Parameters (CLI flags, options) | `{"batch_size": 5, "force": false}` |
 | `needs` | List of step IDs this depends on | `[ppt_to_pdf]` (execute after ppt_to_pdf) |
@@ -78,7 +78,7 @@ workflows:
     description: "Convert PDFs to markdown, then ingest into RAG"
     steps:
       - id: to_markdown
-        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
+        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
         inputs:
           base_dir: "${profile.pdf_dir}"
           output_dir: "${profile.md_dir}"
@@ -88,7 +88,7 @@ workflows:
         concurrency: serial
 
       - id: ingest
-        uses: genai_tk.extra.flows.rag_flow.rag_file_ingestion_flow
+        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
         needs: [to_markdown]  # Run after 'to_markdown'
         inputs:
           base_dir: "${profile.md_dir}"
@@ -214,7 +214,7 @@ workflows:
   markdownize:
     steps:
       - id: convert
-        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
+        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
         inputs:
           base_dir: "${profile.base_dir}"
           output_dir: "${profile.output_dir}"
@@ -258,7 +258,7 @@ workflows:
   full_pipeline:
     steps:
       - id: ppt_to_pdf
-        uses: genai_tk.extra.flows.ppt2pdf_flow.ppt2pdf_flow
+        uses: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
         inputs:
           base_dir: "${profile.ppt_dir}"
           output_dir: "${profile.pdf_dir}"
@@ -266,7 +266,7 @@ workflows:
           batch_size: "${profile.batch_size}"
 
       - id: pdf_to_markdown
-        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
+        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
         needs: [ppt_to_pdf]               # Run after ppt_to_pdf
         inputs:
           base_dir: "${profile.pdf_dir}"  # Output dir from previous step
@@ -277,7 +277,7 @@ workflows:
           batch_size: "${profile.batch_size}"
 
       - id: ingest_to_rag
-        uses: genai_tk.extra.flows.rag_flow.rag_file_ingestion_flow
+        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
         needs: [pdf_to_markdown]
         inputs:
           base_dir: "${profile.md_dir}"
@@ -315,7 +315,7 @@ workflows:
   resilient_pipeline:
     steps:
       - id: try_mistral_ocr
-        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
+        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
         inputs:
           base_dir: "${profile.pdf_dir}"
           output_dir: "${profile.md_dir}"
@@ -325,7 +325,7 @@ workflows:
         on_failure: skip        # If Mistral API fails, skip and continue
 
       - id: fallback_ocr
-        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
+        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
         inputs:
           base_dir: "${profile.pdf_dir}"
           output_dir: "${profile.md_dir}"
@@ -597,7 +597,7 @@ Verify the `uses:` dotted path is correct and the module is importable:
 
 ```bash
 # Test the import
-uv run python -c "from genai_tk.extra.markdownize_prefect_flow import markdownize_flow"
+uv run python -c "from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow"
 ```
 
 ---

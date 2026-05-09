@@ -25,7 +25,7 @@ vector_store:
 
 # ============================================================
 # PostgreSQL connection sources  (get_pg_engine / get_postgres_url)
-# See: genai_tk.extra.postgres
+# See: genai_tk.core.vector_backends.pgvector
 # ============================================================
 postgres:
   default:

@@ -18,7 +18,7 @@ chunkers:
   # Preserves structure: text, tables, code blocks
   # Merges small chunks forward to keep headers with content
   markdown:
-    class: genai_tk.extra.rag.chonkie_splitter.ChonkieTextSplitter
+    class: genai_tk.workflow.rag.chonkie_splitter.ChonkieTextSplitter
     params:
       chunker_type: markdown
       max_tokens: 300
@@ -28,7 +28,7 @@ chunkers:
 
   # Chonkie RecursiveChunker for general text
   chonkie_recursive:
-    class: genai_tk.extra.rag.chonkie_splitter.ChonkieTextSplitter
+    class: genai_tk.workflow.rag.chonkie_splitter.ChonkieTextSplitter
     params:
       chunker_type: recursive
       max_tokens: 512

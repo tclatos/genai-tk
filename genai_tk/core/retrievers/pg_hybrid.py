@@ -35,7 +35,7 @@ class PgHybridRetriever:
             VectorDocumentStore,
             _make_record_manager,
         )
-        from genai_tk.extra.pgvector_factory import (
+        from genai_tk.core.vector_backends.pgvector import (
             MetadataColumn,
             PgHybridSearchConfig,
             PgVectorConfig,

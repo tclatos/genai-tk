@@ -15,7 +15,7 @@ deployed Prefect server unlocks the dashboard, persistent run history, and sched
 |------|-------------|-------------|
 | `markdownize_flow` | `cli tools markdownize` | Convert PDF / DOCX / PPTX → Markdown |
 | `ppt2pdf_flow` | `cli tools ppt2pdf` | Convert PPT / PPTX / ODP → PDF via LibreOffice |
-| `rag_prefect_flow` | `cli rag ingest` | Chunk, embed, and upsert documents into vector store |
+| `rag_file_ingestion_flow` | `cli rag add-files` | Chunk, embed, and upsert documents into vector store |
 | `baml_extraction_flow` | `cli baml extract` | Run BAML structured extraction on Markdown files |
 
 ---
@@ -123,13 +123,13 @@ Uses a `ThreadPoolTaskRunner` to convert multiple files in parallel.
 
 ---
 
-### RAG Ingestion (`rag_prefect_flow`)
+### RAG Ingestion (`rag_file_ingestion_flow`)
 
 Processes documents into the configured vector store: load → chunk → embed → upsert.
 
 ```bash
-uv run cli rag ingest ./documents
-uv run cli rag ingest ./documents --recursive --force
+uv run cli rag add-files ./documents
+uv run cli rag add-files ./documents --retriever persistent --force
 ```
 
 **Deduplication:** each file is hashed before ingestion; unchanged files are skipped on
@@ -168,9 +168,9 @@ All flows can be called directly from Python using the `run_flow_ephemeral` help
 wraps the call inside the correct Prefect runtime context:
 
 ```python
-from genai_tk.extra.prefect.runtime import run_flow_ephemeral
-from genai_tk.extra.markdownize_prefect_flow import markdownize_flow
-from genai_tk.extra.rag.rag_prefect_flow import rag_ingest_flow
+from genai_tk.workflow.prefect.run import run_flow_ephemeral
+from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
+from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
 
 # Convert documents
 run_flow_ephemeral(
@@ -182,7 +182,7 @@ run_flow_ephemeral(
 
 # Ingest into vector store
 run_flow_ephemeral(
-    rag_ingest_flow,
+    rag_file_ingestion_flow,
     source_dir="./output",
     force=False,
 )
@@ -191,8 +191,8 @@ run_flow_ephemeral(
 Or use the context manager directly for finer control:
 
 ```python
-from genai_tk.extra.prefect.runtime import ephemeral_prefect_settings
-from genai_tk.extra.markdownize_prefect_flow import markdownize_flow
+from genai_tk.workflow.prefect.run import ephemeral_prefect_settings
+from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
 
 with ephemeral_prefect_settings():
     result = markdownize_flow(source_dir="./docs", output_dir="./out")
@@ -208,7 +208,7 @@ A minimal Prefect flow integrated with the toolkit:
 # myapp/my_flow.py
 from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner
-from genai_tk.extra.prefect.runtime import run_flow_ephemeral
+from genai_tk.workflow.prefect.run import run_flow_ephemeral
 
 
 @task
@@ -326,20 +326,20 @@ workflows:
   ingest_pipeline:
     steps:
       - id: convert_ppts
-        uses: genai_tk.extra.flows.ppt2pdf_flow.ppt2pdf_flow
+        uses: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
         inputs:
           base_dir: "${profile.ppt_dir}"
           output_dir: "${profile.pdf_dir}"
 
       - id: to_markdown
-        uses: genai_tk.extra.flows.markdownize_flow.markdownize_flow
+        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
         needs: [convert_ppts]
         inputs:
           base_dir: "${profile.pdf_dir}"
           output_dir: "${profile.md_dir}"
 
       - id: ingest_to_rag
-        uses: genai_tk.extra.flows.rag_flow.rag_file_ingestion_flow
+        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
         needs: [to_markdown]
         inputs:
           base_dir: "${profile.md_dir}"

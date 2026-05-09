@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from langchain_core.documents import Document
 
-from genai_tk.extra.rag.chonkie_splitter import ChonkieTextSplitter
+from genai_tk.workflow.rag.chonkie_splitter import ChonkieTextSplitter
 
 
 class TestChonkieTextSplitterInitialization:
