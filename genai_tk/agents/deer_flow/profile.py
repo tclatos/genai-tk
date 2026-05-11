@@ -11,7 +11,7 @@ from typing import Literal, cast, get_args
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from genai_tk.tools.tool_specs import ToolSpec
+from genai_tk.agents.tools.tool_specs import ToolSpec
 
 DeerFlowMode = Literal["flash", "thinking", "pro", "ultra"]
 """Valid agent reasoning-intensity modes."""

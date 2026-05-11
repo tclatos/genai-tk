@@ -22,7 +22,7 @@ Always use `uv` to run Python code and manage packages.
 {{ package_name }}/
 ├── main/streamlit.py              # Webapp entry point (delegates to genai-tk)
 ├── commands/example_commands.py   # CLI command groups (registered in app_conf.yaml)
-├── chains/joke_chain.py           # LCEL chains (registered in chain registry)
+├── chains/joke_chain.py           # LCEL chains (callable via get_chain())
 └── webapp/pages/demos/            # Streamlit pages (registered in webapp.yaml)
 config/
 ├── app_conf.yaml                  # Main config (merges all below)

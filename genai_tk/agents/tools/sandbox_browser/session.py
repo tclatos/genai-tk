@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from genai_tk.tools.sandbox_browser.models import SandboxBrowserConfig
+from genai_tk.agents.tools.sandbox_browser.models import SandboxBrowserConfig
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, BrowserContext, Page

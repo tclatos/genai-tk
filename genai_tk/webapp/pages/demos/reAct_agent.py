@@ -27,7 +27,7 @@ from genai_tk.agents.langchain.config import AgentProfileConfig, load_unified_co
 from genai_tk.core.factories.llm_factory import get_llm
 from genai_tk.core.mcp_client import get_mcp_servers_dict
 from genai_tk.core.prompts import dedent_ws
-from genai_tk.tools.langchain.shared_config_loader import process_langchain_tools_from_config
+from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
 from genai_tk.webapp.ui_components.agent_layout import (
     PANEL_HEIGHT,
     render_agent_sidebar,

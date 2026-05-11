@@ -13,7 +13,7 @@ Example:
     ```python
     from mcp.server.fastmcp import FastMCP
     from genai_tk.mcp.tool_adapter import register_tools
-    from genai_tk.tools.langchain.search_tools_factory import create_search_function
+    from genai_tk.agents.tools.langchain.search_tools_factory import create_search_function
 
     server = FastMCP("demo")
     lc_tool = create_search_function()
@@ -33,8 +33,8 @@ from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticUndefined
 
-from genai_tk.tools.langchain.shared_config_loader import process_langchain_tools_from_config
-from genai_tk.tools.tool_specs import ToolSpec
+from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
+from genai_tk.agents.tools.tool_specs import ToolSpec
 
 
 def register_tools(server: FastMCP, tools: list[BaseTool]) -> None:
@@ -63,7 +63,7 @@ def resolve_tools_from_config(tool_configs: list) -> list[BaseTool]:
     Example:
         ```python
         tools = resolve_tools_from_config(
-            [{"factory": "genai_tk.tools.langchain.search_tools_factory:create_search_function"}]
+            [{"factory": "genai_tk.agents.tools.langchain.search_tools_factory:create_search_function"}]
         )
         ```
     """

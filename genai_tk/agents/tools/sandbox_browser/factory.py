@@ -4,12 +4,12 @@ Compatible with the ``factory:`` tool-spec pattern used in
 ``config/agents/langchain.yaml``::
 
     tools:
-      - factory: genai_tk.tools.sandbox_browser.factory.create_sandbox_browser_tools
+      - factory: genai_tk.agents.tools.sandbox_browser.factory.create_sandbox_browser_tools
         sandbox_url: http://localhost:8080  # optional, defaults to sandbox config
 
 Example:
     ```python
-    from genai_tk.tools.sandbox_browser.factory import create_sandbox_browser_tools
+    from genai_tk.agents.tools.sandbox_browser.factory import create_sandbox_browser_tools
 
     tools = create_sandbox_browser_tools()
     ```
@@ -20,9 +20,9 @@ from __future__ import annotations
 from langchain_core.tools import BaseTool
 from loguru import logger
 
-from genai_tk.tools.sandbox_browser.models import SandboxBrowserConfig
-from genai_tk.tools.sandbox_browser.session import SandboxBrowserSession
-from genai_tk.tools.sandbox_browser.tools import ALL_BROWSER_TOOLS
+from genai_tk.agents.tools.sandbox_browser.models import SandboxBrowserConfig
+from genai_tk.agents.tools.sandbox_browser.session import SandboxBrowserSession
+from genai_tk.agents.tools.sandbox_browser.tools import ALL_BROWSER_TOOLS
 
 
 def _load_browser_config() -> SandboxBrowserConfig:

@@ -6,9 +6,9 @@ guided by site-specific SKILL.md files — to navigate, authenticate, and
 extract data from websites.
 """
 
-from genai_tk.tools.sandbox_browser.factory import create_sandbox_browser_tools
-from genai_tk.tools.sandbox_browser.models import CredentialRef, SandboxBrowserConfig
-from genai_tk.tools.sandbox_browser.session import SandboxBrowserSession
+from genai_tk.agents.tools.sandbox_browser.factory import create_sandbox_browser_tools
+from genai_tk.agents.tools.sandbox_browser.models import CredentialRef, SandboxBrowserConfig
+from genai_tk.agents.tools.sandbox_browser.session import SandboxBrowserSession
 
 __all__ = [
     "CredentialRef",

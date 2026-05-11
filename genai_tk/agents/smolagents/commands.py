@@ -59,7 +59,7 @@ def register(cli_app: typer.Typer) -> None:
 
         from genai_tk.agents.langchain.setup import setup_langchain
         from genai_tk.core.factories.llm_factory import LlmFactory
-        from genai_tk.tools.smolagents.config_loader import (
+        from genai_tk.agents.tools.smolagents.config_loader import (
             _default_smolagents_path,
             create_demo_from_config,
         )

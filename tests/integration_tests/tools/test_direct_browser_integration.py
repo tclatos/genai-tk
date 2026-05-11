@@ -18,10 +18,10 @@ from pathlib import Path
 
 import pytest
 
-from genai_tk.tools.direct_browser.factory import create_direct_browser_tools
-from genai_tk.tools.direct_browser.models import DirectBrowserConfig
-from genai_tk.tools.direct_browser.session import DirectBrowserSession
-from genai_tk.tools.direct_browser.tools import (
+from genai_tk.agents.tools.direct_browser.factory import create_direct_browser_tools
+from genai_tk.agents.tools.direct_browser.models import DirectBrowserConfig
+from genai_tk.agents.tools.direct_browser.session import DirectBrowserSession
+from genai_tk.agents.tools.direct_browser.tools import (
     ALL_BROWSER_TOOLS,
     BrowserDiagnoseTool,
     BrowserEvaluateTool,
@@ -228,7 +228,7 @@ class TestCookiePersistenceIntegration:
 
         # Session 2: load cookies
         async with DirectBrowserSession(config=config) as s2:
-            from genai_tk.tools.direct_browser.tools import BrowserLoadCookiesTool
+            from genai_tk.agents.tools.direct_browser.tools import BrowserLoadCookiesTool
 
             load_tool = BrowserLoadCookiesTool(session=s2)
             load_result = await load_tool._arun(name="test_example")

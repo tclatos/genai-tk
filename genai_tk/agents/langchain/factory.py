@@ -32,7 +32,7 @@ from genai_tk.agents.langchain.config import (
 )
 from genai_tk.core.factories.llm_factory import get_llm
 from genai_tk.core.mcp_client import get_mcp_servers_dict
-from genai_tk.tools.langchain.shared_config_loader import process_langchain_tools_from_config
+from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
 
 
 async def create_langchain_agent(
@@ -151,7 +151,7 @@ async def create_langchain_agent(
     if backend is not None:
         container_url: str = getattr(backend, "_base_url", "")
         if container_url:
-            from genai_tk.tools.sandbox_browser.session import SandboxBrowserSession
+            from genai_tk.agents.tools.sandbox_browser.session import SandboxBrowserSession
 
             patched = 0
             for tool in all_tools:

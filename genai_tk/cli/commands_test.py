@@ -346,9 +346,7 @@ class TestCommands(CliTopCommand):
 
                     for nb_path in nb_files:
                         progress.update(task, description=f"[cyan]{nb_path.name}[/cyan]")
-                        result = run_notebook(
-                            nb_path, allow_pip=allow_pip, suppress_output=True, suppress_logs=True
-                        )
+                        result = run_notebook(nb_path, allow_pip=allow_pip, suppress_output=True, suppress_logs=True)
                         all_results.append((nb_path, result))
                         if not result.passed:
                             failed.append(str(nb_path))
@@ -386,8 +384,7 @@ class TestCommands(CliTopCommand):
                 for cell_res in result.failed_cells:
                     rel = nb_path.relative_to(Path.cwd()) if nb_path.is_absolute() else nb_path
                     console.print(
-                        f"\n  [red bold]FAIL[/red bold] [cyan]{rel}[/cyan]"
-                        f"  [dim]Cell {cell_res.cell_index + 1}[/dim]"
+                        f"\n  [red bold]FAIL[/red bold] [cyan]{rel}[/cyan]  [dim]Cell {cell_res.cell_index + 1}[/dim]"
                     )
                     # Source preview
                     preview = cell_res.source_preview(max_lines=5)

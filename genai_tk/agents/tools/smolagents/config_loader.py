@@ -13,7 +13,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 from smolagents import Tool as SmolAgentTool
 
-from genai_tk.tools.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec, ToolSpec
+from genai_tk.agents.tools.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec, ToolSpec
 from genai_tk.utils.config_mngr import load_yaml_configs, paths_config
 from genai_tk.utils.import_utils import ImportResolver
 

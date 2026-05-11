@@ -6,7 +6,7 @@ import pytest
 from langchain_core.documents import Document
 from langchain_core.language_models.chat_models import BaseChatModel
 
-from genai_tk.tools.langchain.rag_tool_factory import (
+from genai_tk.agents.tools.langchain.rag_tool_factory import (
     RAGToolConfig,
     RAGToolFactory,
     create_rag_tool_from_config,
@@ -182,7 +182,7 @@ class TestRAGToolFactory:
 class TestCreateRAGToolFromConfig:
     """Test convenience function create_rag_tool_from_config."""
 
-    @patch("genai_tk.tools.langchain.rag_tool_factory.RAGToolFactory")
+    @patch("genai_tk.agents.tools.langchain.rag_tool_factory.RAGToolFactory")
     @patch("genai_tk.core.factories.llm_factory.get_llm")
     def test_create_rag_tool_from_config_with_default_llm(self, mock_get_llm, mock_factory_class):
         mock_llm = Mock(spec=BaseChatModel)
@@ -202,7 +202,7 @@ class TestCreateRAGToolFromConfig:
         mock_factory.create_tool.assert_called_once()
         assert result == mock_tool
 
-    @patch("genai_tk.tools.langchain.rag_tool_factory.RAGToolFactory")
+    @patch("genai_tk.agents.tools.langchain.rag_tool_factory.RAGToolFactory")
     def test_create_rag_tool_from_config_with_provided_llm(self, mock_factory_class):
         mock_llm = Mock(spec=BaseChatModel)
 

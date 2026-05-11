@@ -63,7 +63,7 @@ workflow_profiles:
         - "**/*.docx"
         - "**/*.pptx"
       batch_size: 5
-      converter: markitdown
+      converter: mistral
 
   # --- PPT to PDF profiles ---
   ppt2pdf_docs:

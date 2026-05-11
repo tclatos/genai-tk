@@ -122,7 +122,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
 
     def _build_browser_env(self) -> dict[str, str]:
         """Build browser-related environment variables for the sandbox container."""
-        from genai_tk.tools.sandbox_browser.factory import _load_browser_config  # noqa: PLC0415
+        from genai_tk.agents.tools.sandbox_browser.factory import _load_browser_config  # noqa: PLC0415
 
         browser_config = _load_browser_config()
         locale_tag = browser_config.locale

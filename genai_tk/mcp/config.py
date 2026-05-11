@@ -9,7 +9,7 @@ Example YAML:
       - name: "search"
         description: "Web search tools exposed as MCP"
         tools:
-          - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
+          - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
             config:
               verbose: false
         agent:

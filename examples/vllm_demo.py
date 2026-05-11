@@ -66,7 +66,7 @@ def demo_vllm_factory():
 
         # Check if vLLM is available
         try:
-            import vllm
+            import vllm  # type: ignore # noqa: F401
 
             print("✅ vLLM package is available")
             print("📝 To actually use the model, you would call:")

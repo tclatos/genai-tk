@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from genai_tk.tools.direct_browser.models import DirectBrowserConfig
+from genai_tk.agents.tools.direct_browser.models import DirectBrowserConfig
 
 if TYPE_CHECKING:
     from playwright.async_api import Browser, BrowserContext, Page

@@ -1,7 +1,7 @@
 """Pydantic configuration models for the direct (host-local) browser tools.
 
 Reuses ``CredentialRef`` and ``PageSummary`` from
-``genai_tk.tools.sandbox_browser.models`` to maintain a single source of
+``genai_tk.agents.tools.sandbox_browser.models`` to maintain a single source of
 truth.  Defines ``DirectBrowserConfig`` for host-local Playwright settings.
 """
 

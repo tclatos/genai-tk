@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from genai_tk.tools.direct_browser.models import DirectBrowserConfig
-from genai_tk.tools.direct_browser.session import DirectBrowserSession
-from genai_tk.tools.direct_browser.tools import (
+from genai_tk.agents.tools.direct_browser.models import DirectBrowserConfig
+from genai_tk.agents.tools.direct_browser.session import DirectBrowserSession
+from genai_tk.agents.tools.direct_browser.tools import (
     ALL_BROWSER_TOOLS,
     BrowserClickTool,
     BrowserEvaluateTool,

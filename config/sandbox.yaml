@@ -61,7 +61,7 @@ sandbox:
     enabled: false
 
 # ── Sandbox Browser Tools ──────────────────────────────────────────────────
-# Settings for the agent-driven browser tools (genai_tk.tools.sandbox_browser).
+# Settings for the agent-driven browser tools (genai_tk.agents.tools.sandbox_browser).
 # These tools connect to the AIO sandbox's Chromium via CDP and let a deep
 # agent navigate websites, fill forms, and extract data.
 sandbox_browser:
@@ -90,7 +90,7 @@ sandbox_browser:
     - SAP_PASSWORD
 
 # ── Direct Browser Tools ───────────────────────────────────────────────────
-# Settings for the host-local Playwright browser (genai_tk.tools.direct_browser).
+# Settings for the host-local Playwright browser (genai_tk.agents.tools.direct_browser).
 # Unlike sandbox_browser, this launches Chromium directly on the host using
 # the real GPU, real platform UA, and real network stack.  Best for sites with
 # deep fingerprinting that detect the AIO sandbox environment (SwiftShader,

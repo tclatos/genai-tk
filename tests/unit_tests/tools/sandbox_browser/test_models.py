@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from genai_tk.tools.sandbox_browser.models import CredentialRef, PageSummary, SandboxBrowserConfig
+from genai_tk.agents.tools.sandbox_browser.models import CredentialRef, PageSummary, SandboxBrowserConfig
 
 
 class TestSandboxBrowserConfig:

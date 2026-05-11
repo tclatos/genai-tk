@@ -1,14 +1,9 @@
-"""LangChain tools for agent-driven browser automation inside an AIO sandbox.
+"""LangChain tools for host-local browser automation via direct Playwright.
 
-Each tool is a thin wrapper around Playwright operations on a shared
-``SandboxBrowserSession``.  The agent calls these primitive tools — guided by
-site-specific SKILL.md files — to navigate, interact, and extract data from
-websites running in the sandbox's real Chromium.
-
-Security:
-    ``browser_fill_credential`` resolves credentials from environment variables
-    and types them into form fields.  The actual credential value is **never**
-    returned to the LLM — only a confirmation message.
+Same tool names and interface as ``genai_tk.agents.tools.sandbox_browser.tools`` so
+that SKILL.md files work unchanged with either suite.  The only difference is
+the session backend: ``DirectBrowserSession`` launches a host-local Chromium
+instead of connecting to an AIO sandbox container.
 """
 
 from __future__ import annotations
@@ -21,16 +16,15 @@ from typing import Any
 from langchain_core.tools import BaseTool
 from pydantic import Field
 
-from genai_tk.tools.sandbox_browser.models import CredentialRef, PageSummary
-from genai_tk.tools.sandbox_browser.session import SandboxBrowserSession
+from genai_tk.agents.tools.direct_browser.session import DirectBrowserSession
+from genai_tk.agents.tools.sandbox_browser.models import CredentialRef, PageSummary
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-async def _page_summary(session: SandboxBrowserSession, max_text: int = 2000) -> str:
-    """Return a short textual summary of the current page state."""
+async def _page_summary(session: DirectBrowserSession, max_text: int = 2000) -> str:
     page = session.page
     title = await page.title()
     url = page.url
@@ -40,28 +34,10 @@ async def _page_summary(session: SandboxBrowserSession, max_text: int = 2000) ->
     except Exception:
         text = ""
     summary = PageSummary(url=url, title=title, text_snippet=text)
-    return _format_page_summary(summary)
-
-
-def _format_page_summary(summary: PageSummary) -> str:
-    """Format a page summary with URL and title headers."""
     return f"URL: {summary.url}\nTitle: {summary.title}\n\n{summary.text_snippet}"
 
 
-def _is_transient_liveness_error(exc: Exception) -> bool:
-    """Return whether a liveness failure looks like transient navigation churn."""
-    message = str(exc).lower()
-    transient_markers = (
-        "execution context was destroyed",
-        "cannot find context with specified id",
-        "inspected target navigated or closed",
-        "navigation",
-    )
-    return any(marker in message for marker in transient_markers)
-
-
-async def _human_type(session: SandboxBrowserSession, selector: str, text: str) -> None:
-    """Type text into a field with human-like per-character delays."""
+async def _human_type(session: DirectBrowserSession, selector: str, text: str) -> None:
     page = session.page
     delay = session.config.slow_type_ms
     await page.click(selector)
@@ -76,9 +52,9 @@ async def _human_type(session: SandboxBrowserSession, selector: str, text: str) 
 
 
 class _BrowserTool(BaseTool):
-    """Base class for sandbox browser tools sharing a session."""
+    """Base class for direct browser tools sharing a session."""
 
-    session: SandboxBrowserSession = Field(exclude=True)
+    session: DirectBrowserSession = Field(exclude=True)
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -86,21 +62,24 @@ class _BrowserTool(BaseTool):
         if not self.session.connected:
             await self.session.connect()
             return
-        # Detect stale connection (browser/context closed by remote crash or timeout)
         page = self.session.page
         try:
-            # Quick liveness check — if the browser is dead this throws
             await page.evaluate("1")
         except Exception as exc:
             from loguru import logger  # noqa: PLC0415
 
+            message = str(exc).lower()
+            transient = (
+                "execution context was destroyed",
+                "cannot find context with specified id",
+                "inspected target navigated or closed",
+                "navigation",
+            )
             is_closed = getattr(page, "is_closed", None)
             page_closed = is_closed() if callable(is_closed) else False
-            if not page_closed and _is_transient_liveness_error(exc):
-                logger.debug("Browser liveness check failed during navigation; skipping reconnect: {}", exc)
+            if not page_closed and any(m in message for m in transient):
                 await asyncio.sleep(0.1)
                 return
-
             logger.warning("Browser context appears dead — reconnecting")
             try:
                 await self.session.close()
@@ -108,19 +87,16 @@ class _BrowserTool(BaseTool):
             except Exception as reconn_exc:
                 raise RuntimeError(
                     f"Browser connection lost and reconnect failed ({reconn_exc}). "
-                    "The sandbox container may have been terminated. "
-                    "Check 'cli sandbox list' or VNC for status."
+                    "The browser may have been closed or crashed."
                 ) from reconn_exc
 
 
 # ---------------------------------------------------------------------------
-# Tools
+# Tools — same names as sandbox_browser for SKILL.md compatibility
 # ---------------------------------------------------------------------------
 
 
 class BrowserNavigateTool(_BrowserTool):
-    """Navigate the browser to a URL."""
-
     name: str = "browser_navigate"
     description: str = (
         "Navigate the browser to a URL. The 'url' argument is required. "
@@ -144,8 +120,6 @@ class BrowserNavigateTool(_BrowserTool):
 
 
 class BrowserClickTool(_BrowserTool):
-    """Click an element on the page."""
-
     name: str = "browser_click"
     description: str = (
         "Click an element on the page using a CSS selector or text content. "
@@ -171,8 +145,6 @@ class BrowserClickTool(_BrowserTool):
 
 
 class BrowserTypeTool(_BrowserTool):
-    """Type text into a form field."""
-
     name: str = "browser_type"
     description: str = (
         "Type text into a form field identified by CSS selector. "
@@ -197,11 +169,6 @@ class BrowserTypeTool(_BrowserTool):
 
 
 class BrowserFillCredentialTool(_BrowserTool):
-    """Securely fill a credential from an environment variable into a form field.
-
-    The credential value is NEVER returned to the LLM.
-    """
-
     name: str = "browser_fill_credential"
     description: str = (
         "Fill a form field with a credential stored in an environment variable. "
@@ -228,8 +195,6 @@ class BrowserFillCredentialTool(_BrowserTool):
 
 
 class BrowserScreenshotTool(_BrowserTool):
-    """Take a screenshot of the current page."""
-
     name: str = "browser_screenshot"
     description: str = (
         "Take a screenshot of the current browser page. Returns a base64-encoded PNG image. "
@@ -252,8 +217,6 @@ class BrowserScreenshotTool(_BrowserTool):
 
 
 class BrowserReadPageTool(_BrowserTool):
-    """Extract text content from the current page or a specific element."""
-
     name: str = "browser_read_page"
     description: str = (
         "Read text content from the current page. Optionally provide a CSS selector "
@@ -280,14 +243,12 @@ class BrowserReadPageTool(_BrowserTool):
                 title=await page.title(),
                 text_snippet=text,
             )
-            return _format_page_summary(summary)
+            return f"URL: {summary.url}\nTitle: {summary.title}\n\n{summary.text_snippet}"
         except Exception as exc:
             return f"Read page failed: {exc}"
 
 
 class BrowserScrollTool(_BrowserTool):
-    """Scroll the page."""
-
     name: str = "browser_scroll"
     description: str = (
         "Scroll the page. Direction: 'down' or 'up'. Amount is in pixels (default 500). "
@@ -310,8 +271,6 @@ class BrowserScrollTool(_BrowserTool):
 
 
 class BrowserWaitTool(_BrowserTool):
-    """Wait for an element to appear or a fixed duration."""
-
     name: str = "browser_wait"
     description: str = (
         "Wait for an element to appear on the page (by CSS selector), or wait a fixed number "
@@ -350,8 +309,6 @@ class BrowserWaitTool(_BrowserTool):
 
 
 class BrowserSaveCookiesTool(_BrowserTool):
-    """Save the current session cookies to disk."""
-
     name: str = "browser_save_cookies"
     description: str = (
         "Save the current browser session (cookies, localStorage) to a file. "
@@ -372,8 +329,6 @@ class BrowserSaveCookiesTool(_BrowserTool):
 
 
 class BrowserLoadCookiesTool(_BrowserTool):
-    """Load a previously saved session from disk."""
-
     name: str = "browser_load_cookies"
     description: str = (
         "Load a previously saved browser session (cookies, localStorage) from disk. "
@@ -385,7 +340,6 @@ class BrowserLoadCookiesTool(_BrowserTool):
         return asyncio.get_event_loop().run_until_complete(self._arun(name=name))
 
     async def _arun(self, name: str, **kwargs: Any) -> str:
-        # Connect first so the browser is available when cookies exist
         await self._ensure_connected()
         try:
             loaded = await self.session.load_cookies(name)
@@ -397,12 +351,6 @@ class BrowserLoadCookiesTool(_BrowserTool):
 
 
 class BrowserGetLogsTool(_BrowserTool):
-    """Retrieve the in-memory browser event log for self-diagnosis.
-
-    The event log survives browser disconnects, making it useful for
-    post-mortem analysis when the browser crashes or the container dies.
-    """
-
     name: str = "browser_get_logs"
     description: str = (
         "Retrieve recent browser event logs (console messages, JS errors, page crashes, "
@@ -419,8 +367,6 @@ class BrowserGetLogsTool(_BrowserTool):
 
 
 class BrowserEvaluateTool(_BrowserTool):
-    """Run JavaScript in the page and return the result."""
-
     name: str = "browser_evaluate"
     description: str = (
         "Execute a JavaScript expression in the current page and return the result. "
@@ -475,8 +421,6 @@ _DIAGNOSE_JS = """
 
 
 class BrowserDiagnoseTool(_BrowserTool):
-    """Collect browser fingerprint diagnostics for bot-detection debugging."""
-
     name: str = "browser_diagnose"
     description: str = (
         "Collect browser fingerprint diagnostics: user agent, platform, WebGL renderer, "
@@ -512,7 +456,6 @@ class BrowserDiagnoseTool(_BrowserTool):
         return "\n".join(parts)[:4000]
 
 
-# Registry for easy access
 ALL_BROWSER_TOOLS: list[type[_BrowserTool]] = [
     BrowserNavigateTool,
     BrowserClickTool,

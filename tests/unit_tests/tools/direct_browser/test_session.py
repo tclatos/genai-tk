@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from genai_tk.tools.direct_browser.models import DirectBrowserConfig
-from genai_tk.tools.direct_browser.session import DirectBrowserSession
+from genai_tk.agents.tools.direct_browser.models import DirectBrowserConfig
+from genai_tk.agents.tools.direct_browser.session import DirectBrowserSession
 
 
 @pytest.fixture

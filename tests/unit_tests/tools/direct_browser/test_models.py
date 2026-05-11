@@ -1,6 +1,6 @@
 """Unit tests for direct browser Pydantic models."""
 
-from genai_tk.tools.direct_browser.models import DirectBrowserConfig
+from genai_tk.agents.tools.direct_browser.models import DirectBrowserConfig
 
 
 class TestDirectBrowserConfig:

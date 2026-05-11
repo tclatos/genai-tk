@@ -1,6 +1,6 @@
 ---
 name: add-chain
-description: Step-by-step procedure to create a new LangChain LCEL chain in a genai-tk project and register it in the chain registry.
+description: Step-by-step procedure to create a new LangChain LCEL chain in a genai-tk project.
 ---
 
 # Add an LCEL Chain
@@ -18,7 +18,6 @@ Create a new file in `<package>/chains/my_chain.py`:
 ```python
 """My custom chain — describe what it does."""
 
-from genai_tk.core.chain_registry import Example, RunnableItem, register_runnable
 from genai_tk.core.factories.llm_factory import get_llm
 from genai_tk.core.prompts import def_prompt
 from langchain_core.output_parsers import StrOutputParser
@@ -33,29 +32,9 @@ def get_chain(config: dict | None = None) -> Runnable:
         user="{input}",
     )
     return prompt | llm | StrOutputParser()
-
-
-# Register so it appears in the webapp Runnable Playground
-register_runnable(
-    RunnableItem(
-        tag="MyCategory",
-        name="My Chain",
-        runnable=get_chain,
-        examples=[Example(query=["example input"])],
-    )
-)
 ```
 
-## Step 2: Import the Chain (auto-registration)
-
-The chain registers itself when imported. To ensure it's loaded, import it from a CLI command or add it to a module's `__init__.py`:
-
-```python
-# In <package>/chains/__init__.py
-import <package_name>.chains.my_chain  # noqa: F401 — triggers registration
-```
-
-## Step 3: Test the Chain
+## Step 2: Test the Chain
 
 ### Via CLI (using the core run command)
 ```bash

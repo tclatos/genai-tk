@@ -4,7 +4,7 @@ Compatible with the ``factory:`` tool-spec pattern used in
 ``config/agents/langchain.yaml``::
 
     tools:
-      - factory: genai_tk.tools.direct_browser.factory.create_direct_browser_tools
+      - factory: genai_tk.agents.tools.direct_browser.factory.create_direct_browser_tools
 """
 
 from __future__ import annotations
@@ -12,9 +12,9 @@ from __future__ import annotations
 from langchain_core.tools import BaseTool
 from loguru import logger
 
-from genai_tk.tools.direct_browser.models import DirectBrowserConfig
-from genai_tk.tools.direct_browser.session import DirectBrowserSession
-from genai_tk.tools.direct_browser.tools import ALL_BROWSER_TOOLS
+from genai_tk.agents.tools.direct_browser.models import DirectBrowserConfig
+from genai_tk.agents.tools.direct_browser.session import DirectBrowserSession
+from genai_tk.agents.tools.direct_browser.tools import ALL_BROWSER_TOOLS
 
 
 def _load_browser_config() -> DirectBrowserConfig:

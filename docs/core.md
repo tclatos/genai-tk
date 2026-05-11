@@ -172,31 +172,6 @@ llm = get_llm(cache=CacheMethod.DEFAULT)
 response = llm.invoke("prompt", cache=False)
 ```
 
-### Chain Registry (`chain_registry.py`)
-
-**Purpose:** Central registry for discovering and managing LangChain chains and runnables.
-
-**Features:**
-- Dynamic chain registration and discovery
-- Named chain instances for reuse
-- Configuration-driven chain initialization
-- Support for custom chain builders
-
-**Usage:**
-```python
-from genai_tk.core.chain_registry import ChainRegistry
-
-# Register a chain
-registry = ChainRegistry()
-registry.register("my_chain", my_chain_instance)
-
-# Retrieve a chain
-chain = registry.get("my_chain")
-
-# List all chains
-chains = registry.list_chains()
-```
-
 ### MCP Client (`mcp_client.py`)
 
 **Purpose:** Model Context Protocol (MCP) client for integrating external tools via standard MCP servers.

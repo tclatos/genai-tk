@@ -16,7 +16,7 @@ langchain_agents:
       description: "General-purpose agent with web search"
       pre_prompt: "You are a helpful assistant with access to the web."
       tools:
-        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
+        - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
           verbose: true
       examples:
         - "What are the latest AI news today?"
@@ -26,7 +26,7 @@ langchain_agents:
       type: react
       description: "Weather assistant"
       tools:
-        - factory: genai_tk.tools.langchain.search_tools_factory.create_search_function
+        - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
           verbose: true
       mcp_servers:
         - "weather"

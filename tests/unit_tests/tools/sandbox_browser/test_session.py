@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from genai_tk.tools.sandbox_browser.models import SandboxBrowserConfig
-from genai_tk.tools.sandbox_browser.session import SandboxBrowserSession
+from genai_tk.agents.tools.sandbox_browser.models import SandboxBrowserConfig
+from genai_tk.agents.tools.sandbox_browser.session import SandboxBrowserSession
 
 
 @pytest.fixture

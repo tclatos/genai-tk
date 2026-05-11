@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from langchain_core.tools import BaseTool
 
-from genai_tk.tools.langchain.shared_config_loader import process_langchain_tools_from_config
-from genai_tk.tools.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec
+from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
+from genai_tk.agents.tools.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -47,7 +47,7 @@ class TestFunctionTools:
     def test_function_tool_returning_base_tool(self) -> None:
         fake = _make_tool("my_func_tool")
         spec = FunctionToolSpec(function="some.mod.tool_func")
-        with patch("genai_tk.tools.langchain.shared_config_loader.import_from_qualified", return_value=fake):
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=fake):
             result = process_langchain_tools_from_config([spec])
         assert result == [fake]
 
@@ -58,7 +58,7 @@ class TestFunctionTools:
             return fake
 
         spec = FunctionToolSpec(function="some.mod.factory")
-        with patch("genai_tk.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory):
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory):
             result = process_langchain_tools_from_config([spec])
         assert result == [fake]
 
@@ -69,14 +69,14 @@ class TestFunctionTools:
             return tools
 
         spec = FunctionToolSpec(function="some.mod.factory")
-        with patch("genai_tk.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory):
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory):
             result = process_langchain_tools_from_config([spec])
         assert result == tools
 
     def test_function_tool_import_error_raises(self) -> None:
         spec = FunctionToolSpec(function="bad.mod.tool")
         with patch(
-            "genai_tk.tools.langchain.shared_config_loader.import_from_qualified",
+            "genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified",
             side_effect=ImportError("boom"),
         ):
             with pytest.raises(Exception, match="boom"):
@@ -93,7 +93,7 @@ class TestClassTools:
         fake = _make_tool("class_tool")
         FakeCls = MagicMock(return_value=fake)
         spec = ClassToolSpec.model_validate({"class": "some.mod.FakeTool"})
-        with patch("genai_tk.tools.langchain.shared_config_loader.import_from_qualified", return_value=FakeCls):
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=FakeCls):
             result = process_langchain_tools_from_config([spec])
         assert result == [fake]
 
@@ -102,7 +102,7 @@ class TestClassTools:
             pass
 
         spec = ClassToolSpec.model_validate({"class": "mod.NotATool"})
-        with patch("genai_tk.tools.langchain.shared_config_loader.import_from_qualified", return_value=NotATool):
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=NotATool):
             result = process_langchain_tools_from_config([spec])
         assert result == []
 
@@ -120,7 +120,7 @@ class TestFactoryTools:
             return tools
 
         spec = FactoryToolSpec(factory="mod.factory_func")
-        with patch("genai_tk.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func):
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func):
             result = process_langchain_tools_from_config([spec])
         assert result == tools
 
@@ -133,7 +133,7 @@ class TestFactoryTools:
 
         llm = MagicMock()
         spec = FactoryToolSpec(factory="mod.factory_func")
-        with patch("genai_tk.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func):
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func):
             process_langchain_tools_from_config([spec], llm=llm)
         assert received.get("llm") is llm
 
@@ -142,7 +142,7 @@ class TestFactoryTools:
             return []
 
         spec = FactoryToolSpec(factory="mod.factory_func")
-        with patch("genai_tk.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func):
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func):
             result = process_langchain_tools_from_config([spec], llm=MagicMock())
         assert result == []
 
@@ -167,7 +167,7 @@ class TestMixedTools:
             FunctionToolSpec(function="mod.func_tool"),
             ClassToolSpec.model_validate({"class": "mod.ClassTool"}),
         ]
-        with patch("genai_tk.tools.langchain.shared_config_loader.import_from_qualified", side_effect=_import):
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", side_effect=_import):
             result = process_langchain_tools_from_config(specs)
         assert func_tool in result
         assert class_tool in result

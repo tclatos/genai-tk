@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from genai_tk.tools.sandbox_browser.models import SandboxBrowserConfig
-from genai_tk.tools.sandbox_browser.session import SandboxBrowserSession
-from genai_tk.tools.sandbox_browser.tools import (
+from genai_tk.agents.tools.sandbox_browser.models import SandboxBrowserConfig
+from genai_tk.agents.tools.sandbox_browser.session import SandboxBrowserSession
+from genai_tk.agents.tools.sandbox_browser.tools import (
     BrowserClickTool,
     BrowserFillCredentialTool,
     BrowserLoadCookiesTool,

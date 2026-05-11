@@ -112,12 +112,12 @@ async def test_async_operation(fake_llm):
 ```python
 from unittest.mock import Mock, AsyncMock, patch
 
-@patch("genai_tk.tools.langchain.rag_tool_factory.EmbeddingsStore")
+@patch("genai_tk.agents.tools.langchain.rag_tool_factory.EmbeddingsStore")
 @pytest.mark.asyncio
 async def test_rag_tool(mock_embeddings_store_class):
     """Test RAG tool with mocked vector store."""
     from langchain_core.documents import Document
-    from genai_tk.tools.langchain.rag_tool_factory import RAGToolFactory, RAGToolConfig
+    from genai_tk.agents.tools.langchain.rag_tool_factory import RAGToolFactory, RAGToolConfig
     
     # Mock embeddings store
     mock_embeddings_store = Mock()
@@ -211,7 +211,7 @@ def test_file_processing(temp_test_dir):
 ```python
 def test_config_validation():
     """Test Pydantic model validation."""
-    from genai_tk.tools.langchain.rag_tool_factory import RAGToolConfig
+    from genai_tk.agents.tools.langchain.rag_tool_factory import RAGToolConfig
     
     # Valid config
     config = RAGToolConfig(embeddings_store="test")

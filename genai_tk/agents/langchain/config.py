@@ -55,7 +55,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from genai_tk.tools.tool_specs import ToolSpec
+from genai_tk.agents.tools.tool_specs import ToolSpec
 from genai_tk.utils.config_mngr import QualifiedClassName, load_yaml_configs, paths_config
 from genai_tk.utils.import_utils import ImportResolver
 

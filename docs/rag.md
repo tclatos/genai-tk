@@ -934,7 +934,7 @@ langchain_agents:
 ### Programmatically
 
 ```python
-from genai_tk.tools.langchain.rag_tool_factory import RAGToolConfig, RAGToolFactory
+from genai_tk.agents.tools.langchain.rag_tool_factory import RAGToolConfig, RAGToolFactory
 from genai_tk.core.factories.llm_factory import get_llm
 
 config = RAGToolConfig(
@@ -960,7 +960,7 @@ result = await tool.ainvoke({
 ### Convenience function
 
 ```python
-from genai_tk.tools.langchain.rag_tool_factory import create_rag_tool_from_config
+from genai_tk.agents.tools.langchain.rag_tool_factory import create_rag_tool_from_config
 
 tool = create_rag_tool_from_config({
     "retriever": "hybrid_ensemble",
