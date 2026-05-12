@@ -8,7 +8,6 @@ import pytest
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, ToolMessage
 
-from genai_tk.agents.langchain.middleware.presidio_detector import PresidioDetectorConfig
 from genai_tk.agents.langchain.middleware.sensitivity_router_middleware import (
     SensitivityRouterConfig,
     SensitivityRouterMiddleware,
@@ -17,6 +16,7 @@ from genai_tk.agents.langchain.middleware.sensitivity_scorer import (
     DefaultScorerConfig,
     DefaultSensitivityScorer,
 )
+from genai_tk.workflow.anonymization.presidio_detector import PresidioDetectorConfig
 
 # ---------------------------------------------------------------------------
 # Helpers

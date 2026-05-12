@@ -11,9 +11,9 @@ from langchain_core.messages import AIMessage, HumanMessage
 from genai_tk.agents.langchain.middleware.anonymization_middleware import (
     AnonymizationConfig,
     AnonymizationMiddleware,
-    _deduplicate_entities,
 )
-from genai_tk.agents.langchain.middleware.presidio_detector import DetectedEntity, PresidioDetectorConfig
+from genai_tk.workflow.anonymization.core import _deduplicate_entities
+from genai_tk.workflow.anonymization.presidio_detector import DetectedEntity, PresidioDetectorConfig
 
 # ---------------------------------------------------------------------------
 # Helpers

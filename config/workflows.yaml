@@ -50,6 +50,49 @@ workflows:
           chunker_name: "${profile.chunker}"
         concurrency: serial
 
+  anonymize_files:
+    description: "Detect and replace PII in text files (Presidio + Faker)"
+    steps:
+      - id: anonymize
+        uses: genai_tk.workflow.prefect.flows.anonymize_flow.anonymize_files_flow
+        inputs:
+          base_dir: "${profile.base_dir}"
+          output_dir: "${profile.output_dir}"
+        params:
+          pathspecs: "${profile.pathspecs}"
+          batch_size: "${profile.batch_size}"
+          save_mapping: "${profile.save_mapping}"
+          faker_seed: "${profile.faker_seed}"
+        concurrency: serial
+
+  anonymize_and_ingest:
+    description: "Anonymize text files then ingest into a RAG vector store"
+    steps:
+      - id: anonymize
+        uses: genai_tk.workflow.prefect.flows.anonymize_flow.anonymize_files_flow
+        inputs:
+          base_dir: "${profile.base_dir}"
+          output_dir: "${profile.anon_dir}"
+        params:
+          pathspecs: "${profile.pathspecs}"
+          batch_size: "${profile.batch_size}"
+          save_mapping: "${profile.save_mapping}"
+          faker_seed: "${profile.faker_seed}"
+        concurrency: serial
+
+      - id: ingest
+        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+        needs: [anonymize]
+        inputs:
+          base_dir: "${profile.anon_dir}"
+        params:
+          retriever_name: "${profile.retriever_name}"
+          pathspecs: "${profile.pathspecs}"
+          batch_size: "${profile.batch_size}"
+          max_chunk_tokens: "${profile.chunk_size}"
+          chunker_name: "${profile.chunker}"
+        concurrency: serial
+
 
 workflow_profiles:
   # --- Markdownize profiles ---
@@ -88,3 +131,31 @@ workflow_profiles:
       batch_size: 10
       chunk_size: 512
       chunker: auto
+
+  # --- Anonymize profiles ---
+  anonymize_docs:
+    workflow: anonymize_files
+    values:
+      base_dir: "${paths.data_root}/documents"
+      output_dir: "${paths.data_root}/anonymized"
+      pathspecs:
+        - "**/*.txt"
+        - "**/*.md"
+      batch_size: 10
+      save_mapping: false
+      faker_seed: 42
+
+  anonymize_and_ingest_docs:
+    workflow: anonymize_and_ingest
+    values:
+      base_dir: "${paths.data_root}/documents"
+      anon_dir: "${paths.data_root}/anonymized"
+      pathspecs:
+        - "**/*.txt"
+        - "**/*.md"
+      batch_size: 10
+      chunk_size: 512
+      chunker: auto
+      retriever_name: default
+      save_mapping: false
+      faker_seed: 42

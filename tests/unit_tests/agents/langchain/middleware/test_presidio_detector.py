@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from genai_tk.agents.langchain.middleware.presidio_detector import (
+from genai_tk.workflow.anonymization.presidio_detector import (
     CustomRecognizerConfig,
     PresidioDetector,
     PresidioDetectorConfig,

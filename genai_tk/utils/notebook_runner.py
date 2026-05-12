@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import time
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -126,6 +127,7 @@ def run_notebook(
     allow_pip: bool = False,
     suppress_output: bool = False,
     suppress_logs: bool = False,
+    on_cell_start: Callable[[int, int], None] | None = None,
 ) -> NotebookResult:
     """Execute all code cells in *path* and return a :class:`NotebookResult`.
 
@@ -135,6 +137,8 @@ def run_notebook(
             instead of skipped.
         suppress_output: When ``True``, capture and discard cell print output.
         suppress_logs: When ``True``, temporarily silence loguru to reduce noise.
+        on_cell_start: Optional callback invoked just before each cell executes.
+            Receives ``(cell_number_1based, total_cells)``.
 
     Returns:
         Aggregated result for the notebook.
@@ -144,6 +148,7 @@ def run_notebook(
 
     notebook = json.loads(path.read_text(encoding="utf-8"))
     cells = notebook.get("cells", [])
+    total_cells = sum(1 for c in cells if c.get("cell_type") == "code")
     env: dict = {}
     result = NotebookResult(path=path)
 
@@ -167,6 +172,8 @@ def run_notebook(
             executable = _strip_magics(source)
             if _has_top_level_await(executable):
                 executable = _wrap_async_cell(executable)
+            if on_cell_start is not None and not suppress_output:
+                on_cell_start(idx + 1, total_cells)
             t0 = time.perf_counter()
             try:
                 if suppress_output:

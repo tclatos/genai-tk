@@ -35,7 +35,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from genai_tk.agents.langchain.middleware.presidio_detector import (
+from genai_tk.workflow.anonymization.presidio_detector import (
     DetectedEntity,
     PresidioDetector,
     PresidioDetectorConfig,

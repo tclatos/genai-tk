@@ -11,6 +11,11 @@ Streaming is **not** supported: the ``after_model`` hook only runs on complete
 ``AIMessage`` objects.  When streaming is used, deanonymization is silently
 skipped and the anonymized text will appear in the stream.
 
+Core logic (:class:`AnonymizationConfig`, :func:`anonymize_text`, :func:`make_fake_value`)
+lives in :mod:`genai_tk.workflow.anonymization.core` so it can be imported by both
+this middleware and the Prefect ETL flow without circular dependencies.
+All names are re-exported here for backward compatibility.
+
 Example YAML config::
 
     middlewares:
@@ -25,12 +30,8 @@ Example programmatic usage::
         AnonymizationConfig,
         AnonymizationMiddleware,
     )
-    from genai_tk.agents.langchain.middleware.presidio_detector import PresidioDetectorConfig
 
-    config = AnonymizationConfig(
-        detector=PresidioDetectorConfig(analyzed_fields=["PERSON", "EMAIL_ADDRESS"]),
-        faker_seed=42,
-    )
+    config = AnonymizationConfig(faker_seed=42)
     middleware = AnonymizationMiddleware(config=config)
     ```
 """
@@ -44,30 +45,11 @@ from langchain.agents.middleware import AgentMiddleware
 from langchain.agents.middleware.types import AgentState
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langgraph.runtime import Runtime
-from loguru import logger
-from pydantic import BaseModel, Field
 
-from genai_tk.agents.langchain.middleware.presidio_detector import (
-    DetectedEntity,
-    PresidioDetector,
-    PresidioDetectorConfig,
-)
+from genai_tk.workflow.anonymization.core import AnonymizationConfig, anonymize_text
+from genai_tk.workflow.anonymization.presidio_detector import PresidioDetector, PresidioDetectorConfig
 
 _DEFAULT_THREAD = "__default__"
-
-
-class AnonymizationConfig(BaseModel):
-    """Configuration for :class:`AnonymizationMiddleware`.
-
-    Can be passed directly to the constructor or expanded as keyword arguments
-    when instantiated via the YAML middleware system.
-    """
-
-    detector: PresidioDetectorConfig = Field(default_factory=PresidioDetectorConfig)
-    faker_seed: int | None = Field(default=None, description="Seed for deterministic Faker output")
-    faker_locales: list[str] = Field(default_factory=lambda: ["en_US"], description="Faker locales")
-    fuzzy_deanonymize: bool = Field(default=True, description="Use fuzzy matching when deanonymizing LLM output")
-    fuzzy_threshold: int = Field(default=85, ge=0, le=100, description="rapidfuzz ratio threshold (0-100)")
 
 
 class AnonymizationMiddleware(AgentMiddleware):
@@ -241,30 +223,10 @@ class AnonymizationMiddleware(AgentMiddleware):
 
     def _anonymize_text(self, text: str, thread_id: str) -> str:
         """Detect PII in *text*, replace with Faker values, store mapping."""
-        entities = self._detector.detect(text)
-        if not entities:
-            return text
-
-        # Deduplicate overlapping spans — keep highest-score entity per span
-        entities = _deduplicate_entities(entities)
-
         mapping = self._mapping.setdefault(thread_id, {})
-        result = text
-        offset = 0
-
-        for entity in entities:
-            original = text[entity.start : entity.end]
-            if original not in mapping:
-                mapping[original] = self._fake_value(entity.entity_type)
-            fake = mapping[original]
-
-            start = entity.start + offset
-            end = entity.end + offset
-            result = result[:start] + fake + result[end:]
-            offset += len(fake) - len(original)
-
-        logger.debug(f"[Anonymization] Anonymized {len(entities)} entities for thread '{thread_id}'")
-        return result
+        anonymized, updated_mapping = anonymize_text(text, detector=self._detector, faker=self._faker, mapping=mapping)
+        self._mapping[thread_id] = updated_mapping
+        return anonymized
 
     def _deanonymize_text(self, text: str, thread_id: str) -> str:
         """Replace Faker values in *text* with original PII using the stored mapping."""
@@ -305,57 +267,12 @@ class AnonymizationMiddleware(AgentMiddleware):
                     break
         return " ".join(words)
 
-    def _fake_value(self, entity_type: str) -> str:
-        """Generate a Faker replacement for a given entity type."""
-        faker = self._faker
-        mapping = {
-            "PERSON": faker.name,
-            "EMAIL_ADDRESS": faker.email,
-            "PHONE_NUMBER": faker.phone_number,
-            "CREDIT_CARD": faker.credit_card_number,
-            "LOCATION": faker.city,
-            "IBAN_CODE": faker.iban,
-            "US_SSN": faker.ssn,
-            "IP_ADDRESS": faker.ipv4,
-            "URL": faker.url,
-            "DATE_TIME": lambda: faker.date(),
-            "NRP": faker.name,  # Nationality/Religion/Political group → use name
-            "ORG": lambda: faker.company(),
-        }
-        generator = mapping.get(entity_type)
-        if generator:
-            return generator()
-        # Generic fallback: TAG####
-        return faker.bothify(text=f"{entity_type[:4].upper()}####")
-
     def _build_faker(self) -> Any:
         from faker import Faker
 
         if self._config.faker_seed is not None:
             Faker.seed(self._config.faker_seed)
         return Faker(locale=self._config.faker_locales)
-
-
-# ------------------------------------------------------------------
-# Utilities
-# ------------------------------------------------------------------
-
-
-def _deduplicate_entities(entities: list[DetectedEntity]) -> list[DetectedEntity]:
-    """Remove overlapping entities, keeping highest-score entity per span."""
-    if not entities:
-        return entities
-    sorted_entities = sorted(entities, key=lambda e: (-e.score, e.start))
-    kept: list[DetectedEntity] = []
-    for entity in sorted_entities:
-        overlaps = False
-        for kept_entity in kept:
-            if entity.start < kept_entity.end and entity.end > kept_entity.start:
-                overlaps = True
-                break
-        if not overlaps:
-            kept.append(entity)
-    return sorted(kept, key=lambda e: e.start)
 
 
 # Re-build model validators so that %autoreload 2 in notebooks doesn't cause

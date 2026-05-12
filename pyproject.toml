@@ -316,9 +316,6 @@ beartype_packages = [
     "genai_tk.agents.smolagents",
     "genai_tk.agents.commands_agents",
     "genai_tk.agents.langchain_setup",
-    # Tools — langchain tools skipped (mock return-type violations in tests)
-    "genai_tk.agents.tools.tool_specs",
-    "genai_tk.agents.tools.smolagents",
 ]
 markers = [
     "performance_tests: marks tests as performance tests",

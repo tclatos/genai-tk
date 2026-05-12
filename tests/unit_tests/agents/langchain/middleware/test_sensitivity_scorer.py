@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from genai_tk.agents.langchain.middleware.presidio_detector import PresidioDetectorConfig
 from genai_tk.agents.langchain.middleware.sensitivity_scorer import (
     DefaultScorerConfig,
     DefaultSensitivityScorer,
     SensitivityAssessment,
 )
+from genai_tk.workflow.anonymization.presidio_detector import PresidioDetectorConfig
 
 # ---------------------------------------------------------------------------
 # Helpers

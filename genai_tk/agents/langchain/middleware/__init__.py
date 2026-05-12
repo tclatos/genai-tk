@@ -1,12 +1,10 @@
 """LangChain agent middleware for PII anonymization and sensitivity-based LLM routing.
 
-Public exports
---------------
-Shared detector
-    :class:`~genai_tk.agents.langchain.middleware.presidio_detector.PresidioDetectorConfig`
-    :class:`~genai_tk.agents.langchain.middleware.presidio_detector.PresidioDetector`
-    :class:`~genai_tk.agents.langchain.middleware.presidio_detector.DetectedEntity`
-    :class:`~genai_tk.agents.langchain.middleware.presidio_detector.CustomRecognizerConfig`
+PII detector (canonical location: :mod:`genai_tk.workflow.anonymization`)
+    :class:`~genai_tk.workflow.anonymization.PresidioDetectorConfig`
+    :class:`~genai_tk.workflow.anonymization.PresidioDetector`
+    :class:`~genai_tk.workflow.anonymization.DetectedEntity`
+    :class:`~genai_tk.workflow.anonymization.CustomRecognizerConfig`
 
 Anonymization middleware
     :class:`~genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationConfig`
@@ -28,17 +26,8 @@ Built-in middlewares (pre-existing)
     :class:`~genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware`
 """
 
-from genai_tk.agents.langchain.middleware.anonymization_middleware import (
-    AnonymizationConfig,
-    AnonymizationMiddleware,
-)
+from genai_tk.agents.langchain.middleware.anonymization_middleware import AnonymizationConfig, AnonymizationMiddleware
 from genai_tk.agents.langchain.middleware.empty_response_retry import EmptyResponseRetryMiddleware
-from genai_tk.agents.langchain.middleware.presidio_detector import (
-    CustomRecognizerConfig,
-    DetectedEntity,
-    PresidioDetector,
-    PresidioDetectorConfig,
-)
 from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware, ToolCallLimitMiddleware
 from genai_tk.agents.langchain.middleware.sensitivity_router_middleware import (
     SensitivityRouterConfig,
@@ -50,6 +39,12 @@ from genai_tk.agents.langchain.middleware.sensitivity_scorer import (
     SensitivityAssessment,
     SensitivityScorer,
 )
+from genai_tk.workflow.anonymization.presidio_detector import (
+    CustomRecognizerConfig,
+    DetectedEntity,
+    PresidioDetector,
+    PresidioDetectorConfig,
+)
 
 __all__ = [
     # Presidio detector
@@ -57,7 +52,7 @@ __all__ = [
     "PresidioDetector",
     "DetectedEntity",
     "CustomRecognizerConfig",
-    # Anonymization
+    # Anonymization middleware
     "AnonymizationConfig",
     "AnonymizationMiddleware",
     # Sensitivity scorer

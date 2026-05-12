@@ -352,16 +352,22 @@ class TestCommands(CliTopCommand):
                             failed.append(str(nb_path))
                         progress.advance(task)
             else:
-                # Verbose mode: live cell output, progress per notebook
+                # Verbose mode: live cell output with cell-number markers, progress per notebook
                 for nb_path in nb_files:
-                    console.print(f"\n  [dim]executing[/dim] [bold]{nb_path.name}[/bold] ...", end="")
-                    result = run_notebook(nb_path, allow_pip=allow_pip, suppress_output=False, suppress_logs=False)
-                    all_results.append((nb_path, result))
-                    status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
-                    console.print(f"\r  {status} {nb_path.name}          ")
+                    console.print(f"\n  [dim]executing[/dim] [bold]{nb_path.name}[/bold]")
 
+                    def _on_cell_start(cell_num: int, total: int) -> None:
+                        console.print(f"  [dim]  cell {cell_num}/{total}[/dim]  ", end="")
+
+                    result = run_notebook(
+                        nb_path, allow_pip=allow_pip, suppress_output=False, suppress_logs=False,
+                        on_cell_start=_on_cell_start,
+                    )
+                    all_results.append((nb_path, result))
                     if not result.passed:
                         failed.append(str(nb_path))
+                    status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
+                    console.print(f"\n  {status} {nb_path.name}  [dim]({len(result.cell_results)} cells, {result.total_duration:.1f}s)[/dim]")
 
             # Build summary table
             for nb_path, result in all_results:
