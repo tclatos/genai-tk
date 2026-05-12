@@ -66,11 +66,19 @@ class WorkflowCommands(CliTopCommand):
             ] = None,
             pathspec: Annotated[
                 list[str] | None,
-                typer.Option("--pathspec", "-p", help="Gitwildmatch pattern; maps to values.pathspecs (repeatable, prefix ! to exclude)"),
+                typer.Option(
+                    "--pathspec",
+                    "-p",
+                    help="Gitwildmatch pattern; maps to values.pathspecs (repeatable, prefix ! to exclude)",
+                ),
             ] = None,
             to: Annotated[
                 str | None,
                 typer.Option("--to", help="Output directory; maps to values.output_dir"),
+            ] = None,
+            base_dir: Annotated[
+                str | None,
+                typer.Option("--base-dir", help="Base directory; maps to values.base_dir"),
             ] = None,
             force: Annotated[
                 bool, typer.Option("--force", help="Force recomputation even if caches are valid")
@@ -79,9 +87,12 @@ class WorkflowCommands(CliTopCommand):
         ) -> None:
             """Resolve and execute a workflow or workflow profile.
 
-            Shorthand options ``--pathspec`` and ``--to`` map to ``values.pathspecs``
-            and ``values.output_dir`` respectively, equivalent to using
-            ``--set pathspecs='[...]'`` and ``--set output_dir=PATH``.
+            Shorthand options map to workflow values:
+            - ``--pathspec`` → ``values.pathspecs`` (repeatable, prefix ! to exclude)
+            - ``--to`` → ``values.output_dir``
+            - ``--base-dir`` → ``values.base_dir``
+
+            These are equivalent to using ``--set KEY=VALUE`` but more convenient.
 
             Examples:
                 ```bash
@@ -90,11 +101,14 @@ class WorkflowCommands(CliTopCommand):
 
                 # Ad-hoc invocation with shorthands
                 cli workflow run markdownize \\
+                    --base-dir '${paths.rfq_pdf}' \\
                     --pathspec '**/*.pdf' --pathspec '!**/*_draft*' \\
-                    --to ./output
+                    --to '${paths.rfq_md}/real'
 
-                # Override via --set
-                cli workflow run markdownize_docs --set batch_size=10
+                # Override via --set (verbose equivalent)
+                cli workflow run markdownize_docs \\
+                    --set base_dir='${paths.rfq_pdf}' \\
+                    --set output_dir='${paths.rfq_md}/real'
                 ```
             """
             console = Console()
@@ -104,6 +118,8 @@ class WorkflowCommands(CliTopCommand):
                     cli_overrides["pathspecs"] = pathspec
                 if to:
                     cli_overrides["output_dir"] = to
+                if base_dir:
+                    cli_overrides["base_dir"] = base_dir
                 invocation = resolve_workflow_invocation(
                     workflow_or_profile,
                     profile_name=profile,
@@ -112,6 +128,16 @@ class WorkflowCommands(CliTopCommand):
                 )
             except WorkflowResolutionError as exc:
                 console.print(Panel(str(exc), title="Workflow Resolution Error", border_style="red"))
+                raise typer.Exit(1) from exc
+            except Exception as exc:
+                # Catch any other config/interpolation errors and display them nicely
+                console.print(
+                    Panel(
+                        f"Unexpected error during workflow resolution: {type(exc).__name__}: {exc}",
+                        title="Configuration Error",
+                        border_style="red",
+                    )
+                )
                 raise typer.Exit(1) from exc
 
             _render_workflow_summary(workflow_or_profile, invocation)
@@ -127,6 +153,16 @@ class WorkflowCommands(CliTopCommand):
                 console.print(Panel(f"Workflow completed: {len(results)} step(s) executed.", border_style="green"))
             except WorkflowExecutionError as exc:
                 console.print(Panel(str(exc), title="Workflow Execution Error", border_style="red"))
+                raise typer.Exit(1) from exc
+            except Exception as exc:
+                # Catch any other execution errors and display them nicely
+                console.print(
+                    Panel(
+                        f"Unexpected error during workflow execution: {type(exc).__name__}: {exc}",
+                        title="Execution Error",
+                        border_style="red",
+                    )
+                )
                 raise typer.Exit(1) from exc
 
         @cli_app.command("list")

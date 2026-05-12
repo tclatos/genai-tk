@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
+from omegaconf.errors import InterpolationKeyError
 
 from genai_tk.utils.config_mngr import OmegaConfig, global_config
 from genai_tk.workflow.models import ResolvedWorkflowInvocation, WorkflowProfileSpec, WorkflowSpec
@@ -12,6 +14,46 @@ from genai_tk.workflow.models import ResolvedWorkflowInvocation, WorkflowProfile
 
 class WorkflowResolutionError(ValueError):
     """Raised when a workflow or workflow profile cannot be resolved."""
+
+
+def _extract_interpolation_context(error: Exception) -> str | None:
+    """Extract interpolation key from OmegaConf error message."""
+    error_str = str(error)
+    match = re.search(r"Interpolation key '([^']+)' not found", error_str)
+    if match:
+        return match.group(1)
+    return None
+
+
+def _suggest_available_paths(config: OmegaConfig) -> str:
+    """Suggest commonly used paths from configuration."""
+    try:
+        paths = config.get("paths", default={})
+        if isinstance(paths, DictConfig):
+            path_keys = sorted(paths.keys())
+            if path_keys:
+                suggestions = ", ".join(f"paths.{k}" for k in path_keys[:5])
+                return f"Available paths: {suggestions}..."
+    except Exception:
+        pass
+    return "Check your config for available paths under 'paths:' section."
+
+
+def _safe_resolve_omegaconf(value: Any, config: OmegaConfig | None = None) -> Any:
+    """Safely resolve OmegaConf values with better error messages."""
+    try:
+        if isinstance(value, DictConfig):
+            return OmegaConf.to_container(value, resolve=True)
+        return value
+    except InterpolationKeyError as exc:
+        missing_key = _extract_interpolation_context(exc)
+        cfg = config or global_config()
+        hint = _suggest_available_paths(cfg)
+        raise WorkflowResolutionError(
+            f"Configuration interpolation error: key '{missing_key}' not found. {hint}"
+        ) from exc
+    except Exception as exc:
+        raise WorkflowResolutionError(f"Configuration resolution error: {exc}") from exc
 
 
 def _config_or_global(config: OmegaConfig | None) -> OmegaConfig:
@@ -23,7 +65,14 @@ def _section_dict(config: OmegaConfig, key: str, *, resolve: bool) -> dict[str, 
     if raw is None:
         return {}
     if isinstance(raw, DictConfig):
-        resolved = OmegaConf.to_container(raw, resolve=resolve)
+        try:
+            resolved = OmegaConf.to_container(raw, resolve=resolve)
+        except InterpolationKeyError as exc:
+            missing_key = _extract_interpolation_context(exc)
+            hint = _suggest_available_paths(config)
+            raise WorkflowResolutionError(
+                f"Configuration interpolation error in '{key}': key '{missing_key}' not found. {hint}"
+            ) from exc
     elif isinstance(raw, dict):
         resolved = raw
     else:
@@ -91,7 +140,15 @@ def parse_cli_overrides(values: list[str] | None) -> dict[str, Any]:
             parsed_value = raw_value
         OmegaConf.update(overrides, key, parsed_value, merge=True)
 
-    resolved = OmegaConf.to_container(overrides, resolve=True)
+    try:
+        resolved = OmegaConf.to_container(overrides, resolve=True)
+    except InterpolationKeyError as exc:
+        missing_key = _extract_interpolation_context(exc)
+        cfg = global_config()
+        hint = _suggest_available_paths(cfg)
+        raise WorkflowResolutionError(
+            f"Configuration interpolation error in CLI overrides: key '{missing_key}' not found. {hint}"
+        ) from exc
     if not isinstance(resolved, dict):
         raise WorkflowResolutionError("CLI overrides must resolve to a mapping")
     return resolved
@@ -101,7 +158,15 @@ def _merge_dicts(*parts: dict[str, Any]) -> dict[str, Any]:
     merged = OmegaConf.create({})
     for part in parts:
         merged = OmegaConf.merge(merged, OmegaConf.create(part))
-    resolved = OmegaConf.to_container(merged, resolve=True)
+    try:
+        resolved = OmegaConf.to_container(merged, resolve=True)
+    except InterpolationKeyError as exc:
+        missing_key = _extract_interpolation_context(exc)
+        cfg = global_config()
+        hint = _suggest_available_paths(cfg)
+        raise WorkflowResolutionError(
+            f"Configuration interpolation error while merging values: key '{missing_key}' not found. {hint}"
+        ) from exc
     return resolved if isinstance(resolved, dict) else {}
 
 
