@@ -22,11 +22,33 @@ class MaterializationSpec(BaseModel):
     target: str | None = None
 
 
+class StepTemplateSpec(BaseModel):
+    """Reusable step definition that can be referenced by workflow steps via `ref:`.
+
+    A step template captures the `uses`, `inputs`, `params`, and other execution
+    fields shared across multiple steps. Individual steps can override any field.
+    """
+
+    uses: str = ""
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    outputs: dict[str, str] = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
+    cache: CacheSpec = Field(default_factory=CacheSpec)
+    materialization: MaterializationSpec = Field(default_factory=MaterializationSpec)
+    concurrency: Literal["auto", "serial", "parallel"] = "auto"
+    on_failure: Literal["abort", "skip", "continue"] = "abort"
+
+
 class StepSpec(BaseModel):
-    """One declarative step in a workflow."""
+    """One declarative step in a workflow.
+
+    Set `ref` to inherit from a named step template defined in `step_templates:`.
+    Any field set directly on the step overrides the template value.
+    """
 
     id: str
-    uses: str
+    ref: str | None = None
+    uses: str = ""
     needs: list[str] = Field(default_factory=list)
     inputs: dict[str, Any] = Field(default_factory=dict)
     outputs: dict[str, str] = Field(default_factory=dict)

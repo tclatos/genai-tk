@@ -9,7 +9,11 @@ from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import InterpolationKeyError
 
 from genai_tk.utils.config_mngr import OmegaConfig, global_config
-from genai_tk.workflow.models import ResolvedWorkflowInvocation, WorkflowProfileSpec, WorkflowSpec
+from genai_tk.workflow.models import (
+    ResolvedWorkflowInvocation,
+    WorkflowProfileSpec,
+    WorkflowSpec,
+)
 
 
 class WorkflowResolutionError(ValueError):
@@ -82,6 +86,39 @@ def _section_dict(config: OmegaConfig, key: str, *, resolve: bool) -> dict[str, 
     return resolved
 
 
+def _expand_step_templates(steps_data: list[dict], templates: dict[str, dict]) -> list[dict]:
+    """Expand `ref:` fields in step definitions by merging from step templates.
+
+    For each step with a `ref:` key, the template's fields are used as defaults;
+    any field explicitly set on the step overrides the template value.
+    """
+    expanded = []
+    for step in steps_data:
+        ref = step.get("ref")
+        if ref is None:
+            expanded.append(step)
+            continue
+        if ref not in templates:
+            available = ", ".join(sorted(templates)) or "<none>"
+            raise WorkflowResolutionError(
+                f"Step '{step.get('id', '?')}' references unknown step template '{ref}'. "
+                f"Available templates: {available}"
+            )
+        template = templates[ref]
+        # Template fields are defaults; step-level fields win.
+        # For dict fields (inputs, params, outputs) merge so step overrides at key level.
+        merged: dict = {**template}
+        for key, value in step.items():
+            if key == "ref":
+                continue
+            if key in ("inputs", "params", "outputs") and isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = {**merged[key], **value}
+            else:
+                merged[key] = value
+        expanded.append(merged)
+    return expanded
+
+
 def list_workflow_names(config: OmegaConfig | None = None) -> list[str]:
     """Return configured workflow names."""
     cfg = _config_or_global(config)
@@ -94,8 +131,14 @@ def list_workflow_profile_names(config: OmegaConfig | None = None) -> list[str]:
     return sorted(_section_dict(cfg, "workflow_profiles", resolve=False).keys())
 
 
+def list_step_template_names(config: OmegaConfig | None = None) -> list[str]:
+    """Return configured step template names."""
+    cfg = _config_or_global(config)
+    return sorted(_section_dict(cfg, "step_templates", resolve=False).keys())
+
+
 def load_workflow_spec(name: str, config: OmegaConfig | None = None) -> WorkflowSpec:
-    """Load a workflow definition by name."""
+    """Load a workflow definition by name, expanding any step template references."""
     cfg = _config_or_global(config)
     workflows = _section_dict(cfg, "workflows", resolve=False)
     if name not in workflows:
@@ -104,7 +147,11 @@ def load_workflow_spec(name: str, config: OmegaConfig | None = None) -> Workflow
     data = workflows[name]
     if not isinstance(data, dict):
         raise WorkflowResolutionError(f"Workflow '{name}' must be a mapping")
-    return WorkflowSpec.model_validate({"name": name, **data})
+    templates = _section_dict(cfg, "step_templates", resolve=False)
+    steps_data = data.get("steps", [])
+    if steps_data:
+        steps_data = _expand_step_templates(list(steps_data), templates)
+    return WorkflowSpec.model_validate({"name": name, **data, "steps": steps_data})
 
 
 def load_workflow_profile(name: str, config: OmegaConfig | None = None) -> WorkflowProfileSpec:
@@ -195,7 +242,7 @@ def resolve_workflow_invocation(
                 f"Profile '{profile_name}' targets workflow '{profile.workflow}', not '{workflow_or_profile}'."
             )
         workflow = load_workflow_spec(workflow_or_profile, cfg)
-        values = _merge_dicts(profile.values, cli_values)
+        values = _merge_dicts(workflow.defaults, profile.values, cli_values)
         return ResolvedWorkflowInvocation(
             requested_name=workflow_or_profile,
             workflow_name=workflow.name,
@@ -215,7 +262,7 @@ def resolve_workflow_invocation(
     if workflow_or_profile in profiles:
         profile = load_workflow_profile(workflow_or_profile, cfg)
         workflow = load_workflow_spec(profile.workflow, cfg)
-        values = _merge_dicts(profile.values, cli_values)
+        values = _merge_dicts(workflow.defaults, profile.values, cli_values)
         return ResolvedWorkflowInvocation(
             requested_name=workflow_or_profile,
             workflow_name=workflow.name,
@@ -233,7 +280,7 @@ def resolve_workflow_invocation(
             requested_name=workflow_or_profile,
             workflow_name=workflow.name,
             workflow=workflow,
-            values=cli_values,
+            values=_merge_dicts(workflow.defaults, cli_values),
             cli_overrides=cli_values,
             force=force,
         )

@@ -119,6 +119,85 @@ workflow_profiles:
       retriever: marketing_embeddings
 ```
 
+### Step Templates (`step_templates:` in YAML)
+
+A **step template** is a reusable step definition shared across multiple workflows. Define
+templates once in `step_templates:`, then reference them in workflow steps with `ref:`.
+
+Step-level fields **override** template fields. For dict fields (`inputs`, `params`, `outputs`)
+the merge happens at key level — the step adds or replaces individual keys while keeping the rest
+from the template.
+
+**Step Template Example:**
+
+```yaml
+step_templates:
+  ingest_step:
+    uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+    inputs:
+      base_dir: "${profile.base_dir}"
+    params:
+      retriever_name: "${profile.retriever_name}"
+      pathspecs: "${profile.pathspecs}"
+      batch_size: "${profile.batch_size}"
+      max_chunk_tokens: "${profile.chunk_size}"
+      chunker_name: "${profile.chunker}"
+    concurrency: serial
+
+workflows:
+  # Simple workflow: use the template as-is
+  rag_add_files:
+    steps:
+      - id: ingest
+        ref: ingest_step
+
+  # Composed workflow: same template with an input override
+  anonymize_and_ingest:
+    steps:
+      - id: anonymize
+        ref: anonymize_step
+        inputs:
+          output_dir: "${profile.anon_dir}"   # Override template's output_dir
+
+      - id: ingest
+        ref: ingest_step
+        needs: [anonymize]
+        inputs:
+          base_dir: "${profile.anon_dir}"     # Chain output from prior step
+```
+
+### Workflow Defaults (`defaults:` in workflows)
+
+A workflow can declare **default values** for any `${profile.*}` placeholder via `defaults:`.
+These are the lowest-priority values — overridden by profile values, which are in turn overridden
+by CLI `--set` flags:
+
+```
+priority (highest first):  CLI --set  >  profile values  >  workflow defaults
+```
+
+```yaml
+workflows:
+  rag_add_files:
+    defaults:
+      batch_size: 10
+      chunk_size: 512
+      chunker: auto
+    steps:
+      - id: ingest
+        ref: ingest_step
+
+workflow_profiles:
+  rag_ingest_docs:
+    workflow: rag_add_files
+    values:
+      base_dir: "${paths.data_root}/markdown"
+      retriever_name: default
+      pathspecs:
+        - "**/*.md"
+      # batch_size, chunk_size, chunker come from workflow defaults — no need to repeat them
+```
+
 ### Step Inputs & Params
 
 **Inputs** are passed directly to the flow as `**kwargs`:

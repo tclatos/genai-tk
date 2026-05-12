@@ -360,14 +360,19 @@ class TestCommands(CliTopCommand):
                         console.print(f"  [dim]  cell {cell_num}/{total}[/dim]  ", end="")
 
                     result = run_notebook(
-                        nb_path, allow_pip=allow_pip, suppress_output=False, suppress_logs=False,
+                        nb_path,
+                        allow_pip=allow_pip,
+                        suppress_output=False,
+                        suppress_logs=False,
                         on_cell_start=_on_cell_start,
                     )
                     all_results.append((nb_path, result))
                     if not result.passed:
                         failed.append(str(nb_path))
                     status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
-                    console.print(f"\n  {status} {nb_path.name}  [dim]({len(result.cell_results)} cells, {result.total_duration:.1f}s)[/dim]")
+                    console.print(
+                        f"\n  {status} {nb_path.name}  [dim]({len(result.cell_results)} cells, {result.total_duration:.1f}s)[/dim]"
+                    )
 
             # Build summary table
             for nb_path, result in all_results:
