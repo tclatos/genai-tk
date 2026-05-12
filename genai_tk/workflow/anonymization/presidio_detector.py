@@ -192,41 +192,53 @@ def _get_nlp_engine(language: str, model_name: str) -> Any | None:
 @once
 def _get_analyzer(config_json: str) -> Any:
     """Return a Presidio ``AnalyzerEngine`` built from *config_json*, cached per unique config."""
+    import logging
+
     from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
 
     cfg = PresidioDetectorConfig.model_validate_json(config_json)
 
-    if cfg.enable_spacy:
-        nlp_engine = _get_nlp_engine(cfg.language, cfg.spacy_model)
-        if nlp_engine is not None:
-            from presidio_analyzer import RecognizerRegistry
+    # Suppress "Recognizer not added to registry" warnings from Presidio when
+    # language-specific recognizers don't match the requested language.
+    # (E.g., Spanish/Italian/Polish recognizers being skipped for English.)
+    presidio_logger = logging.getLogger("presidio-analyzer")
+    old_level = presidio_logger.level
+    presidio_logger.setLevel(logging.ERROR)
 
+    try:
+        if cfg.enable_spacy:
+            nlp_engine = _get_nlp_engine(cfg.language, cfg.spacy_model)
+            if nlp_engine is not None:
+                from presidio_analyzer import RecognizerRegistry
+
+                registry = RecognizerRegistry()
+                registry.load_predefined_recognizers(languages=[cfg.language])
+                analyzer = AnalyzerEngine(nlp_engine=nlp_engine, registry=registry)
+            else:
+                analyzer = AnalyzerEngine()
+        else:
+            # Explicit empty NLP engine so Presidio does not trigger its default
+            # NlpEngineProvider (which loads en_core_web_sm unconditionally).
+            from presidio_analyzer import RecognizerRegistry
+            from presidio_analyzer.nlp_engine import SpacyNlpEngine
+
+            nlp_engine = SpacyNlpEngine(models=[])
             registry = RecognizerRegistry()
             registry.load_predefined_recognizers(languages=[cfg.language])
             analyzer = AnalyzerEngine(nlp_engine=nlp_engine, registry=registry)
-        else:
-            analyzer = AnalyzerEngine()
-    else:
-        # Explicit empty NLP engine so Presidio does not trigger its default
-        # NlpEngineProvider (which loads en_core_web_sm unconditionally).
-        from presidio_analyzer import RecognizerRegistry
-        from presidio_analyzer.nlp_engine import SpacyNlpEngine
 
-        nlp_engine = SpacyNlpEngine(models=[])
-        registry = RecognizerRegistry()
-        registry.load_predefined_recognizers(languages=[cfg.language])
-        analyzer = AnalyzerEngine(nlp_engine=nlp_engine, registry=registry)
+        for rec_cfg in cfg.custom_recognizers:
+            patterns = [
+                Pattern(name=f"{rec_cfg.entity_name}_pattern_{i}", regex=p, score=rec_cfg.score)
+                for i, p in enumerate(rec_cfg.patterns)
+            ]
+            recognizer = PatternRecognizer(
+                supported_entity=rec_cfg.entity_name,
+                patterns=patterns,
+                context=rec_cfg.context or [],
+            )
+            analyzer.registry.add_recognizer(recognizer)
 
-    for rec_cfg in cfg.custom_recognizers:
-        patterns = [
-            Pattern(name=f"{rec_cfg.entity_name}_pattern_{i}", regex=p, score=rec_cfg.score)
-            for i, p in enumerate(rec_cfg.patterns)
-        ]
-        recognizer = PatternRecognizer(
-            supported_entity=rec_cfg.entity_name,
-            patterns=patterns,
-            context=rec_cfg.context or [],
-        )
-        analyzer.registry.add_recognizer(recognizer)
-
-    return analyzer
+        return analyzer
+    finally:
+        presidio_logger.setLevel(old_level)
