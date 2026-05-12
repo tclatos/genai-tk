@@ -43,12 +43,15 @@ class StepSpec(BaseModel):
     """One declarative step in a workflow.
 
     Set `ref` to inherit from a named step template defined in `step_templates:`.
+    Set `uses_workflow` to inline another workflow as a sub-workflow (mutually
+    exclusive with `uses` and `ref`).
     Any field set directly on the step overrides the template value.
     """
 
     id: str
     ref: str | None = None
     uses: str = ""
+    uses_workflow: str | None = None
     needs: list[str] = Field(default_factory=list)
     inputs: dict[str, Any] = Field(default_factory=dict)
     outputs: dict[str, str] = Field(default_factory=dict)

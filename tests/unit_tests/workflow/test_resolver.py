@@ -10,6 +10,7 @@ from genai_tk.utils.config_mngr import OmegaConfig
 from genai_tk.workflow.resolver import (
     WorkflowResolutionError,
     _expand_step_templates,
+    _expand_sub_workflows,
     list_step_template_names,
     list_workflow_names,
     list_workflow_profile_names,
@@ -275,3 +276,197 @@ def test_workflow_defaults_overridden_by_cli(template_config: OmegaConfig) -> No
         config=template_config,
     )
     assert resolved.values["output_dir"] == "/cli/output"
+
+
+# ---------------------------------------------------------------------------
+# Sub-workflow expansion tests (uses_workflow)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sub_workflow_config(tmp_path: Path) -> OmegaConfig:
+    data_root = tmp_path / "data"
+    config_text = f"""
+default_config: baseline
+paths:
+  home: {tmp_path}
+  project: {tmp_path}
+  config: {tmp_path}
+  data_root: {data_root}
+baseline:
+  step_templates:
+    build_step:
+      uses: graph.build
+      inputs:
+        graphs: ${{profile.graphs}}
+      concurrency: serial
+
+  workflows:
+    base_graph:
+      steps:
+        - id: build
+          ref: build_step
+
+    extended_graph:
+      steps:
+        - id: build
+          ref: build_step
+        - id: extra
+          uses: graph.extra
+          needs: [build]
+
+    composite:
+      steps:
+        - id: base
+          uses_workflow: base_graph
+        - id: ext
+          uses_workflow: extended_graph
+          needs: [base]
+
+    deep_composite:
+      steps:
+        - id: prep
+          uses: prep.step
+        - id: graphs
+          uses_workflow: composite
+          needs: [prep]
+
+    cyclic_a:
+      steps:
+        - id: s
+          uses_workflow: cyclic_b
+
+    cyclic_b:
+      steps:
+        - id: s
+          uses_workflow: cyclic_a
+
+  workflow_profiles:
+    run_composite:
+      workflow: composite
+      values:
+        graphs: []
+"""
+    config_path = tmp_path / "sub_wf_config.yaml"
+    config_path.write_text(config_text, encoding="utf-8")
+    return OmegaConfig.create(config_path)
+
+
+def test_sub_workflow_expansion_basic(sub_workflow_config: OmegaConfig) -> None:
+    from genai_tk.workflow.resolver import load_workflow_spec
+
+    spec = load_workflow_spec("composite", sub_workflow_config)
+    step_ids = [s.id for s in spec.steps]
+    # base_graph.build expanded as "base.build"
+    # extended_graph.build expanded as "ext.build", extended_graph.extra as "ext.extra"
+    assert "base.build" in step_ids
+    assert "ext.build" in step_ids
+    assert "ext.extra" in step_ids
+    assert len(spec.steps) == 3
+
+
+def test_sub_workflow_needs_wiring(sub_workflow_config: OmegaConfig) -> None:
+    from genai_tk.workflow.resolver import load_workflow_spec
+
+    spec = load_workflow_spec("composite", sub_workflow_config)
+    steps_by_id = {s.id: s for s in spec.steps}
+
+    # base.build is a root step of base_graph, composite says base has no needs → no needs
+    assert steps_by_id["base.build"].needs == []
+
+    # ext.build is a root step of extended_graph; composite says ext needs [base]
+    # After terminal resolution, "base" is replaced with its terminal step(s)
+    # base_graph has only "build" as terminal → ext.build needs ["base.build"]
+    assert "base.build" in steps_by_id["ext.build"].needs
+
+    # ext.extra has internal needs=[build] → prefixed to [ext.build]
+    assert steps_by_id["ext.extra"].needs == ["ext.build"]
+
+
+def test_sub_workflow_deep_expansion(sub_workflow_config: OmegaConfig) -> None:
+    from genai_tk.workflow.resolver import load_workflow_spec
+
+    spec = load_workflow_spec("deep_composite", sub_workflow_config)
+    step_ids = [s.id for s in spec.steps]
+    # prep is a normal step
+    assert "prep" in step_ids
+    # composite's steps are prefixed with "graphs."
+    # composite had base.build → graphs.base.build
+    # composite had ext.build → graphs.ext.build
+    # composite had ext.extra → graphs.ext.extra
+    assert "graphs.base.build" in step_ids
+    assert "graphs.ext.build" in step_ids
+    assert "graphs.ext.extra" in step_ids
+    assert len(spec.steps) == 4
+
+
+def test_sub_workflow_deep_needs(sub_workflow_config: OmegaConfig) -> None:
+    from genai_tk.workflow.resolver import load_workflow_spec
+
+    spec = load_workflow_spec("deep_composite", sub_workflow_config)
+    steps_by_id = {s.id: s for s in spec.steps}
+    # graphs.base.build is a root of "graphs" sub-workflow, parent needs=[prep]
+    assert "prep" in steps_by_id["graphs.base.build"].needs
+    # graphs.ext.build should depend on the terminal of graphs.base (= graphs.base.build)
+    assert "graphs.base.build" in steps_by_id["graphs.ext.build"].needs
+
+
+def test_sub_workflow_cycle_detection(sub_workflow_config: OmegaConfig) -> None:
+    from genai_tk.workflow.resolver import load_workflow_spec
+
+    with pytest.raises(WorkflowResolutionError, match="Cycle detected"):
+        load_workflow_spec("cyclic_a", sub_workflow_config)
+
+
+def test_sub_workflow_unknown_workflow_raises(sub_workflow_config: OmegaConfig) -> None:
+    from genai_tk.workflow.resolver import _expand_sub_workflows
+
+    steps = [{"id": "s", "uses_workflow": "nonexistent"}]
+    with pytest.raises(WorkflowResolutionError, match="unknown workflow 'nonexistent'"):
+        _expand_sub_workflows(steps, sub_workflow_config)
+
+
+def test_sub_workflow_terminal_resolution_with_multi_terminal(tmp_path: Path) -> None:
+    """When a sub-workflow has multiple terminal steps (no step depends on them),
+    a needs reference to the parent should expand to all terminals."""
+    data_root = tmp_path / "data"
+    config_text = f"""
+default_config: baseline
+paths:
+  home: {tmp_path}
+  project: {tmp_path}
+  config: {tmp_path}
+  data_root: {data_root}
+baseline:
+  workflows:
+    two_leaves:
+      steps:
+        - id: root
+          uses: step.root
+        - id: leaf_a
+          uses: step.leaf_a
+          needs: [root]
+        - id: leaf_b
+          uses: step.leaf_b
+          needs: [root]
+    after_leaves:
+      steps:
+        - id: base
+          uses_workflow: two_leaves
+        - id: final
+          uses: step.final
+          needs: [base]
+"""
+    config_path = tmp_path / "multi_terminal.yaml"
+    config_path.write_text(config_text, encoding="utf-8")
+    cfg = OmegaConfig.create(config_path)
+
+    from genai_tk.workflow.resolver import load_workflow_spec
+
+    spec = load_workflow_spec("after_leaves", cfg)
+    steps_by_id = {s.id: s for s in spec.steps}
+    # "final" needs [base] → base has two terminals: leaf_a and leaf_b
+    # So final should depend on both base.leaf_a and base.leaf_b
+    assert "base.leaf_a" in steps_by_id["final"].needs
+    assert "base.leaf_b" in steps_by_id["final"].needs
+    assert "base" not in steps_by_id["final"].needs

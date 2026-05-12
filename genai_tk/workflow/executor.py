@@ -37,13 +37,41 @@ def _resolve_step_inputs(step: StepSpec, values: dict[str, Any]) -> dict[str, An
     resolved: dict[str, Any] = {}
 
     for key, val in {**step.inputs, **step.params}.items():
-        if isinstance(val, str) and val.startswith("${profile."):
-            lookup_key = val[len("${profile.") : -1]
-            resolved[key] = values.get(lookup_key)
-        else:
-            resolved[key] = val
+        resolved[key] = _resolve_value(val, values)
 
     return resolved
+
+
+def _resolve_value(val: Any, values: dict[str, Any]) -> Any:
+    """Recursively substitute ``${profile.*}`` placeholders in a value tree."""
+    if isinstance(val, str):
+        if val.startswith("${profile."):
+            lookup_key = val[len("${profile.") : -1]
+            return values.get(lookup_key)
+        # Resolve remaining OmegaConf-style interpolations (e.g. ${paths.*})
+        if "${" in val:
+            return _resolve_omegaconf_string(val)
+    if isinstance(val, dict):
+        return {k: _resolve_value(v, values) for k, v in val.items()}
+    if isinstance(val, list):
+        return [_resolve_value(item, values) for item in val]
+    return val
+
+
+def _resolve_omegaconf_string(val: str) -> Any:
+    """Resolve a string containing OmegaConf interpolations against global config."""
+    from omegaconf import OmegaConf
+
+    from genai_tk.utils.config_mngr import get_raw_config
+
+    cfg = get_raw_config()
+    try:
+        tmp = OmegaConf.create({"_tmp": val})
+        merged = OmegaConf.merge(cfg, tmp)
+        resolved = OmegaConf.select(merged, "_tmp")
+        return resolved if resolved is not None else val
+    except Exception:
+        return val
 
 
 def _topological_sort(steps: list[StepSpec]) -> list[StepSpec]:

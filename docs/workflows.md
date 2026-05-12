@@ -198,6 +198,102 @@ workflow_profiles:
       # batch_size, chunk_size, chunker come from workflow defaults — no need to repeat them
 ```
 
+### Sub-Workflows (`uses_workflow:` in steps)
+
+A step can **inline another workflow** using `uses_workflow:`. The referenced workflow's steps
+are expanded in place — they receive the parent step's `needs` dependencies and are prefixed
+with `{step_id}.` to avoid ID collisions.
+
+This replaces the need for custom "composition" glue code and is the standard way to build
+**complex multi-stage pipelines** from reusable building blocks.
+
+**How the DAG wiring works:**
+
+- Root steps of the sub-workflow (those with no internal `needs`) inherit the parent step's `needs`.
+- Internal dependencies within the sub-workflow are preserved and prefixed.
+- When a step's `needs` references a parent step ID that was expanded via `uses_workflow`,
+  the reference is automatically rewritten to the **terminal steps** (leaves) of that sub-workflow.
+
+**Example: Composing workflows from reusable sub-workflows**
+
+```yaml
+workflows:
+  # Simple reusable building block
+  ingest_pdfs:
+    steps:
+      - id: convert
+        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+        inputs:
+          base_dir: "${profile.pdf_dir}"
+          output_dir: "${profile.md_dir}"
+        params:
+          pathspecs: ["**/*.pdf"]
+        concurrency: serial
+
+      - id: index
+        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+        needs: [convert]
+        inputs:
+          base_dir: "${profile.md_dir}"
+        params:
+          retriever_name: "${profile.retriever}"
+        concurrency: serial
+
+  # Another reusable block
+  ingest_excel:
+    steps:
+      - id: load
+        uses: myproject.steps.load_excel
+        inputs:
+          files: "${profile.excel_files}"
+        concurrency: serial
+
+  # Composite pipeline — uses both sub-workflows
+  full_knowledge_pipeline:
+    steps:
+      - id: pdfs
+        uses_workflow: ingest_pdfs          # Expands into pdfs.convert → pdfs.index
+
+      - id: excel
+        uses_workflow: ingest_excel         # Expands into excel.load
+        needs: [pdfs]                       # Runs after all pdf steps complete
+                                            # (automatically resolved to pdfs.index — the terminal step)
+
+      - id: analyze
+        uses: myproject.steps.run_analysis
+        needs: [excel]                      # Resolved to excel.load (terminal step)
+```
+
+**After expansion, `cli workflow run full_knowledge_pipeline --dry-run` shows:**
+
+```
+┌─────────────┬──────────────────────────────┬──────────────┬─────────────┐
+│ Id          │ Uses                         │ Needs        │ Concurrency │
+├─────────────┼──────────────────────────────┼──────────────┼─────────────┤
+│ pdfs.convert│ ...markdownize_flow          │ -            │ serial      │
+│ pdfs.index  │ ...rag_file_ingestion_flow   │ pdfs.convert │ serial      │
+│ excel.load  │ ...load_excel                │ pdfs.index   │ serial      │
+│ analyze     │ ...run_analysis              │ excel.load   │ serial      │
+└─────────────┴──────────────────────────────┴──────────────┴─────────────┘
+```
+
+**Sub-workflows are recursive** — a sub-workflow can itself contain `uses_workflow` steps:
+
+```yaml
+workflows:
+  step_a: { steps: [...] }
+  step_b:
+    steps:
+      - id: a
+        uses_workflow: step_a
+  composed:
+    steps:
+      - id: b
+        uses_workflow: step_b     # Expands to b.a.{step_a's steps}
+```
+
+**Cycles are detected** and reported as errors at load time.
+
 ### Step Inputs & Params
 
 **Inputs** are passed directly to the flow as `**kwargs`:
@@ -605,9 +701,10 @@ workflows:
 
 ### genai-graph Examples
 
-- **KG creation profiles:** [config/workflows.yaml](../config/workflows.yaml) — `kg_one_rainbow`, `kg_stratnav_subset_rainbow_crm`
-- **Full pipeline:** [config/workflows.yaml](../config/workflows.yaml) — `full_rainbow_pipeline` (3-step chained workflow)
-- **Step wrapper:** [genai_graph/orchestration/workflow_steps.py](../genai_graph/orchestration/workflow_steps.py) — `kg_create_step()` integrates KG creation into workflow engine
+- **KG creation profiles:** [config/ekg_workflows.yaml](../../genai-graph/config/ekg_workflows.yaml) — `kg_one_rainbow`, `kg_stratnav_subset_rainbow_crm`, `kg_learned`
+- **Sub-workflow composition:** [config/ekg_workflows.yaml](../../genai-graph/config/ekg_workflows.yaml) — `stratnav_subset_rainbow_crm` (two `uses_workflow` steps replacing old `import:` DSL)
+- **Full pipeline:** [config/workflows.yaml](../../genai-graph/config/workflows.yaml) — `full_rainbow_pipeline` (ppt2pdf → markdownize → `uses_workflow: rainbow_add_crm`)
+- **Step wrapper:** [genai_graph/orchestration/workflow_steps.py](../../genai-graph/genai_graph/orchestration/workflow_steps.py) — `kg_build_step()` accepts inline graph configs
 
 ---
 
