@@ -20,7 +20,6 @@ import typer
 from typer import Option
 
 from genai_tk.cli.base import CliTopCommand
-from genai_tk.core.cache import CacheMethod
 
 
 class CoreCommands(CliTopCommand):
@@ -32,6 +31,9 @@ class CoreCommands(CliTopCommand):
         return "core", self.description
 
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
+        # Import CacheMethod here instead of at module level to defer expensive dependencies
+        from genai_tk.core.cache import CacheMethod
+
         @cli_app.command()
         def llm(
             input: Annotated[

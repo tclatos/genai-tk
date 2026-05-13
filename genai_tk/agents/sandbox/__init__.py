@@ -23,7 +23,35 @@ Example:
     ```
 """
 
-from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend, SandboxToolResult
+# Lazy import: AioSandboxBackend and SandboxToolResult are only loaded when accessed
+# This defers the expensive deepagents dependency until actually needed
+_aio_backend_module = None
+_aio_sandbox_backend_class = None
+_sandbox_tool_result_class = None
+
+
+def __getattr__(name: str):
+    """Lazy-load AioSandboxBackend and SandboxToolResult on first access."""
+    global _aio_backend_module, _aio_sandbox_backend_class, _sandbox_tool_result_class
+
+    if name == "AioSandboxBackend":
+        if _aio_sandbox_backend_class is None:
+            from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
+
+            _aio_sandbox_backend_class = AioSandboxBackend
+        return _aio_sandbox_backend_class
+
+    if name == "SandboxToolResult":
+        if _sandbox_tool_result_class is None:
+            from genai_tk.agents.sandbox.aio_backend import SandboxToolResult
+
+            _sandbox_tool_result_class = SandboxToolResult
+        return _sandbox_tool_result_class
+
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+# Lightweight imports (config loaders and models) - always available
 from genai_tk.agents.sandbox.config import (
     get_docker_aio_settings,
     get_docker_smol_settings,
@@ -41,7 +69,7 @@ from genai_tk.agents.sandbox.models import (
 )
 
 __all__ = [
-    # Backend
+    # Backend (lazy-loaded)
     "AioSandboxBackend",
     "SandboxToolResult",
     # Config loaders

@@ -419,7 +419,6 @@ def test_sub_workflow_cycle_detection(sub_workflow_config: OmegaConfig) -> None:
 
 
 def test_sub_workflow_unknown_workflow_raises(sub_workflow_config: OmegaConfig) -> None:
-    from genai_tk.workflow.resolver import _expand_sub_workflows
 
     steps = [{"id": "s", "uses_workflow": "nonexistent"}]
     with pytest.raises(WorkflowResolutionError, match="unknown workflow 'nonexistent'"):

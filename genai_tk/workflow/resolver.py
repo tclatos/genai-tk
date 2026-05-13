@@ -153,8 +153,7 @@ def _expand_sub_workflows(
 
         if sub_wf_name in _ancestors:
             raise WorkflowResolutionError(
-                f"Cycle detected in uses_workflow: "
-                f"{' -> '.join(sorted(_ancestors))} -> {sub_wf_name}"
+                f"Cycle detected in uses_workflow: {' -> '.join(sorted(_ancestors))} -> {sub_wf_name}"
             )
 
         if sub_wf_name not in workflows_dict:
@@ -171,9 +170,7 @@ def _expand_sub_workflows(
         sub_steps = list(sub_data.get("steps", []))
         if sub_steps:
             sub_steps = _expand_step_templates(sub_steps, templates)
-            sub_steps = _expand_sub_workflows(
-                sub_steps, config, _ancestors=_ancestors | {sub_wf_name}
-            )
+            sub_steps = _expand_sub_workflows(sub_steps, config, _ancestors=_ancestors | {sub_wf_name})
 
         step_id = step["id"]
         parent_needs: list[str] = step.get("needs", [])
