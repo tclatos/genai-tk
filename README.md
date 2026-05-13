@@ -2,15 +2,41 @@
 
 A toolkit for building Gen AI and Agentic applications with LangChain, LangGraph, and 100+ LLM providers.
 
-**What it gives you:**
+## Three Domains
+
+The toolkit is organized around three complementary domains:
+
+### 🧠 **Core GenAI**
+Build intelligent applications with multi-provider LLM/embeddings support and state management.
 - Multi-provider LLM and embeddings factory (OpenAI, Groq, Anthropic, Ollama, local, …)
-- Four agent frameworks in one toolkit: **ReAct**, **Deep agent**, **Deer-flow**, **SmolAgents**
+- Vector stores: Chroma, PgVector, in-memory
+- LLM caching, prompt templates, structured output
+- See: `cli core llm`, `cli info models`, [docs/core.md](docs/core.md)
+
+### 🤖 **Agents**
+Four agent frameworks (ReAct, Deep, Deer-flow, SmolAgents) sharing YAML profiles, LLM factory, tools, and Docker sandbox.
+- **ReAct** — standard Thought → Action → Observation loop (LangChain)
+- **Deep agent** — multi-step planning + subagent delegation (LangChain)
+- **Deer-flow** — native web research, multi-agent orchestration (LangGraph / ByteDance)
+- **SmolAgents** — code-first automation (Hugging Face)
+- Skills system — markdown domain-knowledge files loaded on demand
+- Docker sandbox — isolated execution, browser automation
+- MCP servers — protocol-standard tool integration
+- See: `cli agents`, [docs/agents.md](docs/agents.md), [AGENTS.md](AGENTS.md)
+
+### ⚙️ **Workflows**
+Orchestrate multi-step AI pipelines with Prefect and a YAML DSL for composable, reusable workflows.
+- **Workflow DSL** — YAML-configured steps, dependencies, and sub-workflows (no Python needed)
+- **Prefect flows** — in-process ephemeral execution, no long-lived server required
+- **Document pipelines** — markdownize, OCR, PDF extraction, chunking
+- **RAG pipeline** — full retrieval pipeline with BM25 + dense hybrid search
+- **Structured extraction** — BAML-based extraction with type-safe output
+- See: `cli workflow`, [docs/workflows.md](docs/workflows.md), [docs/prefect.md](docs/prefect.md)
+
+---
+
+**What it gives you:**
 - YAML-configured profiles — swap models, tools, MCP servers, and sandboxes without code changes
-- Skills system — markdown domain-knowledge files loaded on demand, not injected into every prompt
-- Docker sandbox via OpenSandbox — isolated code execution, browser automation, volume-mounted skills
-- Full RAG pipeline — chunking, BM25 + dense hybrid retrieval, PGVector, composable YAML-configured retrievers
-- Structured extraction with BAML (type-safe Pydantic output, incremental manifests)
-- Prefect document flows, browser automation, MCP servers
 - Rich CLI that mirrors every capability; easily extensible with one class + one YAML line
 
 ---
@@ -90,45 +116,108 @@ OPENAI_API_KEY=sk-...
 
 ---
 
-## First steps — CLI
+## Quick Start by Domain
 
-After completing installation and running `uv run cli init`, you can explore the CLI:
+### 🧠 Core GenAI
+
+```bash
+# Call any LLM
+uv run cli core llm -i "tell me a joke" -m gpt-4o-mini@openai --stream
+
+# List available models (1000+ supported)
+uv run cli info models
+
+# Show active config and API key status
+uv run cli info config
+```
+
+**Python:**
+```python
+from genai_tk.core.factories import get_llm
+
+llm = get_llm()  # uses default from config
+response = llm.invoke("Tell me a joke")
+print(response.content)
+```
+
+---
+
+### 🤖 Agents
+
+```bash
+# ReAct agent — interactive chat
+uv run cli agents langchain --chat
+
+# Single query with a named profile
+uv run cli agents langchain -p Coding "Explain async generators"
+
+# Show all agent profiles and frameworks
+uv run cli agents langchain --list
+```
+
+**Python:**
+```python
+from genai_tk.agents.langchain import LangchainAgent
+
+agent = LangchainAgent("Research")
+result = agent.run("What is the latest AI news?")
+print(result)
+```
+
+---
+
+### ⚙️ Workflows
+
+```bash
+# List available workflow profiles
+uv run cli workflow list profiles
+
+# Show the execution plan (dry-run)
+uv run cli workflow run markdownize_docs --dry-run
+
+# Execute a workflow
+uv run cli workflow run markdownize_docs
+```
+
+**YAML:**
+```yaml
+# config/workflows.yaml
+workflows:
+  my_pipeline:
+    steps:
+      - id: extract_pdf
+        uses: genai_tk.workflow.prefect.flows.pdf_to_markdown_flow
+        inputs:
+          input_dir: "${paths.pdfs}"
+          output_dir: "${paths.markdown}"
+```
+
+Then: `uv run cli workflow run my_pipeline`
+
+---
+
+## More Examples
+
+### CLI Reference
+
+After completing installation and running `uv run cli init`, explore the full CLI:
 
 ```bash
 # Discover all available commands
 uv run cli --help
 
-# List all known LLM and embeddings models
-uv run cli info models
+# Inspect a specific model profile
+uv run cli info llm-profile gpt-4o-mini
 
-# Inspect a specific model profile — supports fuzzy matching on the model name
-uv run cli info llm-profile gpt41mini@openai
-uv run cli info llm-profile gpt-4o          # fuzzy match: finds the closest declared model
-```
-
-```bash
-# Confirm everything works (no API key needed) 
-uv run cli core llm -i "tell me a joke" -m parrot_local@fake  # should print "tell me a joke"
-
-# With a real model
-uv run cli core llm -i "tell me a joke" -m gpt-4o-mini@openai --stream
+# Test with a fake model (no API key needed)
+uv run cli core llm -i "tell me a joke" -m parrot_local@fake
 
 # Try the generated example commands (after uv sync)
 uv run cli example joke "software engineers"   # simple LLM call
-uv run cli example agent "What is 2 + 2?"     # ReAct agent with a calculator tool
-
-# Interactive ReAct chat session (uses the default profile)
-uv run cli agents langchain --chat
-
-# Run a single query against a named profile
-uv run cli agents langchain -p Coding "Explain async generators in Python"
-
-# Show loaded config, API key status, active model
-uv run cli info config
+uv run cli example agent "What is 2 + 2?"     # ReAct agent with tools
 ```
 
-See [docs/cli.md](docs/cli.md) for the full command reference and
-[docs/scaffolding.md](docs/scaffolding.md) for everything generated by `cli init`.
+See [docs/cli.md](docs/cli.md) for the full command reference.
 
 ---
 
@@ -166,44 +255,18 @@ custom pages, and running from a new project via `cli init --name "My Project"`.
 
 ---
 
-## First steps — Python
+## Python API Examples
 
-```python
-# config is auto-discovered from the current directory upwards
-from genai_tk.core.factories.llm_factory import get_llm
-from genai_tk.core.factories.embeddings_factory import get_embeddings
+See **[Quick Start by Domain](#quick-start-by-domain)** above for domain-specific examples with explanations.
 
-llm = get_llm()                          # uses default model from config
-llm = get_llm("gpt41mini@openai")        # explicit model
-response = llm.invoke("Tell me a joke")
-print(response.content)
-```
-
-```python
-# ReAct agent — single query
-from genai_tk.agents.langchain import LangchainAgent
-
-agent = LangchainAgent("Research")
-result = agent.run("What is the latest news on LLM benchmarks?")
-print(result)
-```
-
-```python
-# Async streaming
-import asyncio
-from genai_tk.agents.langchain import LangchainAgent
-
-async def main():
-    agent = LangchainAgent("Research")
-    async for chunk in agent.astream("Explain RAG in one paragraph"):
-        print(chunk, end="", flush=True)
-
-asyncio.run(main())
-```
+For complete Python examples:
+- **Core GenAI**: [docs/core.md](docs/core.md)
+- **Agents**: [docs/agents.md](docs/agents.md) + [AGENTS.md](AGENTS.md)
+- **Workflows**: [docs/workflows.md](docs/workflows.md) + [docs/prefect.md](docs/prefect.md)
 
 ---
 
-## Agents
+## Agents Deep Dive
 
 The toolkit ships four agent frameworks, all sharing the same YAML profile system, LLM factory, MCP servers, and Docker sandbox.
 
@@ -404,6 +467,64 @@ See [docs/mcp-servers.md](docs/mcp-servers.md) for the full reference.
 
 ---
 
+## Workflows
+
+Orchestrate multi-step AI pipelines using a YAML-based DSL with Prefect execution.
+
+### Workflow DSL (YAML)
+
+Define workflows as compositions of **steps** with dependencies, templates, and sub-workflows — no Python required:
+
+```yaml
+# config/workflows.yaml
+step_templates:
+  markdownize_step:
+    uses: genai_tk.workflow.prefect.flows.markdownize_flow
+    inputs:
+      root_dir: "${params.input_dir}"
+      output_dir: "${params.output_dir}"
+
+workflows:
+  document_pipeline:
+    steps:
+      - id: convert
+        ref: markdownize_step
+        inputs:
+          input_dir: "${paths.pdfs}"
+
+workflow_profiles:
+  process_docs:
+    workflow: document_pipeline
+    values:
+      input_dir: ~/Documents/pdfs
+      output_dir: ~/Documents/markdown
+```
+
+**Run:**
+
+```bash
+uv run cli workflow list profiles              # show available profiles
+uv run cli workflow run process_docs --dry-run # show the plan
+uv run cli workflow run process_docs           # execute
+```
+
+### Prefect Flows
+
+Ships with ready-to-use flows:
+
+| Flow | Purpose | CLI |
+|------|---------|-----|
+| **markdownize** | PDF → Markdown + OCR | `cli tools markdownize` |
+| **ppt2pdf** | PowerPoint → PDF | `cli tools ppt2pdf` |
+| **baml** | Structured extraction | `cli baml run` |
+| **rag** | RAG indexing + retrieval | `cli rag add-files` |
+
+All flows run **in-process** with an ephemeral Prefect client — no Prefect server needed.
+
+See [docs/workflows.md](docs/workflows.md) and [docs/prefect.md](docs/prefect.md) for full reference.
+
+---
+
 ## LLM Selection
 
 Models are referenced as `model_id@provider` — a short logical name plus the provider that serves it (`openai`, `openrouter`, `groq`, `ollama`, `fake`, …).
@@ -460,29 +581,42 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 
 ---
 
-## Capabilities
+## Capabilities by Domain
 
-| Area | CLI entry point | Python entry point | Reference |
-|------|-----------------|--------------------|-----------|
-| **LLM / Embeddings** | `cli core llm` | `get_llm()` / `get_embeddings()` | [docs/core.md](docs/core.md) |
-| **LLM model config** | `cli info models` | `llm.yaml` | [docs/llm-selection.md](docs/llm-selection.md) |
-| **ReAct agent** | `cli agents langchain` | `LangchainAgent` | [docs/agents.md](docs/agents.md) |
-| **Deep agent** | `cli agents langchain -p <deep-profile>` | `LangchainAgent` (type: deep) | [docs/agents.md](docs/agents.md) |
-| **Deer-flow** | `cli agents deerflow` | `EmbeddedDeerFlowClient` | [docs/deer-flow.md](docs/deer-flow.md) |
-| **SmolAgents** | `cli agents smolagents` | `SmolAgent` | [docs/agents.md](docs/agents.md) |
-| **Skills** | — | `skill_directories:` in profile | [AGENTS.md](AGENTS.md#skills) |
-| **Docker sandbox** | `cli sandbox` | `SandboxBackend` | [docs/sandbox_support.md](docs/sandbox_support.md) |
-| **RAG** | `cli rag add-files/query/list-retrievers` | `RetrieverFactory` / `ManagedRetriever` | [docs/rag.md](docs/rag.md) |
-| **BAML structured output** | `cli baml run/extract` | `BamlStructuredProcessor` | [docs/baml.md](docs/baml.md) |
-| **MCP servers** | `cli mcpserver` | `McpClient` | [docs/mcp-servers.md](docs/mcp-servers.md) |
-| **Prefect flows** | `cli tools markdownize` (example) | `run_flow_ephemeral()` | [docs/prefect.md](docs/prefect.md) |
-| **Browser automation** | — | `browser_use` tools | [docs/browser_control.md](docs/browser_control.md) |
-| **Streamlit webapp** | `make webapp` | `genai_tk.webapp` | [docs/webapp.md](docs/webapp.md) |
-| **Testing** | `cli test unit` / `cli test fast_integration` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
-| **Configuration** | `cli init` | `global_config()` | [docs/configuration.md](docs/configuration.md) |
-| **Project scaffolding** | `cli init --name "…"` | `ProjectScaffolder` | [docs/scaffolding.md](docs/scaffolding.md) |
-| **Copilot Agent support** | `cli init` (generates AGENTS.md) | — | [docs/copilot-agent-support.md](docs/copilot-agent-support.md) |
-| **CLI extension** | — | `CliTopCommand` | [docs/cli.md](docs/cli.md) |
+| **Core GenAI** | CLI | Python | Docs |
+|---|---|---|---|
+| LLM / Embeddings | `cli core llm` | `get_llm()` / `get_embeddings()` | [docs/core.md](docs/core.md) |
+| Model selection | `cli info models` | `llm.yaml` | [docs/llm-selection.md](docs/llm-selection.md) |
+| Vector stores | — | `EmbeddingsStore` | [docs/core.md](docs/core.md) |
+| LLM caching | — | `LlmCache` | [docs/core.md](docs/core.md) |
+
+| **Agents** | CLI | Python | Docs |
+|---|---|---|---|
+| ReAct agent | `cli agents langchain` | `LangchainAgent` | [docs/agents.md](docs/agents.md) |
+| Deep agent | `cli agents langchain -p <deep>` | `LangchainAgent` (deep) | [docs/agents.md](docs/agents.md) |
+| Deer-flow | `cli agents deerflow` | `EmbeddedDeerFlowClient` | [docs/deer-flow.md](docs/deer-flow.md) |
+| SmolAgents | `cli agents smolagents` | `SmolAgent` | [docs/agents.md](docs/agents.md) |
+| Skills | — | `skill_directories:` in config | [AGENTS.md](AGENTS.md#skills) |
+| Docker sandbox | `cli sandbox` | `SandboxBackend` | [docs/sandbox_support.md](docs/sandbox_support.md) |
+| MCP servers | `cli mcpserver` | `McpClient` | [docs/mcp-servers.md](docs/mcp-servers.md) |
+
+| **Workflows** | CLI | Python | Docs |
+|---|---|---|---|
+| Workflow DSL | `cli workflow` | `resolve_workflow_invocation()` | [docs/workflows.md](docs/workflows.md) |
+| Prefect flows | `cli tools *` | `run_flow_ephemeral()` | [docs/prefect.md](docs/prefect.md) |
+| RAG pipeline | `cli rag` | `RetrieverFactory` | [docs/rag.md](docs/rag.md) |
+| BAML extraction | `cli baml` | `BamlStructuredProcessor` | [docs/baml.md](docs/baml.md) |
+| Document loaders | — | `MarkdownLoader` | [docs/workflows.md](docs/workflows.md) |
+
+| **Cross-cutting** | CLI | Python | Docs |
+|---|---|---|---|
+| Configuration | `cli init` | `global_config()` | [docs/configuration.md](docs/configuration.md) |
+| Project scaffolding | `cli init --name` | `ProjectScaffolder` | [docs/scaffolding.md](docs/scaffolding.md) |
+| Copilot Agent support | `cli init` | — | [docs/copilot-agent-support.md](docs/copilot-agent-support.md) |
+| CLI extension | — | `CliTopCommand` | [docs/cli.md](docs/cli.md) |
+| Streamlit webapp | `make webapp` | `genai_tk.webapp` | [docs/webapp.md](docs/webapp.md) |
+| Testing | `cli test` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
+| Browser automation | — | `browser_use` tools | [docs/browser_control.md](docs/browser_control.md) |
 
 Design and investigation notes: [`docs/design/`](docs/design/).
 
