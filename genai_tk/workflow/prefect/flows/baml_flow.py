@@ -14,37 +14,18 @@ import asyncio
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from upath import UPath
 
 from genai_tk.extra.structured.baml_util import baml_invoke, prompt_fingerprint
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
-
-
-class BamlExtractionManifestEntry(BaseModel):
-    """Single processed file entry in the extraction manifest."""
-
-    source_hash: str
-    output_path: str
-    processed_at: datetime
-
-
-class BamlExtractionManifest(BaseModel):
-    """Manifest of processed files for a given BAML function."""
-
-    function_name: str
-    config_name: str
-    llm: str | None = None
-    model_name: str | None = None
-    schema_fingerprint: str | None = None
-    entries: dict[str, BamlExtractionManifestEntry] = Field(default_factory=dict)
+from genai_tk.workflow.cache.manifest import ManifestCache
 
 
 @dataclass(slots=True)
@@ -58,55 +39,6 @@ def _compute_hash(content: bytes) -> str:
     return buffer_digest(content)
 
 
-def _load_manifest(manifest_path: UPath) -> BamlExtractionManifest | None:
-    if not manifest_path.exists():
-        return None
-
-    try:
-        text = manifest_path.read_text(encoding="utf-8")
-        data = json.loads(text)
-        return BamlExtractionManifest.model_validate(data)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Failed to load manifest from {}: {}. Ignoring it.", manifest_path, exc)
-        return None
-
-
-def _save_manifest(manifest: BamlExtractionManifest, manifest_path: UPath) -> None:
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
-
-
-def _find_existing_manifest(
-    structured_root: UPath,
-    function_name: str,
-    config_name: str,
-    llm: str | None,
-) -> tuple[BamlExtractionManifest | None, UPath | None]:
-    """Locate an existing manifest for the given BAML configuration.
-
-    Manifests are stored under ``structured/<model_name>/manifest.json``.
-    This helper scans subdirectories under ``structured_root`` and returns
-    the first manifest whose configuration matches.
-    """
-
-    if not structured_root.exists():
-        return None, None
-
-    for child in structured_root.iterdir():
-        if not child.is_dir():
-            continue
-        candidate = child / "manifest.json"
-        if not candidate.exists():
-            continue
-        manifest = _load_manifest(candidate)
-        if manifest is None:
-            continue
-        if manifest.function_name == function_name and manifest.config_name == config_name and manifest.llm == llm:
-            return manifest, candidate
-
-    return None, None
-
-
 def _iter_markdown_files(files: list[UPath]) -> Iterable[UPath]:
     """Yield markdown files from a pre-resolved list."""
     for path in files:
@@ -116,7 +48,8 @@ def _iter_markdown_files(files: list[UPath]) -> Iterable[UPath]:
 
 def _prepare_files(
     files: Iterable[UPath],
-    manifest: BamlExtractionManifest,
+    cache: ManifestCache,
+    schema_fp: str | None,
     force: bool,
 ) -> tuple[list[_FileToProcess], int]:
     to_process: list[_FileToProcess] = []
@@ -130,10 +63,7 @@ def _prepare_files(
             logger.error("Error reading {}: {}", path, exc)
             continue
 
-        key = str(path)
-        existing = manifest.entries.get(key)
-
-        if existing and not force and existing.source_hash == content_hash:
+        if cache.is_fresh(str(path), fingerprint=content_hash, code_version=schema_fp, force=force):
             skipped += 1
             logger.info("Skipping unchanged file: {}", path)
             continue
@@ -157,11 +87,7 @@ async def _process_single_file_task(
     llm: str | None,
     structured_root: str,
     root_dir: str,
-) -> tuple[str, BamlExtractionManifestEntry, str | None]:
-    """Run BAML on a single file and persist result as JSON.
-
-    Returns a tuple of (source_path, manifest_entry, model_name).
-    """
+) -> tuple[str, str, str | None]:  # (source_path, relative_output_path, model_name)
 
     upath = file_info.path
     logger.info("Processing file with BAML: {}", upath)
@@ -200,16 +126,9 @@ async def _process_single_file_task(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     output_path.write_text(json_text, encoding="utf-8")
-
-    entry = BamlExtractionManifestEntry(
-        source_hash=file_info.content_hash,
-        output_path=str(relative_output_path),
-        processed_at=datetime.now(timezone.utc),
-    )
-
     logger.success(f"Wrote structured output to {output_path}")
 
-    return str(upath), entry, model_name
+    return str(upath), str(relative_output_path), model_name
 
 
 def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
@@ -231,7 +150,7 @@ def baml_structured_extraction_flow(
     function_name: str,
     config_name: str = "default",
     llm: str = "default",
-) -> BamlExtractionManifest:
+) -> ManifestCache:
     """Run BAML structured extraction as a Prefect flow.
 
     Args:
@@ -255,12 +174,7 @@ def baml_structured_extraction_flow(
 
     if not file_paths:
         logger.warning("No files found to process")
-        # Return empty manifest
-        return BamlExtractionManifest(
-            function_name=function_name,
-            config_name=config_name,
-            llm=llm,
-        )
+        return ManifestCache()
 
     logger.info("Discovered {} files to process", len(file_paths))
 
@@ -268,46 +182,30 @@ def baml_structured_extraction_flow(
     structured_root_upath = UPath(resolved_output)
     structured_root_upath.mkdir(parents=True, exist_ok=True)
 
-    manifest, manifest_path = _find_existing_manifest(
-        structured_root_upath,
-        function_name=function_name,
-        config_name=config_name,
-        llm=llm,
-    )
+    # Compute schema fingerprint once (used as code_version for cache freshness)
+    schema_fp: str | None = None
+    try:
+        schema_fp = prompt_fingerprint(function_name, config_name)
+    except Exception as exc:
+        logger.warning("Failed to compute schema fingerprint: {}", exc)
 
-    if manifest is None:
-        # Calculate schema fingerprint for new manifest
-        schema_fp = None
-        try:
-            schema_fp = prompt_fingerprint(function_name, config_name)
-        except Exception as exc:
-            logger.warning("Failed to compute schema fingerprint: {}", exc)
+    manifest_path = structured_root_upath / "manifest.json"
+    cache = ManifestCache.load(manifest_path)
 
-        manifest = BamlExtractionManifest(
-            function_name=function_name,
-            config_name=config_name,
-            llm=llm,
-            schema_fingerprint=schema_fp,
-        )
-
-    # Convert Path objects to UPath for processing
     files = list(_iter_markdown_files([UPath(p) for p in file_paths]))
-
-    to_process, skipped = _prepare_files(files, manifest, force=force)
+    to_process, skipped = _prepare_files(files, cache, schema_fp=schema_fp, force=force)
 
     if skipped:
         logger.info("Skipped {} unchanged files based on manifest", skipped)
 
     if not to_process:
         logger.info("No files left to process after manifest filtering")
-        return manifest
+        return cache
 
     logger.info("Processing {} files with BAML", len(to_process))
 
-    all_entries: dict[str, BamlExtractionManifestEntry] = dict(manifest.entries)
-    detected_model_name: str | None = manifest.model_name
+    detected_model_name: str | None = None
 
-    # Process in batches to avoid oversubscribing resources.
     for batch in _chunked(to_process, batch_size):
         futures = [
             _process_single_file_task.submit(
@@ -323,50 +221,27 @@ def baml_structured_extraction_flow(
 
         for future in futures:
             result = future.result()  # type: ignore[misc]
-            # Handle both sync and async results from Prefect tasks
             if asyncio.iscoroutine(result):
-                source_path, entry, model_name = asyncio.run(result)  # type: ignore[misc]
+                source_path, relative_output_path, model_name = asyncio.run(result)  # type: ignore[misc]
             else:
-                source_path, entry, model_name = result  # type: ignore[misc]
-            all_entries[source_path] = entry
+                source_path, relative_output_path, model_name = result  # type: ignore[misc]
+
+            file_hash = next((f.content_hash for f in to_process if str(f.path) == source_path), "")
+            cache.record_success(
+                key=source_path,
+                fingerprint=file_hash,
+                outputs={"output_path": relative_output_path},
+                code_version=schema_fp,
+            )
             if model_name and detected_model_name is None:
                 detected_model_name = model_name
 
-    # Determine the directory in which the manifest should be stored.
-    # Prefer the detected model name when available so that the
-    # directory structure is data_root/structured/<model_name>/.
-    model_dir_name = detected_model_name or manifest.model_name or function_name
-
-    if manifest_path is None:
-        manifest_dir = structured_root_upath / model_dir_name
-        manifest_path = manifest_dir / "manifest.json"
-    else:
-        manifest_dir = manifest_path.parent
-
-    # Calculate schema fingerprint for updated manifest
-    try:
-        schema_fp = prompt_fingerprint(function_name, config_name)
-    except Exception as exc:
-        logger.warning("Failed to compute schema fingerprint: {}", exc)
-        schema_fp = manifest.schema_fingerprint  # Keep existing if calculation fails
-
-    updated_manifest = BamlExtractionManifest(
-        function_name=function_name,
-        config_name=config_name,
-        llm=llm,
-        model_name=model_dir_name,
-        schema_fingerprint=schema_fp,
-        entries=all_entries,
-    )
-
-    _save_manifest(updated_manifest, manifest_path)
-
+    cache.save(manifest_path)
     logger.success(
-        f"Extraction completed. {len(to_process)} files processed, {skipped} skipped. "
-        f"Manifest written to {manifest_path}",
+        f"Extraction completed. {len(to_process)} files processed, {skipped} skipped."
     )
 
-    return updated_manifest
+    return cache
 
 
 @task

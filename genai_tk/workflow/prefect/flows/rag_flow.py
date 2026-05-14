@@ -19,6 +19,7 @@ from genai_tk.core.factories.chunker_factory import ChunkerFactory
 from genai_tk.core.factories.retriever_factory import ManagedRetriever, RetrieverFactory
 from genai_tk.utils.file_patterns import resolve_files
 from genai_tk.utils.hashing import file_digest
+from genai_tk.workflow.cache.manifest import ManifestCache
 
 
 @dataclass(slots=True)
@@ -43,6 +44,7 @@ def _prepare_files(
     files: list[UPath],
     force: bool,
     managed: ManagedRetriever,
+    cache: ManifestCache | None = None,
 ) -> tuple[list[FileToProcess], int]:
     """Prepare files for processing, filtering out already processed files unless force is True.
 
@@ -73,10 +75,15 @@ def _prepare_files(
 
     for path in files:
         try:
-            # Compute file hash
             content_hash = file_digest(path)
 
-            # Skip if already processed (unless force is True)
+            # Primary: ManifestCache check
+            if cache is not None and cache.is_fresh(str(path), fingerprint=content_hash, force=force):
+                logger.info("Skipping already processed file (manifest): {}", path)
+                skipped += 1
+                continue
+
+            # Secondary: Chroma hash-based dedup
             if not force and content_hash in existing_hashes:
                 logger.info("Skipping already processed file: {}", path)
                 skipped += 1
@@ -174,6 +181,7 @@ def rag_file_ingestion_flow(
     pathspecs: list[str] | None = None,
     force: bool = False,
     batch_size: int = 10,
+    manifest_dir: str | None = None,
 ) -> dict[str, Any]:
     """Ingest files into a RAG retriever store with parallel processing.
 
@@ -186,6 +194,8 @@ def rag_file_ingestion_flow(
             ``["**/*"]`` (all files, recursive).
         force: Reprocess all files regardless of existing hashes.
         batch_size: Number of files to process in parallel.
+        manifest_dir: Optional directory for persisting a :class:`ManifestCache`.
+            If omitted, only Chroma hash-based dedup is used.
 
     Returns:
         Dictionary with ingestion statistics.
@@ -200,7 +210,15 @@ def rag_file_ingestion_flow(
         return {"total_files": 0, "processed_files": 0, "skipped_files": 0, "total_chunks": 0}
 
     managed = RetrieverFactory.create(retriever_name)
-    files_to_process, skipped = _prepare_files(files, force, managed)
+
+    # Load ManifestCache if a manifest_dir was provided
+    cache: ManifestCache | None = None
+    manifest_path = None
+    if manifest_dir:
+        manifest_path = UPath(manifest_dir) / "manifest.json"
+        cache = ManifestCache.load(manifest_path)
+
+    files_to_process, skipped = _prepare_files(files, force, managed, cache=cache)
 
     logger.info("Processing {} files, skipping {} already processed files", len(files_to_process), skipped)
 
@@ -224,9 +242,26 @@ def rag_file_ingestion_flow(
         ]
         for future in futures:
             try:
-                total_chunks += future.result()
+                chunks = future.result()
+                total_chunks += chunks
             except Exception as exc:
                 logger.error("Error processing file: {}", exc)
+
+        # Record successes in ManifestCache after each batch
+        if cache is not None:
+            for fi in batch:
+                try:
+                    cache.record_success(
+                        key=str(fi.path),
+                        fingerprint=fi.content_hash,
+                        outputs={"retriever": retriever_name},
+                    )
+                except Exception:
+                    pass
+
+    if cache is not None and manifest_path is not None:
+        UPath(manifest_dir).mkdir(parents=True, exist_ok=True)  # type: ignore[arg-type]
+        cache.save(manifest_path)
 
     logger.info("Completed: {} files, {} chunks", len(files_to_process), total_chunks)
     return {

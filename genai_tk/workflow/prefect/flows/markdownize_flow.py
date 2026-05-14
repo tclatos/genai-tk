@@ -15,19 +15,16 @@ Typical usage::
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
-from pydantic import BaseModel, Field
 from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
-from genai_tk.utils.hashing import buffer_digest
+from genai_tk.workflow.cache.manifest import ManifestCache
 
 
 class MistralOCRBatchProcessor:
@@ -290,70 +287,32 @@ class MistralOCRBatchProcessor:
         return str(markdown_path)
 
 
-class MarkdownizeManifestEntry(BaseModel):
-    """Single processed file entry in the markdownize manifest."""
-
-    source_hash: str
-    output_path: str
-    processed_at: datetime
-
-
-class MarkdownizeManifest(BaseModel):
-    """Manifest of processed files for markdownize operations."""
-
-    processed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    entries: dict[str, MarkdownizeManifestEntry] = Field(default_factory=dict)
-
-
 @dataclass(slots=True)
 class _FileToProcess:
     path: UPath
     content_hash: str
 
 
-def _compute_hash(content: bytes) -> str:
-    return buffer_digest(content)
-
-
-def _load_manifest(manifest_path: UPath) -> MarkdownizeManifest | None:
-    if not manifest_path.exists():
-        return None
-
-    try:
-        text = manifest_path.read_text(encoding="utf-8")
-        data = json.loads(text)
-        return MarkdownizeManifest.model_validate(data)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning(f"Failed to load manifest from {manifest_path}: {exc}. Ignoring it.")
-        return None
-
-
-def _save_manifest(manifest: MarkdownizeManifest, manifest_path: UPath) -> None:
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
-
-
 def _prepare_files(
     files: Iterable[UPath],
-    manifest: MarkdownizeManifest,
+    cache: ManifestCache,
     force: bool,
 ) -> tuple[list[_FileToProcess], int]:
-    """Prepare files for processing based on manifest state."""
+    """Prepare files for processing, skipping unchanged entries in the cache."""
+    from genai_tk.utils.hashing import buffer_digest
+
     to_process: list[_FileToProcess] = []
     skipped = 0
 
     for path in files:
         try:
             content_bytes = path.read_bytes()
-            content_hash = _compute_hash(content_bytes)
+            content_hash = buffer_digest(content_bytes)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error(f"Error reading {path}: {exc}")
             continue
 
-        key = str(path)
-        existing = manifest.entries.get(key)
-
-        if existing and not force and existing.source_hash == content_hash:
+        if cache.is_fresh(str(path), fingerprint=content_hash, force=force):
             skipped += 1
             logger.info(f"Skipping unchanged file: {path}")
             continue
@@ -379,7 +338,7 @@ async def _process_single_file_task(
     output_dir: str,
     root_dir: str,
     converter: str = "markitdown",
-) -> tuple[str, MarkdownizeManifestEntry]:
+) -> tuple[str, str]:  # (source_path, relative_output_path)
     """Process a single file and save markdown output.
 
     Returns a tuple of (source_path, manifest_entry).
@@ -454,13 +413,7 @@ async def _process_single_file_task(
     output_file.write_text(content, encoding="utf-8")
     logger.success(f"Wrote markdown to {output_file}")
 
-    entry = MarkdownizeManifestEntry(
-        source_hash=file_info.content_hash,
-        output_path=str(relative_output_path),
-        processed_at=datetime.now(timezone.utc),
-    )
-
-    return str(upath), entry
+    return str(upath), str(relative_output_path)
 
 
 def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
@@ -480,7 +433,7 @@ def markdownize_flow(
     batch_size: int = 5,
     force: bool = False,
     converter: str = "markitdown",
-) -> MarkdownizeManifest:
+) -> ManifestCache:
     """Run markdownize as a Prefect flow.
 
     Args:
@@ -503,7 +456,7 @@ def markdownize_flow(
 
     if not file_paths:
         logger.warning("No files found to process")
-        return MarkdownizeManifest()
+        return ManifestCache()
 
     logger.info(f"Discovered {len(file_paths)} files to process")
 
@@ -511,41 +464,21 @@ def markdownize_flow(
     output_upath = UPath(resolved_output)
     output_upath.mkdir(parents=True, exist_ok=True)
 
-    # Load or create manifest
     manifest_path = output_upath / "manifest.json"
-    manifest = _load_manifest(manifest_path)
-    if manifest is None:
-        manifest = MarkdownizeManifest()
+    cache = ManifestCache.load(manifest_path)
 
-    # Convert Path objects to UPath for processing
     files = [UPath(p) for p in file_paths if _is_markdownize_compatible(UPath(p))]
-
-    to_process, skipped = _prepare_files(files, manifest, force=force)
+    to_process, skipped = _prepare_files(files, cache, force=force)
 
     if skipped:
         logger.info(f"Skipped {skipped} unchanged files based on manifest")
 
     if not to_process:
         logger.info("No files left to process after manifest filtering")
-        return manifest
+        return cache
 
     logger.info(f"Processing {len(to_process)} files")
 
-    all_entries: dict[str, MarkdownizeManifestEntry] = dict(manifest.entries)
-
-    # For Mistral converter, log batch info (individual tasks handle the actual OCR calls)
-    if converter == "mistral":
-        pdf_files = [f for f in to_process if f.path.suffix.lower() == ".pdf"]
-        if pdf_files:
-            try:
-                _ocr_processor = MistralOCRBatchProcessor(batch_size=batch_size)  # noqa: F841 - reserved for future use
-                logger.info(f"Processing {len(pdf_files)} PDF files with Mistral OCR batch processor")
-                # Note: In practice, this would be called within a task for better Prefect integration
-                # For now, we use the single-file fallback in _process_single_file_task
-            except Exception as e:
-                logger.warning(f"Could not initialize Mistral OCR batch processor: {e}. Using single-file OCR.")
-
-    # Process in batches
     for batch in _chunked(to_process, batch_size):
         futures = [
             _process_single_file_task.submit(
@@ -559,20 +492,21 @@ def markdownize_flow(
 
         for future in futures:
             result = future.result()  # type: ignore[misc]
-            # Handle both sync and async results from Prefect tasks
             if asyncio.iscoroutine(result):
-                source_path, entry = asyncio.run(result)  # type: ignore[misc]
+                source_path, relative_output_path = asyncio.run(result)  # type: ignore[misc]
             else:
-                source_path, entry = result  # type: ignore[misc]
-            all_entries[source_path] = entry
+                source_path, relative_output_path = result  # type: ignore[misc]
 
-    # Update and save manifest
-    updated_manifest = MarkdownizeManifest(entries=all_entries)
-    _save_manifest(updated_manifest, manifest_path)
+            file_hash = next((f.content_hash for f in to_process if str(f.path) == source_path), "")
+            cache.record_success(
+                key=source_path,
+                fingerprint=file_hash,
+                outputs={"output_path": relative_output_path},
+            )
 
+    cache.save(manifest_path)
     logger.success(
-        f"Conversion completed. {len(to_process)} files processed, {skipped} skipped. "
-        f"Manifest written to {manifest_path}",
+        f"Conversion completed. {len(to_process)} files processed, {skipped} skipped."
     )
 
-    return updated_manifest
+    return cache

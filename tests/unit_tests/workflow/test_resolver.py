@@ -35,20 +35,24 @@ baseline:
       description: Ingest a directory of documents
       steps:
         - id: load
-          uses: genai_tk.workflow.steps.LoadDocuments
-          inputs:
-            root_dir: ${{profile.root_dir}}
-          outputs:
-            documents: loaded_docs
+          invoke:
+            kind: callable
+            target: genai_tk.workflow.steps.LoadDocuments
+          with:
+            root_dir: ${{values.root_dir}}
         - id: ingest
-          uses: genai_tk.workflow.steps.IngestDocuments
-          needs: [load]
-          params:
-            retriever_name: ${{profile.retriever_name}}
+          invoke:
+            kind: callable
+            target: genai_tk.workflow.steps.IngestDocuments
+          wait_for: [load]
+          with:
+            retriever_name: ${{values.retriever_name}}
     shared:
       steps:
         - id: only
-          uses: genai_tk.workflow.steps.Shared
+          invoke:
+            kind: callable
+            target: genai_tk.workflow.steps.Shared
   workflow_profiles:
     docs.default:
       workflow: ingest_docs
@@ -132,14 +136,14 @@ paths:
 baseline:
   step_templates:
     base_step:
-      uses: some.module.base_func
-      inputs:
-        base_dir: ${{profile.base_dir}}
-        output_dir: ${{profile.output_dir}}
-      params:
-        batch_size: ${{profile.batch_size}}
+      invoke:
+        kind: flow
+        target: some.module.base_func
+      with:
+        base_dir: ${{values.base_dir}}
+        output_dir: ${{values.output_dir}}
+        batch_size: ${{values.batch_size}}
         verbose: true
-      concurrency: serial
 
   workflows:
     templated_workflow:
@@ -153,10 +157,9 @@ baseline:
 
         - id: step_b
           ref: base_step
-          needs: [step_a]
-          inputs:
-            output_dir: ${{profile.custom_dir}}
-          params:
+          wait_for: [step_a]
+          with:
+            output_dir: ${{values.custom_dir}}
             verbose: false
 
   workflow_profiles:
@@ -178,45 +181,37 @@ def test_list_step_template_names(template_config: OmegaConfig) -> None:
 def test_expand_step_templates_resolves_ref() -> None:
     templates = {
         "my_template": {
-            "uses": "module.func",
-            "inputs": {"root": "${profile.root}"},
-            "params": {"batch": 10},
-            "concurrency": "serial",
+            "invoke": {"kind": "flow", "target": "module.func"},
+            "with": {"root": "${values.root}", "batch": 10},
         }
     }
     steps = [{"id": "step1", "ref": "my_template"}]
     expanded = _expand_step_templates(steps, templates)
     assert len(expanded) == 1
-    assert expanded[0]["uses"] == "module.func"
-    assert expanded[0]["inputs"] == {"root": "${profile.root}"}
-    assert expanded[0]["params"] == {"batch": 10}
-    assert expanded[0]["concurrency"] == "serial"
+    assert expanded[0]["invoke"]["target"] == "module.func"
+    assert expanded[0]["with"] == {"root": "${values.root}", "batch": 10}
     assert "ref" not in expanded[0]
 
 
 def test_expand_step_templates_step_overrides_template() -> None:
     templates = {
         "base": {
-            "uses": "module.base",
-            "inputs": {"dir": "/default", "extra": "keep"},
-            "params": {"verbose": True},
-            "concurrency": "serial",
+            "invoke": {"kind": "flow", "target": "module.base"},
+            "with": {"dir": "/default", "extra": "keep", "verbose": True},
         }
     }
     steps = [
         {
             "id": "step1",
             "ref": "base",
-            "uses": "module.override",
-            "inputs": {"dir": "/custom"},
-            "params": {"verbose": False},
+            "invoke": {"kind": "flow", "target": "module.override"},
+            "with": {"dir": "/custom", "verbose": False},
         }
     ]
     expanded = _expand_step_templates(steps, templates)
-    assert expanded[0]["uses"] == "module.override"
-    # dict fields are merged: step wins at key level, template keys are kept
-    assert expanded[0]["inputs"] == {"dir": "/custom", "extra": "keep"}
-    assert expanded[0]["params"] == {"verbose": False}
+    assert expanded[0]["invoke"]["target"] == "module.override"
+    # with dict is merged: step wins at key level, template keys are kept
+    assert expanded[0]["with"] == {"dir": "/custom", "extra": "keep", "verbose": False}
 
 
 def test_expand_step_templates_unknown_ref_raises() -> None:
@@ -225,7 +220,7 @@ def test_expand_step_templates_unknown_ref_raises() -> None:
 
 
 def test_expand_step_templates_passthrough_without_ref() -> None:
-    steps = [{"id": "s", "uses": "module.func"}]
+    steps = [{"id": "s", "invoke": {"kind": "flow", "target": "module.func"}}]
     expanded = _expand_step_templates(steps, {})
     assert expanded == steps
 
@@ -238,19 +233,18 @@ def test_load_workflow_spec_expands_templates(template_config: OmegaConfig) -> N
 
     step_a = spec.steps[0]
     assert step_a.id == "step_a"
-    assert step_a.uses == "some.module.base_func"
-    assert step_a.concurrency == "serial"
-    assert step_a.needs == []
+    assert step_a.invoke.target == "some.module.base_func"
+    assert step_a.wait_for == []
 
     step_b = spec.steps[1]
     assert step_b.id == "step_b"
-    assert step_b.uses == "some.module.base_func"
-    assert step_b.needs == ["step_a"]
+    assert step_b.invoke.target == "some.module.base_func"
+    assert step_b.wait_for == ["step_a"]
     # step_b overrides output_dir but keeps base_dir from template
-    assert step_b.inputs["output_dir"] == "${profile.custom_dir}"
-    assert step_b.inputs["base_dir"] == "${profile.base_dir}"
+    assert step_b.with_["output_dir"] == "${values.custom_dir}"
+    assert step_b.with_["base_dir"] == "${values.base_dir}"
     # step_b overrides verbose=false
-    assert step_b.params["verbose"] is False
+    assert step_b.with_["verbose"] is False
 
 
 def test_workflow_defaults_applied_when_profile_omits_values(template_config: OmegaConfig) -> None:
@@ -279,7 +273,7 @@ def test_workflow_defaults_overridden_by_cli(template_config: OmegaConfig) -> No
 
 
 # ---------------------------------------------------------------------------
-# Sub-workflow expansion tests (uses_workflow)
+# Sub-workflow expansion tests
 # ---------------------------------------------------------------------------
 
 
@@ -296,10 +290,11 @@ paths:
 baseline:
   step_templates:
     build_step:
-      uses: graph.build
-      inputs:
-        graphs: ${{profile.graphs}}
-      concurrency: serial
+      invoke:
+        kind: callable
+        target: graph.build
+      with:
+        graphs: ${{values.graphs}}
 
   workflows:
     base_graph:
@@ -312,34 +307,48 @@ baseline:
         - id: build
           ref: build_step
         - id: extra
-          uses: graph.extra
-          needs: [build]
+          invoke:
+            kind: callable
+            target: graph.extra
+          wait_for: [build]
 
     composite:
       steps:
         - id: base
-          uses_workflow: base_graph
+          invoke:
+            kind: workflow
+            target: base_graph
         - id: ext
-          uses_workflow: extended_graph
-          needs: [base]
+          invoke:
+            kind: workflow
+            target: extended_graph
+          wait_for: [base]
 
     deep_composite:
       steps:
         - id: prep
-          uses: prep.step
+          invoke:
+            kind: callable
+            target: prep.step
         - id: graphs
-          uses_workflow: composite
-          needs: [prep]
+          invoke:
+            kind: workflow
+            target: composite
+          wait_for: [prep]
 
     cyclic_a:
       steps:
         - id: s
-          uses_workflow: cyclic_b
+          invoke:
+            kind: workflow
+            target: cyclic_b
 
     cyclic_b:
       steps:
         - id: s
-          uses_workflow: cyclic_a
+          invoke:
+            kind: workflow
+            target: cyclic_a
 
   workflow_profiles:
     run_composite:
@@ -371,16 +380,15 @@ def test_sub_workflow_needs_wiring(sub_workflow_config: OmegaConfig) -> None:
     spec = load_workflow_spec("composite", sub_workflow_config)
     steps_by_id = {s.id: s for s in spec.steps}
 
-    # base.build is a root step of base_graph, composite says base has no needs → no needs
-    assert steps_by_id["base.build"].needs == []
+    # base.build is a root step of base_graph, composite says base has no wait_for
+    assert steps_by_id["base.build"].wait_for == []
 
-    # ext.build is a root step of extended_graph; composite says ext needs [base]
+    # ext.build is a root step of extended_graph; composite says ext wait_for [base]
     # After terminal resolution, "base" is replaced with its terminal step(s)
-    # base_graph has only "build" as terminal → ext.build needs ["base.build"]
-    assert "base.build" in steps_by_id["ext.build"].needs
+    assert "base.build" in steps_by_id["ext.build"].wait_for
 
-    # ext.extra has internal needs=[build] → prefixed to [ext.build]
-    assert steps_by_id["ext.extra"].needs == ["ext.build"]
+    # ext.extra has internal wait_for=[build] → prefixed to [ext.build]
+    assert steps_by_id["ext.extra"].wait_for == ["ext.build"]
 
 
 def test_sub_workflow_deep_expansion(sub_workflow_config: OmegaConfig) -> None:
@@ -388,12 +396,7 @@ def test_sub_workflow_deep_expansion(sub_workflow_config: OmegaConfig) -> None:
 
     spec = load_workflow_spec("deep_composite", sub_workflow_config)
     step_ids = [s.id for s in spec.steps]
-    # prep is a normal step
     assert "prep" in step_ids
-    # composite's steps are prefixed with "graphs."
-    # composite had base.build → graphs.base.build
-    # composite had ext.build → graphs.ext.build
-    # composite had ext.extra → graphs.ext.extra
     assert "graphs.base.build" in step_ids
     assert "graphs.ext.build" in step_ids
     assert "graphs.ext.extra" in step_ids
@@ -405,10 +408,8 @@ def test_sub_workflow_deep_needs(sub_workflow_config: OmegaConfig) -> None:
 
     spec = load_workflow_spec("deep_composite", sub_workflow_config)
     steps_by_id = {s.id: s for s in spec.steps}
-    # graphs.base.build is a root of "graphs" sub-workflow, parent needs=[prep]
-    assert "prep" in steps_by_id["graphs.base.build"].needs
-    # graphs.ext.build should depend on the terminal of graphs.base (= graphs.base.build)
-    assert "graphs.base.build" in steps_by_id["graphs.ext.build"].needs
+    assert "prep" in steps_by_id["graphs.base.build"].wait_for
+    assert "graphs.base.build" in steps_by_id["graphs.ext.build"].wait_for
 
 
 def test_sub_workflow_cycle_detection(sub_workflow_config: OmegaConfig) -> None:
@@ -419,15 +420,13 @@ def test_sub_workflow_cycle_detection(sub_workflow_config: OmegaConfig) -> None:
 
 
 def test_sub_workflow_unknown_workflow_raises(sub_workflow_config: OmegaConfig) -> None:
-
-    steps = [{"id": "s", "uses_workflow": "nonexistent"}]
+    steps = [{"id": "s", "invoke": {"kind": "workflow", "target": "nonexistent"}}]
     with pytest.raises(WorkflowResolutionError, match="unknown workflow 'nonexistent'"):
         _expand_sub_workflows(steps, sub_workflow_config)
 
 
 def test_sub_workflow_terminal_resolution_with_multi_terminal(tmp_path: Path) -> None:
-    """When a sub-workflow has multiple terminal steps (no step depends on them),
-    a needs reference to the parent should expand to all terminals."""
+    """When a sub-workflow has multiple terminal steps, wait_for the parent expands to all terminals."""
     data_root = tmp_path / "data"
     config_text = f"""
 default_config: baseline
@@ -441,20 +440,30 @@ baseline:
     two_leaves:
       steps:
         - id: root
-          uses: step.root
+          invoke:
+            kind: callable
+            target: step.root
         - id: leaf_a
-          uses: step.leaf_a
-          needs: [root]
+          invoke:
+            kind: callable
+            target: step.leaf_a
+          wait_for: [root]
         - id: leaf_b
-          uses: step.leaf_b
-          needs: [root]
+          invoke:
+            kind: callable
+            target: step.leaf_b
+          wait_for: [root]
     after_leaves:
       steps:
         - id: base
-          uses_workflow: two_leaves
+          invoke:
+            kind: workflow
+            target: two_leaves
         - id: final
-          uses: step.final
-          needs: [base]
+          invoke:
+            kind: callable
+            target: step.final
+          wait_for: [base]
 """
     config_path = tmp_path / "multi_terminal.yaml"
     config_path.write_text(config_text, encoding="utf-8")
@@ -464,8 +473,8 @@ baseline:
 
     spec = load_workflow_spec("after_leaves", cfg)
     steps_by_id = {s.id: s for s in spec.steps}
-    # "final" needs [base] → base has two terminals: leaf_a and leaf_b
-    # So final should depend on both base.leaf_a and base.leaf_b
-    assert "base.leaf_a" in steps_by_id["final"].needs
-    assert "base.leaf_b" in steps_by_id["final"].needs
-    assert "base" not in steps_by_id["final"].needs
+    # "final" wait_for [base] → base has two terminals: leaf_a and leaf_b
+    assert "base.leaf_a" in steps_by_id["final"].wait_for
+    assert "base.leaf_b" in steps_by_id["final"].wait_for
+    assert "base" not in steps_by_id["final"].wait_for
+

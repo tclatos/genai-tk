@@ -86,11 +86,17 @@ def _section_dict(config: OmegaConfig, key: str, *, resolve: bool) -> dict[str, 
     return resolved
 
 
-def _expand_step_templates(steps_data: list[dict], templates: dict[str, dict]) -> list[dict]:
-    """Expand `ref:` fields in step definitions by merging from step templates.
+_DICT_MERGE_FIELDS = {"with"}
+"""Fields whose dict values are merged at the key level during template expansion."""
 
-    For each step with a `ref:` key, the template's fields are used as defaults;
-    any field explicitly set on the step overrides the template value.
+
+def _expand_step_templates(steps_data: list[dict], templates: dict[str, dict]) -> list[dict]:
+    """Expand ``ref:`` fields in step definitions by merging from step templates.
+
+    For each step with a ``ref:`` key, the template's fields are used as defaults;
+    any field explicitly set on the step overrides the template value.  For the
+    ``with`` dict the merge happens at key level — the step adds or replaces
+    individual keys while the rest come from the template.
     """
     expanded = []
     for step in steps_data:
@@ -104,14 +110,12 @@ def _expand_step_templates(steps_data: list[dict], templates: dict[str, dict]) -
                 f"Step '{step.get('id', '?')}' references unknown step template '{ref}'. "
                 f"Available templates: {available}"
             )
-        template = templates[ref]
-        # Template fields are defaults; step-level fields win.
-        # For dict fields (inputs, params, outputs) merge so step overrides at key level.
+        template = dict(templates[ref])
         merged: dict = {**template}
         for key, value in step.items():
             if key == "ref":
                 continue
-            if key in ("inputs", "params", "outputs") and isinstance(value, dict) and isinstance(merged.get(key), dict):
+            if key in _DICT_MERGE_FIELDS and isinstance(value, dict) and isinstance(merged.get(key), dict):
                 merged[key] = {**merged[key], **value}
             else:
                 merged[key] = value
@@ -125,35 +129,35 @@ def _expand_sub_workflows(
     *,
     _ancestors: frozenset[str] = frozenset(),
 ) -> list[dict]:
-    """Expand ``uses_workflow`` steps by inlining the referenced workflow's steps.
+    """Expand ``invoke: {kind: workflow, target: <name>}`` steps by inlining the
+    referenced workflow's steps.
 
-    For each step with ``uses_workflow: X``, workflow *X* is loaded, its steps are
-    prefixed with ``{step_id}.`` and the original step's ``needs`` dependencies are
-    wired as prerequisites for the sub-workflow's root steps (those with no internal
-    ``needs``).  The original step is replaced by the expanded sub-steps.
+    The referenced workflow's steps are prefixed with ``{step_id}.`` and any
+    ``wait_for`` dependencies in the parent step are wired as prerequisites for
+    the sub-workflow's root steps.  After expansion, ``wait_for`` references to
+    expanded parent step IDs are replaced with references to the terminal
+    (leaf) steps of the expanded sub-workflow.
 
-    After expansion, any ``needs`` reference pointing to a parent step ID that was
-    expanded is replaced with references to the *terminal* steps (leaves) of the
-    expanded sub-workflow — ensuring correct dependency ordering.
-
-    Expansion is recursive to support transitive sub-workflows.  Cycles are detected
-    via the ``_ancestors`` set.
+    Expansion is recursive; cycles are detected via the ``_ancestors`` set.
     """
     workflows_dict = _section_dict(config, "workflows", resolve=False)
     templates = _section_dict(config, "step_templates", resolve=False)
     expanded: list[dict] = []
-    # Map parent step IDs to the terminal (leaf) step IDs of their sub-workflow
     terminal_map: dict[str, list[str]] = {}
 
     for step in steps_data:
-        sub_wf_name = step.get("uses_workflow")
+        invoke = step.get("invoke")
+        sub_wf_name: str | None = None
+        if isinstance(invoke, dict) and invoke.get("kind") == "workflow":
+            sub_wf_name = invoke.get("target") or None
+
         if sub_wf_name is None:
             expanded.append(step)
             continue
 
         if sub_wf_name in _ancestors:
             raise WorkflowResolutionError(
-                f"Cycle detected in uses_workflow: {' -> '.join(sorted(_ancestors))} -> {sub_wf_name}"
+                f"Cycle detected in invoke.kind=workflow: {' -> '.join(sorted(_ancestors))} -> {sub_wf_name}"
             )
 
         if sub_wf_name not in workflows_dict:
@@ -173,42 +177,37 @@ def _expand_sub_workflows(
             sub_steps = _expand_sub_workflows(sub_steps, config, _ancestors=_ancestors | {sub_wf_name})
 
         step_id = step["id"]
-        parent_needs: list[str] = step.get("needs", [])
+        parent_wait_for: list[str] = step.get("wait_for", [])
 
-        # Collect the IDs of sub-workflow steps (after prefixing)
         sub_ids = {s["id"] for s in sub_steps}
-        # Determine which sub-steps are depended on by other sub-steps
         depended_on: set[str] = set()
         for s in sub_steps:
-            for n in s.get("needs", []):
+            for n in s.get("wait_for", []):
                 depended_on.add(n)
-        # Terminal steps = not depended on by any other sub-step
+
         terminal_ids = [f"{step_id}.{s['id']}" for s in sub_steps if s["id"] not in depended_on]
-        terminal_map[step_id] = terminal_ids or [f"{step_id}.{sub_steps[-1]['id']}"] if sub_steps else []
+        terminal_map[step_id] = terminal_ids or ([f"{step_id}.{sub_steps[-1]['id']}"] if sub_steps else [])
 
         for sub_step in sub_steps:
             prefixed = {**sub_step, "id": f"{step_id}.{sub_step['id']}"}
-            # Prefix internal needs references
-            if "needs" in sub_step and sub_step["needs"]:
-                prefixed["needs"] = [f"{step_id}.{n}" for n in sub_step["needs"]]
-            # Root steps of the sub-workflow inherit the parent step's needs
-            sub_needs = set(sub_step.get("needs", []))
-            is_root = not sub_needs.intersection(sub_ids)
-            if is_root and parent_needs:
-                prefixed["needs"] = parent_needs + prefixed.get("needs", [])
+            if sub_step.get("wait_for"):
+                prefixed["wait_for"] = [f"{step_id}.{n}" for n in sub_step["wait_for"]]
+            sub_wait = set(sub_step.get("wait_for", []))
+            is_root = not sub_wait.intersection(sub_ids)
+            if is_root and parent_wait_for:
+                prefixed["wait_for"] = parent_wait_for + prefixed.get("wait_for", [])
             expanded.append(prefixed)
 
-    # Post-pass: replace needs references to expanded parent IDs with their terminal steps
     if terminal_map:
         for step in expanded:
-            if "needs" in step and step["needs"]:
-                resolved_needs: list[str] = []
-                for dep in step["needs"]:
+            if step.get("wait_for"):
+                resolved_deps: list[str] = []
+                for dep in step["wait_for"]:
                     if dep in terminal_map:
-                        resolved_needs.extend(terminal_map[dep])
+                        resolved_deps.extend(terminal_map[dep])
                     else:
-                        resolved_needs.append(dep)
-                step["needs"] = resolved_needs
+                        resolved_deps.append(dep)
+                step["wait_for"] = resolved_deps
 
     return expanded
 

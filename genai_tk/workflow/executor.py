@@ -1,147 +1,50 @@
 """Workflow execution engine.
 
-Resolves step implementations from dotted paths and orchestrates execution
-via Prefect flows/tasks, respecting dependency ordering.
+This module is the public entry-point for executing a resolved workflow.
+The heavy lifting is delegated to:
+
+- :class:`~genai_tk.workflow.compiler.WorkflowCompiler` — YAML → compiled graph
+- :class:`~genai_tk.workflow.prefect.flow_factory.PrefectFlowFactory` — compiled graph → Prefect flow → execution
 """
 
 from __future__ import annotations
 
-import importlib
 from typing import Any
 
-from loguru import logger
-
-from genai_tk.workflow.models import ResolvedWorkflowInvocation, StepSpec
+from genai_tk.workflow.models import ResolvedWorkflowInvocation
 
 
 class WorkflowExecutionError(RuntimeError):
-    """Raised when workflow execution fails."""
-
-
-def _import_callable(dotted_path: str) -> Any:
-    """Import a callable from a dotted Python path."""
-    module_path, _, attr_name = dotted_path.rpartition(".")
-    if not module_path:
-        raise WorkflowExecutionError(f"Invalid step path '{dotted_path}': must be a dotted module.attribute path.")
-    try:
-        module = importlib.import_module(module_path)
-    except ImportError as exc:
-        raise WorkflowExecutionError(f"Cannot import module '{module_path}': {exc}") from exc
-    if not hasattr(module, attr_name):
-        raise WorkflowExecutionError(f"Module '{module_path}' has no attribute '{attr_name}'.")
-    return getattr(module, attr_name)
-
-
-def _resolve_step_inputs(step: StepSpec, values: dict[str, Any]) -> dict[str, Any]:
-    """Substitute ${profile.*} placeholders in step inputs/params with resolved values."""
-    resolved: dict[str, Any] = {}
-
-    for key, val in {**step.inputs, **step.params}.items():
-        resolved[key] = _resolve_value(val, values)
-
-    return resolved
-
-
-def _resolve_value(val: Any, values: dict[str, Any]) -> Any:
-    """Recursively substitute ``${profile.*}`` placeholders in a value tree."""
-    if isinstance(val, str):
-        if val.startswith("${profile."):
-            lookup_key = val[len("${profile.") : -1]
-            return values.get(lookup_key)
-        # Resolve remaining OmegaConf-style interpolations (e.g. ${paths.*})
-        if "${" in val:
-            return _resolve_omegaconf_string(val)
-    if isinstance(val, dict):
-        return {k: _resolve_value(v, values) for k, v in val.items()}
-    if isinstance(val, list):
-        return [_resolve_value(item, values) for item in val]
-    return val
-
-
-def _resolve_omegaconf_string(val: str) -> Any:
-    """Resolve a string containing OmegaConf interpolations against global config."""
-    from omegaconf import OmegaConf
-
-    from genai_tk.utils.config_mngr import get_raw_config
-
-    cfg = get_raw_config()
-    try:
-        tmp = OmegaConf.create({"_tmp": val})
-        merged = OmegaConf.merge(cfg, tmp)
-        resolved = OmegaConf.select(merged, "_tmp")
-        return resolved if resolved is not None else val
-    except Exception:
-        return val
-
-
-def _topological_sort(steps: list[StepSpec]) -> list[StepSpec]:
-    """Sort steps by dependency order (Kahn's algorithm)."""
-    step_map = {s.id: s for s in steps}
-    in_degree: dict[str, int] = {s.id: 0 for s in steps}
-    for s in steps:
-        for dep in s.needs:
-            if dep not in step_map:
-                raise WorkflowExecutionError(f"Step '{s.id}' depends on unknown step '{dep}'.")
-            in_degree[s.id] += 1
-
-    queue = [sid for sid, deg in in_degree.items() if deg == 0]
-    ordered: list[StepSpec] = []
-
-    while queue:
-        current = queue.pop(0)
-        ordered.append(step_map[current])
-        for s in steps:
-            if current in s.needs:
-                in_degree[s.id] -= 1
-                if in_degree[s.id] == 0:
-                    queue.append(s.id)
-
-    if len(ordered) != len(steps):
-        raise WorkflowExecutionError("Cycle detected in workflow step dependencies.")
-    return ordered
+    """Raised when a workflow step fails and ``on_failure`` is ``abort``."""
 
 
 def execute_workflow(invocation: ResolvedWorkflowInvocation) -> dict[str, Any]:
     """Execute a resolved workflow invocation.
 
-    Runs each step in topological order using Prefect ephemeral mode.
-    Returns a mapping of step_id -> result.
+    Compiles the workflow spec into a :class:`~genai_tk.workflow.compiled_models.CompiledWorkflow`
+    and runs it via :class:`~genai_tk.workflow.prefect.flow_factory.PrefectFlowFactory`.
+    Independent steps execute concurrently; ordered steps wait for their
+    dependencies via Prefect futures.
+
+    Args:
+        invocation: A resolved invocation produced by
+            :func:`~genai_tk.workflow.resolver.resolve_workflow_invocation`.
+
+    Returns:
+        Mapping of ``step_id → result`` for all executed steps.
     """
-    from genai_tk.workflow.prefect.run import run_flow_ephemeral
+    from genai_tk.workflow.compiler import WorkflowCompiler
+    from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory, WorkflowExecutionError as _FlowError
 
-    workflow = invocation.workflow
-    values = invocation.values
-    results: dict[str, Any] = {}
+    # Propagate --force flag as values so YAML steps can reference ${values.force}
+    values = dict(invocation.values)
+    if invocation.force:
+        values.setdefault("force", True)
+        values.setdefault("force_rebuild", True)
 
-    ordered_steps = _topological_sort(workflow.steps)
-    logger.info("Executing workflow '{}' ({} steps)", workflow.name, len(ordered_steps))
+    compiled = WorkflowCompiler().compile(invocation.workflow, values)
+    try:
+        return PrefectFlowFactory(compiled=compiled).run()
+    except _FlowError as exc:
+        raise WorkflowExecutionError(str(exc)) from exc
 
-    for step in ordered_steps:
-        step_kwargs = _resolve_step_inputs(step, values)
-        # Remove None values - let the flow use its defaults
-        step_kwargs = {k: v for k, v in step_kwargs.items() if v is not None}
-
-        if invocation.force:
-            step_kwargs["force"] = True
-
-        logger.info("Running step '{}' ({})", step.id, step.uses)
-        logger.debug("Step kwargs: {}", step_kwargs)
-
-        callable_obj = _import_callable(step.uses)
-
-        try:
-            result = run_flow_ephemeral(callable_obj, **step_kwargs)
-            results[step.id] = result
-            logger.success("Step '{}' completed", step.id)
-        except Exception as exc:
-            if step.on_failure == "abort":
-                raise WorkflowExecutionError(f"Step '{step.id}' failed: {exc}") from exc
-            elif step.on_failure == "skip":
-                logger.warning("Step '{}' failed (skipping): {}", step.id, exc)
-                results[step.id] = None
-            else:  # continue
-                logger.warning("Step '{}' failed (continuing): {}", step.id, exc)
-                results[step.id] = None
-
-    logger.success("Workflow '{}' completed ({} steps)", workflow.name, len(ordered_steps))
-    return results

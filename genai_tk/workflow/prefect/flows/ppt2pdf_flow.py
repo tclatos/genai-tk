@@ -8,37 +8,20 @@ Typical usage::
 
 from __future__ import annotations
 
-import json
 import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ThreadPoolTaskRunner
-from pydantic import BaseModel, Field
 from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
+from genai_tk.workflow.cache.manifest import ManifestCache
 
 SUPPORTED_EXTENSIONS = {".ppt", ".pptx", ".odp"}
-
-
-class Ppt2PdfManifestEntry(BaseModel):
-    """Single processed file entry in the ppt2pdf manifest."""
-
-    source_hash: str
-    output_path: str
-    processed_at: datetime
-
-
-class Ppt2PdfManifest(BaseModel):
-    """Manifest of processed files for ppt2pdf operations."""
-
-    processed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    entries: dict[str, Ppt2PdfManifestEntry] = Field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -53,53 +36,28 @@ class _TaskResult:
 
     success: bool
     source_path: str
-    entry: Ppt2PdfManifestEntry | None = None
+    output_path: str | None = None
     error: str | None = None
-
-
-def _compute_hash(content: bytes) -> str:
-    return buffer_digest(content)
-
-
-def _load_manifest(manifest_path: UPath) -> Ppt2PdfManifest | None:
-    if not manifest_path.exists():
-        return None
-
-    try:
-        text = manifest_path.read_text(encoding="utf-8")
-        data = json.loads(text)
-        return Ppt2PdfManifest.model_validate(data)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Failed to load manifest from {}: {}. Ignoring it.", manifest_path, exc)
-        return None
-
-
-def _save_manifest(manifest: Ppt2PdfManifest, manifest_path: UPath) -> None:
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
 
 
 def _prepare_files(
     files: Iterable[UPath],
-    manifest: Ppt2PdfManifest,
+    cache: ManifestCache,
     force: bool,
 ) -> tuple[list[_FileToProcess], int]:
-    """Prepare files for processing based on manifest state."""
+    """Prepare files for processing, skipping unchanged entries in the cache."""
     to_process: list[_FileToProcess] = []
     skipped = 0
 
     for path in files:
         try:
             content_bytes = path.read_bytes()
-            content_hash = _compute_hash(content_bytes)
+            content_hash = buffer_digest(content_bytes)
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Error reading {}: {}", path, exc)
             continue
 
-        key = str(path)
-        existing = manifest.entries.get(key)
-
-        if existing and not force and existing.source_hash == content_hash:
+        if cache.is_fresh(str(path), fingerprint=content_hash, force=force):
             skipped += 1
             logger.info("Skipping unchanged file: {}", path)
             continue
@@ -210,13 +168,7 @@ def _process_single_file_task(
         # Compute relative output path for manifest
         relative_output_path = output_pdf.relative_to(output_upath)
 
-        entry = Ppt2PdfManifestEntry(
-            source_hash=file_info.content_hash,
-            output_path=str(relative_output_path),
-            processed_at=datetime.now(timezone.utc),
-        )
-
-        return _TaskResult(success=True, source_path=str(upath), entry=entry)
+        return _TaskResult(success=True, source_path=str(upath), output_path=str(relative_output_path))
 
     except Exception as e:
         # Return failure result instead of raising
@@ -241,7 +193,7 @@ def ppt2pdf_flow(
     pathspecs: list[str] | None = None,
     batch_size: int = 5,
     force: bool = False,
-) -> Ppt2PdfManifest:
+) -> ManifestCache:
     """Run PowerPoint to PDF conversion as a Prefect flow.
 
     Args:
@@ -262,7 +214,7 @@ def ppt2pdf_flow(
 
     if not file_paths:
         logger.warning("No PowerPoint files found to process")
-        return Ppt2PdfManifest()
+        return ManifestCache()
 
     logger.info("Discovered {} files to process", len(file_paths))
 
@@ -270,31 +222,24 @@ def ppt2pdf_flow(
     output_upath = UPath(resolved_output)
     output_upath.mkdir(parents=True, exist_ok=True)
 
-    # Load or create manifest
     manifest_path = output_upath / "manifest.json"
-    manifest = _load_manifest(manifest_path)
-    if manifest is None:
-        manifest = Ppt2PdfManifest()
+    cache = ManifestCache.load(manifest_path)
 
-    # Filter to compatible files
     files = [UPath(p) for p in file_paths if _is_ppt_compatible(UPath(p))]
-
-    to_process, skipped = _prepare_files(files, manifest, force=force)
+    to_process, skipped = _prepare_files(files, cache, force=force)
 
     if skipped:
         logger.info("Skipped {} unchanged files based on manifest", skipped)
 
     if not to_process:
         logger.info("No files left to process after manifest filtering")
-        return manifest
+        return cache
 
     logger.info("Processing {} files with LibreOffice", len(to_process))
 
-    all_entries: dict[str, Ppt2PdfManifestEntry] = dict(manifest.entries)
     failed_files: list[str] = []
     processed_count = 0
 
-    # Process in batches
     for batch in _chunked(to_process, batch_size):
         futures = [
             _process_single_file_task.submit(
@@ -307,20 +252,23 @@ def ppt2pdf_flow(
 
         for future in futures:
             result: _TaskResult = future.result()  # type: ignore[misc]
-            if result.success and result.entry:
-                all_entries[result.source_path] = result.entry
+            if result.success and result.output_path:
+                cache.record_success(
+                    key=result.source_path,
+                    fingerprint=next(
+                        (f.content_hash for f in to_process if str(f.path) == result.source_path), ""
+                    ),
+                    outputs={"output_path": result.output_path},
+                )
                 processed_count += 1
             else:
                 failed_files.append(result.source_path)
 
-    # Update and save manifest
-    updated_manifest = Ppt2PdfManifest(entries=all_entries)
-    _save_manifest(updated_manifest, manifest_path)
+    cache.save(manifest_path)
 
-    # Report results
     total = len(to_process)
     if failed_files:
         logger.warning("{}/{} files failed conversion", len(failed_files), total)
     logger.success(f"Converted {processed_count}/{total} files (skipped {skipped} unchanged)")
 
-    return updated_manifest
+    return cache

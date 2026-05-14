@@ -36,11 +36,12 @@ def _render_workflow_summary(resolved_name: str, invocation: object) -> None:
 
     steps = Table(title="Workflow Steps", show_header=True, header_style="bold green")
     steps.add_column("Id", style="cyan", no_wrap=True)
-    steps.add_column("Uses", style="white")
-    steps.add_column("Needs", style="magenta")
-    steps.add_column("Concurrency", style="yellow")
+    steps.add_column("Invoke", style="white")
+    steps.add_column("Wait For", style="magenta")
     for step in invocation.workflow.steps:
-        steps.add_row(step.id, step.uses, ", ".join(step.needs) or "-", step.concurrency)
+        target = step.invoke.target if step.invoke else "-"
+        wait_for = ", ".join(step.wait_for) if step.wait_for else "-"
+        steps.add_row(step.id, target, wait_for)
     console.print(steps)
 
 

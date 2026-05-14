@@ -21,12 +21,10 @@ Typical usage::
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ThreadPoolTaskRunner  # type: ignore[attr-defined]
-from pydantic import BaseModel, Field
 from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_files
@@ -39,26 +37,7 @@ from genai_tk.workflow.anonymization.presidio_detector import (
     PresidioDetector,
     PresidioDetectorConfig,
 )
-
-# ---------------------------------------------------------------------------
-# Pydantic manifest models
-# ---------------------------------------------------------------------------
-
-
-class AnonymizeManifestEntry(BaseModel):
-    """Single processed file entry in the anonymization manifest."""
-
-    source_hash: str
-    output_path: str
-    mapping_path: str | None = None
-    processed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
-class AnonymizeManifest(BaseModel):
-    """Manifest of processed files for an anonymization run."""
-
-    processed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    entries: dict[str, AnonymizeManifestEntry] = Field(default_factory=dict)
+from genai_tk.workflow.cache.manifest import ManifestCache
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +52,7 @@ def anonymize_file_task(
     root_dir: str,
     config: AnonymizationConfig,
     save_mapping: bool = False,
-) -> AnonymizeManifestEntry | None:
+) -> tuple[str, str, str | None] | None:  # (output_path, source_hash, mapping_path)
     """Anonymize a single text file and write the result to *output_dir*.
 
     Args:
@@ -128,11 +107,7 @@ def anonymize_file_task(
     source_hash = buffer_digest(upath.read_bytes())
     logger.success("Anonymized {} entities in {}", len(mapping), upath.name)
 
-    return AnonymizeManifestEntry(
-        source_hash=source_hash,
-        output_path=str(relative_path),
-        mapping_path=mapping_path,
-    )
+    return str(relative_path), source_hash, mapping_path
 
 
 # ---------------------------------------------------------------------------
@@ -156,7 +131,7 @@ def anonymize_files_flow(
     analyzed_fields: list[str] | None = None,
     faker_seed: int | None = 42,
     fuzzy_deanonymize: bool = True,
-) -> AnonymizeManifest:
+) -> ManifestCache:
     """Anonymize PII in text files and write cleaned copies to *output_dir*.
 
     Reuses the same :func:`~genai_tk.agents.langchain.middleware.anonymization_middleware.anonymize_text`
@@ -190,45 +165,36 @@ def anonymize_files_flow(
         fuzzy_deanonymize=fuzzy_deanonymize,
     )
 
-    # Load existing manifest to support incremental processing
+    # Load manifest for incremental processing
     output_upath = UPath(output_dir)
-    manifest_path = output_upath / "anonymize_manifest.json"
-    manifest = AnonymizeManifest()
-    if manifest_path.exists() and not force:
-        try:
-            manifest = AnonymizeManifest.model_validate_json(manifest_path.read_text(encoding="utf-8"))
-            logger.info("Loaded existing manifest with {} entries", len(manifest.entries))
-        except Exception as exc:
-            logger.warning("Could not read manifest ({}), starting fresh", exc)
+    manifest_path = output_upath / "manifest.json"
+    cache = ManifestCache.load(manifest_path)
 
     files = resolve_files(base_dir, pathspecs=pathspecs)
     logger.info("Found {} files matching patterns in '{}'", len(files), base_dir)
 
     if not files:
         logger.warning("No files found to anonymize")
-        return manifest
+        return cache
 
-    # Filter files unchanged since last run
     files_to_process: list[UPath] = []
     skipped = 0
     for f in files:
         try:
-            content_hash = buffer_digest(f.read_bytes())
+            content_hash = buffer_digest(UPath(f).read_bytes())
         except Exception as exc:
             logger.error("Cannot read {}: {}", f, exc)
             continue
-        existing = manifest.entries.get(str(f))
-        if existing and not force and existing.source_hash == content_hash:
+        if cache.is_fresh(str(f), fingerprint=content_hash, force=force):
             skipped += 1
             continue
-        files_to_process.append(f)
+        files_to_process.append(UPath(f))
 
     logger.info("Processing {} files, skipping {} unchanged", len(files_to_process), skipped)
 
     if not files_to_process:
-        return manifest
+        return cache
 
-    # Process in batches
     for i in range(0, len(files_to_process), batch_size):
         batch = files_to_process[i : i + batch_size]
         logger.info("Batch {}/{} ({} files)", i // batch_size + 1, -(-len(files_to_process) // batch_size), len(batch))
@@ -246,19 +212,21 @@ def anonymize_files_flow(
 
         for f, future in zip(batch, futures):
             try:
-                entry = future.result()
-                if entry is not None:
-                    manifest.entries[str(f)] = entry
+                result = future.result()
+                if result is not None:
+                    output_path, source_hash, mapping_path = result
+                    outputs: dict = {"output_path": output_path}
+                    if mapping_path:
+                        outputs["mapping_path"] = mapping_path
+                    cache.record_success(key=str(f), fingerprint=source_hash, outputs=outputs)
             except Exception as exc:
                 logger.error("Failed to process {}: {}", f, exc)
 
-    # Persist manifest
     output_upath.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
+    cache.save(manifest_path)
     logger.success(
-        "Anonymization complete: {} processed, {} skipped, manifest at {}",
+        "Anonymization complete: {} processed, {} skipped",
         len(files_to_process),
         skipped,
-        manifest_path,
     )
-    return manifest
+    return cache

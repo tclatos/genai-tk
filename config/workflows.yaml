@@ -4,13 +4,13 @@
 #
 # Three concepts, top to bottom:
 #
-#  step_templates  — reusable step definitions (uses, inputs, params, …).
+#  step_templates  — reusable step definitions (invoke, with, …).
 #                    Referenced by workflow steps with `ref: <name>`.
-#                    Step-level fields override template fields; dict fields
-#                    (inputs, params, outputs) are merged key-by-key.
+#                    Step-level fields override template fields; the `with`
+#                    dict is merged key-by-key.
 #
-#  workflows       — named pipelines composed of ordered steps.
-#                    `defaults:` provides fallback values for ${profile.*}
+#  workflows       — named pipelines composed of steps.
+#                    `defaults:` provides fallback values for ${values.*}
 #                    placeholders when a profile doesn't supply them.
 #
 #  workflow_profiles — named, concrete invocations of a workflow bound to
@@ -30,49 +30,49 @@
 
 step_templates:
   markdownize_step:
-    uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-    inputs:
-      base_dir: "${profile.base_dir}"
-      output_dir: "${profile.output_dir}"
-    params:
-      pathspecs: "${profile.pathspecs}"
-      batch_size: "${profile.batch_size}"
-      converter: "${profile.converter}"
-    concurrency: serial
+    invoke:
+      kind: flow
+      target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+    with:
+      base_dir: "${values.base_dir}"
+      output_dir: "${values.output_dir}"
+      pathspecs: "${values.pathspecs}"
+      batch_size: "${values.batch_size}"
+      converter: "${values.converter}"
 
   ppt2pdf_step:
-    uses: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
-    inputs:
-      base_dir: "${profile.base_dir}"
-      output_dir: "${profile.output_dir}"
-    params:
-      pathspecs: "${profile.pathspecs}"
-      batch_size: "${profile.batch_size}"
-    concurrency: serial
+    invoke:
+      kind: flow
+      target: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
+    with:
+      base_dir: "${values.base_dir}"
+      output_dir: "${values.output_dir}"
+      pathspecs: "${values.pathspecs}"
+      batch_size: "${values.batch_size}"
 
   anonymize_step:
-    uses: genai_tk.workflow.prefect.flows.anonymize_flow.anonymize_files_flow
-    inputs:
-      base_dir: "${profile.base_dir}"
-      output_dir: "${profile.output_dir}"
-    params:
-      pathspecs: "${profile.pathspecs}"
-      batch_size: "${profile.batch_size}"
-      save_mapping: "${profile.save_mapping}"
-      faker_seed: "${profile.faker_seed}"
-    concurrency: serial
+    invoke:
+      kind: flow
+      target: genai_tk.workflow.prefect.flows.anonymize_flow.anonymize_files_flow
+    with:
+      base_dir: "${values.base_dir}"
+      output_dir: "${values.output_dir}"
+      pathspecs: "${values.pathspecs}"
+      batch_size: "${values.batch_size}"
+      save_mapping: "${values.save_mapping}"
+      faker_seed: "${values.faker_seed}"
 
   rag_ingest_step:
-    uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
-    inputs:
-      base_dir: "${profile.base_dir}"
-    params:
-      retriever_name: "${profile.retriever_name}"
-      pathspecs: "${profile.pathspecs}"
-      batch_size: "${profile.batch_size}"
-      max_chunk_tokens: "${profile.chunk_size}"
-      chunker_name: "${profile.chunker}"
-    concurrency: serial
+    invoke:
+      kind: flow
+      target: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+    with:
+      base_dir: "${values.base_dir}"
+      retriever_name: "${values.retriever_name}"
+      pathspecs: "${values.pathspecs}"
+      batch_size: "${values.batch_size}"
+      max_chunk_tokens: "${values.chunk_size}"
+      chunker_name: "${values.chunker}"
 
 
 # ---------------------------------------------------------------------------
@@ -128,16 +128,16 @@ workflows:
     steps:
       - id: anonymize
         ref: anonymize_step
-        inputs:
+        with:
           # Override output_dir to write to the intermediate anonymized directory.
-          output_dir: "${profile.anon_dir}"
+          output_dir: "${values.anon_dir}"
 
       - id: ingest
         ref: rag_ingest_step
-        needs: [anonymize]
-        inputs:
+        wait_for: [anonymize]
+        with:
           # Chain: ingest reads from the anonymized directory produced above.
-          base_dir: "${profile.anon_dir}"
+          base_dir: "${values.anon_dir}"
 
 
 # ---------------------------------------------------------------------------

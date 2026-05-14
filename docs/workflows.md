@@ -5,7 +5,7 @@ The **Workflow Engine** provides a YAML-based abstraction layer over Prefect tha
 - Define **multi-step pipelines** without writing Python
 - Make Prefect flows **composable** and **reusable**
 - Chain pre-processing (ppt2pdf → markdownize) with domain logic (KG creation, RAG ingestion)
-- Use **CLI `--config`/`--profile` flags** to invoke pipelines from plain English names
+- Use **CLI `--set` flags** to override any parameter inline
 - Run workflows with `--dry-run` to see the full execution plan before committing
 
 ---
@@ -34,22 +34,69 @@ uv run cli workflow run markdownize_docs
 
 # Override values at the CLI
 uv run cli workflow run markdownize_docs --set batch_size=10 --set converter=mistral
-
-# Use --profile to specify a profile for a named workflow
-uv run cli workflow run markdownize_documents --profile my_docs
 ```
 
-### Use Workflows via Command Shorthands
+---
 
-Instead of `cli workflow run`, convenience commands map directly to profiles:
+## DSL Reference
 
-```bash
-# These are equivalent:
-uv run cli workflow run markdownize_docs --dry-run
-uv run cli tools markdownize --config markdownize_docs --dry-run
+### Step Fields
 
-uv run cli workflow run rag_ingest_docs
-uv run cli rag add-files --config rag_ingest_docs
+| Field | Purpose | Example |
+|-------|---------|---------|
+| `id` | Unique step identifier | `ppt_to_pdf` |
+| `invoke` | How to invoke the step — `kind` + `target` | see below |
+| `with` | All arguments passed to the callable (flat dict) | `with: {base_dir: /path, batch_size: 5}` |
+| `wait_for` | List of step IDs this step depends on | `wait_for: [ppt_to_pdf]` |
+| `ref` | Reference a step template defined in `step_templates:` | `ref: markdownize_step` |
+| `execution` | Retry / failure policy | `execution: {on_failure: abort, retries: 2}` |
+| `foreach` | Fan-out: run this step once per item | `foreach: {from: items, as: item}` |
+
+### `invoke` Block
+
+```yaml
+invoke:
+  kind: flow        # flow | callable | workflow | task | deployment
+  target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+```
+
+| `kind` | When to use |
+|--------|-------------|
+| `flow` | A `@flow`-decorated Prefect function |
+| `callable` | Any plain Python function |
+| `workflow` | Inline another workflow (sub-workflow expansion) |
+| `task` | A Prefect `@task` |
+
+### `with` Block
+
+All arguments (formerly split across `inputs:` and `params:`) are now a single flat dict:
+
+```yaml
+with:
+  base_dir: "${values.base_dir}"
+  output_dir: "${values.output_dir}"
+  batch_size: "${values.batch_size}"
+  converter: mistral
+```
+
+Supports `${values.*}` interpolation from profile values and workflow defaults.
+
+### `execution` Block
+
+```yaml
+execution:
+  on_failure: abort     # abort (default) | skip | continue
+  retries: 2
+  retry_delay_seconds: 30.0
+  tags: [slow, gpu]
+```
+
+### Value Placeholders
+
+Use `${values.key}` in `with:` values. Resolution priority (highest first):
+
+```
+CLI --set  >  profile values  >  workflow defaults
 ```
 
 ---
@@ -58,266 +105,158 @@ uv run cli rag add-files --config rag_ingest_docs
 
 ### Workflow (`workflow:` in YAML)
 
-A **workflow** is a DAG (directed acyclic graph) of **steps**.  Each step has:
-
-| Field | Purpose | Example |
-|-------|---------|---------|
-| `id` | Unique step identifier | `ppt_to_pdf` |
-| `uses` | Dotted Python path to a flow or function | `genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow` |
-| `inputs` | Static inputs passed to the flow | `{"base_dir": "/path/to/ppts"}` |
-| `params` | Parameters (CLI flags, options) | `{"batch_size": 5, "force": false}` |
-| `needs` | List of step IDs this depends on | `[ppt_to_pdf]` (execute after ppt_to_pdf) |
-| `concurrency` | `serial` or `parallel` | `serial` (default: `auto`) |
-| `on_failure` | `abort` (fail fast), `skip`, or `continue` | `abort` (default) |
-
-**Workflow Example:**
+A **workflow** is a DAG of **steps**.  Declare `defaults:` as fallback values for `${values.*}` placeholders:
 
 ```yaml
 workflows:
   convert_and_ingest:
     description: "Convert PDFs to markdown, then ingest into RAG"
+    defaults:
+      batch_size: 5
+      converter: mistral
     steps:
       - id: to_markdown
-        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-        inputs:
-          base_dir: "${profile.pdf_dir}"
-          output_dir: "${profile.md_dir}"
-        params:
-          pathspecs: "${profile.pathspecs}"
-          batch_size: "${profile.batch_size}"
-        concurrency: serial
+        invoke:
+          kind: flow
+          target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+        with:
+          base_dir: "${values.pdf_dir}"
+          output_dir: "${values.md_dir}"
+          pathspecs: "${values.pathspecs}"
+          batch_size: "${values.batch_size}"
+          converter: "${values.converter}"
 
       - id: ingest
-        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
-        needs: [to_markdown]  # Run after 'to_markdown'
-        inputs:
-          base_dir: "${profile.md_dir}"
-        params:
-          retriever_name: "${profile.retriever}"
-          pathspecs: "${profile.pathspecs}"
-        concurrency: serial
+        invoke:
+          kind: flow
+          target: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+        wait_for: [to_markdown]
+        with:
+          base_dir: "${values.md_dir}"
+          retriever_name: "${values.retriever}"
+          pathspecs: "${values.pathspecs}"
 ```
 
 ### Profile (`workflow_profiles:` in YAML)
 
-A **profile** binds a **workflow** to concrete **values**.  Profiles allow:
-
-- Parameterizing workflows (e.g., different data directories for different teams)
-- Shorthand CLI invocation (name instead of workflow + args)
-- Configuration interpolation (e.g., `${paths.data_root}`)
-
-**Profile Example:**
+A **profile** binds a workflow to concrete values:
 
 ```yaml
 workflow_profiles:
   marketing_docs:
-    workflow: convert_and_ingest      # Points to 'convert_and_ingest' workflow
+    workflow: convert_and_ingest
     values:
       pdf_dir: "${paths.data_root}/marketing/pdfs"
       md_dir: "${paths.data_root}/marketing/markdown"
       batch_size: 5
       retriever: marketing_embeddings
+      pathspecs:
+        - "**/*.pdf"
 ```
 
 ### Step Templates (`step_templates:` in YAML)
 
-A **step template** is a reusable step definition shared across multiple workflows. Define
-templates once in `step_templates:`, then reference them in workflow steps with `ref:`.
-
-Step-level fields **override** template fields. For dict fields (`inputs`, `params`, `outputs`)
-the merge happens at key level — the step adds or replaces individual keys while keeping the rest
-from the template.
-
-**Step Template Example:**
+A **step template** is a reusable step definition. Reference it in a workflow step with `ref:`.
+Step-level fields override template fields; the `with` dict is merged key-by-key.
 
 ```yaml
 step_templates:
   ingest_step:
-    uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
-    inputs:
-      base_dir: "${profile.base_dir}"
-    params:
-      retriever_name: "${profile.retriever_name}"
-      pathspecs: "${profile.pathspecs}"
-      batch_size: "${profile.batch_size}"
-      max_chunk_tokens: "${profile.chunk_size}"
-      chunker_name: "${profile.chunker}"
-    concurrency: serial
+    invoke:
+      kind: flow
+      target: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+    with:
+      base_dir: "${values.base_dir}"
+      retriever_name: "${values.retriever_name}"
+      pathspecs: "${values.pathspecs}"
+      batch_size: "${values.batch_size}"
+      max_chunk_tokens: "${values.chunk_size}"
+      chunker_name: "${values.chunker}"
 
 workflows:
-  # Simple workflow: use the template as-is
   rag_add_files:
     steps:
       - id: ingest
         ref: ingest_step
 
-  # Composed workflow: same template with an input override
   anonymize_and_ingest:
     steps:
       - id: anonymize
         ref: anonymize_step
-        inputs:
-          output_dir: "${profile.anon_dir}"   # Override template's output_dir
+        with:
+          output_dir: "${values.anon_dir}"   # Override template's output_dir
 
       - id: ingest
         ref: ingest_step
-        needs: [anonymize]
-        inputs:
-          base_dir: "${profile.anon_dir}"     # Chain output from prior step
+        wait_for: [anonymize]
+        with:
+          base_dir: "${values.anon_dir}"     # Chain output from prior step
 ```
 
-### Workflow Defaults (`defaults:` in workflows)
+### Sub-Workflows (`invoke: {kind: workflow}`)
 
-A workflow can declare **default values** for any `${profile.*}` placeholder via `defaults:`.
-These are the lowest-priority values — overridden by profile values, which are in turn overridden
-by CLI `--set` flags:
+A step can **inline another workflow** by setting `invoke.kind: workflow` and `invoke.target`
+to the workflow name.  The referenced workflow's steps are expanded in place, prefixed with
+`{step_id}.` to avoid ID collisions.
 
-```
-priority (highest first):  CLI --set  >  profile values  >  workflow defaults
-```
+**How DAG wiring works:**
 
-```yaml
-workflows:
-  rag_add_files:
-    defaults:
-      batch_size: 10
-      chunk_size: 512
-      chunker: auto
-    steps:
-      - id: ingest
-        ref: ingest_step
-
-workflow_profiles:
-  rag_ingest_docs:
-    workflow: rag_add_files
-    values:
-      base_dir: "${paths.data_root}/markdown"
-      retriever_name: default
-      pathspecs:
-        - "**/*.md"
-      # batch_size, chunk_size, chunker come from workflow defaults — no need to repeat them
-```
-
-### Sub-Workflows (`uses_workflow:` in steps)
-
-A step can **inline another workflow** using `uses_workflow:`. The referenced workflow's steps
-are expanded in place — they receive the parent step's `needs` dependencies and are prefixed
-with `{step_id}.` to avoid ID collisions.
-
-This replaces the need for custom "composition" glue code and is the standard way to build
-**complex multi-stage pipelines** from reusable building blocks.
-
-**How the DAG wiring works:**
-
-- Root steps of the sub-workflow (those with no internal `needs`) inherit the parent step's `needs`.
+- Root steps of the sub-workflow (those with no internal `wait_for`) inherit the parent step's `wait_for`.
 - Internal dependencies within the sub-workflow are preserved and prefixed.
-- When a step's `needs` references a parent step ID that was expanded via `uses_workflow`,
+- When a step's `wait_for` references a parent step that was expanded via `kind: workflow`,
   the reference is automatically rewritten to the **terminal steps** (leaves) of that sub-workflow.
 
-**Example: Composing workflows from reusable sub-workflows**
+**Example:**
 
 ```yaml
 workflows:
-  # Simple reusable building block
   ingest_pdfs:
     steps:
       - id: convert
-        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-        inputs:
-          base_dir: "${profile.pdf_dir}"
-          output_dir: "${profile.md_dir}"
-        params:
+        invoke:
+          kind: flow
+          target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+        with:
+          base_dir: "${values.pdf_dir}"
+          output_dir: "${values.md_dir}"
           pathspecs: ["**/*.pdf"]
-        concurrency: serial
 
       - id: index
-        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
-        needs: [convert]
-        inputs:
-          base_dir: "${profile.md_dir}"
-        params:
-          retriever_name: "${profile.retriever}"
-        concurrency: serial
+        invoke:
+          kind: flow
+          target: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+        wait_for: [convert]
+        with:
+          base_dir: "${values.md_dir}"
+          retriever_name: "${values.retriever}"
 
-  # Another reusable block
-  ingest_excel:
-    steps:
-      - id: load
-        uses: myproject.steps.load_excel
-        inputs:
-          files: "${profile.excel_files}"
-        concurrency: serial
-
-  # Composite pipeline — uses both sub-workflows
   full_knowledge_pipeline:
     steps:
       - id: pdfs
-        uses_workflow: ingest_pdfs          # Expands into pdfs.convert → pdfs.index
-
-      - id: excel
-        uses_workflow: ingest_excel         # Expands into excel.load
-        needs: [pdfs]                       # Runs after all pdf steps complete
-                                            # (automatically resolved to pdfs.index — the terminal step)
+        invoke:
+          kind: workflow
+          target: ingest_pdfs        # Expands to: pdfs.convert → pdfs.index
 
       - id: analyze
-        uses: myproject.steps.run_analysis
-        needs: [excel]                      # Resolved to excel.load (terminal step)
+        invoke:
+          kind: callable
+          target: myproject.steps.run_analysis
+        wait_for: [pdfs]             # Resolved to pdfs.index (terminal step)
 ```
 
-**After expansion, `cli workflow run full_knowledge_pipeline --dry-run` shows:**
+`cli workflow run full_knowledge_pipeline --dry-run` shows:
 
 ```
-┌─────────────┬──────────────────────────────┬──────────────┬─────────────┐
-│ Id          │ Uses                         │ Needs        │ Concurrency │
-├─────────────┼──────────────────────────────┼──────────────┼─────────────┤
-│ pdfs.convert│ ...markdownize_flow          │ -            │ serial      │
-│ pdfs.index  │ ...rag_file_ingestion_flow   │ pdfs.convert │ serial      │
-│ excel.load  │ ...load_excel                │ pdfs.index   │ serial      │
-│ analyze     │ ...run_analysis              │ excel.load   │ serial      │
-└─────────────┴──────────────────────────────┴──────────────┴─────────────┘
+┌──────────────┬────────────────────────────┬──────────────┐
+│ Id           │ Invoke                     │ Wait For     │
+├──────────────┼────────────────────────────┼──────────────┤
+│ pdfs.convert │ ...markdownize_flow        │ -            │
+│ pdfs.index   │ ...rag_file_ingestion_flow │ pdfs.convert │
+│ analyze      │ ...run_analysis            │ pdfs.index   │
+└──────────────┴────────────────────────────┴──────────────┘
 ```
 
-**Sub-workflows are recursive** — a sub-workflow can itself contain `uses_workflow` steps:
-
-```yaml
-workflows:
-  step_a: { steps: [...] }
-  step_b:
-    steps:
-      - id: a
-        uses_workflow: step_a
-  composed:
-    steps:
-      - id: b
-        uses_workflow: step_b     # Expands to b.a.{step_a's steps}
-```
-
-**Cycles are detected** and reported as errors at load time.
-
-### Step Inputs & Params
-
-**Inputs** are passed directly to the flow as `**kwargs`:
-
-```yaml
-inputs:
-  base_dir: /path/to/docs       # becomes base_dir=/path/to/docs
-  output_dir: /path/to/output   # becomes output_dir=/path/to/output
-```
-
-**Params** are also passed as `**kwargs`:
-
-```yaml
-params:
-  batch_size: 10           # becomes batch_size=10
-  converter: markitdown    # becomes converter=markitdown
-```
-
-Both support **placeholder substitution** via `${profile.*}`:
-
-```yaml
-inputs:
-  root_dir: "${profile.data_root}"      # Resolved from profile values
-```
+Sub-workflows are recursive.  Cycles are detected and reported as errors at load time.
 
 ---
 
@@ -325,15 +264,10 @@ inputs:
 
 ### File Location
 
-Workflows are defined in **one or more YAML files** under `config/`:
-
 ```
 config/
-  app_conf.yaml           # Main config (lists which workflow files to include)
-  workflows.yaml          # Workflow + profile definitions (imported via :merge:)
-  baseline.yaml
-  overrides.yaml
-  ...
+  app_conf.yaml       # Main config (lists which workflow files to include)
+  workflows.yaml      # Workflow + profile definitions (imported via :merge:)
 ```
 
 ### Including Workflow Files
@@ -346,56 +280,60 @@ In `config/app_conf.yaml`, add the workflow file to the `:merge:` list:
   - ${paths.config}/workflows.yaml    # ← Add this line
 ```
 
-Or reference it from a section that's already merged.
-
 ### Workflow File Format
 
 ```yaml
+# Optional: reusable step building blocks
+step_templates:
+  my_step:
+    invoke:
+      kind: flow
+      target: module.path.to_flow
+    with:
+      arg1: "${values.arg1}"
+
 # Workflow definitions
 workflows:
   my_workflow:
     description: "Multi-step workflow"
+    defaults:
+      arg1: default_value
     steps:
       - id: step1
-        uses: module.path.to_flow
-        inputs: {...}
-        params: {...}
+        ref: my_step
 
       - id: step2
-        uses: module.path.to_other_flow
-        needs: [step1]
-        inputs: {...}
+        invoke:
+          kind: flow
+          target: module.path.to_other_flow
+        wait_for: [step1]
+        with:
+          input: "${values.input}"
 
-# Profile definitions
+# Profiles — named, concrete invocations
 workflow_profiles:
   my_profile:
-    workflow: my_workflow              # Reference the workflow
+    workflow: my_workflow
     values:
-      # Values that get substituted into ${profile.*} placeholders
-      data_root: /path/to/data
-      batch_size: 5
+      arg1: /path/to/data
+      input: /path/to/other/data
 ```
 
 ---
 
 ## Common Patterns
 
-### Single-Step Workflow (Convenience Pattern)
-
-Define a workflow with just one step, then create profiles for different configs:
+### Single-Step Workflow
 
 ```yaml
 workflows:
   markdownize:
+    defaults:
+      converter: mistral
+      batch_size: 5
     steps:
       - id: convert
-        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-        inputs:
-          base_dir: "${profile.base_dir}"
-          output_dir: "${profile.output_dir}"
-        params:
-          pathspecs: "${profile.pathspecs}"
-          converter: "${profile.converter}"
+        ref: markdownize_step
 
 workflow_profiles:
   marketing_pdfs:
@@ -403,63 +341,54 @@ workflow_profiles:
     values:
       base_dir: /data/marketing/pdfs
       output_dir: /data/marketing/markdown
-      pathspecs:
-        - "**/*.pdf"
-      converter: mistral
+      pathspecs: ["**/*.pdf"]
 
   engineering_docs:
     workflow: markdownize
     values:
       base_dir: /data/engineering/docs
       output_dir: /data/engineering/markdown
-      pathspecs:
-        - "**/*.docx"
-        - "**/*.txt"
-      converter: markitdown
+      pathspecs: ["**/*.docx", "**/*.txt"]
+      converter: markitdown           # Override default
 ```
 
-Usage:
-```bash
-uv run cli workflow run marketing_pdfs --dry-run
-uv run cli workflow run engineering_docs
-```
-
-### Multi-Step Pipeline (Chained Inputs/Outputs)
-
-Chain steps where output from one feeds into the next via step dependencies and shared values:
+### Multi-Step Pipeline
 
 ```yaml
 workflows:
   full_pipeline:
+    defaults:
+      batch_size: 5
     steps:
       - id: ppt_to_pdf
-        uses: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
-        inputs:
-          base_dir: "${profile.ppt_dir}"
-          output_dir: "${profile.pdf_dir}"
-        params:
-          batch_size: "${profile.batch_size}"
+        invoke:
+          kind: flow
+          target: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
+        with:
+          base_dir: "${values.ppt_dir}"
+          output_dir: "${values.pdf_dir}"
+          batch_size: "${values.batch_size}"
 
       - id: pdf_to_markdown
-        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-        needs: [ppt_to_pdf]               # Run after ppt_to_pdf
-        inputs:
-          base_dir: "${profile.pdf_dir}"  # Output dir from previous step
-          output_dir: "${profile.md_dir}"
-        params:
-          pathspecs:
-            - "**/*.pdf"
-          batch_size: "${profile.batch_size}"
+        invoke:
+          kind: flow
+          target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+        wait_for: [ppt_to_pdf]
+        with:
+          base_dir: "${values.pdf_dir}"
+          output_dir: "${values.md_dir}"
+          pathspecs: ["**/*.pdf"]
+          batch_size: "${values.batch_size}"
 
       - id: ingest_to_rag
-        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
-        needs: [pdf_to_markdown]
-        inputs:
-          base_dir: "${profile.md_dir}"
-        params:
-          retriever_name: "${profile.retriever}"
-          pathspecs:
-            - "**/*.md"
+        invoke:
+          kind: flow
+          target: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+        wait_for: [pdf_to_markdown]
+        with:
+          base_dir: "${values.md_dir}"
+          retriever_name: "${values.retriever}"
+          pathspecs: ["**/*.md"]
 
 workflow_profiles:
   production:
@@ -472,42 +401,35 @@ workflow_profiles:
       retriever: production_search
 ```
 
-Usage:
-```bash
-# See the full 3-step plan
-uv run cli workflow run production --dry-run
-
-# Execute all 3 steps in order
-uv run cli workflow run production
-```
-
-### Conditional Execution with `on_failure`
-
-Steps can gracefully degrade on failure:
+### Conditional Execution with `execution.on_failure`
 
 ```yaml
 workflows:
   resilient_pipeline:
     steps:
       - id: try_mistral_ocr
-        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-        inputs:
-          base_dir: "${profile.pdf_dir}"
-          output_dir: "${profile.md_dir}"
-        params:
+        invoke:
+          kind: flow
+          target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+        with:
+          base_dir: "${values.pdf_dir}"
+          output_dir: "${values.md_dir}"
           pathspecs: ["**/*.pdf"]
           converter: mistral
-        on_failure: skip        # If Mistral API fails, skip and continue
+        execution:
+          on_failure: skip      # If Mistral API fails, skip and continue
 
       - id: fallback_ocr
-        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-        inputs:
-          base_dir: "${profile.pdf_dir}"
-          output_dir: "${profile.md_dir}"
-        params:
+        invoke:
+          kind: flow
+          target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+        with:
+          base_dir: "${values.pdf_dir}"
+          output_dir: "${values.md_dir}"
           pathspecs: ["**/*.pdf"]
-          converter: markitdown  # Use markitdown as fallback
-        on_failure: abort        # If markitdown fails, stop the whole workflow
+          converter: markitdown
+        execution:
+          on_failure: abort     # If markitdown fails, stop the whole workflow
 ```
 
 ---
@@ -516,91 +438,36 @@ workflows:
 
 ### `cli workflow list [KIND]`
 
-List all configured workflows and/or profiles.
-
 ```bash
 uv run cli workflow list              # Show all workflows and profiles
 uv run cli workflow list workflows    # Show only workflows
 uv run cli workflow list profiles     # Show only profiles
 ```
 
-Output:
-
-```
-        Workflows         
-┏━━━━━━━━━━━━━━━━━━━━━━┓
-│ my_workflow           │
-│ convert_and_ingest    │
-└───────────────────────┘
-
-       Profiles          
-┏━━━━━━━━━━━━━━━━━━━━┓
-│ marketing_docs      │
-│ engineering_docs    │
-└─────────────────────┘
-```
-
-### `cli workflow run NAME [--profile PROFILE] [--set KEY=VAL ...] [--force] [--dry-run]`
-
-Resolve and execute (or dry-run) a workflow or profile.
-
-**Arguments:**
-
-- `NAME` — Workflow name or profile name
-
-**Options:**
+### `cli workflow run NAME [--set KEY=VAL ...] [--force] [--dry-run]`
 
 | Option | Purpose |
 |--------|---------|
-| `--profile PROFILE` | Use a profile when NAME is a workflow (disambiguates when both exist) |
-| `--set KEY=VALUE` | Override a value (e.g., `--set batch_size=20`); can repeat |
+| `--set KEY=VALUE` | Override a value; can repeat |
 | `--force` | Force recomputation (passed to steps as `force=True`) |
 | `--dry-run` | Resolve the workflow and show the plan; don't execute |
 
-**Examples:**
-
 ```bash
-# Resolve a profile, show the full execution plan
+# Show the execution plan for a profile
 uv run cli workflow run marketing_docs --dry-run
 
-# Execute a workflow with a specific profile
-uv run cli workflow run markdownize --profile engineering_docs
-
-# Override a value at the command line
+# Execute with value overrides
 uv run cli workflow run my_pipeline --set batch_size=20 --set converter=mistral
 
-# Use --force to bypass caches and re-run all steps
+# Force-rebuild (bypass caches)
 uv run cli workflow run my_pipeline --force
 ```
 
 ---
 
-## Integration with Command Shorthands
-
-**Convenience commands** (like `cli tools markdownize`, `cli rag add-files`) can accept `--config` and `--dry-run` to integrate with the workflow system:
-
-```bash
-# Old style: direct arguments
-uv run cli tools markdownize /input /output --converter mistral
-
-# New style: profile + workflow resolution
-uv run cli tools markdownize --config marketing_pdfs --dry-run
-
-# CLI overrides are merged with profile values
-uv run cli tools markdownize --config marketing_pdfs --set batch_size=20
-```
-
-The command resolves the profile, merges CLI overrides, and falls back to the original Prefect flow if no `--config` is provided.
-
----
-
 ## Step Implementation Guide
 
-### Creating a Workflow Step
-
-A workflow step is any function or Prefect flow that can be invoked with keyword arguments.
-
-**Minimal Example:**
+### Plain Python Step
 
 ```python
 # myproject/steps.py
@@ -611,54 +478,32 @@ def my_transform_step(
     batch_size: int = 10,
 ) -> dict:
     """Transform documents from input to output directory."""
-    print(f"Processing {input_dir} → {output_dir} (batch={batch_size})")
     # ... do work ...
-    return {
-        "processed": 42,
-        "output_dir": output_dir,
-    }
+    return {"processed": 42, "output_dir": output_dir}
 ```
-
-**Register it in a workflow:**
 
 ```yaml
 workflows:
   my_pipeline:
     steps:
       - id: transform
-        uses: myproject.steps.my_transform_step
-        inputs:
-          input_dir: "${profile.input}"
-          output_dir: "${profile.output}"
-        params:
-          batch_size: "${profile.batch_size}"
-
-workflow_profiles:
-  default:
-    workflow: my_pipeline
-    values:
-      input: /data/input
-      output: /data/output
-      batch_size: 5
+        invoke:
+          kind: callable
+          target: myproject.steps.my_transform_step
+        with:
+          input_dir: "${values.input}"
+          output_dir: "${values.output}"
+          batch_size: "${values.batch_size}"
 ```
 
-### Creating a Prefect Flow Step
-
-For observability and retryability, wrap your step as a Prefect flow:
+### Prefect Flow Step
 
 ```python
 # myproject/flows.py
-
 from prefect import flow, task
 
 @task
 def load_documents(root_dir: str):
-    """Load documents from directory."""
-    return [...]
-
-@task
-def process_batch(docs, batch_size):
-    """Process documents in batches."""
     return [...]
 
 @flow(name="my_transform_flow")
@@ -667,26 +512,23 @@ def my_transform_flow(
     output_dir: str,
     batch_size: int = 10,
 ) -> dict:
-    """Multi-task flow."""
     docs = load_documents(input_dir)
-    results = process_batch(docs, batch_size)
-    # ... save results to output_dir ...
-    return {"processed": len(results), "output_dir": output_dir}
+    # ... process and save to output_dir ...
+    return {"processed": len(docs), "output_dir": output_dir}
 ```
-
-Register the same way:
 
 ```yaml
 workflows:
   my_pipeline:
     steps:
       - id: transform
-        uses: myproject.flows.my_transform_flow
-        inputs:
-          input_dir: "${profile.input}"
-          output_dir: "${profile.output}"
-        params:
-          batch_size: "${profile.batch_size}"
+        invoke:
+          kind: flow
+          target: myproject.flows.my_transform_flow
+        with:
+          input_dir: "${values.input}"
+          output_dir: "${values.output}"
+          batch_size: "${values.batch_size}"
 ```
 
 ---
@@ -695,15 +537,15 @@ workflows:
 
 ### genai-tk Examples
 
-- **Markdownize profile:** [config/workflows.yaml](../config/workflows.yaml) — `markdownize_docs` and `markdownize_rfq` profiles
+- **Markdownize profile:** [config/workflows.yaml](../config/workflows.yaml) — `markdownize_docs` profile
 - **RAG ingestion profile:** [config/workflows.yaml](../config/workflows.yaml) — `rag_ingest_docs` profile
-- **Multi-step pipeline:** [config/workflows.yaml](../config/workflows.yaml) — `full_kg_pipeline` (ppt2pdf → markdownize → kg create)
+- **Anonymize + ingest:** [config/workflows.yaml](../config/workflows.yaml) — `anonymize_and_ingest_docs` profile
 
 ### genai-graph Examples
 
 - **KG creation profiles:** [config/ekg_workflows.yaml](../../genai-graph/config/ekg_workflows.yaml) — `kg_one_rainbow`, `kg_stratnav_subset_rainbow_crm`, `kg_learned`
-- **Sub-workflow composition:** [config/ekg_workflows.yaml](../../genai-graph/config/ekg_workflows.yaml) — `stratnav_subset_rainbow_crm` (two `uses_workflow` steps replacing old `import:` DSL)
-- **Full pipeline:** [config/workflows.yaml](../../genai-graph/config/workflows.yaml) — `full_rainbow_pipeline` (ppt2pdf → markdownize → `uses_workflow: rainbow_add_crm`)
+- **Sub-workflow composition:** [config/ekg_workflows.yaml](../../genai-graph/config/ekg_workflows.yaml) — `stratnav_subset_rainbow_crm` (two `invoke: {kind: workflow}` steps)
+- **Full pipeline:** [config/workflows.yaml](../../genai-graph/config/workflows.yaml) — `full_rainbow_pipeline` (ppt2pdf → markdownize → KG creation)
 - **Step wrapper:** [genai_graph/orchestration/workflow_steps.py](../../genai-graph/genai_graph/orchestration/workflow_steps.py) — `kg_build_step()` accepts inline graph configs
 
 ---
@@ -712,7 +554,7 @@ workflows:
 
 ### Interpolation & Configuration
 
-All values in workflows support OmegaConf **interpolation**:
+All values support OmegaConf **interpolation**:
 
 ```yaml
 workflow_profiles:
@@ -725,11 +567,13 @@ workflow_profiles:
 
 ### Topological Sorting
 
-The workflow engine automatically **topologically sorts steps** based on `needs:` dependencies.  Circular dependencies are detected and reported as errors.
+The workflow engine automatically topologically sorts steps based on `wait_for:` dependencies.
+Circular dependencies are detected and reported as errors.
 
 ### Error Handling
 
-Steps can be configured to fail fast (`on_failure: abort`), skip on error (`skip`), or continue anyway (`continue`).  The overall workflow result includes per-step failure info for debugging.
+Steps can be configured to fail fast (`on_failure: abort`), skip on error (`skip`), or continue
+anyway (`continue`).  The overall workflow result includes per-step failure info for debugging.
 
 ---
 
@@ -737,42 +581,34 @@ Steps can be configured to fail fast (`on_failure: abort`), skip on error (`skip
 
 ### "Workflow not found"
 
-Make sure the workflow is defined in a file that's merged into `app_conf.yaml`:
+Ensure the workflow file is merged into `app_conf.yaml`:
 
 ```yaml
-# app_conf.yaml
 :merge:
   - ${paths.config}/workflows.yaml  # ← Ensure this is listed
 ```
 
 ### "Profile points to unknown workflow"
 
-Check that the `workflow:` key in the profile matches a defined workflow name:
+Check that `workflow:` in the profile matches a defined workflow name.
 
-```yaml
-workflow_profiles:
-  my_profile:
-    workflow: my_workflow  # ← Must exist in workflows: section
-```
+### "Interpolation key 'values.X' not found"
 
-### "Interpolation key 'profile.X' not found"
-
-When a step uses `${profile.x}`, ensure `x` is defined in the profile's `values:`:
+Ensure `x` is defined in the profile's `values:` or the workflow's `defaults:`:
 
 ```yaml
 workflow_profiles:
   my_profile:
     workflow: my_workflow
     values:
-      x: some_value  # ← Make sure this is here
+      x: some_value  # ← Required if no workflow default exists
 ```
 
 ### "Cannot import step module"
 
-Verify the `uses:` dotted path is correct and the module is importable:
+Verify the `invoke.target` dotted path is correct and the module is importable:
 
 ```bash
-# Test the import
 uv run python -c "from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow"
 ```
 
