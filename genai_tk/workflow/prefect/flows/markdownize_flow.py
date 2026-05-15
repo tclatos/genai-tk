@@ -17,14 +17,35 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
+from pydantic import BaseModel, Field
 from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.workflow.cache.manifest import ManifestCache
+
+
+class MarkdownizeManifestEntry(BaseModel):
+    """A single markdown conversion entry in the manifest."""
+
+    source_hash: str
+    output_path: str
+    processed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class MarkdownizeManifest(BaseModel):
+    """Manifest for markdown conversion results to avoid reprocessing."""
+
+    entries: dict[str, MarkdownizeManifestEntry] = Field(default_factory=dict)
+
+    def model_dump_json(self, **kwargs: Any) -> str:
+        """Serialize manifest to JSON string."""
+        return super().model_dump_json(**kwargs)
 
 
 class MistralOCRBatchProcessor:
@@ -433,7 +454,7 @@ def markdownize_flow(
     batch_size: int = 5,
     force: bool = False,
     converter: str = "markitdown",
-) -> ManifestCache:
+) -> MarkdownizeManifest:
     """Run markdownize as a Prefect flow.
 
     Args:
@@ -456,7 +477,7 @@ def markdownize_flow(
 
     if not file_paths:
         logger.warning("No files found to process")
-        return ManifestCache()
+        return MarkdownizeManifest()
 
     logger.info(f"Discovered {len(file_paths)} files to process")
 
@@ -475,7 +496,17 @@ def markdownize_flow(
 
     if not to_process:
         logger.info("No files left to process after manifest filtering")
-        return cache
+        manifest = MarkdownizeManifest(
+            entries={
+                k: MarkdownizeManifestEntry(
+                    source_hash=rec.fingerprint,
+                    output_path=rec.outputs.get("output_path", ""),
+                    processed_at=rec.processed_at,
+                )
+                for k, rec in cache.records.items()
+            }
+        )
+        return manifest
 
     logger.info(f"Processing {len(to_process)} files")
 
@@ -507,4 +538,14 @@ def markdownize_flow(
     cache.save(manifest_path)
     logger.success(f"Conversion completed. {len(to_process)} files processed, {skipped} skipped.")
 
-    return cache
+    manifest = MarkdownizeManifest(
+        entries={
+            k: MarkdownizeManifestEntry(
+                source_hash=rec.fingerprint,
+                output_path=rec.outputs.get("output_path", ""),
+                processed_at=rec.processed_at,
+            )
+            for k, rec in cache.records.items()
+        }
+    )
+    return manifest
