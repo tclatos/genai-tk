@@ -39,7 +39,6 @@ from genai_tk.workflow.anonymization.presidio_detector import (
 )
 from genai_tk.workflow.cache.manifest import ManifestCache
 
-
 # ---------------------------------------------------------------------------
 # Prefect task
 # ---------------------------------------------------------------------------
@@ -210,7 +209,7 @@ def anonymize_files_flow(
             for f in batch
         ]
 
-        for f, future in zip(batch, futures):
+        for f, future in zip(batch, futures, strict=False):
             try:
                 result = future.result()
                 if result is not None:

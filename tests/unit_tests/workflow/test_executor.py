@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from genai_tk.workflow.compiled_models import CompiledStep, CompiledWorkflow, InvokeSpec
+from genai_tk.workflow.compiled_models import CompiledWorkflow, InvokeSpec
 from genai_tk.workflow.executor import WorkflowExecutionError, execute_workflow
 from genai_tk.workflow.models import ResolvedWorkflowInvocation, StepSpec, WorkflowSpec
 
@@ -15,7 +15,9 @@ from genai_tk.workflow.models import ResolvedWorkflowInvocation, StepSpec, Workf
 # ---------------------------------------------------------------------------
 
 
-def _make_invocation(steps: list[StepSpec], values: dict | None = None, force: bool = False) -> ResolvedWorkflowInvocation:
+def _make_invocation(
+    steps: list[StepSpec], values: dict | None = None, force: bool = False
+) -> ResolvedWorkflowInvocation:
     workflow = WorkflowSpec(name="test_wf", steps=steps)
     return ResolvedWorkflowInvocation(
         requested_name="test_profile",
@@ -78,4 +80,3 @@ def test_execute_workflow_wraps_flow_error(mock_compile, mock_run):
 
     with pytest.raises(WorkflowExecutionError, match="step failed"):
         execute_workflow(invocation)
-

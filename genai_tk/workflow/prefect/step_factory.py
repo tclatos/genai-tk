@@ -70,6 +70,7 @@ def _make_step_task(step: CompiledStep):
     tags = list(step.execution.tags or [])
 
     if kind == StepKind.deployment:
+
         def _fn(**kwargs: Any) -> Any:
             from prefect.deployments import run_deployment
 
@@ -77,6 +78,7 @@ def _make_step_task(step: CompiledStep):
             return run_deployment(target, parameters=kwargs)
 
     elif kind == StepKind.factory:
+
         def _fn(**kwargs: Any) -> Any:
             factory_cls = _import_target(target)
             instance = factory_cls(**kwargs)

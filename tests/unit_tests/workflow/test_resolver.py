@@ -477,4 +477,3 @@ baseline:
     assert "base.leaf_a" in steps_by_id["final"].wait_for
     assert "base.leaf_b" in steps_by_id["final"].wait_for
     assert "base" not in steps_by_id["final"].wait_for
-

@@ -14,18 +14,73 @@ import asyncio
 import json
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from upath import UPath
 
 from genai_tk.extra.structured.baml_util import baml_invoke, prompt_fingerprint
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.workflow.cache.manifest import ManifestCache
+
+
+class BamlExtractionManifestEntry(BaseModel):
+    """A single BAML extraction result entry in the manifest."""
+
+    source_hash: str
+    output_path: str
+    processed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class BamlExtractionManifest(BaseModel):
+    """Manifest for BAML extraction results to avoid reprocessing."""
+
+    function_name: str
+    config_name: str
+    llm: str
+    model_name: str | None = None
+    entries: dict[str, BamlExtractionManifestEntry] = Field(default_factory=dict)
+
+    def model_dump_json(self, **kwargs: Any) -> str:
+        """Serialize manifest to JSON string."""
+        return super().model_dump_json(**kwargs)
+
+
+def _find_existing_manifest(
+    output_root: UPath,
+    function_name: str,
+    config_name: str,
+    llm: str,
+) -> tuple[BamlExtractionManifest | None, UPath | None]:
+    """Load existing manifest from output directory if it exists.
+
+    Returns:
+        Tuple of (manifest, manifest_path). Both None if no manifest found.
+    """
+    manifest_path = output_root / "manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest_json = manifest_path.read_text(encoding="utf-8")
+            data = json.loads(manifest_json)
+            manifest = BamlExtractionManifest.model_validate(data)
+            logger.info("Loaded existing manifest from {}", manifest_path)
+            return manifest, manifest_path
+        except Exception as exc:
+            logger.warning("Failed to load manifest at {}: {}", manifest_path, exc)
+            return None, manifest_path
+    return None, None
+
+
+def _save_manifest(manifest: BamlExtractionManifest, manifest_path: UPath) -> None:
+    """Save manifest to JSON file."""
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_json = manifest.model_dump_json(indent=2)
+    manifest_path.write_text(manifest_json, encoding="utf-8")
 
 
 @dataclass(slots=True)
@@ -237,9 +292,7 @@ def baml_structured_extraction_flow(
                 detected_model_name = model_name
 
     cache.save(manifest_path)
-    logger.success(
-        f"Extraction completed. {len(to_process)} files processed, {skipped} skipped."
-    )
+    logger.success(f"Extraction completed. {len(to_process)} files processed, {skipped} skipped.")
 
     return cache
 

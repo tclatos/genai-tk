@@ -52,14 +52,14 @@ def __getattr__(name: str):
 
 
 # Lightweight imports (config loaders and models) - always available
-from genai_tk.agents.sandbox.config import (
+from genai_tk.agents.sandbox.config import (  # noqa: E402
     get_docker_aio_settings,
     get_docker_smol_settings,
     get_e2b_settings,
     load_sandbox_config,
     resolve_sandbox_name,
 )
-from genai_tk.agents.sandbox.models import (
+from genai_tk.agents.sandbox.models import (  # noqa: E402
     DockerAioSettings,
     DockerSandboxSettings,
     DockerSmolSettings,

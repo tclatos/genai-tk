@@ -97,8 +97,7 @@ class WorkflowCompiler:
         """Determine the final InvokeSpec, auto-detecting kind from the target object."""
         if not step.invoke.target:
             raise WorkflowCompilationError(
-                f"Step '{step.id}' has no invoke.target.  "
-                "Set 'invoke: {{target: my.module.callable}}' in the YAML."
+                f"Step '{step.id}' has no invoke.target.  Set 'invoke: {{{{target: my.module.callable}}}}' in the YAML."
             )
 
         if step.invoke.kind != StepKind.callable:
@@ -141,14 +140,12 @@ class WorkflowCompiler:
         for step in steps:
             for dep in step.wait_for:
                 if dep not in step_ids:
-                    raise WorkflowCompilationError(
-                        f"Step '{step.id}' has wait_for dependency on unknown step '{dep}'."
-                    )
+                    raise WorkflowCompilationError(f"Step '{step.id}' has wait_for dependency on unknown step '{dep}'.")
 
     def _validate_dag(self, steps: list[StepSpec]) -> None:
         """Kahn's algorithm to detect cycles in the step dependency graph."""
         in_degree = {s.id: len(s.wait_for) for s in steps}
-        queue = [s.id for s, deg in zip(steps, in_degree.values()) if deg == 0]
+        queue = [s.id for s, deg in zip(steps, in_degree.values(), strict=False) if deg == 0]
         visited = 0
 
         while queue:

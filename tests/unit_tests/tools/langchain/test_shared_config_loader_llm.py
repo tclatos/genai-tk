@@ -120,7 +120,9 @@ class TestFactoryTools:
             return tools
 
         spec = FactoryToolSpec(factory="mod.factory_func")
-        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func):
+        with patch(
+            "genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func
+        ):
             result = process_langchain_tools_from_config([spec])
         assert result == tools
 
@@ -133,7 +135,9 @@ class TestFactoryTools:
 
         llm = MagicMock()
         spec = FactoryToolSpec(factory="mod.factory_func")
-        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func):
+        with patch(
+            "genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func
+        ):
             process_langchain_tools_from_config([spec], llm=llm)
         assert received.get("llm") is llm
 
@@ -142,7 +146,9 @@ class TestFactoryTools:
             return []
 
         spec = FactoryToolSpec(factory="mod.factory_func")
-        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func):
+        with patch(
+            "genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=factory_func
+        ):
             result = process_langchain_tools_from_config([spec], llm=MagicMock())
         assert result == []
 

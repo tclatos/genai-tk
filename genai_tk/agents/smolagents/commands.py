@@ -58,11 +58,11 @@ def register(cli_app: typer.Typer) -> None:
         from smolagents.default_tools import TOOL_MAPPING
 
         from genai_tk.agents.langchain.setup import setup_langchain
-        from genai_tk.core.factories.llm_factory import LlmFactory
         from genai_tk.agents.tools.smolagents.config_loader import (
             _default_smolagents_path,
             create_demo_from_config,
         )
+        from genai_tk.core.factories.llm_factory import LlmFactory
 
         # Resolve LLM identifier
         try:

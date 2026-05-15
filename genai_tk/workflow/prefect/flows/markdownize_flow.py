@@ -505,8 +505,6 @@ def markdownize_flow(
             )
 
     cache.save(manifest_path)
-    logger.success(
-        f"Conversion completed. {len(to_process)} files processed, {skipped} skipped."
-    )
+    logger.success(f"Conversion completed. {len(to_process)} files processed, {skipped} skipped.")
 
     return cache

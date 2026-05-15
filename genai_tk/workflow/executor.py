@@ -34,7 +34,8 @@ def execute_workflow(invocation: ResolvedWorkflowInvocation) -> dict[str, Any]:
         Mapping of ``step_id → result`` for all executed steps.
     """
     from genai_tk.workflow.compiler import WorkflowCompiler
-    from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory, WorkflowExecutionError as _FlowError
+    from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory
+    from genai_tk.workflow.prefect.flow_factory import WorkflowExecutionError as _FlowError
 
     # Propagate --force flag as values so YAML steps can reference ${values.force}
     values = dict(invocation.values)
@@ -47,4 +48,3 @@ def execute_workflow(invocation: ResolvedWorkflowInvocation) -> dict[str, Any]:
         return PrefectFlowFactory(compiled=compiled).run()
     except _FlowError as exc:
         raise WorkflowExecutionError(str(exc)) from exc
-

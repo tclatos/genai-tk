@@ -255,9 +255,7 @@ def ppt2pdf_flow(
             if result.success and result.output_path:
                 cache.record_success(
                     key=result.source_path,
-                    fingerprint=next(
-                        (f.content_hash for f in to_process if str(f.path) == result.source_path), ""
-                    ),
+                    fingerprint=next((f.content_hash for f in to_process if str(f.path) == result.source_path), ""),
                     outputs={"output_path": result.output_path},
                 )
                 processed_count += 1
