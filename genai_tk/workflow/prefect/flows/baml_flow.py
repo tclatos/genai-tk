@@ -26,7 +26,7 @@ from upath import UPath
 from genai_tk.extra.structured.baml_util import baml_invoke, prompt_fingerprint
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
-from genai_tk.workflow.cache.manifest import ManifestCache
+from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
 
 class BamlExtractionManifestEntry(BaseModel):
@@ -42,7 +42,7 @@ class BamlExtractionManifest(BaseModel):
 
     function_name: str
     config_name: str
-    llm: str
+    llm: str | None = None
     model_name: str | None = None
     entries: dict[str, BamlExtractionManifestEntry] = Field(default_factory=dict)
 
@@ -205,7 +205,7 @@ def baml_structured_extraction_flow(
     function_name: str,
     config_name: str = "default",
     llm: str = "default",
-) -> ManifestCache:
+) -> BamlExtractionManifest:
     """Run BAML structured extraction as a Prefect flow.
 
     Args:
@@ -229,7 +229,11 @@ def baml_structured_extraction_flow(
 
     if not file_paths:
         logger.warning("No files found to process")
-        return ManifestCache()
+        return BamlExtractionManifest(
+            function_name=function_name,
+            config_name=config_name,
+            llm=llm,
+        )
 
     logger.info("Discovered {} files to process", len(file_paths))
 
@@ -255,7 +259,20 @@ def baml_structured_extraction_flow(
 
     if not to_process:
         logger.info("No files left to process after manifest filtering")
-        return cache
+        manifest = BamlExtractionManifest(
+            function_name=function_name,
+            config_name=config_name,
+            llm=llm,
+            entries={
+                k: BamlExtractionManifestEntry(
+                    source_hash=rec.fingerprint,
+                    output_path=rec.outputs.get("output_path", ""),
+                    processed_at=rec.processed_at,
+                )
+                for k, rec in cache.records.items()
+            },
+        )
+        return manifest
 
     logger.info("Processing {} files with BAML", len(to_process))
 
@@ -294,7 +311,21 @@ def baml_structured_extraction_flow(
     cache.save(manifest_path)
     logger.success(f"Extraction completed. {len(to_process)} files processed, {skipped} skipped.")
 
-    return cache
+    manifest = BamlExtractionManifest(
+        function_name=function_name,
+        config_name=config_name,
+        llm=llm,
+        model_name=detected_model_name,
+        entries={
+            k: BamlExtractionManifestEntry(
+                source_hash=rec.fingerprint,
+                output_path=rec.outputs.get("output_path", ""),
+                processed_at=rec.processed_at,
+            )
+            for k, rec in cache.records.items()
+        },
+    )
+    return manifest
 
 
 @task

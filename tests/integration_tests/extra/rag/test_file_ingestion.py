@@ -140,11 +140,13 @@ def another_function():
         vector_store = managed._vector_store
 
         if vector_store and hasattr(vector_store, "_collection"):
-            # Chroma backend: check metadata
+            # Chroma backend: check metadata. Filter out None entries that may
+            # originate from unrelated documents in a shared collection.
             results = vector_store._collection.get(include=["metadatas"])
             if results and "metadatas" in results and results["metadatas"]:
-                metadata = results["metadatas"][0]
-                assert metadata is not None
+                non_null = [m for m in results["metadatas"] if m is not None]
+                assert non_null, "Expected at least one document with non-None metadata"
+                metadata = non_null[0]
                 assert "source" in metadata
                 assert "file_hash" in metadata
                 assert "chunk_index" in metadata
@@ -170,7 +172,6 @@ def another_function():
         )
 
         assert result1["processed_files"] == 1
-        chunks1 = result1["total_chunks"]
 
         # Second ingestion with force=False (should skip)
         result2 = _run_ingestion(

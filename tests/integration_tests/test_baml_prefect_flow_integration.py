@@ -1,7 +1,5 @@
 """Integration-style tests for BAML Prefect flows with deterministic stubs."""
 
-from datetime import datetime, timezone
-
 import pytest
 from pydantic import BaseModel
 from upath import UPath
@@ -9,7 +7,6 @@ from upath import UPath
 import genai_tk.workflow.prefect.flows.baml_flow as mod
 from genai_tk.workflow.prefect.flows.baml_flow import (
     BamlExtractionManifest,
-    BamlExtractionManifestEntry,
     baml_single_input_flow,
     baml_structured_extraction_flow,
 )
@@ -40,12 +37,7 @@ def test_baml_structured_extraction_flow_writes_manifest(tmp_path, monkeypatch) 
     md_file.write_text("# Example", encoding="utf-8")
 
     def fake_submit(file_info, function_name, config_name, llm, structured_root, root_dir):
-        entry = BamlExtractionManifestEntry(
-            source_hash=file_info.content_hash,
-            output_path="example.json",
-            processed_at=datetime.now(timezone.utc),
-        )
-        return _FakeFuture((str(file_info.path), entry, _DummyModel.__name__))
+        return _FakeFuture((str(file_info.path), "example.json", _DummyModel.__name__))
 
     monkeypatch.setattr(mod._process_single_file_task, "submit", fake_submit)
     monkeypatch.setattr(mod, "resolve_files", lambda *args, **kwargs: [str(p) for p in docs_dir.iterdir()])
@@ -63,8 +55,7 @@ def test_baml_structured_extraction_flow_writes_manifest(tmp_path, monkeypatch) 
     assert isinstance(manifest, BamlExtractionManifest)
     assert len(manifest.entries) == 1
 
-    model_dir = UPath(output_dir) / _DummyModel.__name__
-    manifest_path = model_dir / "manifest.json"
+    manifest_path = UPath(output_dir) / "manifest.json"
     assert manifest_path.exists()
 
 

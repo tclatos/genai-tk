@@ -37,7 +37,7 @@ from genai_tk.workflow.anonymization.presidio_detector import (
     PresidioDetector,
     PresidioDetectorConfig,
 )
-from genai_tk.workflow.cache.manifest import ManifestCache
+from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
 # ---------------------------------------------------------------------------
 # Prefect task

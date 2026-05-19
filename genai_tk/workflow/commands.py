@@ -45,6 +45,69 @@ def _render_workflow_summary(resolved_name: str, invocation: object) -> None:
     console.print(steps)
 
 
+def _render_cache_status(invocation: object, console: Console) -> None:
+    """Probe the workflow manifest and show per-step cache freshness."""
+    from genai_tk.workflow.models import ResolvedWorkflowInvocation
+
+    if not isinstance(invocation, ResolvedWorkflowInvocation):
+        return
+
+    from genai_tk.workflow.compiler import WorkflowCompiler
+    from genai_tk.workflow.flow_cache.manifest import ManifestCache
+    from genai_tk.workflow.prefect.flow_factory import _prepare_inputs, compute_step_fingerprint, workflow_manifest_path
+
+    try:
+        compiled = WorkflowCompiler().compile(invocation.workflow, invocation.values)
+    except Exception as exc:
+        console.print(f"[yellow]Cache status unavailable (compilation error): {exc}[/yellow]")
+        return
+
+    manifest_path = workflow_manifest_path(compiled.name)
+    manifest = ManifestCache.load(manifest_path)
+    force = bool(invocation.values.get("force") or invocation.values.get("force_rebuild"))
+
+    table = Table(title="Cache Status", show_header=True, header_style="bold blue")
+    table.add_column("Step", style="cyan", no_wrap=True)
+    table.add_column("Backend", style="dim")
+    table.add_column("Status", no_wrap=True)
+    table.add_column("Fingerprint", style="dim", no_wrap=True)
+    table.add_column("Last Run", style="dim")
+
+    for step in compiled.steps:
+        # In dry-run we can't resolve ${steps.*} refs (no prior results), so
+        # we pass an empty results dict — those refs resolve to None and are
+        # stripped, giving a best-effort fingerprint.
+        step_inputs = _prepare_inputs(step.with_, {})
+        fp = compute_step_fingerprint(step.id, step_inputs)
+        backend = step.cache.backend
+
+        if backend == "none":
+            status = "[dim]no cache[/dim]"
+            last_run = "-"
+            fp_display = "-"
+        elif force:
+            status = "[yellow]FORCED[/yellow]"
+            record = manifest.records.get(step.id)
+            last_run = record.processed_at.strftime("%Y-%m-%d %H:%M") if record else "never"
+            fp_display = fp[:8]
+        elif manifest.is_fresh(step.id, fingerprint=fp):
+            record = manifest.records.get(step.id)
+            status = "[green]FRESH[/green]"
+            last_run = record.processed_at.strftime("%Y-%m-%d %H:%M") if record else "-"
+            fp_display = fp[:8]
+        else:
+            record = manifest.records.get(step.id)
+            status = "[red]STALE[/red]" if record else "[yellow]UNKNOWN[/yellow]"
+            last_run = record.processed_at.strftime("%Y-%m-%d %H:%M") if record else "never"
+            fp_display = fp[:8]
+
+        table.add_row(step.id, backend, status, fp_display, last_run)
+
+    console.print(table)
+    if manifest_path.exists():
+        console.print(f"[dim]Manifest: {manifest_path}[/dim]")
+
+
 class WorkflowCommands(CliTopCommand):
     """Workflow-related CLI commands."""
 
@@ -144,6 +207,7 @@ class WorkflowCommands(CliTopCommand):
             _render_workflow_summary(workflow_or_profile, invocation)
 
             if dry_run:
+                _render_cache_status(invocation, console)
                 console.print(Panel("Dry run complete — no execution performed.", border_style="green"))
                 return
 

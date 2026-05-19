@@ -8,19 +8,40 @@
 
 
 
-# BOM
+# TOC
 
-We want to implement commands and Prefect tasts to create a table of content from a Markdown document. 
+We want to implement commands and Prefect tasks to create a table of content (TOC) from a Markdown document. 
 Inspiration is : 
 - https://pageindex.ai/blog/pageindex-intro 
 - https://github.com/VectifyAI/PageIndex/blob/main/pageindex/page_index_md.py
 - https://github.com/VectifyAI/PageIndex/blob/main/examples/agentic_vectorless_rag_demo.py 
 
 
-The factory will be configured through a YAML file, like other factories.  Take inspiration of PageIndex parameters, use our own convention to select the LLM, the class, etc. 
+ Take inspiration of PageIndex parameters, use our own convention to select the LLM, the class, etc. 
 
+First implement in genai-tk a simple workfow callable from 'cli workflow run' to create TOC from fiven markdown files. 
 /home/tcl/prj/genai-tk/genai_tk/workflow
 
+Then integrate it in ...
+
+# Anonymimisation / LLM Routing demo
+Create a Streamlit app that demonstrate features 
+examples/notebooks/anonymize_rag_pipeline_demo.ipynb
+examples/notebooks/middleware_anonymization_demo.ipynb
+
+- The user select a short text among several prompt you have created, with different level of sensitivity
+- it can either anonymize the prompt, or send it to a safe LLM, or both
+- After submition, the possibly anomyzized text is displayed, and the destinated LLM, and some context informarion to explai  the choice
+- The result returned with LLM is displayed
+- the user can visualize the configurarauon and oyther information to understand how it works
+
+
+## Comprehensive workflow tests
+- Improve test for the new workflow feature : paralelism, caching, ...
+
+## Ladybug embeddings
+
+We want to store in Ladybug the embeddings of some kinf of documents.  
 
 
 

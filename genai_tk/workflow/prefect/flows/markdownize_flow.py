@@ -27,7 +27,7 @@ from pydantic import BaseModel, Field
 from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
-from genai_tk.workflow.cache.manifest import ManifestCache
+from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
 
 class MarkdownizeManifestEntry(BaseModel):

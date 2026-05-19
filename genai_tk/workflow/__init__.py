@@ -4,7 +4,6 @@ This package provides YAML-driven workflow orchestration for genai-tk,
 backed by the Prefect engine for parallel, dependency-aware execution.
 """
 
-from genai_tk.workflow.cache.manifest import ManifestCache
 from genai_tk.workflow.compiled_models import (
     ArtifactSpec,
     CacheSpec,
@@ -17,6 +16,7 @@ from genai_tk.workflow.compiled_models import (
 )
 from genai_tk.workflow.compiler import WorkflowCompilationError, WorkflowCompiler
 from genai_tk.workflow.executor import WorkflowExecutionError, execute_workflow
+from genai_tk.workflow.flow_cache.manifest import ManifestCache
 from genai_tk.workflow.models import (
     ResolvedWorkflowInvocation,
     StepSpec,

@@ -58,7 +58,6 @@ class CacheSpec(BaseModel):
     """Cache reuse policy for a step."""
 
     backend: Literal["none", "prefect_result", "manifest", "hybrid"] = "none"
-    level: Literal["step", "item"] = "step"
     key_include: list[str] = Field(default_factory=list)
 
 

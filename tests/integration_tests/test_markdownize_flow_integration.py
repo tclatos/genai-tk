@@ -1,14 +1,11 @@
 """Integration-style tests for markdownize flow with deterministic stubs."""
 
-from datetime import datetime, timezone
-
 import pytest
 from upath import UPath
 
 import genai_tk.workflow.prefect.flows.markdownize_flow as mod
 from genai_tk.workflow.prefect.flows.markdownize_flow import (
     MarkdownizeManifest,
-    MarkdownizeManifestEntry,
     markdownize_flow,
 )
 

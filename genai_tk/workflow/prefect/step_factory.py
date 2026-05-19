@@ -7,17 +7,24 @@ Each step kind maps to a Prefect execution primitive:
 - ``callable``   → wrapped as a ``@task`` that calls the plain callable
 - ``deployment`` → wrapped as a ``@task`` that triggers a Prefect deployment
 - ``factory``    → wrapped as a ``@task`` that calls ``factory.create()(**kwargs)``
+
+Note: ``flow``, ``task``, and ``callable`` kinds are all executed identically
+at runtime (import the dotted target, call it).  The ``kind`` field is kept
+for documentation purposes and to allow future differentiation.
 """
 
 from __future__ import annotations
 
 import importlib
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 from pydantic import BaseModel
 
 from genai_tk.workflow.compiled_models import CompiledStep, StepKind
+
+if TYPE_CHECKING:
+    from prefect import Task
 
 
 class PrefectStepFactory(BaseModel):
@@ -31,7 +38,7 @@ class PrefectStepFactory(BaseModel):
         ```
     """
 
-    def create(self, step: CompiledStep):
+    def create(self, step: CompiledStep) -> Task:
         """Return a Prefect ``@task``-decorated callable for the given step.
 
         Args:
@@ -58,7 +65,7 @@ def _import_target(dotted_path: str) -> Any:
     return getattr(module, attr_name)
 
 
-def _make_step_task(step: CompiledStep):
+def _make_step_task(step: CompiledStep) -> Task:
     """Create a ``@task``-wrapped callable for a compiled step."""
     from prefect import task as prefect_task
 
@@ -97,10 +104,32 @@ def _make_step_task(step: CompiledStep):
     _fn.__qualname__ = f"workflow.{step_id}"
     _fn.__module__ = __name__
 
+    cache_policy = _cache_policy_for_step(step)
+
     return prefect_task(
         _fn,
         name=step_id,
         retries=retries,
         retry_delay_seconds=retry_delay,
         tags=tags or None,
+        cache_policy=cache_policy,
     )
+
+
+def _cache_policy_for_step(step: CompiledStep) -> Any:
+    """Return a Prefect ``cache_policy`` for the given step spec.
+
+    ``manifest`` and ``hybrid`` backends are handled at the engine level
+    (in ``flow_factory._build_prefect_flow``), so no Prefect-level policy is
+    needed for them.  ``prefect_result`` uses Prefect's ``INPUTS`` policy so
+    the task result is cached when inputs hash matches a previous run.
+    """
+    backend = step.cache.backend
+    if backend == "prefect_result" or backend == "hybrid":
+        from prefect.cache_policies import INPUTS
+
+        return INPUTS
+    # none / manifest: no Prefect-level cache (manifest handled by the engine)
+    from prefect.cache_policies import NO_CACHE
+
+    return NO_CACHE

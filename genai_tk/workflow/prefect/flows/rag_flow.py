@@ -17,9 +17,9 @@ from upath import UPath
 
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
 from genai_tk.core.factories.retriever_factory import ManagedRetriever, RetrieverFactory
-from genai_tk.utils.file_patterns import resolve_files
+from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import file_digest
-from genai_tk.workflow.cache.manifest import ManifestCache
+from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
 
 @dataclass(slots=True)
@@ -179,6 +179,7 @@ def rag_file_ingestion_flow(
     max_chunk_tokens: int,
     chunker_name: str = "auto",
     pathspecs: list[str] | None = None,
+    exclude_patterns: list[str] | None = None,
     force: bool = False,
     batch_size: int = 10,
     manifest_dir: str | None = None,
@@ -192,6 +193,8 @@ def rag_file_ingestion_flow(
         chunker_name: Chunker configuration name (``"auto"`` = detect by extension).
         pathspecs: Gitwildmatch patterns (``!`` prefix = exclude).  Defaults to
             ``["**/*"]`` (all files, recursive).
+        exclude_patterns: Additional patterns to exclude (``!`` prefix is added
+            automatically).  Merged with ``pathspecs`` before matching.
         force: Reprocess all files regardless of existing hashes.
         batch_size: Number of files to process in parallel.
         manifest_dir: Optional directory for persisting a :class:`ManifestCache`.
@@ -202,7 +205,15 @@ def rag_file_ingestion_flow(
     """
     logger.info("Starting RAG file ingestion from '{}' to retriever '{}'", base_dir, retriever_name)
 
-    files = resolve_files(base_dir, pathspecs=pathspecs)
+    resolved_base = UPath(resolve_config_path(base_dir))
+    if not resolved_base.exists():
+        raise ValueError(f"base_dir does not exist: {resolved_base}")
+
+    all_pathspecs = list(pathspecs or ["**/*"])
+    if exclude_patterns:
+        all_pathspecs.extend(f"!{p}" for p in exclude_patterns)
+
+    files = resolve_files(base_dir, pathspecs=all_pathspecs)
 
     logger.info("Found {} files matching patterns", len(files))
 

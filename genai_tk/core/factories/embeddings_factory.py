@@ -44,6 +44,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 
 from genai_tk.extra.kv_store_registry import KvStoreRegistry
 from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.hashing import buffer_digest
 from genai_tk.utils.singleton import once
 from genai_tk.core.providers import (
     get_provider_api_env_var,
@@ -537,12 +538,11 @@ class EmbeddingsFactory(BaseModel):
         kv_store = registry.get(
             store_id="default", namespace="cache_embeddings"
         )  # TODO : support SQL  (need async KvStore)
-        base = f"{self.short_name()}-"
+        prefix = f"{self.short_name()}-"
         cached_embedder = CacheBackedEmbeddings.from_bytes_store(
             underlying_embeddings=underlying_embeddings,
             document_embedding_cache=kv_store,
-            namespace=base,
-            key_encoder="sha256",
+            key_encoder=lambda text: prefix + buffer_digest(text.encode()),
             query_embedding_cache=True,
         )
         return cached_embedder
