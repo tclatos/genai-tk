@@ -4,6 +4,7 @@
 
 set dotenv-load
 set shell := ["bash", "-euc"]
+set script-interpreter := ['uv', 'run', '--script']
 set positional-arguments
 
 pkg_name := "genai_tk"
@@ -90,12 +91,10 @@ pytest *args:
 
 [doc('Quick smoke-test: verify basic package imports')]
 test-install:
-    #!/usr/bin/env bash
-    set -euo pipefail
     echo "Testing {{ pkg_name }} imports..."
-    uv run python -c "import genai_tk.core;  print('ok genai_tk.core')"  || echo "FAIL genai_tk.core"
-    uv run python -c "import genai_tk.extra; print('ok genai_tk.extra')" || echo "FAIL genai_tk.extra"
-    uv run python -c "import genai_tk.utils; print('ok genai_tk.utils')" || echo "FAIL genai_tk.utils"
+    uv run python -c "import genai_tk.core;  print('ok genai_tk.core')"
+    uv run python -c "import genai_tk.extra; print('ok genai_tk.extra')"
+    uv run python -c "import genai_tk.utils; print('ok genai_tk.utils')"
     echo -e "\033[3m\033[36mExpected output: 'Human: Tell me a joke on bears'\033[0m"
     echo bears | uv run cli core run joke -m parrot_local@fake
 
@@ -109,8 +108,7 @@ webapp:
 
 [doc('Clone/update Deer-flow and install backend + Python deps')]
 deer-flow-install:
-    #!/usr/bin/env bash
-    set -euo pipefail
+    #!/bin/bash
     if [ -d "{{ deer_flow_dir }}" ]; then
         echo "Updating Deer-flow..."
         cd {{ deer_flow_dir }} && git pull --rebase
@@ -138,8 +136,7 @@ clean:
 
 [doc('Clear Jupyter notebook outputs')]
 clean-notebooks:
-    #!/usr/bin/env bash
-    set -euo pipefail
+    #!/bin/bash
     find . -path "./.venv" -prune -o -name "*.ipynb" -print | while read -r nb; do
         echo "Cleaning: $nb"
         uv run --with nbconvert python -m nbconvert --clear-output --inplace "$nb"
@@ -148,8 +145,7 @@ clean-notebooks:
 [confirm("This will modify ~/.bash_history. Continue?")]
 [doc('Remove duplicates and noise from ~/.bash_history')]
 clean-history:
-    #!/usr/bin/env bash
-    set -euo pipefail
+    #!/bin/bash
     if [ -f ~/.bash_history ]; then
         awk '!/^(ls|cat|hgrep|h|cd|p|m|ll|pwd|code|mkdir|export|rmdir|uv tree|make|just)( |$)/ \
               && !seen[$0]++' ~/.bash_history > ~/.bash_history_unique
@@ -158,3 +154,19 @@ clean-history:
     else
         echo "No ~/.bash_history found"
     fi
+
+
+
+
+[script]
+hello:
+  print("Hello from Python!")
+
+[script]
+goodbye:
+  # /// script
+  # requires-python = ">=3.11"
+  # dependencies=["sh"]
+  # ///
+  import sh
+  print(sh.echo("Goodbye from Python!"), end='')
