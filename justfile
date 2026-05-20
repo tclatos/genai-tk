@@ -56,19 +56,21 @@ check: fmt lint test
 
 [doc('Run unit tests only')]
 test-unit *args:
-    uv run cli test unit {{ args }}
+    uv run pytest tests/unit_tests/ {{ args }}
 
-[doc('Run integration tests (no LLM/API keys required)')]
+[doc('Run unit + integration tests (no LLM/API keys required)')]
 test *args:
-    uv run cli test fast_integration {{ args }}
+    uv run pytest tests/unit_tests/ tests/integration_tests/ {{ args }}
 
 [doc('Run integration tests with real LLM API calls')]
 test-full *args:
-    uv run cli test full_integration {{ args }}
+    uv run pytest tests/integration_tests/ --include-real-models {{ args }}
 
-[doc('Run unit + full integration tests')]
+[doc('Run all tests including real LLM calls')]
 test-all *args:
-    uv run cli test all {{ args }}
+    uv run pytest tests/unit_tests/ tests/integration_tests/ --include-real-models -m 'not slow' {{ args }}
+
+# Delegated to cli test — these need config-path resolution, marker logic, or notebook execution:
 
 [doc('Run eval tests  (--real for LLM-judged, --deerflow for DeerFlow suite)')]
 test-evals *args:
@@ -82,7 +84,7 @@ test-select pattern *args:
 test-notebooks *args:
     uv run cli test notebooks {{ args }}
 
-[doc('Run pytest directly with custom args  e.g: just pytest -k my_test -v')]
+[doc('Run pytest with custom args  e.g: just pytest -k my_test -v')]
 pytest *args:
     uv run pytest {{ args }}
 
@@ -143,8 +145,8 @@ clean-notebooks:
         uv run --with nbconvert python -m nbconvert --clear-output --inplace "$nb"
     done
 
-[doc('Remove duplicates and noise from ~/.bash_history')]
 [confirm("This will modify ~/.bash_history. Continue?")]
+[doc('Remove duplicates and noise from ~/.bash_history')]
 clean-history:
     #!/usr/bin/env bash
     set -euo pipefail
