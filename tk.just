@@ -40,25 +40,35 @@ check: fmt lint test
 
 # ─── Testing ────────────────────────────────────────────────────────────────
 
-[doc('Run unit and integration tests')]
-test:
-    uv run pytest tests/unit_tests/ tests/integration_tests/ -v
-
 [doc('Run unit tests only')]
-test-unit:
-    uv run pytest tests/unit_tests/ -v
+test-unit *args:
+    uv run cli test unit {{ args }}
 
-[doc('Run integration tests only')]
-test-integration:
-    uv run pytest tests/integration_tests/ -v
+[doc('Run integration tests (no LLM/API keys required)')]
+test *args:
+    uv run cli test fast_integration {{ args }}
 
-[doc('Run ALL tests including real LLM calls (requires API keys)')]
-test-full:
-    @echo "Requires a valid API key for the 'fast_model' tag."
-    uv run pytest tests/unit_tests/ tests/integration_tests/ \
-        --include-real-models -m "not slow" -v
+[doc('Run integration tests with real LLM API calls')]
+test-full *args:
+    uv run cli test full_integration {{ args }}
 
-[doc('Run pytest with custom args')]
+[doc('Run unit + full integration tests')]
+test-all *args:
+    uv run cli test all {{ args }}
+
+[doc('Run eval tests  (--real for LLM-judged, --deerflow for DeerFlow suite)')]
+test-evals *args:
+    uv run cli test evals {{ args }}
+
+[doc('Run tests matching a pattern across all test dirs  e.g: just test-select rag')]
+test-select pattern *args:
+    uv run cli test select '{{ pattern }}' {{ args }}
+
+[doc('Execute Jupyter notebooks as tests')]
+test-notebooks *args:
+    uv run cli test notebooks {{ args }}
+
+[doc('Run pytest directly with custom args  e.g: just pytest -k my_test -v')]
 pytest *args:
     uv run pytest {{ args }}
 
