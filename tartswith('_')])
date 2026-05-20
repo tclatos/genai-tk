@@ -1,0 +1,60 @@
+Help on class BamlPdfPy in module baml_py.baml_py:
+
+class BBaammllPPddffPPyy(builtins.object)
+ |  BamlPdfPy(data)
+ |
+ |  Methods defined here:
+ |
+ |  ____eeqq____(self, value, /)
+ |      Return self==value.
+ |
+ |  ____ggee____(self, value, /)
+ |      Return self>=value.
+ |
+ |  ____ggeettnneewwaarrggss____(self, /)
+ |      Used for `pickle.dump`: https://docs.python.org/3/library/pickle.html#object.__getnewargs__
+ |
+ |  ____ggtt____(self, value, /)
+ |      Return self>value.
+ |
+ |  ____llee____(self, value, /)
+ |      Return self<=value.
+ |
+ |  ____lltt____(self, value, /)
+ |      Return self<value.
+ |
+ |  ____nnee____(self, value, /)
+ |      Return self!=value.
+ |
+ |  ____rreepprr____(self, /)
+ |      Return repr(self).
+ |
+ |  aass__bbaassee6644(self, /)
+ |
+ |  aass__uurrll(self, /)
+ |
+ |  bbaammll__sseerriiaalliizzee(self, /)
+ |
+ |  iiss__uurrll(self, /)
+ |
+ |  ----------------------------------------------------------------------
+ |  Class methods defined here:
+ |
+ |  ____ggeett__ppyyddaannttiicc__ccoorree__sscchheemmaa____(_source_type, _handler)
+ |
+ |  ----------------------------------------------------------------------
+ |  Static methods defined here:
+ |
+ |  ____nneeww____(*args, **kwargs)
+ |      Create and return a new object.  See help(type) for accurate signature.
+ |
+ |  bbaammll__ddeesseerriiaalliizzee(data)
+ |
+ |  ffrroomm__bbaassee6644(base64)
+ |
+ |  ffrroomm__uurrll(url)
+ |
+ |  ----------------------------------------------------------------------
+ |  Data and other attributes defined here:
+ |
+ |  ____hhaasshh____ = None

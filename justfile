@@ -6,6 +6,7 @@ set dotenv-load
 set shell := ["bash", "-euc"]
 set script-interpreter := ['uv', 'run', '--script']
 set positional-arguments
+set tempdir := "/dev/shm"
 
 pkg_name := "genai_tk"
 streamlit_entry := "genai_tk/webapp/main/streamlit.py"

@@ -75,7 +75,7 @@ class MistralOCRBatchProcessor:
         """
         import os
 
-        from mistralai import Mistral
+        from mistralai.client import Mistral
 
         api_key = os.environ.get("MISTRAL_API_KEY")
         if not api_key:

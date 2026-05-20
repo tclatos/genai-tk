@@ -5,6 +5,12 @@ Usage Examples:
     # Extract structured data from Markdown files using BAML
     uv run cli baml extract ./docs ./output --recursive --function ExtractRainbow --force
 
+    # Extract structured data from PDF files using BAML
+    uv run cli baml extract ./scans ./output --pathspec '**/*.pdf' --function ExtractDeliveryNotePdf
+
+    # Mix Markdown and PDF files in one run
+    uv run cli baml extract ./docs ./output --pathspec '**/*.md' --pathspec '**/*.pdf' --function ExtractRainbow
+
     # Use config variables for paths
     uv run cli baml extract '${paths.data_root}/reviews' '${paths.data_root}/structured' \\
         --recursive --batch-size 10 --force --function ExtractRainbow
@@ -23,7 +29,7 @@ Usage Examples:
     ```
 
 Data Flow:
-    1. Markdown files → BAML function → model instances
+    1. Markdown / PDF files → BAML function → model instances
     2. Model instances → JSON structured data → output directory
     3. Manifest tracks processed files → enables incremental processing
 """
@@ -217,6 +223,12 @@ class BamlCommands(CliTopCommand):
 
             Process files matched by pathspecs and save extracted structured data as
             JSON files to output_dir.  A manifest tracks processed files.
+
+            Supported file types:
+            - Markdown (.md, .markdown): passed as plain text to the BAML function.
+            - PDF (.pdf): passed as a native pdf media object to the BAML function.
+              The BAML function must declare its parameter as ``pdf`` type, e.g.
+              ``function ExtractDeliveryNotePdf(document: pdf) -> DeliveryNote``.
 
             Examples:
                 ```bash

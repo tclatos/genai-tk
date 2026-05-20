@@ -19,8 +19,8 @@ from typing import Iterator
 from langchain_community.document_loaders.base import BaseLoader
 from langchain_core.documents import Document
 from loguru import logger
-from mistralai import Mistral
-from mistralai.models import OCRResponse
+from mistralai.client import Mistral
+from mistralai.client.models import OCRResponse
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from upath import UPath
 

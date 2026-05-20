@@ -88,16 +88,23 @@ class _FileToProcess:
     path: UPath
     content_hash: str
     content_text: str
+    content_bytes: bytes | None = None
+    is_pdf: bool = False
+
+
+PDF_EXTENSIONS = {".pdf"}
+TEXT_EXTENSIONS = {".md", ".markdown"}
+SUPPORTED_EXTENSIONS = TEXT_EXTENSIONS | PDF_EXTENSIONS
 
 
 def _compute_hash(content: bytes) -> str:
     return buffer_digest(content)
 
 
-def _iter_markdown_files(files: list[UPath]) -> Iterable[UPath]:
-    """Yield markdown files from a pre-resolved list."""
+def _iter_supported_files(files: list[UPath]) -> Iterable[UPath]:
+    """Yield supported files (Markdown and PDF) from a pre-resolved list."""
     for path in files:
-        if path.suffix.lower() in {".md", ".markdown"}:
+        if path.suffix.lower() in SUPPORTED_EXTENSIONS:
             yield path
 
 
@@ -123,11 +130,14 @@ def _prepare_files(
             logger.info("Skipping unchanged file: {}", path)
             continue
 
+        is_pdf = path.suffix.lower() in PDF_EXTENSIONS
         to_process.append(
             _FileToProcess(
                 path=path,
                 content_hash=content_hash,
-                content_text=content_bytes.decode("utf-8", errors="replace"),
+                content_text="" if is_pdf else content_bytes.decode("utf-8", errors="replace"),
+                content_bytes=content_bytes if is_pdf else None,
+                is_pdf=is_pdf,
             )
         )
 
@@ -147,7 +157,17 @@ async def _process_single_file_task(
     upath = file_info.path
     logger.info("Processing file with BAML: {}", upath)
 
-    params: dict[str, Any] = {"__input__": file_info.content_text}
+    if file_info.is_pdf and file_info.content_bytes is not None:
+        import base64
+
+        import baml_py
+
+        pdf_b64 = base64.b64encode(file_info.content_bytes).decode("ascii")
+        input_doc: Any = baml_py.Pdf.from_base64(pdf_b64)
+    else:
+        input_doc = file_info.content_text
+
+    params: dict[str, Any] = {"__input__": input_doc}
     result = await baml_invoke(function_name, params, config_name, llm)
 
     # Determine model name and output directory. For Pydantic models we
@@ -246,12 +266,12 @@ def baml_structured_extraction_flow(
     try:
         schema_fp = prompt_fingerprint(function_name, config_name)
     except Exception as exc:
-        logger.warning("Failed to compute schema fingerprint: {}", exc)
+        logger.debug("Schema fingerprint unavailable (multimodal types not supported by fingerprinter): {}", exc)
 
     manifest_path = structured_root_upath / "manifest.json"
     cache = ManifestCache.load(manifest_path)
 
-    files = list(_iter_markdown_files([UPath(p) for p in file_paths]))
+    files = list(_iter_supported_files([UPath(p) for p in file_paths]))
     to_process, skipped = _prepare_files(files, cache, schema_fp=schema_fp, force=force)
 
     if skipped:
