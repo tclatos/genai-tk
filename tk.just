@@ -93,33 +93,27 @@ clean:
 
 [doc('Clear Jupyter notebook outputs')]
 clean-notebooks:
-    #!/bin/bash
-    find . -path "./.venv" -prune -o -name "*.ipynb" -print | while read -r nb; do
-        echo "Cleaning: $nb"
-        uv run --with nbconvert python -m nbconvert --clear-output --inplace "$nb"
-    done
+    find . -path "./.venv" -prune -o -name "*.ipynb" -print \
+        | while read -r nb; do \
+            echo "Cleaning: $nb"; \
+            uv run --with nbconvert python -m nbconvert --clear-output --inplace "$nb"; \
+          done
 
 [doc('Remove duplicates and noise from ~/.bash_history')]
 [confirm("This will modify ~/.bash_history. Continue?")]
 clean-history:
-    #!/bin/bash
-    if [ -f ~/.bash_history ]; then
-        awk '!/^(ls|cat|hgrep|h|cd|p|m|ll|pwd|code|mkdir|export|rmdir|uv tree|make|just)( |$)/ \
-              && !seen[$0]++' ~/.bash_history > ~/.bash_history_unique
-        mv ~/.bash_history_unique ~/.bash_history
-        echo "Done. Run 'history -c; history -r' to reload."
-    else
-        echo "No ~/.bash_history found"
-    fi
+    [ -f ~/.bash_history ] \
+        && awk '!/^(ls|cat|hgrep|h|cd|p|m|ll|pwd|code|mkdir|export|rmdir|uv tree|make|just)( |$)/ \
+              && !seen[$0]++' ~/.bash_history > ~/.bash_history_unique \
+        && mv ~/.bash_history_unique ~/.bash_history \
+        && echo "Done. Run 'history -c; history -r' to reload." \
+        || echo "No ~/.bash_history found"
 
 # ─── Info ───────────────────────────────────────────────────────────────────
 
 [doc('Show DEV_PYTHONPATH and genai-tk availability')]
 show-dev-path:
-    #!/bin/bash
-    echo "DEV_PYTHONPATH : ${DEV_PYTHONPATH:-../genai-tk:.:$(pwd)}"
-    if [ -d ../genai-tk ]; then
-        echo "genai-tk source: EXISTS (local checkout)"
-    else
-        echo "genai-tk source: NOT FOUND (using .venv)"
-    fi
+    @echo "DEV_PYTHONPATH : ${DEV_PYTHONPATH:-../genai-tk:.:$(pwd)}"
+    @[ -d ../genai-tk ] \
+        && echo "genai-tk source: EXISTS (local checkout)" \
+        || echo "genai-tk source: NOT FOUND (using .venv)"

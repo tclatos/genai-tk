@@ -108,21 +108,15 @@ webapp:
 
 [doc('Clone/update Deer-flow and install backend + Python deps')]
 deer-flow-install:
-    #!/bin/bash
-    if [ -d "{{ deer_flow_dir }}" ]; then
-        echo "Updating Deer-flow..."
-        cd {{ deer_flow_dir }} && git pull --rebase
-    else
-        echo "Cloning Deer-flow..."
-        mkdir -p ext
-        git clone --depth 1 {{ deer_flow_repo }} {{ deer_flow_dir }}
-    fi
+    [ -d "{{ deer_flow_dir }}" ] \
+        && (echo "Updating Deer-flow..." && cd {{ deer_flow_dir }} && git pull --rebase) \
+        || (echo "Cloning Deer-flow..." && mkdir -p ext && git clone --depth 1 {{ deer_flow_repo }} {{ deer_flow_dir }})
     echo "Installing Deer-flow backend..."
     uv run python scripts/install_deer_flow_backend.py
     uv sync --group deer-flow
-    echo ""
-    echo "✓ Deer-flow installed."
-    echo "  Add to your .env:  DEER_FLOW_PATH=$(pwd)/{{ deer_flow_dir }}"
+    @echo ""
+    @echo "✓ Deer-flow installed."
+    @echo "  Add to your .env:  DEER_FLOW_PATH=$(pwd)/{{ deer_flow_dir }}"
 
 # ─── Maintenance ────────────────────────────────────────────────────────────
 
@@ -136,37 +130,31 @@ clean:
 
 [doc('Clear Jupyter notebook outputs')]
 clean-notebooks:
-    #!/bin/bash
-    find . -path "./.venv" -prune -o -name "*.ipynb" -print | while read -r nb; do
-        echo "Cleaning: $nb"
-        uv run --with nbconvert python -m nbconvert --clear-output --inplace "$nb"
-    done
+    find . -path "./.venv" -prune -o -name "*.ipynb" -print \
+        | while read -r nb; do \
+            echo "Cleaning: $nb"; \
+            uv run --with nbconvert python -m nbconvert --clear-output --inplace "$nb"; \
+          done
 
 [confirm("This will modify ~/.bash_history. Continue?")]
 [doc('Remove duplicates and noise from ~/.bash_history')]
 clean-history:
-    #!/bin/bash
-    if [ -f ~/.bash_history ]; then
-        awk '!/^(ls|cat|hgrep|h|cd|p|m|ll|pwd|code|mkdir|export|rmdir|uv tree|make|just)( |$)/ \
-              && !seen[$0]++' ~/.bash_history > ~/.bash_history_unique
-        mv ~/.bash_history_unique ~/.bash_history
-        echo "Done. Run 'history -c; history -r' to reload."
-    else
-        echo "No ~/.bash_history found"
-    fi
-
-
-
+    [ -f ~/.bash_history ] \
+        && awk '!/^(ls|cat|hgrep|h|cd|p|m|ll|pwd|code|mkdir|export|rmdir|uv tree|make|just)( |$)/ \
+              && !seen[$0]++' ~/.bash_history > ~/.bash_history_unique \
+        && mv ~/.bash_history_unique ~/.bash_history \
+        && echo "Done. Run 'history -c; history -r' to reload." \
+        || echo "No ~/.bash_history found"
 
 [script]
 hello:
-  print("Hello from Python!")
+    print("Hello from Python!")
 
 [script]
 goodbye:
-  # /// script
-  # requires-python = ">=3.11"
-  # dependencies=["sh"]
-  # ///
-  import sh
-  print(sh.echo("Goodbye from Python!"), end='')
+    # /// script
+    # requires-python = ">=3.11"
+    # dependencies=["sh"]
+    # ///
+    import sh
+    print(sh.echo("Goodbye from Python!"), end='')
