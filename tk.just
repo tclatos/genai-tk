@@ -1,0 +1,115 @@
+# tk.just — shared genai-tk recipes for downstream projects.
+# Import in your project justfile:  import '../genai-tk/tk.just'
+# Or copy this file as tk.just in your project root.
+#
+# Requires `pkg_name` variable set before import.
+
+# ─── Install ────────────────────────────────────────────────────────────────
+
+[doc('Check if uv is installed, install if missing')]
+check-uv:
+    @command -v uv >/dev/null 2>&1 && echo "uv is already installed" \
+        || { echo "Installing uv..."; curl -LsSf https://astral.sh/uv/install.sh | sh; }
+
+[doc('Install package and dependencies')]
+install: check-uv
+    uv sync
+
+[doc('Install with development dependencies (all extras)')]
+install-dev: check-uv
+    uv sync --all-extras
+
+# ─── Code Quality ───────────────────────────────────────────────────────────
+
+[doc('Format code with ruff (imports + style)')]
+fmt:
+    uv run ruff format .
+    uv run ruff check --select I --fix .
+
+[doc('Lint code with ruff (fix safe issues)')]
+lint:
+    uv run ruff check --fix {{ pkg_name }}
+
+[doc('Ruff check without auto-fix (CI-safe)')]
+quality:
+    @echo "Checking {{ pkg_name }} (excluding .venv and wip)..."
+    uv run ruff check --exclude .venv --exclude {{ pkg_name }}/wip .
+
+[doc('Run fmt + lint + test sequentially')]
+check: fmt lint test
+
+# ─── Testing ────────────────────────────────────────────────────────────────
+
+[doc('Run unit and integration tests')]
+test:
+    uv run pytest tests/unit_tests/ tests/integration_tests/ -v
+
+[doc('Run unit tests only')]
+test-unit:
+    uv run pytest tests/unit_tests/ -v
+
+[doc('Run integration tests only')]
+test-integration:
+    uv run pytest tests/integration_tests/ -v
+
+[doc('Run ALL tests including real LLM calls (requires API keys)')]
+test-full:
+    @echo "Requires a valid API key for the 'fast_model' tag."
+    uv run pytest tests/unit_tests/ tests/integration_tests/ \
+        --include-real-models -m "not slow" -v
+
+[doc('Run pytest with custom args')]
+pytest *args:
+    uv run pytest {{ args }}
+
+# ─── Maintenance ────────────────────────────────────────────────────────────
+
+[doc('Sync with remote, stash changes, rebase, upgrade genai-tk')]
+rebase:
+    git fetch origin
+    git stash
+    git rebase origin/main
+    uv sync --upgrade-package genai-tk
+
+[doc('Clean Python bytecode and cache files')]
+clean:
+    uv cache prune
+    find . \( -name "*.py[co]" -o -name "__pycache__" \
+             -o -name ".ruff_cache" -o -name ".mypy_cache" \
+             -o -name ".pytest_cache" \) \
+        -exec rm -rf {} + 2>/dev/null || true
+
+[doc('Clear Jupyter notebook outputs')]
+clean-notebooks:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    find . -path "./.venv" -prune -o -name "*.ipynb" -print | while read -r nb; do
+        echo "Cleaning: $nb"
+        uv run --with nbconvert python -m nbconvert --clear-output --inplace "$nb"
+    done
+
+[doc('Remove duplicates and noise from ~/.bash_history')]
+[confirm("This will modify ~/.bash_history. Continue?")]
+clean-history:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -f ~/.bash_history ]; then
+        awk '!/^(ls|cat|hgrep|h|cd|p|m|ll|pwd|code|mkdir|export|rmdir|uv tree|make|just)( |$)/ \
+              && !seen[$0]++' ~/.bash_history > ~/.bash_history_unique
+        mv ~/.bash_history_unique ~/.bash_history
+        echo "Done. Run 'history -c; history -r' to reload."
+    else
+        echo "No ~/.bash_history found"
+    fi
+
+# ─── Info ───────────────────────────────────────────────────────────────────
+
+[doc('Show DEV_PYTHONPATH and genai-tk availability')]
+show-dev-path:
+    #!/usr/bin/env bash
+    echo "DEV_PYTHONPATH : ${DEV_PYTHONPATH:-../genai-tk:.:$(pwd)}"
+    if [ -d ../genai-tk ]; then
+        echo "genai-tk source: EXISTS (local checkout)"
+    else
+        echo "genai-tk source: NOT FOUND (using .venv)"
+    fi
