@@ -49,7 +49,7 @@ class InfoCommands(CliTopCommand):
             console = Console()
 
             console.print(
-                Panel(f"[bold blue]Selected configuration:[/bold blue] {global_config().selected_config}", expand=False)
+                Panel(f"[bold blue]Active context:[/bold blue] {global_config().active_context}", expand=False)
             )
 
             # Default models info — resolve from config without instantiating (avoids validation errors)

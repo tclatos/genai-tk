@@ -12,12 +12,12 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from genai_tk.core.factories.embeddings_factory import get_embeddings
 from genai_tk.core.factories.llm_factory import get_llm
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.config_mngr import switch_profile
 
 # Constants for fake models
 FAKE_LLM_ID = "parrot_local@fake"
 FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
-PYTEST_CONFIG_NAME = "pytest"
+PYTEST_PROFILE = "pytest"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -25,24 +25,12 @@ def setup_test_config():
     """Set up test configuration for all tests.
 
     This fixture runs automatically for all tests and ensures:
-    - Pytest configuration is selected
-    - Fake models are set as defaults
+    - Pytest profile is loaded (fake models, memory cache, etc.)
     - Test environment is properly configured
     """
-    # Select pytest configuration
-    global_config().select_config(PYTEST_CONFIG_NAME)
-
-    # Ensure fake models are defaults for all tests
-    global_config().set("llm.models.default", FAKE_LLM_ID)
-    global_config().set("embeddings.models.default", FAKE_EMBEDDINGS_ID)
-
-    # Configure test-specific settings
-    global_config().set("llm_cache.method", "memory")
-    global_config().set("kv_store.engine", "memory")
+    switch_profile(PYTEST_PROFILE)
 
     yield
-
-    # Cleanup if needed
 
 
 @pytest.fixture

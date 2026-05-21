@@ -83,7 +83,7 @@ class ConfigFileNotFoundError(ConfigFileError):
 
         suggestion = (
             "Ensure the configuration file exists and the path is correct. "
-            "Check that BLUEPRINT_CONFIG environment variable is set correctly."
+            "Check that GENAITK_PROFILE environment variable is set correctly."
         )
 
         super().__init__(file_path, message, suggestion)

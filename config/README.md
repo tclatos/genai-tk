@@ -44,9 +44,12 @@ The configuration system uses **OmegaConf** with hierarchical YAML files and pro
 
 #### `profiles/` - Profile overlays
 
-Each profile is a directory loaded when selected:
-- **`baseline/`** - Default profile (loaded by default)
-- **`prod/`** - Production profile (load with `BLUEPRINT_CONFIG=prod`)
+Each profile is a directory loaded when `GENAITK_PROFILE=<name>` is set:
+
+- **`local/`** - Default profile (loaded by default). Edit `genai_def.yaml` for local model/path settings.
+- **`pytest/`** - Test profile. Fake models, memory caches — loaded automatically by the test suite.
+- **`test_unit/`** - Config-manager unit tests. Provides `test_env:` and `prod_env:` context targets.
+- **`prod/`** - Example production profile (create as needed)
 - **`custom/`** - Custom profiles (create as needed)
 
 Each profile directory can contain any YAML files that override base configuration.
@@ -57,7 +60,7 @@ Each profile directory can contain any YAML files that override base configurati
    - Files like `agents/langchain/defaults.yaml`, `providers/llm.yaml`, etc.
 
 2. **Load profile overlay**: All `*.yaml` files in `config/profiles/<profile>/` (if profile is selected)
-   - By default, `config/profiles/baseline/` is loaded
+   - By default, `config/profiles/local/` is loaded
 
 3. **Load overrides**: `config/overrides.yaml` is loaded last (wins over all)
 
@@ -73,22 +76,30 @@ OmegaConf supports variable interpolation:
 ### At Runtime
 
 ```bash
-# Use baseline profile (default)
+# Use local profile (default)
 python myapp.py
 
 # Use prod profile
-BLUEPRINT_CONFIG=prod python myapp.py
+GENAITK_PROFILE=prod python myapp.py
 
 # Use custom profile
-BLUEPRINT_CONFIG=custom python myapp.py
+GENAITK_PROFILE=custom python myapp.py
 ```
 
 ### In Code
 
 ```python
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.config_mngr import global_config, switch_profile
+
 config = global_config()
-config.get("profile")  # Returns the current profile name
+config.get("profile")           # Returns the current profile name
+
+# Switch deployment profile (reloads all config files)
+switch_profile("prod")          # set GENAITK_PROFILE=prod + reload
+switch_profile("pytest")        # switch to test profile
+
+# Activate a context overlay without reloading
+global_config().use_context("training_local")
 ```
 
 ## Adding Configuration
@@ -101,7 +112,7 @@ config.get("profile")  # Returns the current profile name
 
 ### Add a new LLM model
 
-Edit `config/profiles/baseline/baseline.yaml`:
+Edit `config/profiles/local/genai_def.yaml`:
 ```yaml
 llm:
   models:

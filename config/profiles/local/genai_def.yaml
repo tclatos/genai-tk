@@ -1,5 +1,10 @@
+# Local profile defaults — loaded when GENAITK_PROFILE=local (the default).
+# Override paths below to match your local environment.
+#
+# paths:
+#   data_root: /my/custom/data        # where caches, vector stores, etc. are stored
+#   models: /my/custom/models         # local model files
 
-# A simple baseline configuration 
 llm:
   models:
     default: gpt_oss120@openrouter

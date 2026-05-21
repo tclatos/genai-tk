@@ -104,7 +104,7 @@ class OmegaConfig(BaseModel):
     """Application configuration manager using OmegaConf."""
 
     root: DictConfig
-    selected_config: str
+    active_context: str
     provenance: dict[str, list[Path]] = Field(default_factory=dict)
     """Maps each top-level config key to the list of YAML files that contributed it."""
 
@@ -112,7 +112,7 @@ class OmegaConfig(BaseModel):
 
     @property
     def selected(self) -> DictConfig:
-        return self.root.get(self.selected_config)
+        return self.root.get(self.active_context)
 
     @once
     def singleton() -> OmegaConfig:
@@ -150,10 +150,10 @@ class OmegaConfig(BaseModel):
         }
 
         # Determine profile name early (before merging) for profile-dir loading
-        env_profile = os.environ.get("BLUEPRINT_CONFIG")
+        env_profile = os.environ.get("GENAITK_PROFILE")
         raw_profile = OmegaConf.select(config, "profile", default=None)
         if raw_profile is None:
-            raw_profile = OmegaConf.select(config, "default_config", default="baseline")
+            raw_profile = OmegaConf.select(config, "default_config", default="local")
         profile = env_profile or str(raw_profile)
 
         # Legacy :merge: support — emit deprecation warning and fall back
@@ -178,7 +178,7 @@ class OmegaConfig(BaseModel):
             if key in config:
                 del config[key]
 
-        instance = OmegaConfig(root=config, selected_config=profile, provenance=provenance)  # type: ignore
+        instance = OmegaConfig(root=config, active_context=profile, provenance=provenance)  # type: ignore
         instance._validate_config()
         return instance
 
@@ -225,7 +225,9 @@ class OmegaConfig(BaseModel):
         base_files, profile_files, override_files = OmegaConfig._collect_yaml_files(
             config_dirs, app_conf_path, exclude_patterns, profile
         )
-        logger.debug(f"Auto-loading {len(base_files)} base, {len(profile_files)} profile, {len(override_files)} override YAML files")
+        logger.debug(
+            f"Auto-loading {len(base_files)} base, {len(profile_files)} profile, {len(override_files)} override YAML files"
+        )
 
         for yaml_path in base_files:
             config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
@@ -359,14 +361,14 @@ class OmegaConfig(BaseModel):
             except Exception:
                 pass
 
-    def select_config(self, config_name: str) -> None:
-        """Select a different configuration section to override defaults."""
-        if config_name not in self.root:
-            logger.error(f"Configuration section '{config_name}' not found")
+    def use_context(self, context_name: str) -> None:
+        """Activate a named context overlay. Values in the matching top-level key override defaults."""
+        if context_name not in self.root:
+            logger.error(f"Configuration context '{context_name}' not found")
             available = [str(k) for k in self.root.keys() if not str(k).startswith(":")]
-            raise ConfigKeyNotFoundError(config_name, available_keys=available)
-        logger.info(f"Switching to configuration section: {config_name}")
-        self.selected_config = config_name
+            raise ConfigKeyNotFoundError(context_name, available_keys=available)
+        logger.info(f"Switching to configuration context: {context_name}")
+        self.active_context = context_name
 
     def _validate_config(self) -> None:
         """Perform early validation of configuration structure.
@@ -443,7 +445,7 @@ class OmegaConfig(BaseModel):
 
         # Raise validation error if there are errors
         if errors:
-            raise ConfigValidationError(errors, config_name=self.selected_config)
+            raise ConfigValidationError(errors, config_name=self.active_context)
 
     def merge_with(self, file_path: str | Path) -> OmegaConfig:
         """Merge a YAML file into the current config.
@@ -577,12 +579,12 @@ class OmegaConfig(BaseModel):
             key: Configuration key in dot notation (e.g., "llm.models.default")
             value: Value to set
         """
-        # Ensure the selected config section exists
-        if self.selected_config not in self.root:
-            self.root[self.selected_config] = OmegaConf.create({})
+        # Ensure the active context section exists
+        if self.active_context not in self.root:
+            self.root[self.active_context] = OmegaConf.create({})
 
-        # Get the selected config section (now guaranteed to exist)
-        selected_section = self.root[self.selected_config]
+        # Get the active context section (now guaranteed to exist)
+        selected_section = self.root[self.active_context]
         OmegaConf.update(selected_section, key, value, merge=True)
 
     def get_str(self, key: str, default: Optional[str] = None) -> str:
@@ -944,6 +946,30 @@ def global_config_reload():
     OmegaConfig.singleton.invalidate()  # type: ignore
 
 
+def switch_profile(profile: str) -> OmegaConfig:
+    """Switch to a different profile and reload the global config singleton.
+
+    Sets ``GENAITK_PROFILE`` and reloads all config files from the new profile
+    directory. Use this to switch between deployment environments (local, pytest,
+    test_unit, prod) at runtime.
+
+    Args:
+        profile: Profile name matching a directory under ``config/profiles/<profile>/``.
+
+    Returns:
+        The newly loaded global config singleton.
+
+    Example:
+        ```python
+        switch_profile("pytest")  # load config/profiles/pytest/
+        switch_profile("local")  # back to default
+        ```
+    """
+    os.environ["GENAITK_PROFILE"] = profile
+    OmegaConfig.singleton.invalidate()  # type: ignore
+    return OmegaConfig.singleton()
+
+
 # ---------------------------------------------------------------------------
 # Public typed API – preferred over calling global_config() directly
 # ---------------------------------------------------------------------------
@@ -977,9 +1003,9 @@ def paths_config() -> PathsConfig:
         ) from e
 
 
-def select_active_config(config_name: str) -> None:
-    """Deprecated: call ``global_config().select_config()`` directly."""
-    global_config().select_config(config_name)
+def use_active_context(context_name: str) -> None:
+    """Activate a named context overlay on the global config singleton."""
+    global_config().use_context(context_name)
 
 
 def get_raw_config() -> DictConfig:
@@ -1232,7 +1258,7 @@ if __name__ == "__main__":
     print(model)
     print(global_config().get_list("cli.commands"))
     # Switch configurations
-    global_config().select_config("training_local")
+    global_config().use_context("training_local")
     model = global_config().get("llm.models.default")
     print(model)
     print(global_config().get_list("cli.commands"))
@@ -1240,7 +1266,7 @@ if __name__ == "__main__":
     global_config().set("llm.models.default", "foo")
     print(global_config().get_str("llm.models.default"))
 
-    global_config().select_config("training_openai")
+    global_config().use_context("training_openai")
     print(global_config().get("training_openai.dummy"))
 
     print(global_config().root.default_config)

@@ -12,7 +12,7 @@ from genai_tk.utils.config_exceptions import (
     ConfigTypeError,
     ConfigValidationError,
 )
-from genai_tk.utils.config_mngr import OmegaConfig, global_config, global_config_reload
+from genai_tk.utils.config_mngr import OmegaConfig, global_config, global_config_reload, switch_profile
 
 
 class TestOmegaConfig(TestCase):
@@ -20,73 +20,26 @@ class TestOmegaConfig(TestCase):
 
     def setUp(self) -> None:
         """Set up test fixtures."""
-        # Create a temporary directory for test config files
+        # Temporary directory for tests that need isolated config files
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.config_path = Path(self.temp_dir.name) / "test_config.yaml"
 
-        # Create test configuration content
-        self.test_config_content = """                                                                     
-default_config: test_env                                                                                   
-paths:                                                                                                     
-  data_root: /tmp/test_data                                                                                
-  project: /tmp/test_project                                                                               
-  models: /tmp/models                                                                                      
-test_env:                                                                                                  
-  llm:
-    models:                                                                                                     
-      default: "gpt-3.5-turbo"                                                                         
-    max_tokens: 1000                                                                                       
-    temperature: 0.7                                                                                       
-  features:                                                                                                
-    enable_caching: true                                                                                   
-    enable_logging: false                                                                                  
-  db:                                                                                                      
-    host: "localhost"                                                                                      
-    port: 5432                                                                                             
-    name: "test_db"                                                                                        
-prod_env:                                                                                                  
-  llm: 
-    models:                                                                                                    
-      default: "gpt-4"                                                                                 
-    max_tokens: 2000                                                                                       
-    temperature: 0.1                                                                                       
-  features:                                                                                                
-    enable_caching: true                                                                                   
-    enable_logging: true                                                                                   
-  db:                                                                                                      
-    host: "prod.example.com"                                                                               
-    port: 5432                                                                                             
-    name: "prod_db"                                                                                   
-cli:                                                                                                       
-  commands:                                                                                                
-    - test.module:register_commands                                                                        
-    - test.module2:register_commands                                                                      
-ui:                                                                                                        
-  app_name: "Test App"                                                                                     
-  pages_dir: /tmp/pages                                                                                    
-"""
-
-        # Write test config to temporary file
-        self.config_path.write_text(self.test_config_content)
-
-        # Set environment variable for testing
-        os.environ["BLUEPRINT_CONFIG"] = "test_env"
-
-        # Create test instance
-        self.config = OmegaConfig.create(self.config_path)
+        # Switch to the test_unit profile and activate the test_env context
+        switch_profile("test_unit")
+        global_config().use_context("test_env")
+        self.config = global_config()
 
     def tearDown(self) -> None:
         """Clean up test fixtures."""
         self.temp_dir.cleanup()
-        # Clean up environment
-        if "BLUEPRINT_CONFIG" in os.environ:
-            del os.environ["BLUEPRINT_CONFIG"]
+        # Restore pytest profile so other tests are not affected
+        switch_profile("pytest")
 
     def test_create_config(self) -> None:
         """Test configuration loading and creation."""
         self.assertIsInstance(self.config, OmegaConfig)
-        self.assertEqual(self.config.selected_config, "test_env")
+        self.assertEqual(self.config.active_context, "test_env")
         self.assertIn("test_env", self.config.root)
+        self.assertIn("prod_env", self.config.root)
 
     def test_get_string_value(self) -> None:
         """Test getting string configuration values."""
@@ -188,20 +141,20 @@ ui:
         with self.assertRaises(ConfigValidationError):
             self.config.get_dict("db", expected_keys=["host", "missing_key"])
 
-    def test_select_config(self) -> None:
-        """Test switching between configuration environments."""
+    def test_use_context(self) -> None:
+        """Test switching between configuration contexts."""
         # Initially in test_env
         self.assertEqual(self.config.get("llm.models.default"), "gpt-3.5-turbo")
         self.assertEqual(self.config.get("llm.max_tokens"), 1000)
 
         # Switch to prod_env
-        self.config.select_config("prod_env")
+        self.config.use_context("prod_env")
         self.assertEqual(self.config.get("llm.models.default"), "gpt-4")
         self.assertEqual(self.config.get("llm.max_tokens"), 2000)
 
         # Test switching to non-existent config
         with self.assertRaises(ConfigKeyNotFoundError):
-            self.config.select_config("nonexistent_env")
+            self.config.use_context("nonexistent_env")
 
     def test_set_runtime_override(self) -> None:
         """Test setting runtime configuration overrides."""
@@ -295,17 +248,11 @@ additional_env:
         # Should be the same instance
         self.assertIs(config1, config2)
 
-        # Test reload – restore test config afterwards to avoid leaking state
+        # Test reload creates a new instance
         global_config_reload()
         config3 = global_config()
         self.assertIsNot(config1, config3)
-
-        # Restore the pytest test configuration so no state leaks to other tests
-        global_config().select_config("pytest")
-        global_config().set("llm.models.default", "parrot_local@fake")
-        global_config().set("embeddings.models.default", "embeddings_768@fake")
-        global_config().set("llm_cache.method", "memory")
-        global_config().set("kv_store.engine", "memory")
+        # tearDown will restore the pytest profile
 
     def test_invalid_config_file(self) -> None:
         """Test handling of invalid configuration files."""

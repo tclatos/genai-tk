@@ -91,9 +91,9 @@ def run(label: str, fn, *args, **kwargs):
 
 
 # ── bootstrap config ─────────────────────────────────────────────────────────
-from genai_tk.utils.config_mngr import global_config  # noqa: E402
+from genai_tk.utils.config_mngr import switch_profile  # noqa: E402
 
-global_config().select_config("pytest")
+switch_profile("pytest")
 
 # ── 1. raw LLM latency ───────────────────────────────────────────────────────
 if _enabled("raw_llm"):

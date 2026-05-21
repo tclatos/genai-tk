@@ -9,7 +9,6 @@ from .constants import (
     FAKE_EMBEDDINGS_PROVIDER,
     FAKE_LLM_ID,
     FAKE_LLM_PROVIDER,
-    PYTEST_CONFIG_NAME,
 )
 from .factories import FakeLLMResponseFactory, FakeTestDataFactory
 
@@ -18,7 +17,6 @@ __all__ = [
     "FAKE_EMBEDDINGS_ID",
     "FAKE_LLM_PROVIDER",
     "FAKE_EMBEDDINGS_PROVIDER",
-    "PYTEST_CONFIG_NAME",
     "FakeLLMResponseFactory",
     "FakeTestDataFactory",
 ]

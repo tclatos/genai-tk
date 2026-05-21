@@ -23,9 +23,9 @@ from genai_tk.agents.langchain.config import resolve_profile  # Load agent profi
 
 ## Configuration System
 
-- **Entry point**: `config/app_conf.yaml` sets `profile` (default: `baseline`)
+- **Entry point**: `config/app_conf.yaml` sets `profile` (default: `local`)
 - **Auto-scan**: All `*.yaml` files in `config/` are merged, then profile overlay from `config/profiles/<profile>/`, then `config/overrides.yaml`
-- **Profile overlays**: `config/profiles/baseline/`, `config/profiles/prod/`, etc.
+- **Profile overlays**: `config/profiles/local/`, `config/profiles/prod/`, etc.
 - **Dict-keyed profiles**: Agent profiles are dicts with keys (e.g., `research`, `coding`), not lists
 
 ### Quick Config Access
@@ -44,7 +44,7 @@ cli agents langchain -p research "Your query"      # Use 'research' profile KEY
 cli agents langchain --list                        # Show all profiles
 
 # In environment
-BLUEPRINT_CONFIG=prod python myapp.py              # Load config/profiles/prod/
+GENAITK_PROFILE=prod python myapp.py              # Load config/profiles/prod/
 
 # In Python
 from genai_tk.agents.langchain.config import resolve_profile

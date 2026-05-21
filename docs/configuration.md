@@ -5,7 +5,7 @@ The configuration system is based on [OmegaConf](https://omegaconf.readthedocs.i
 ## How it works
 
 1. On startup, `global_config()` walks up from the current working directory to find `config/app_conf.yaml`.
-2. `app_conf.yaml` is loaded first and sets the **profile** name (default: `baseline`).
+2. `app_conf.yaml` is loaded first and sets the **profile** name (default: `local`).
 3. **Auto-scan** loads all `*.yaml` files from `config/` (recursively), sorted alphabetically:
    - **Base files** — auto-loaded from `config/` root and subdirectories
    - **Profile overlay** — auto-loaded from `config/profiles/<profile_name>/` (only if selected)
@@ -21,8 +21,12 @@ This works correctly whether you run from the project root, a notebook, a subdir
 config/
 ├── app_conf.yaml               # Entry point: profile selection, paths
 ├── profiles/
-│   └── baseline/               # Profile overlay — loaded when profile=baseline
-│       └── baseline.yaml       # Default LLM, embeddings, cache, vector store
+│   ├── local/                  # Default profile (GENAITK_PROFILE=local)
+│   │   └── genai_def.yaml      # Default LLM, embeddings, cache, vector store
+│   ├── pytest/                 # Test profile (GENAITK_PROFILE=pytest)
+│   │   └── genai_def.yaml      # Fake models, memory cache
+│   └── prod/                   # Example: production profile
+│       └── genai_def.yaml      # Prod model selection, real DBs
 ├── overrides.yaml              # Local overrides (loaded last, wins)
 ├── agents/
 │   ├── langchain/              # LangChain agent profiles (dict-based)
@@ -50,8 +54,8 @@ config/
 
 ```yaml
 # Profile selects a profile overlay directory: config/profiles/<profile>/
-# Override with BLUEPRINT_CONFIG env var.
-profile: ${oc.env:BLUEPRINT_CONFIG,baseline}
+# Override with GENAITK_PROFILE env var.
+profile: ${oc.env:GENAITK_PROFILE,local}
 
 # Directories scanned recursively for YAML files at startup.
 # Defaults to [config/] when omitted. All *.yaml files are merged (sorted),
@@ -86,27 +90,36 @@ cli:
 ```
 
 **Key fields:**
-- `profile` — selects which `config/profiles/<profile>/` overlay is loaded. Default: `baseline`
+- `profile` — selects which `config/profiles/<profile>/` overlay is loaded. Default: `local`
 - `:env` — environment variables to set at startup (does not override existing env vars)
 - `${oc.env:VAR,default}` — reads `VAR` from environment, falls back to `default`
 - `paths.*` — auto-detected at runtime; absolute paths used by all components
 
 ## Profile overlays
 
-A **profile** is a directory under `config/profiles/<name>/` that is loaded on top of base configuration. This allows environment-specific configs (dev, staging, prod) without duplicating common settings.
+A **profile** is a directory under `config/profiles/<name>/` loaded on top of base configuration at startup. This is the deployment-level switch (local, prod, ci, docker). All YAML files in the profile directory are merged into root — **no wrapper key needed**.
+
+### Two-layer system
+
+| Layer | Mechanism | When to use |
+|---|---|---|
+| **Profile** | `GENAITK_PROFILE=pytest` → loads `config/profiles/pytest/*.yaml` | Deployment environment (local, prod, ci, docker, pytest) |
+| **Context** | `global_config().use_context("training_local")` | In-session overlay from a named top-level key, no file reload |
+
+`switch_profile()` changes the active profile and reloads all config files. `use_context()` changes which top-level key is merged as an overlay without reloading.
 
 ### Using profiles
 
 **At startup** (automatic):
 ```bash
-# Load config/profiles/baseline/ (default)
+# Load config/profiles/local/ (default)
 python myapp.py
 
 # Load config/profiles/prod/
-BLUEPRINT_CONFIG=prod python myapp.py
+GENAITK_PROFILE=prod python myapp.py
 
 # Load config/profiles/custom/
-BLUEPRINT_CONFIG=custom python myapp.py
+GENAITK_PROFILE=custom python myapp.py
 ```
 
 ### Creating a profile
@@ -240,10 +253,18 @@ See [rag.md](rag.md) for complete RAG documentation.
 ## Accessing config in Python
 
 ```python
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.config_mngr import global_config, switch_profile, use_active_context
 
 config = global_config()                        # singleton, auto-discovered
 value = config.get("llm.models.default")        # dot-separated key path
+
+# Switch the active deployment profile (reloads all config files)
+switch_profile("prod")                          # set GENAITK_PROFILE=prod + reload
+switch_profile("pytest")                        # use fake models for tests
+
+# Activate a named context overlay (no file reload, lightweight)
+config.use_context("training_local")            # merge training_local: sub-dict on top
+config.use_context("training_openai")           # switch to openai variant
 ```
 
 ## Debugging configuration
@@ -271,8 +292,19 @@ Place a `.env` file in the project root (or any parent directory). It is loaded 
 OPENAI_API_KEY=sk-...
 GROQ_API_KEY=gsk_...
 ANTHROPIC_API_KEY=sk-ant-...
-BLUEPRINT_CONFIG=baseline  # optional: select profile
+GENAITK_PROFILE=local  # optional: select profile
 ```
+
+## Testing profiles
+
+Two built-in profiles serve the test suite:
+
+| Profile | Directory | Purpose |
+|---|---|---|
+| `pytest` | `config/profiles/pytest/genai_def.yaml` | Fake models, memory caches — loaded by `conftest.py` via `switch_profile("pytest")` |
+| `test_unit` | `config/profiles/test_unit/test_unit.yaml` | `test_env:` and `prod_env:` context targets used by config-manager unit tests |
+
+The test suite switches profiles automatically — no manual env var needed.
 
 ## `cli init` — initializing a new project
 

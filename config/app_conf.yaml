@@ -2,8 +2,8 @@
 # Basic configuration for running tests, Agents and CLI commands
 
 # Profile selects a profile overlay directory: config/profiles/<profile>/
-# Override with BLUEPRINT_CONFIG env var.
-profile: ${oc.env:BLUEPRINT_CONFIG,baseline}
+# Override with GENAITK_PROFILE env var.
+profile: ${oc.env:GENAITK_PROFILE,local}
 
 # Directories scanned recursively for YAML files at startup.
 # Defaults to [config/] when omitted. All *.yaml files are merged (sorted),

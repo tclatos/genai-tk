@@ -550,7 +550,7 @@ Override at runtime with `-m` / `--llm`:
 
 ```bash
 cli core llm -i "Hello" -m gpt41mini@openai   # declared alias — explicit provider
-cli core llm -i "Hello" -m fast_model         # named tag from baseline.yaml
+cli core llm -i "Hello" -m fast_model         # named tag from genai_def.yaml
 cli core llm -i "Hello" -m gpt-4o-mini        # raw model name — fuzzy-resolved from models.dev
 ```
 
@@ -564,8 +564,12 @@ The config system uses a hierarchy of YAML files loaded from `config/` (auto-dis
 
 ```
 config/
-├── app_conf.yaml           # entry point — sets default_config and :merge list
-├── baseline.yaml           # defaults: default LLM / embeddings / cache
+├── app_conf.yaml           # entry point — profile selection, paths, env vars
+├── profiles/
+│   ├── local/
+│   │   └── genai_def.yaml   # default LLM / embeddings / cache
+│   └── pytest/
+│       └── genai_def.yaml   # fake models for test runs
 ├── providers/
 │   ├── llm.yaml            # LLM model declarations
 │   └── embeddings.yaml     # Embeddings model declarations
@@ -575,7 +579,8 @@ config/
 ```
 
 Environment variables in `.env` override config values at any level.  
-Switch named environments with `BLUEPRINT_CONFIG=production` or `config.select_config("production")`.
+Switch deployment environment with `GENAITK_PROFILE=prod` or in code with `switch_profile("prod")`.  
+Activate a named in-session overlay (no reload) with `global_config().use_context("training_local")`.
 
 See [docs/configuration.md](docs/configuration.md) for the full reference.
 

@@ -16,9 +16,6 @@ FAKE_EMBEDDINGS_PROVIDER = "fake"
 FAKE_EMBEDDINGS_DIMENSION = 768
 FAKE_LLM_MODEL_NAME = "parrot"
 
-# Test configuration
-PYTEST_CONFIG_NAME = "pytest"
-
 # Common test data
 SAMPLE_TEXTS = [
     "The quick brown fox jumps over the lazy dog.",
