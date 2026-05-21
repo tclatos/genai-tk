@@ -68,6 +68,14 @@ providers:
     gateway: true
     # EdenAI v3: accepts vendor/model format (e.g. openai/gpt-4, anthropic/claude-sonnet)
 
+  edenai-eur:
+    use: langchain_openai.ChatOpenAI
+    api_key_env_var: EDENAI_API_KEY
+    api_base: https://api.eu.edenai.run/v3/llm
+    openai_compatible: true
+    gateway: true
+    # EdenAI v3 European endpoint: same key as edenai, routes to EU infrastructure
+
   openrouter:
     use: langchain_openai.ChatOpenAI
     api_key_env_var: OPENROUTER_API_KEY
