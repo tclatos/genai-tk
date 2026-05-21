@@ -18,6 +18,7 @@ embeddings:
     default: embeddings_768@fake
     fake: embeddings_768@fake
     test: ada-002@openai
+  cache: data/hf_models
 
 kv_store:
   engine: memory

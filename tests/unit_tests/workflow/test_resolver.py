@@ -23,47 +23,45 @@ from genai_tk.workflow.resolver import (
 def workflow_config(tmp_path: Path) -> OmegaConfig:
     data_root = tmp_path / "data"
     config_text = f"""
-default_config: baseline
 paths:
   home: {tmp_path}
   project: {tmp_path}
   config: {tmp_path}
   data_root: {data_root}
-baseline:
-  workflows:
-    definitions:
-      ingest_docs:
-        description: Ingest a directory of documents
-        steps:
-          - id: load
-            invoke:
-              kind: callable
-              target: genai_tk.workflow.steps.LoadDocuments
-            with:
-              root_dir: ${{values.root_dir}}
-          - id: ingest
-            invoke:
-              kind: callable
-              target: genai_tk.workflow.steps.IngestDocuments
-            wait_for: [load]
-            with:
-              retriever_name: ${{values.retriever_name}}
-      shared:
-        steps:
-          - id: only
-            invoke:
-              kind: callable
-              target: genai_tk.workflow.steps.Shared
-    profiles:
-      docs.default:
-        workflow: ingest_docs
-        values:
-          root_dir: {tmp_path}/docs
-          retriever_name: default
-      shared:
-        workflow: ingest_docs
-        values:
-          root_dir: {tmp_path}/shared
+workflows:
+  definitions:
+    ingest_docs:
+      description: Ingest a directory of documents
+      steps:
+        - id: load
+          invoke:
+            kind: callable
+            target: genai_tk.workflow.steps.LoadDocuments
+          with:
+            root_dir: ${{values.root_dir}}
+        - id: ingest
+          invoke:
+            kind: callable
+            target: genai_tk.workflow.steps.IngestDocuments
+          wait_for: [load]
+          with:
+            retriever_name: ${{values.retriever_name}}
+    shared:
+      steps:
+        - id: only
+          invoke:
+            kind: callable
+            target: genai_tk.workflow.steps.Shared
+  profiles:
+    docs.default:
+      workflow: ingest_docs
+      values:
+        root_dir: {tmp_path}/docs
+        retriever_name: default
+    shared:
+      workflow: ingest_docs
+      values:
+        root_dir: {tmp_path}/shared
 """
     config_path = tmp_path / "workflow_config.yaml"
     config_path.write_text(config_text, encoding="utf-8")
@@ -128,48 +126,46 @@ def test_profile_must_match_explicit_workflow(workflow_config: OmegaConfig) -> N
 def template_config(tmp_path: Path) -> OmegaConfig:
     data_root = tmp_path / "data"
     config_text = f"""
-default_config: baseline
 paths:
   home: {tmp_path}
   project: {tmp_path}
   config: {tmp_path}
   data_root: {data_root}
-baseline:
-  workflows:
-    step_templates:
-      base_step:
-        invoke:
-          kind: flow
-          target: some.module.base_func
-        with:
-          base_dir: ${{values.base_dir}}
-          output_dir: ${{values.output_dir}}
-          batch_size: ${{values.batch_size}}
-          verbose: true
+workflows:
+  step_templates:
+    base_step:
+      invoke:
+        kind: flow
+        target: some.module.base_func
+      with:
+        base_dir: ${{values.base_dir}}
+        output_dir: ${{values.output_dir}}
+        batch_size: ${{values.batch_size}}
+        verbose: true
 
-    definitions:
-      templated_workflow:
-        description: Test workflow using step templates
-        defaults:
-          batch_size: 5
-          output_dir: /default/output
-        steps:
-          - id: step_a
-            ref: base_step
+  definitions:
+    templated_workflow:
+      description: Test workflow using step templates
+      defaults:
+        batch_size: 5
+        output_dir: /default/output
+      steps:
+        - id: step_a
+          ref: base_step
 
-          - id: step_b
-            ref: base_step
-            wait_for: [step_a]
-            with:
-              output_dir: ${{values.custom_dir}}
-              verbose: false
+        - id: step_b
+          ref: base_step
+          wait_for: [step_a]
+          with:
+            output_dir: ${{values.custom_dir}}
+            verbose: false
 
-    profiles:
-      my_profile:
-        workflow: templated_workflow
-        values:
-          base_dir: {tmp_path}/input
-          custom_dir: {tmp_path}/custom
+  profiles:
+    my_profile:
+      workflow: templated_workflow
+      values:
+        base_dir: {tmp_path}/input
+        custom_dir: {tmp_path}/custom
 """
     config_path = tmp_path / "template_config.yaml"
     config_path.write_text(config_text, encoding="utf-8")
@@ -283,81 +279,79 @@ def test_workflow_defaults_overridden_by_cli(template_config: OmegaConfig) -> No
 def sub_workflow_config(tmp_path: Path) -> OmegaConfig:
     data_root = tmp_path / "data"
     config_text = f"""
-default_config: baseline
 paths:
   home: {tmp_path}
   project: {tmp_path}
   config: {tmp_path}
   data_root: {data_root}
-baseline:
-  workflows:
-    step_templates:
-      build_step:
-        invoke:
-          kind: callable
-          target: graph.build
-        with:
-          graphs: ${{values.graphs}}
+workflows:
+  step_templates:
+    build_step:
+      invoke:
+        kind: callable
+        target: graph.build
+      with:
+        graphs: ${{values.graphs}}
 
-    definitions:
-      base_graph:
-        steps:
-          - id: build
-            ref: build_step
+  definitions:
+    base_graph:
+      steps:
+        - id: build
+          ref: build_step
 
-      extended_graph:
-        steps:
-          - id: build
-            ref: build_step
-          - id: extra
-            invoke:
-              kind: callable
-              target: graph.extra
-            wait_for: [build]
+    extended_graph:
+      steps:
+        - id: build
+          ref: build_step
+        - id: extra
+          invoke:
+            kind: callable
+            target: graph.extra
+          wait_for: [build]
 
-      composite:
-        steps:
-          - id: base
-            invoke:
-              kind: workflow
-              target: base_graph
-          - id: ext
-            invoke:
-              kind: workflow
-              target: extended_graph
-            wait_for: [base]
+    composite:
+      steps:
+        - id: base
+          invoke:
+            kind: workflow
+            target: base_graph
+        - id: ext
+          invoke:
+            kind: workflow
+            target: extended_graph
+          wait_for: [base]
 
-      deep_composite:
-        steps:
-          - id: prep
-            invoke:
-              kind: callable
-              target: prep.step
-          - id: graphs
-            invoke:
-              kind: workflow
-              target: composite
-            wait_for: [prep]
+    deep_composite:
+      steps:
+        - id: prep
+          invoke:
+            kind: callable
+            target: prep.step
+        - id: graphs
+          invoke:
+            kind: workflow
+            target: composite
+          wait_for: [prep]
 
-      cyclic_a:
-        steps:
-          - id: s
-            invoke:
-              kind: workflow
-              target: cyclic_b
+    cyclic_a:
+      steps:
+        - id: s
+          invoke:
+            kind: workflow
+            target: cyclic_b
 
-      cyclic_b:
-        steps:
-          - id: s
-            invoke:
-              kind: workflow
-              target: cyclic_a
+    cyclic_b:
+      steps:
+        - id: s
+          invoke:
+            kind: workflow
+            target: cyclic_a
 
-    profiles:
-      run_composite:
-        workflow: composite
-        values:
-          graphs: []
+  profiles:
+    run_composite:
+      workflow: composite
+      values:
+        graphs: []
 """
     config_path = tmp_path / "sub_wf_config.yaml"
     config_path.write_text(config_text, encoding="utf-8")
@@ -432,42 +426,40 @@ def test_sub_workflow_terminal_resolution_with_multi_terminal(tmp_path: Path) ->
     """When a sub-workflow has multiple terminal steps, wait_for the parent expands to all terminals."""
     data_root = tmp_path / "data"
     config_text = f"""
-default_config: baseline
 paths:
   home: {tmp_path}
   project: {tmp_path}
   config: {tmp_path}
   data_root: {data_root}
-baseline:
-  workflows:
-    definitions:
-      two_leaves:
-        steps:
-          - id: root
-            invoke:
-              kind: callable
-              target: step.root
-          - id: leaf_a
-            invoke:
-              kind: callable
-              target: step.leaf_a
-            wait_for: [root]
-          - id: leaf_b
-            invoke:
-              kind: callable
-              target: step.leaf_b
-            wait_for: [root]
-      after_leaves:
-        steps:
-          - id: base
-            invoke:
-              kind: workflow
-              target: two_leaves
-          - id: final
-            invoke:
-              kind: callable
-              target: step.final
-            wait_for: [base]
+workflows:
+  definitions:
+    two_leaves:
+      steps:
+        - id: root
+          invoke:
+            kind: callable
+            target: step.root
+        - id: leaf_a
+          invoke:
+            kind: callable
+            target: step.leaf_a
+          wait_for: [root]
+        - id: leaf_b
+          invoke:
+            kind: callable
+            target: step.leaf_b
+          wait_for: [root]
+    after_leaves:
+      steps:
+        - id: base
+          invoke:
+            kind: workflow
+            target: two_leaves
+        - id: final
+          invoke:
+            kind: callable
+            target: step.final
+          wait_for: [base]
 """
     config_path = tmp_path / "multi_terminal.yaml"
     config_path.write_text(config_text, encoding="utf-8")

@@ -2,6 +2,8 @@
 
 A toolkit for building Gen AI and Agentic applications with LangChain, LangGraph, and 100+ LLM providers.
 
+See also the [great DeepWiki generated documentation](https://deepwiki.com/tclatos/genai-tk).
+
 ## Three Domains
 
 The toolkit is organized around three complementary domains:
