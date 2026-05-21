@@ -853,3 +853,101 @@ class InfoCommands(CliTopCommand):
                         console.print(display_name)
 
                 console.print(f"\n[bold]Total:[/bold] {len(all_entries)} entries")
+
+        @cli_app.command("config-keys")
+        def config_keys(
+            key: Annotated[
+                str | None,
+                typer.Argument(help="Filter to a specific top-level key (shows its sub-keys and values)."),
+            ] = None,
+        ) -> None:
+            """List top-level config keys and the YAML files that define them.
+
+            Prints a table of every top-level key in the merged configuration with
+            the source files that contributed it.  Keys defined in multiple files
+            are highlighted in yellow as potential conflicts.
+
+            Pass a KEY argument to drill into a specific key and see its resolved value.
+
+            Examples:
+                ```bash
+                cli info config-keys
+                cli info config-keys llm
+                cli info config-keys workflows
+                ```
+            """
+            from omegaconf import DictConfig, OmegaConf
+            from rich.console import Console
+            from rich.syntax import Syntax
+            from rich.table import Table
+
+            from genai_tk.utils.config_mngr import get_raw_config
+
+            console = Console()
+            cfg = global_config()
+
+            if key:
+                # Drill into a specific key
+                try:
+                    import yaml
+
+                    value = cfg.get(key)
+                    raw = OmegaConf.to_container(value, resolve=True) if isinstance(value, DictConfig) else value
+                    yaml_str = yaml.dump({key: raw}, default_flow_style=False, allow_unicode=True)
+                    sources = cfg.config_keys_info().get(key, [])
+                    source_str = ", ".join(sources) if sources else "unknown"
+                    console.print(f"[dim]Source(s): {source_str}[/dim]\n")
+                    console.print(Syntax(yaml_str, "yaml", theme="monokai", line_numbers=False))
+                except Exception as e:
+                    console.print(f"[red]Key '{key}' not found or cannot be resolved: {e}[/red]")
+                return
+
+            # Full table
+            info = cfg.config_keys_info()
+            raw_cfg = get_raw_config()
+
+            table = Table(
+                title="Configuration Keys",
+                show_header=True,
+                header_style="bold cyan",
+                show_lines=False,
+            )
+            table.add_column("Key", style="bold white", no_wrap=True, min_width=20)
+            table.add_column("Sub-keys", style="dim white", min_width=30)
+            table.add_column("Source file(s)", style="green", min_width=35)
+
+            from pathlib import Path as _Path
+
+            skip = {"profile", "default_config", "config_dirs", "config_exclude"}
+
+            for top_key in sorted(info.keys()):
+                if top_key.startswith(":") or top_key in skip:
+                    continue
+
+                sources = info[top_key]
+                short_sources: list[str] = []
+                for s in sources:
+                    try:
+                        short_sources.append(str(_Path(s).relative_to(_Path.cwd())))
+                    except ValueError:
+                        short_sources.append(s)
+                sources_str = "\n".join(short_sources)
+
+                # List sub-keys when value is a mapping
+                sub_keys_str = ""
+                try:
+                    val = OmegaConf.select(raw_cfg, top_key)
+                    if isinstance(val, DictConfig):
+                        sub_keys_str = ", ".join(sorted(str(k) for k in val.keys()))
+                        if len(sub_keys_str) > 60:
+                            sub_keys_str = sub_keys_str[:57] + "…"
+                except Exception:
+                    pass
+
+                key_style = "bold yellow" if len(sources) > 1 else "bold white"
+                table.add_row(f"[{key_style}]{top_key}[/{key_style}]", sub_keys_str, sources_str)
+
+            console.print(table)
+            console.print(
+                "\n[dim]Tip: [bold]cli info config-keys <key>[/bold] to inspect a specific key's resolved value.[/dim]"
+            )

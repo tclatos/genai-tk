@@ -2,18 +2,19 @@
 # Workflow configuration
 # ---------------------------------------------------------------------------
 #
-# Three concepts, top to bottom:
+# All workflow config lives under the top-level 'workflows:' key, with three
+# sub-sections:
 #
-#  step_templates  — reusable step definitions (invoke, with, …).
+#  workflows.step_templates  — reusable step definitions (invoke, with, …).
 #                    Referenced by workflow steps with `ref: <name>`.
 #                    Step-level fields override template fields; the `with`
 #                    dict is merged key-by-key.
 #
-#  workflows       — named pipelines composed of steps.
+#  workflows.definitions     — named pipelines composed of steps.
 #                    `defaults:` provides fallback values for ${values.*}
 #                    placeholders when a profile doesn't supply them.
 #
-#  workflow_profiles — named, concrete invocations of a workflow bound to
+#  workflows.profiles        — named, concrete invocations of a workflow bound to
 #                    specific directories and settings. Run one with:
 #                      cli workflow run <profile_name>
 #                      cli workflow run <profile_name> --dry-run
@@ -23,177 +24,175 @@
 #   CLI --set overrides  >  profile values  >  workflow defaults
 # ---------------------------------------------------------------------------
 
-
-# ---------------------------------------------------------------------------
-# Step templates — reuse these across workflows to avoid repetition
-# ---------------------------------------------------------------------------
-
-step_templates:
-  markdownize_step:
-    invoke:
-      kind: flow
-      target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-    with:
-      base_dir: "${values.base_dir}"
-      output_dir: "${values.output_dir}"
-      pathspecs: "${values.pathspecs}"
-      batch_size: "${values.batch_size}"
-      converter: "${values.converter}"
-
-  ppt2pdf_step:
-    invoke:
-      kind: flow
-      target: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
-    with:
-      base_dir: "${values.base_dir}"
-      output_dir: "${values.output_dir}"
-      pathspecs: "${values.pathspecs}"
-      batch_size: "${values.batch_size}"
-
-  anonymize_step:
-    invoke:
-      kind: flow
-      target: genai_tk.workflow.prefect.flows.anonymize_flow.anonymize_files_flow
-    with:
-      base_dir: "${values.base_dir}"
-      output_dir: "${values.output_dir}"
-      pathspecs: "${values.pathspecs}"
-      batch_size: "${values.batch_size}"
-      save_mapping: "${values.save_mapping}"
-      faker_seed: "${values.faker_seed}"
-
-  rag_ingest_step:
-    invoke:
-      kind: flow
-      target: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
-    with:
-      base_dir: "${values.base_dir}"
-      retriever_name: "${values.retriever_name}"
-      pathspecs: "${values.pathspecs}"
-      batch_size: "${values.batch_size}"
-      max_chunk_tokens: "${values.chunk_size}"
-      chunker_name: "${values.chunker}"
-
-
-# ---------------------------------------------------------------------------
-# Workflows
-# ---------------------------------------------------------------------------
-
 workflows:
-  markdownize_documents:
-    description: "Convert documents to Markdown format"
-    defaults:
-      converter: mistral
-      batch_size: 5
-    steps:
-      - id: convert
-        ref: markdownize_step
 
-  ppt2pdf_documents:
-    description: "Convert PowerPoint files to PDF"
-    defaults:
-      batch_size: 5
-    steps:
-      - id: convert
-        ref: ppt2pdf_step
+  # -------------------------------------------------------------------------
+  # Step templates — reuse these across workflows to avoid repetition
+  # -------------------------------------------------------------------------
+  step_templates:
+    markdownize_step:
+      invoke:
+        kind: flow
+        target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+      with:
+        base_dir: "${values.base_dir}"
+        output_dir: "${values.output_dir}"
+        pathspecs: "${values.pathspecs}"
+        batch_size: "${values.batch_size}"
+        converter: "${values.converter}"
 
-  rag_add_files:
-    description: "Ingest files into a retriever store"
-    defaults:
-      batch_size: 10
-      chunk_size: 512
-      chunker: auto
-    steps:
-      - id: ingest
-        ref: rag_ingest_step
+    ppt2pdf_step:
+      invoke:
+        kind: flow
+        target: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
+      with:
+        base_dir: "${values.base_dir}"
+        output_dir: "${values.output_dir}"
+        pathspecs: "${values.pathspecs}"
+        batch_size: "${values.batch_size}"
 
-  anonymize_files:
-    description: "Detect and replace PII in text files (Presidio + Faker)"
-    defaults:
-      batch_size: 10
-      save_mapping: false
-      faker_seed: 42
-    steps:
-      - id: anonymize
-        ref: anonymize_step
+    anonymize_step:
+      invoke:
+        kind: flow
+        target: genai_tk.workflow.prefect.flows.anonymize_flow.anonymize_files_flow
+      with:
+        base_dir: "${values.base_dir}"
+        output_dir: "${values.output_dir}"
+        pathspecs: "${values.pathspecs}"
+        batch_size: "${values.batch_size}"
+        save_mapping: "${values.save_mapping}"
+        faker_seed: "${values.faker_seed}"
 
-  anonymize_and_ingest:
-    description: "Anonymize text files then ingest into a RAG vector store"
-    defaults:
-      batch_size: 10
-      save_mapping: false
-      faker_seed: 42
-      chunk_size: 512
-      chunker: auto
-    steps:
-      - id: anonymize
-        ref: anonymize_step
-        with:
-          # Override output_dir to write to the intermediate anonymized directory.
-          output_dir: "${values.anon_dir}"
+    rag_ingest_step:
+      invoke:
+        kind: flow
+        target: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+      with:
+        base_dir: "${values.base_dir}"
+        retriever_name: "${values.retriever_name}"
+        pathspecs: "${values.pathspecs}"
+        batch_size: "${values.batch_size}"
+        max_chunk_tokens: "${values.chunk_size}"
+        chunker_name: "${values.chunker}"
 
-      - id: ingest
-        ref: rag_ingest_step
-        wait_for: [anonymize]
-        with:
-          # Chain: ingest reads from the anonymized directory produced above.
-          base_dir: "${values.anon_dir}"
+  # -------------------------------------------------------------------------
+  # Workflow definitions
+  # -------------------------------------------------------------------------
+  definitions:
+    markdownize_documents:
+      description: "Convert documents to Markdown format"
+      defaults:
+        converter: mistral
+        batch_size: 5
+      steps:
+        - id: convert
+          ref: markdownize_step
+
+    ppt2pdf_documents:
+      description: "Convert PowerPoint files to PDF"
+      defaults:
+        batch_size: 5
+      steps:
+        - id: convert
+          ref: ppt2pdf_step
+
+    rag_add_files:
+      description: "Ingest files into a retriever store"
+      defaults:
+        batch_size: 10
+        chunk_size: 512
+        chunker: auto
+      steps:
+        - id: ingest
+          ref: rag_ingest_step
+
+    anonymize_files:
+      description: "Detect and replace PII in text files (Presidio + Faker)"
+      defaults:
+        batch_size: 10
+        save_mapping: false
+        faker_seed: 42
+      steps:
+        - id: anonymize
+          ref: anonymize_step
+
+    anonymize_and_ingest:
+      description: "Anonymize text files then ingest into a RAG vector store"
+      defaults:
+        batch_size: 10
+        save_mapping: false
+        faker_seed: 42
+        chunk_size: 512
+        chunker: auto
+      steps:
+        - id: anonymize
+          ref: anonymize_step
+          with:
+            # Override output_dir to write to the intermediate anonymized directory.
+            output_dir: "${values.anon_dir}"
+
+        - id: ingest
+          ref: rag_ingest_step
+          wait_for: [anonymize]
+          with:
+            # Chain: ingest reads from the anonymized directory produced above.
+            base_dir: "${values.anon_dir}"
+
+  # -------------------------------------------------------------------------
+  # Workflow profiles — concrete, named invocations ready to run
+  # -------------------------------------------------------------------------
+  profiles:
+    # --- Markdownize ---
+    markdownize_docs:
+      workflow: markdownize_documents
+      values:
+        base_dir: "${paths.data_root}/documents"
+        output_dir: "${paths.data_root}/markdown"
+        pathspecs:
+          - "**/*.pdf"
+          - "**/*.docx"
+          - "**/*.pptx"
+
+    # --- PPT to PDF ---
+    ppt2pdf_docs:
+      workflow: ppt2pdf_documents
+      values:
+        base_dir: "${paths.data_root}/presentations"
+        output_dir: "${paths.data_root}/pdfs"
+        pathspecs:
+          - "**/*.pptx"
+          - "**/*.ppt"
+          - "**/*.odp"
+
+    # --- RAG ingestion ---
+    rag_ingest_docs:
+      workflow: rag_add_files
+      values:
+        base_dir: "${paths.data_root}/markdown"
+        retriever_name: default
+        pathspecs:
+          - "**/*.md"
+
+    # --- Anonymize only ---
+    anonymize_docs:
+      workflow: anonymize_files
+      values:
+        base_dir: "${paths.data_root}/documents"
+        output_dir: "${paths.data_root}/anonymized"
+        pathspecs:
+          - "**/*.txt"
+          - "**/*.md"
+
+    # --- Anonymize then ingest ---
+    anonymize_and_ingest_docs:
+      workflow: anonymize_and_ingest
+      values:
+        base_dir: "${paths.data_root}/documents"
+        anon_dir: "${paths.data_root}/anonymized"
+        retriever_name: default
+        pathspecs:
+          - "**/*.txt"
+          - "**/*.md"
 
 
-# ---------------------------------------------------------------------------
-# Workflow profiles — concrete, named invocations ready to run
-# ---------------------------------------------------------------------------
-
-workflow_profiles:
-  # --- Markdownize ---
-  markdownize_docs:
-    workflow: markdownize_documents
-    values:
-      base_dir: "${paths.data_root}/documents"
-      output_dir: "${paths.data_root}/markdown"
-      pathspecs:
-        - "**/*.pdf"
-        - "**/*.docx"
-        - "**/*.pptx"
-
-  # --- PPT to PDF ---
-  ppt2pdf_docs:
-    workflow: ppt2pdf_documents
-    values:
-      base_dir: "${paths.data_root}/presentations"
-      output_dir: "${paths.data_root}/pdfs"
-      pathspecs:
-        - "**/*.pptx"
-        - "**/*.ppt"
-        - "**/*.odp"
-
-  # --- RAG ingestion ---
-  rag_ingest_docs:
-    workflow: rag_add_files
-    values:
-      base_dir: "${paths.data_root}/markdown"
-      retriever_name: default
-      pathspecs:
-        - "**/*.md"
-
-  # --- Anonymize only ---
-  anonymize_docs:
-    workflow: anonymize_files
-    values:
-      base_dir: "${paths.data_root}/documents"
-      output_dir: "${paths.data_root}/anonymized"
-      pathspecs:
-        - "**/*.txt"
-        - "**/*.md"
-
-  # --- Anonymize then ingest ---
-  anonymize_and_ingest_docs:
-    workflow: anonymize_and_ingest
-    values:
-      base_dir: "${paths.data_root}/documents"
-      anon_dir: "${paths.data_root}/anonymized"
-      retriever_name: default
-      pathspecs:
-        - "**/*.txt"
-        - "**/*.md"
 

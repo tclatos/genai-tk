@@ -69,12 +69,7 @@ def test_config_defaults():
 
 def test_config_get_profile_found():
     """DeepagentConfig.get_profile returns profile by name (case-insensitive)."""
-    config = DeepagentConfig(
-        profiles=[
-            DeepagentProfile(name="Coder"),
-            DeepagentProfile(name="Researcher"),
-        ]
-    )
+    config = DeepagentConfig.model_validate({"coder": {"name": "Coder"}, "researcher": {"name": "Researcher"}})
     assert config.get_profile("Coder") is not None
     assert config.get_profile("coder") is not None
     assert config.get_profile("CODER") is not None
@@ -83,7 +78,7 @@ def test_config_get_profile_found():
 
 def test_config_get_profile_not_found():
     """DeepagentConfig.get_profile returns None for unknown names."""
-    config = DeepagentConfig(profiles=[DeepagentProfile(name="Coder")])
+    config = DeepagentConfig.model_validate({"coder": {"name": "Coder"}})
     assert config.get_profile("Researcher") is None
     assert config.get_profile("") is None
 
@@ -94,15 +89,13 @@ def test_config_model_validate_from_dict():
         "default_model": "fast_model",
         "default_profile": "coder",
         "auto_approve": True,
-        "profiles": [
-            {"name": "coder", "llm": "fast_model"},
-            {"name": "researcher", "llm": "default", "tools": ["web_search"]},
-        ],
+        "coder": {"name": "coder", "llm": "fast_model"},
+        "researcher": {"name": "researcher", "llm": "default", "tools": ["web_search"]},
     }
     config = DeepagentConfig.model_validate(raw)
     assert config.default_model == "fast_model"
     assert len(config.profiles) == 2
-    assert config.profiles[1].tools == ["web_search"]
+    assert any(p.tools == ["web_search"] for p in config.profiles)
 
 
 # ---------------------------------------------------------------------------
@@ -118,9 +111,7 @@ def test_load_deepagent_config_from_file(tmp_path: Path) -> None:
             {
                 "deepagent": {
                     "default_model": "gpt41mini@openai",
-                    "profiles": [
-                        {"name": "coder", "llm": "fast_model", "auto_approve": False},
-                    ],
+                    "coder": {"name": "coder", "llm": "fast_model", "auto_approve": False},
                 }
             }
         )
@@ -136,9 +127,9 @@ def test_load_deepagent_config_from_directory(tmp_path: Path) -> None:
     d = tmp_path / "deepagent"
     d.mkdir()
     (d / "global.yaml").write_text(yaml.dump({"deepagent": {"default_model": "fast_model", "auto_approve": True}}))
-    (d / "profile_a.yaml").write_text(yaml.dump({"deepagent": {"profiles": [{"name": "coder", "llm": "fast_model"}]}}))
+    (d / "profile_a.yaml").write_text(yaml.dump({"deepagent": {"coder": {"name": "coder", "llm": "fast_model"}}}))
     (d / "profile_b.yaml").write_text(
-        yaml.dump({"deepagent": {"profiles": [{"name": "researcher", "llm": "default"}]}})
+        yaml.dump({"deepagent": {"researcher": {"name": "researcher", "llm": "default"}}})
     )
     config = load_deepagent_config(config_path=d)
     assert config.default_model == "fast_model"

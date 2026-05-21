@@ -18,8 +18,11 @@ All agent types are managed through a single configuration interface with sensib
 
 ### Configuration System
 
-**Config File:** `config/langchain.yaml`
+Agent profiles use **dict-keyed structure** where the key is used to select the profile from the CLI (e.g., `-p research`).
 
+**Config Files:** `config/agents/langchain/defaults.yaml`, `simple.yaml`, `deep.yaml`, `browser.yaml`, `text2sql.yaml`
+
+**defaults.yaml** — Global defaults and settings:
 ```yaml
 langchain_agents:
   # Global defaults applied to all profiles
@@ -38,40 +41,50 @@ langchain_agents:
     skills:
       directories: []                    # skill search directories
 
-  # Default profile to use when none specified
-  default_profile: "Research"
-
-  # Named profiles for different use cases
-  profiles:
-    - name: "Research"
-      type: deep
-      llm: gpt_41@openai
-      enable_planning: true
-      tools:
-        - spec: web_search
-          config:
-            provider: serper
-      mcp_servers: []
-      
-    - name: "Coding"
-      type: react
-      llm: gpt_4o@openai
-      enable_file_system: true
-      tools:
-        - spec: filesystem_tools
-      middlewares:
-        - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
-          details: true
-      
-    - name: "DataAnalysis"
-      type: react
-      llm: gpt_4o@openai
-      tools:
-        - spec: sql_tools
-          config:
-            database: analytics.db
-        - spec: dataframe_tools
+  # Default profile key to use when none specified
+  default_profile: "simple"
 ```
+
+**deep.yaml** — Deep agent profiles:
+```yaml
+langchain_agents:
+  # Profile key: "research" (used as: cli agents langchain -p research)
+  research:
+    name: "Research"                     # Display name (for list output)
+    type: deep
+    llm: gpt_41@openai
+    enable_planning: true
+    tools:
+      - spec: web_search
+        config:
+          provider: serper
+    mcp_servers: []
+      
+  # Profile key: "coding"
+  coding:
+    name: "Coding"
+    type: deep
+    llm: gpt_4o@openai
+    enable_file_system: true
+    tools:
+      - spec: filesystem_tools
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+        details: true
+      
+  # Profile key: "data_analysis"
+  data_analysis:
+    name: "Data Analysis"
+    type: react
+    llm: gpt_4o@openai
+    tools:
+      - spec: sql_tools
+        config:
+          database: analytics.db
+      - spec: dataframe_tools
+```
+
+**Note:** Profile **keys** (like `research`, `coding`) are lowercase and used in CLI commands. Profile **names** (like `Research`, `Coding`) are display names shown in `--list` output.
 
 **Key Configuration Options:**
 
@@ -91,10 +104,12 @@ Standard reasoning agent using the ReAct pattern: Thought → Action → Observa
 
 **Best for:** General-purpose tasks, straightforward reasoning
 
-**Configuration:**
+**Configuration (config/agents/langchain/simple.yaml):**
 ```yaml
-profiles:
-  - name: "General"
+langchain_agents:
+  # Profile key: "simple"
+  simple:
+    name: "Simple"
     type: react
     llm: gpt_4o@openai
     tools:
@@ -108,7 +123,7 @@ from genai_tk.agents.langchain.config import load_unified_config, resolve_profil
 from genai_tk.agents.langchain.factory import create_langchain_agent
 
 config = load_unified_config()
-profile = resolve_profile(config, "General")
+profile = resolve_profile(config, "simple")  # Profile KEY, not name
 agent = await create_langchain_agent(profile)
 
 # Single query
@@ -135,10 +150,12 @@ Advanced reasoning agent with planning, subagents, and execution backends. Requi
 
 **Best for:** Complex multi-step tasks, research, analysis
 
-**Configuration:**
+**Configuration (config/agents/langchain/deep.yaml):**
 ```yaml
-profiles:
-  - name: "Research"
+langchain_agents:
+  # Profile key: "research"
+  research:
+    name: "Research"
     type: deep
     llm: gpt_41@openai
     enable_planning: true
@@ -171,8 +188,9 @@ Functional API-based agent built with LangGraph's Functional API for maximum cus
 
 **Configuration:**
 ```yaml
-profiles:
-  - name: "Custom"
+langchain_agents:
+  custom:  # Profile key
+    name: "Custom"
     type: custom
     llm: gpt_4o@openai
 ```
@@ -300,11 +318,11 @@ agent = await create_langchain_agent(
 # Use default profile with interactive chat
 cli agents langchain --chat
 
-# Use specific profile
-cli agents langchain -p Research --chat
+# Use specific profile (by KEY, not name)
+cli agents langchain -p research --chat
 
 # Single query with specific profile
-cli agents langchain -p Coding "List Python files"
+cli agents langchain -p coding "List Python files"
 ```
 
 **Single-Shot Queries:**
@@ -313,10 +331,10 @@ cli agents langchain -p Coding "List Python files"
 cli agents langchain "What is machine learning?"
 
 # Override agent type
-cli agents langchain -p General --type react "Tell me a joke"
+cli agents langchain -p simple --type react "Tell me a joke"
 
 # Override LLM
-cli agents langchain -p Research --llm gpt_4o@openai "Research AI"
+cli agents langchain -p research --llm gpt_4o@openai "Research AI"
 
 # List available profiles
 cli agents langchain --list
@@ -390,9 +408,9 @@ from genai_tk.agents.langchain.factory import create_langchain_agent
 # Load configuration
 config = load_unified_config()
 
-# Select profile (e.g., from CLI, environment, or hardcoded)
-profile_name = "Research"  # or get from args
-profile = resolve_profile(config, profile_name)
+# Select profile (by KEY, e.g., from CLI, environment, or hardcoded)
+profile_key = "research"  # or get from args
+profile = resolve_profile(config, profile_key)
 
 # Create and use agent
 agent = await create_langchain_agent(profile)
@@ -493,7 +511,7 @@ areas:
 |---|---|---|
 | React agents | Code generation, Q&A, streaming, multi-turn memory | `--include-real-models` |
 | Deep agents (local) | Code generation, file writes via `FilesystemBackend` | `--include-real-models` |
-| Named profiles | Field types, `enable_*` flags, profile resolution | (structural — no LLM) |
+| Dict-keyed profiles | Field types, `enable_*` flags, profile resolution by key | (structural — no LLM) |
 | Skills loading | SKILL.md discovery, backend wiring, content access | `--include-real-models` |
 | Docker sandbox | Full container run, file writes in container | `--include-real-models --include-docker` |
 

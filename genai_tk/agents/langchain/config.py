@@ -22,27 +22,27 @@ langchain_agents:
       directories:
         - ${paths.project}/skills
 
-  default_profile: "Research"
+  default_profile: "research"
 
-  profiles:
-    - name: "Research"
-      type: deep
-      llm: "gpt_41@openai"
-      # Use the built-in Docker sandbox backend:
-      backend:
-        type: aio_sandbox
-        opensandbox_server_url: http://localhost:8080
-        startup_timeout: 90.0
-      # Or a custom deepagents-compatible backend:
-      # backend:
-      #   type: class
-      #   class: my_pkg.backends:MyBackend
-      #   kwargs:
-      #     some_option: value
-      middlewares:
-        - class: deepagents.middleware.summarization:SummarizationMiddleware
-          model: "gpt-4.1@openrouter"
-          trigger: ["tokens", 4000]
+  research:
+    name: "Research"
+    type: deep
+    llm: "gpt_41@openai"
+    # Use the built-in Docker sandbox backend:
+    backend:
+      type: aio_sandbox
+      opensandbox_server_url: http://localhost:8080
+      startup_timeout: 90.0
+    # Or a custom deepagents-compatible backend:
+    # backend:
+    #   type: class
+    #   class: my_pkg.backends:MyBackend
+    #   kwargs:
+    #     some_option: value
+    middlewares:
+      - class: deepagents.middleware.summarization:SummarizationMiddleware
+        model: "gpt-4.1@openrouter"
+        trigger: ["tokens", 4000]
 ```
 """
 
@@ -266,16 +266,44 @@ class AgentDefaults(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
+_RESERVED_CONFIG_KEYS: frozenset[str] = frozenset({"defaults", "default_profile"})
+
+
 class LangchainAgentsConfig(BaseModel):
-    """Top-level config model for the unified ``langchain.yaml``."""
+    """Top-level config model for the unified ``langchain.yaml``.
+
+    Agent profiles are defined as named dict entries directly under
+    ``langchain_agents:``, without a ``profiles:`` wrapper::
+
+        langchain_agents:
+          simple:
+            name: "simple"
+            type: react
+          research:
+            name: "Research"
+            type: deep
+    """
 
     defaults: AgentDefaults = Field(
         default_factory=lambda: AgentDefaults.model_validate({}),
         description="Shared defaults inherited by all profiles",
     )
-    default_profile: str = Field("", description="Name of the profile selected when none is specified")
-    profiles: list[AgentProfileConfig] = Field(default_factory=list, description="List of agent profiles")
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    default_profile: str = Field("", description="Dict key of the profile selected when none is specified")
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
+
+    @property
+    def profiles(self) -> list[AgentProfileConfig]:
+        """Agent profiles from named dict entries under ``langchain_agents:``."""
+        return list(self.profiles_dict.values())
+
+    @property
+    def profiles_dict(self) -> dict[str, AgentProfileConfig]:
+        """Agent profiles keyed by their dict key (slug) under ``langchain_agents:``."""
+        result = {}
+        for key, val in (self.model_extra or {}).items():
+            if key not in _RESERVED_CONFIG_KEYS and isinstance(val, dict):
+                result[key] = AgentProfileConfig.model_validate(val)
+        return result
 
 
 # ============================================================================
@@ -289,8 +317,7 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
     When *config_path* is ``None`` the loader looks for
     ``{paths.config}/agents/langchain/`` (directory) first, then
     ``{paths.config}/agents/langchain.yaml`` (single file).  In directory mode
-    all ``*.yaml`` / ``*.yml`` files are deep-merged with ``profiles`` lists
-    concatenated in alphabetical file order.
+    all ``*.yaml`` / ``*.yml`` files are deep-merged in alphabetical file order.
 
     Args:
         config_path: Explicit path to a YAML file or directory.  ``None`` uses
@@ -310,15 +337,15 @@ def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig
             if dir_path.is_dir():
                 path = dir_path
 
-    return load_yaml_configs(path, "langchain_agents", list_merge_keys=["profiles"], model=LangchainAgentsConfig)  # type: ignore[return-value]
+    return load_yaml_configs(path, "langchain_agents", model=LangchainAgentsConfig)  # type: ignore[return-value]
 
 
 def resolve_profile(
     config: LangchainAgentsConfig,
-    name: str,
+    key: str,
     type_override: AgentType | None = None,
 ) -> AgentProfileConfig:
-    """Find a profile by name, merge with defaults, warn about incompatibilities.
+    """Find a profile by its dict key, merge with defaults, warn about incompatibilities.
 
     Profile fields override defaults (shallow merge per field).  If a profile
     does not declare ``middlewares`` or ``checkpointer`` the default values are
@@ -326,7 +353,7 @@ def resolve_profile(
 
     Args:
         config: Loaded top-level config.
-        name: Profile name (case-insensitive).
+        key: Profile dict key (case-insensitive), e.g. ``research``, ``browser_agent``.
         type_override: If set, overrides the profile's ``type`` field.
 
     Returns:
@@ -335,11 +362,12 @@ def resolve_profile(
     from rich.console import Console
 
     console = Console()
-    name_lower = name.lower()
-    match = next((p for p in config.profiles if p.name.lower() == name_lower), None)
+    key_lower = key.lower()
+    profiles = config.profiles_dict
+    match = profiles.get(key_lower) or next((p for k, p in profiles.items() if k.lower() == key_lower), None)
     if match is None:
-        available = [p.name for p in config.profiles]
-        raise ValueError(f"Profile '{name}' not found. Available: {available}")
+        available = list(profiles.keys())
+        raise ValueError(f"Profile '{key}' not found. Available: {available}")
 
     d = config.defaults
 

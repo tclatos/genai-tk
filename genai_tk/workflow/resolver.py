@@ -140,8 +140,8 @@ def _expand_sub_workflows(
 
     Expansion is recursive; cycles are detected via the ``_ancestors`` set.
     """
-    workflows_dict = _section_dict(config, "workflows", resolve=False)
-    templates = _section_dict(config, "step_templates", resolve=False)
+    workflows_dict = _section_dict(config, "workflows.definitions", resolve=False)
+    templates = _section_dict(config, "workflows.step_templates", resolve=False)
     expanded: list[dict] = []
     terminal_map: dict[str, list[str]] = {}
 
@@ -215,32 +215,32 @@ def _expand_sub_workflows(
 def list_workflow_names(config: OmegaConfig | None = None) -> list[str]:
     """Return configured workflow names."""
     cfg = _config_or_global(config)
-    return sorted(_section_dict(cfg, "workflows", resolve=False).keys())
+    return sorted(_section_dict(cfg, "workflows.definitions", resolve=False).keys())
 
 
 def list_workflow_profile_names(config: OmegaConfig | None = None) -> list[str]:
     """Return configured workflow profile names."""
     cfg = _config_or_global(config)
-    return sorted(_section_dict(cfg, "workflow_profiles", resolve=False).keys())
+    return sorted(_section_dict(cfg, "workflows.profiles", resolve=False).keys())
 
 
 def list_step_template_names(config: OmegaConfig | None = None) -> list[str]:
     """Return configured step template names."""
     cfg = _config_or_global(config)
-    return sorted(_section_dict(cfg, "step_templates", resolve=False).keys())
+    return sorted(_section_dict(cfg, "workflows.step_templates", resolve=False).keys())
 
 
 def load_workflow_spec(name: str, config: OmegaConfig | None = None) -> WorkflowSpec:
     """Load a workflow definition by name, expanding any step template references."""
     cfg = _config_or_global(config)
-    workflows = _section_dict(cfg, "workflows", resolve=False)
+    workflows = _section_dict(cfg, "workflows.definitions", resolve=False)
     if name not in workflows:
         available = ", ".join(sorted(workflows)) or "<none>"
         raise WorkflowResolutionError(f"Workflow '{name}' not found. Available workflows: {available}")
     data = workflows[name]
     if not isinstance(data, dict):
         raise WorkflowResolutionError(f"Workflow '{name}' must be a mapping")
-    templates = _section_dict(cfg, "step_templates", resolve=False)
+    templates = _section_dict(cfg, "workflows.step_templates", resolve=False)
     steps_data = data.get("steps", [])
     if steps_data:
         steps_data = _expand_step_templates(list(steps_data), templates)
@@ -251,7 +251,7 @@ def load_workflow_spec(name: str, config: OmegaConfig | None = None) -> Workflow
 def load_workflow_profile(name: str, config: OmegaConfig | None = None) -> WorkflowProfileSpec:
     """Load a workflow profile by name."""
     cfg = _config_or_global(config)
-    profiles = _section_dict(cfg, "workflow_profiles", resolve=True)
+    profiles = _section_dict(cfg, "workflows.profiles", resolve=True)
     if name not in profiles:
         available = ", ".join(sorted(profiles)) or "<none>"
         raise WorkflowResolutionError(f"Workflow profile '{name}' not found. Available profiles: {available}")

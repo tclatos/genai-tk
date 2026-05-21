@@ -34,17 +34,17 @@ chunkers:
       max_tokens: 512
       encoding_name: o200k_base
 
-# Auto-detection map: file extension → chunker name
-# Used when chunker_name="auto" in rag add-files
-chunker_auto_map:
-  ".md": markdown
-  ".markdown": markdown
-  ".rst": markdown
-  ".txt": recursive
-  ".py": recursive
-  ".js": recursive
-  ".java": recursive
-  ".default": recursive
+  # Auto-detection map: file extension → chunker name
+  # Used when chunker_name="auto" in rag add-files
+  auto_map:
+    ".md": markdown
+    ".markdown": markdown
+    ".rst": markdown
+    ".txt": recursive
+    ".py": recursive
+    ".js": recursive
+    ".java": recursive
+    ".default": recursive
 
 
 # ============================================================

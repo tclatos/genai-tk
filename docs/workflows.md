@@ -266,19 +266,12 @@ Sub-workflows are recursive.  Cycles are detected and reported as errors at load
 
 ```
 config/
-  app_conf.yaml       # Main config (lists which workflow files to include)
-  workflows.yaml      # Workflow + profile definitions (imported via :merge:)
+  workflows.yaml      # Workflow + profile definitions (auto-scanned)
 ```
 
-### Including Workflow Files
+### Workflow Files
 
-In `config/app_conf.yaml`, add the workflow file to the `:merge:` list:
-
-```yaml
-:merge:
-  - ${paths.config}/baseline.yaml
-  - ${paths.config}/workflows.yaml    # ← Add this line
-```
+The `config/workflows.yaml` file is automatically discovered and loaded as part of the config auto-scan system. No manual registration needed.
 
 ### Workflow File Format
 
@@ -581,11 +574,14 @@ anyway (`continue`).  The overall workflow result includes per-step failure info
 
 ### "Workflow not found"
 
-Ensure the workflow file is merged into `app_conf.yaml`:
+Ensure `config/workflows.yaml` exists in your project. The file is automatically discovered and merged during config auto-scan:
 
-```yaml
-:merge:
-  - ${paths.config}/workflows.yaml  # ← Ensure this is listed
+```bash
+# Check if file exists
+ls config/workflows.yaml
+
+# View loaded config keys
+cli info config-keys workflows
 ```
 
 ### "Profile points to unknown workflow"

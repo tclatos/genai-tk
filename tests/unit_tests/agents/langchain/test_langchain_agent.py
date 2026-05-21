@@ -57,15 +57,13 @@ MINIMAL_CONFIG: dict[str, Any] = {
     "langchain_agents": {
         "defaults": {"type": "react"},
         "default_profile": "simple",
-        "profiles": [
-            {
-                "name": "simple",
-                "type": "react",
-                "llm": "parrot_local@fake",
-                "tools": [],
-                "mcp_servers": [],
-            }
-        ],
+        "simple": {
+            "name": "simple",
+            "type": "react",
+            "llm": "parrot_local@fake",
+            "tools": [],
+            "mcp_servers": [],
+        },
     }
 }
 
@@ -73,16 +71,17 @@ MINIMAL_CONFIG: dict[str, Any] = {
 def _make_config():
     """Return a minimal LangchainAgentsConfig for mocking."""
     from genai_tk.agents.langchain.config import (
-        AgentDefaults,
         AgentProfileConfig,
         LangchainAgentsConfig,
     )
 
     profile = AgentProfileConfig(name="simple", type="react", llm="parrot_local@fake")
-    return LangchainAgentsConfig(
-        defaults=AgentDefaults(),
-        default_profile="simple",
-        profiles=[profile],
+    return LangchainAgentsConfig.model_validate(
+        {
+            "defaults": {},
+            "default_profile": "simple",
+            "simple": profile.model_dump(),
+        }
     )
 
 

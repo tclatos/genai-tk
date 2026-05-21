@@ -46,7 +46,7 @@ def _list_profiles() -> None:
         raise typer.Exit(1) from e
 
     table = Table(title=f"🤖 LangChain Agent Profiles  (default: {cfg.default_profile!r})")
-    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Key", style="cyan", no_wrap=True)
     table.add_column("Type", style="yellow", no_wrap=True)
     table.add_column("LLM", style="magenta")
     table.add_column("Description", style="white")
@@ -54,17 +54,17 @@ def _list_profiles() -> None:
     table.add_column("MCP Servers", style="blue")
     table.add_column("Features", style="dim")
 
-    for p in cfg.profiles:
-        is_default = p.name == cfg.default_profile
-        name_cell = f"⭐ {p.name}" if is_default else p.name
+    for key, p in cfg.profiles_dict.items():
+        is_default = key == cfg.default_profile
+        key_cell = f"⭐ {key}" if is_default else key
         tools_cell = f"{len(p.tools)}" if p.tools else "-"
         mcp_cell = ", ".join(p.mcp_servers) if p.mcp_servers else "-"
         desc = p.description[:50] + "…" if len(p.description) > 50 else p.description
         features = ", ".join(p.features[:2]) if p.features else "-"
-        table.add_row(name_cell, p.type, p.llm or "(default)", desc, tools_cell, mcp_cell, features)
+        table.add_row(key_cell, p.type, p.llm or "(default)", desc, tools_cell, mcp_cell, features)
 
     console.print(table)
-    console.print("[dim]⭐ = default profile  |  use --profile NAME or -p NAME to select[/dim]")
+    console.print("[dim]⭐ = default profile  |  use --profile KEY or -p KEY to select[/dim]")
 
 
 def _display_config_error(console: "Console", error: Exception) -> None:
@@ -136,7 +136,7 @@ def register(cli_app: typer.Typer) -> None:
         profile: Annotated[
             Optional[str],
             Option(
-                "--profile", "-p", help="Profile name from langchain.yaml (default: langchain_agents.default_profile)"
+                "--profile", "-p", help="Profile key from langchain config (default: langchain_agents.default_profile)"
             ),
         ] = None,
         agent_type: Annotated[
@@ -200,10 +200,10 @@ def register(cli_app: typer.Typer) -> None:
           cli agents langchain -p filesystem "List Python files"
 
           # Interactive chat with a deep agent
-          cli agents langchain -p Coding --chat
+          cli agents langchain -p coding --chat
 
           # Override engine and LLM at runtime
-          cli agents langchain -p Research --type react --llm gpt_41mini@openai "Quick summary of AI news"
+          cli agents langchain -p research --type react --llm gpt_41mini@openai "Quick summary of AI news"
 
           # Read query from stdin
           echo "Research renewable energy" | cli agents langchain -p Research

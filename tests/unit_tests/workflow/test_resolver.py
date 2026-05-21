@@ -31,38 +31,39 @@ paths:
   data_root: {data_root}
 baseline:
   workflows:
-    ingest_docs:
-      description: Ingest a directory of documents
-      steps:
-        - id: load
-          invoke:
-            kind: callable
-            target: genai_tk.workflow.steps.LoadDocuments
-          with:
-            root_dir: ${{values.root_dir}}
-        - id: ingest
-          invoke:
-            kind: callable
-            target: genai_tk.workflow.steps.IngestDocuments
-          wait_for: [load]
-          with:
-            retriever_name: ${{values.retriever_name}}
-    shared:
-      steps:
-        - id: only
-          invoke:
-            kind: callable
-            target: genai_tk.workflow.steps.Shared
-  workflow_profiles:
-    docs.default:
-      workflow: ingest_docs
-      values:
-        root_dir: {tmp_path}/docs
-        retriever_name: default
-    shared:
-      workflow: ingest_docs
-      values:
-        root_dir: {tmp_path}/shared
+    definitions:
+      ingest_docs:
+        description: Ingest a directory of documents
+        steps:
+          - id: load
+            invoke:
+              kind: callable
+              target: genai_tk.workflow.steps.LoadDocuments
+            with:
+              root_dir: ${{values.root_dir}}
+          - id: ingest
+            invoke:
+              kind: callable
+              target: genai_tk.workflow.steps.IngestDocuments
+            wait_for: [load]
+            with:
+              retriever_name: ${{values.retriever_name}}
+      shared:
+        steps:
+          - id: only
+            invoke:
+              kind: callable
+              target: genai_tk.workflow.steps.Shared
+    profiles:
+      docs.default:
+        workflow: ingest_docs
+        values:
+          root_dir: {tmp_path}/docs
+          retriever_name: default
+      shared:
+        workflow: ingest_docs
+        values:
+          root_dir: {tmp_path}/shared
 """
     config_path = tmp_path / "workflow_config.yaml"
     config_path.write_text(config_text, encoding="utf-8")
@@ -134,40 +135,41 @@ paths:
   config: {tmp_path}
   data_root: {data_root}
 baseline:
-  step_templates:
-    base_step:
-      invoke:
-        kind: flow
-        target: some.module.base_func
-      with:
-        base_dir: ${{values.base_dir}}
-        output_dir: ${{values.output_dir}}
-        batch_size: ${{values.batch_size}}
-        verbose: true
-
   workflows:
-    templated_workflow:
-      description: Test workflow using step templates
-      defaults:
-        batch_size: 5
-        output_dir: /default/output
-      steps:
-        - id: step_a
-          ref: base_step
+    step_templates:
+      base_step:
+        invoke:
+          kind: flow
+          target: some.module.base_func
+        with:
+          base_dir: ${{values.base_dir}}
+          output_dir: ${{values.output_dir}}
+          batch_size: ${{values.batch_size}}
+          verbose: true
 
-        - id: step_b
-          ref: base_step
-          wait_for: [step_a]
-          with:
-            output_dir: ${{values.custom_dir}}
-            verbose: false
+    definitions:
+      templated_workflow:
+        description: Test workflow using step templates
+        defaults:
+          batch_size: 5
+          output_dir: /default/output
+        steps:
+          - id: step_a
+            ref: base_step
 
-  workflow_profiles:
-    my_profile:
-      workflow: templated_workflow
-      values:
-        base_dir: {tmp_path}/input
-        custom_dir: {tmp_path}/custom
+          - id: step_b
+            ref: base_step
+            wait_for: [step_a]
+            with:
+              output_dir: ${{values.custom_dir}}
+              verbose: false
+
+    profiles:
+      my_profile:
+        workflow: templated_workflow
+        values:
+          base_dir: {tmp_path}/input
+          custom_dir: {tmp_path}/custom
 """
     config_path = tmp_path / "template_config.yaml"
     config_path.write_text(config_text, encoding="utf-8")
@@ -288,73 +290,74 @@ paths:
   config: {tmp_path}
   data_root: {data_root}
 baseline:
-  step_templates:
-    build_step:
-      invoke:
-        kind: callable
-        target: graph.build
-      with:
-        graphs: ${{values.graphs}}
-
   workflows:
-    base_graph:
-      steps:
-        - id: build
-          ref: build_step
+    step_templates:
+      build_step:
+        invoke:
+          kind: callable
+          target: graph.build
+        with:
+          graphs: ${{values.graphs}}
 
-    extended_graph:
-      steps:
-        - id: build
-          ref: build_step
-        - id: extra
-          invoke:
-            kind: callable
-            target: graph.extra
-          wait_for: [build]
+    definitions:
+      base_graph:
+        steps:
+          - id: build
+            ref: build_step
 
-    composite:
-      steps:
-        - id: base
-          invoke:
-            kind: workflow
-            target: base_graph
-        - id: ext
-          invoke:
-            kind: workflow
-            target: extended_graph
-          wait_for: [base]
+      extended_graph:
+        steps:
+          - id: build
+            ref: build_step
+          - id: extra
+            invoke:
+              kind: callable
+              target: graph.extra
+            wait_for: [build]
 
-    deep_composite:
-      steps:
-        - id: prep
-          invoke:
-            kind: callable
-            target: prep.step
-        - id: graphs
-          invoke:
-            kind: workflow
-            target: composite
-          wait_for: [prep]
+      composite:
+        steps:
+          - id: base
+            invoke:
+              kind: workflow
+              target: base_graph
+          - id: ext
+            invoke:
+              kind: workflow
+              target: extended_graph
+            wait_for: [base]
 
-    cyclic_a:
-      steps:
-        - id: s
-          invoke:
-            kind: workflow
-            target: cyclic_b
+      deep_composite:
+        steps:
+          - id: prep
+            invoke:
+              kind: callable
+              target: prep.step
+          - id: graphs
+            invoke:
+              kind: workflow
+              target: composite
+            wait_for: [prep]
 
-    cyclic_b:
-      steps:
-        - id: s
-          invoke:
-            kind: workflow
-            target: cyclic_a
+      cyclic_a:
+        steps:
+          - id: s
+            invoke:
+              kind: workflow
+              target: cyclic_b
 
-  workflow_profiles:
-    run_composite:
-      workflow: composite
-      values:
-        graphs: []
+      cyclic_b:
+        steps:
+          - id: s
+            invoke:
+              kind: workflow
+              target: cyclic_a
+
+    profiles:
+      run_composite:
+        workflow: composite
+        values:
+          graphs: []
 """
     config_path = tmp_path / "sub_wf_config.yaml"
     config_path.write_text(config_text, encoding="utf-8")
@@ -437,33 +440,34 @@ paths:
   data_root: {data_root}
 baseline:
   workflows:
-    two_leaves:
-      steps:
-        - id: root
-          invoke:
-            kind: callable
-            target: step.root
-        - id: leaf_a
-          invoke:
-            kind: callable
-            target: step.leaf_a
-          wait_for: [root]
-        - id: leaf_b
-          invoke:
-            kind: callable
-            target: step.leaf_b
-          wait_for: [root]
-    after_leaves:
-      steps:
-        - id: base
-          invoke:
-            kind: workflow
-            target: two_leaves
-        - id: final
-          invoke:
-            kind: callable
-            target: step.final
-          wait_for: [base]
+    definitions:
+      two_leaves:
+        steps:
+          - id: root
+            invoke:
+              kind: callable
+              target: step.root
+          - id: leaf_a
+            invoke:
+              kind: callable
+              target: step.leaf_a
+            wait_for: [root]
+          - id: leaf_b
+            invoke:
+              kind: callable
+              target: step.leaf_b
+            wait_for: [root]
+      after_leaves:
+        steps:
+          - id: base
+            invoke:
+              kind: workflow
+              target: two_leaves
+          - id: final
+            invoke:
+              kind: callable
+              target: step.final
+            wait_for: [base]
 """
     config_path = tmp_path / "multi_terminal.yaml"
     config_path.write_text(config_text, encoding="utf-8")

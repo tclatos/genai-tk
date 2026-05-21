@@ -43,29 +43,29 @@ middleware = AnonymizationMiddleware(config=config)
 
 ### YAML Configuration
 
-Add to `config/agents/langchain.yaml`:
+Add to `config/agents/langchain/simple.yaml`:
 
 ```yaml
 langchain_agents:
-  profiles:
-    - name: PrivacyAgent
-      type: react
-      llm: default
-      middlewares:
-        - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
-          analyzed_fields:
-            - PERSON
-            - EMAIL_ADDRESS
-            - PHONE_NUMBER
-            - CREDIT_CARD
-          faker_seed: 42
-          fuzzy_deanonymize: true
-          fuzzy_threshold: 85
+  privacy_agent:                    # Profile KEY
+    name: "Privacy Agent"           # Display name
+    type: react
+    llm: default
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
+        analyzed_fields:
+          - PERSON
+          - EMAIL_ADDRESS
+          - PHONE_NUMBER
+          - CREDIT_CARD
+        faker_seed: 42
+        fuzzy_deanonymize: true
+        fuzzy_threshold: 85
 ```
 
 Then run:
 ```bash
-uv run cli agents langchain --profile PrivacyAgent --chat
+cli agents langchain -p privacy_agent --chat
 ```
 
 ### Supported Entity Types
@@ -125,19 +125,19 @@ class MyMiddleware(AnonymizationMiddleware):
 
 ```yaml
 langchain_agents:
-  profiles:
-    - name: PrivacyAgent
-      type: react
-      llm: default
-      middlewares:
-        - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
-          analyzed_fields: [PERSON, EMAIL_ADDRESS, PROJECT_CODE]
-          custom_recognizers:
-            - entity_name: PROJECT_CODE
-              patterns:
-                - '\bPRJ-\d{5}\b'
-              context: [project, ticket]
-              score: 0.85
+  privacy_agent_custom:             # Profile KEY
+    name: "Privacy Agent (Custom)"
+    type: react
+    llm: default
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
+        analyzed_fields: [PERSON, EMAIL_ADDRESS, PROJECT_CODE]
+        custom_recognizers:
+          - entity_name: PROJECT_CODE
+            patterns:
+              - '\bPRJ-\d{5}\b'
+            context: [project, ticket]
+            score: 0.85
 ```
 
 ### Thread Isolation
@@ -216,18 +216,18 @@ When no `scorer` is passed, the middleware builds one from `config.scorer_class`
 
 ```yaml
 langchain_agents:
-  profiles:
-    - name: SecurityAgent
-      type: react
-      llm: gpt_41@openai  # default LLM
-      middlewares:
-        - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware:SensitivityRouterMiddleware
-          safe_llm: gpt_4mini@openai
-          sensitive_file_patterns:
-            - "**/hr/**"
-            - "**/executive/**"
-            - "**/medical/**"
-          threshold: 0.5
+  security_agent:                   # Profile KEY
+    name: "Security Agent"          # Display name
+    type: react
+    llm: gpt_41@openai
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware:SensitivityRouterMiddleware
+        safe_llm: gpt_4mini@openai
+        sensitive_file_patterns:
+          - "**/hr/**"
+          - "**/executive/**"
+          - "**/medical/**"
+        threshold: 0.5
 ```
 
 ### Sensitivity Scoring
@@ -329,21 +329,21 @@ result = agent.run(
 
 ```yaml
 langchain_agents:
-  profiles:
-    - name: SecurePrivacyAgent
-      type: react
-      llm: gpt_41@openai
-      middlewares:
-        # Innermost: Anonymize PII
-        - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
-          analyzed_fields: [PERSON, EMAIL_ADDRESS, PHONE_NUMBER]
-          faker_seed: 42
-        
-        # Outermost: Route sensitive content
-        - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware:SensitivityRouterMiddleware
-          safe_llm: gpt_4mini@openai
-          sensitive_file_patterns: ["**/executive/**"]
-          threshold: 0.5
+  secure_privacy_agent:             # Profile KEY
+    name: "Secure Privacy Agent"
+    type: react
+    llm: gpt_41@openai
+    middlewares:
+      # Innermost: Anonymize PII
+      - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
+        analyzed_fields: [PERSON, EMAIL_ADDRESS, PHONE_NUMBER]
+        faker_seed: 42
+      
+      # Outermost: Route sensitive content
+      - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware:SensitivityRouterMiddleware
+        safe_llm: gpt_4mini@openai
+        sensitive_file_patterns: ["**/executive/**"]
+        threshold: 0.5
 ```
 
 ## Implementation Details

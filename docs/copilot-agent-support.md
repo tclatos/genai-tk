@@ -161,14 +161,14 @@ and Deer-flow, these same skill files can also be _runtime skills_ loaded
 by the agent itself — set `skill_directories` in the agent profile:
 
 ```yaml
-# config/agents/langchain.yaml
+# config/agents/langchain/deep.yaml
 langchain_agents:
-  profiles:
-    - name: MyAgent
-      type: deep
-      skills:
-        directories:
-          - ${paths.project}/skills/custom
+  my_agent:                # Profile KEY
+    name: "My Agent"       # Display name
+    type: deep
+    skills:
+      directories:
+        - ${paths.project}/skills/custom
 ```
 
 ---

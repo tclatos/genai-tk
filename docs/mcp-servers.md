@@ -29,7 +29,7 @@ mcp_expose_servers:
       name: run_search_agent
       description: "Run a full ReAct web-search agent and return the final answer"
       # llm: gpt_41mini@openai   # override the LLM
-      # profile: Research        # use a deepagents.yaml profile
+      # profile: research        # use a langchain profile (by KEY)
 ```
 
 The `tools` syntax is identical to `langchain.yaml` — a `factory` key plus any

@@ -1,24 +1,18 @@
 # GenAI Toolkit Configuration
 # Basic configuration for running tests, Agents and CLI commands
 
-# Default configuration, as defined in baseline.yaml, overrides.yaml (here), or elsewhere.
-# It can be overidden by 'BLUEPRINT_CONFIG' environment variable, or in code
+# Profile selects a profile overlay directory: config/profiles/<profile>/
+# Override with BLUEPRINT_CONFIG env var.
+profile: ${oc.env:BLUEPRINT_CONFIG,baseline}
 
-default_config: ${oc.env:BLUEPRINT_CONFIG,baseline}
+# Directories scanned recursively for YAML files at startup.
+# Defaults to [config/] when omitted. All *.yaml files are merged (sorted),
+# except app_conf.yaml, profiles/, and anything in config_exclude.
+config_dirs: [config/]
 
-:merge:
-  - ${paths.config}/baseline.yaml
-  - ${paths.config}/providers/llm.yaml
-  - ${paths.config}/providers/embeddings.yaml
-  - ${paths.config}/rag.yaml
-  - ${paths.config}/overrides.yaml
-  - ${paths.config}/mcp_servers.yaml
-  - ${paths.config}/webapp.yaml
-  - ${paths.config}/workflows.yaml
-  # Agent configs are loaded on-demand by their respective loaders
-  # (load_deepagent_config, load_deer_flow_profiles, load_unified_config,
-  # load_all_demos_from_config) — no need to merge them globally here.
- 
+# Glob patterns (relative to each config_dir) to skip during auto-scan.
+config_exclude: []
+
 :env:
   LOGURU_LEVEL: INFO
   LANGCHAIN_TRACING_V2: "false"  # Disable LangChain v2 tracing by default (can be enabled in overrides or env)

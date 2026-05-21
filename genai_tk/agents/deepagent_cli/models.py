@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.agents.sandbox.models import DockerAioSettings
 
@@ -58,19 +58,47 @@ class DeepagentConfig(BaseModel):
     sandbox_config: DockerAioSettings | None = None
     system_prompt: str | None = None
     switcher_models: list[str] = Field(default_factory=list)
-    profiles: list[DeepagentProfile] = Field(default_factory=list)
+    model_config = ConfigDict(extra="allow")
 
-    def get_profile(self, name: str) -> DeepagentProfile | None:
-        """Return the profile with the given name, or None if not found.
+    _RESERVED_KEYS: frozenset[str] = frozenset(
+        {
+            "default_model",
+            "default_profile",
+            "auto_approve",
+            "enable_memory",
+            "enable_skills",
+            "enable_shell",
+            "shell_allow_list",
+            "sandbox",
+            "sandbox_config",
+            "system_prompt",
+            "switcher_models",
+        }
+    )
+
+    @property
+    def profiles(self) -> list[DeepagentProfile]:
+        """Agent profiles from named dict entries under ``deepagent:``."""
+        return list(self.profiles_dict.values())
+
+    @property
+    def profiles_dict(self) -> dict[str, DeepagentProfile]:
+        """Agent profiles keyed by their dict key (slug) under ``deepagent:``."""
+        result = {}
+        for key, val in (self.model_extra or {}).items():
+            if key not in self._RESERVED_KEYS and isinstance(val, dict):
+                result[key] = DeepagentProfile.model_validate(val)
+        return result
+
+    def get_profile(self, key: str) -> DeepagentProfile | None:
+        """Return the profile with the given dict key, or None if not found.
 
         Args:
-            name: Profile name to look up (case-insensitive).
+            key: Profile dict key (case-insensitive), e.g. ``coder``, ``researcher``.
         """
-        name_lower = name.lower()
-        for profile in self.profiles:
-            if profile.name.lower() == name_lower:
-                return profile
-        return None
+        key_lower = key.lower()
+        profiles = self.profiles_dict
+        return profiles.get(key_lower) or next((p for k, p in profiles.items() if k.lower() == key_lower), None)
 
 
 def load_deepagent_config(config_path: str | Path | None = None) -> DeepagentConfig:
@@ -106,4 +134,4 @@ def load_deepagent_config(config_path: str | Path | None = None) -> DeepagentCon
     else:
         path = Path(config_path)
 
-    return load_yaml_configs(path, "deepagent", list_merge_keys=["profiles"], model=DeepagentConfig)  # type: ignore[return-value]
+    return load_yaml_configs(path, "deepagent", model=DeepagentConfig)  # type: ignore[return-value]

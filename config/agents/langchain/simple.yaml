@@ -6,42 +6,45 @@
 # - weather: weather assistant
 
 langchain_agents:
-  profiles:
 
-    - name: "simple"
-      type: react
-      description: "Simple agents with web search"
-      pre_prompt: "You are an agent having access to the Web."
-      tools:
-        - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-          verbose: true
+  simple:
+    name: "simple"
+    type: react
+    description: "Simple agents with web search"
+    pre_prompt: "You are an agent having access to the Web."
+    tools:
+      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+        verbose: true
 
-    - name: "filesystem"
-      type: react
-      description: "File system manipulation agent"
-      pre_prompt: "You have the ability to manipulate the file system. If the user asks something else, refuse politely."
-      tools:
-        - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-          verbose: true
-      mcp_servers:
-        - "filesystem"
-      examples:
-        - "What are the configuration files in current directory"
+  filesystem:
+    name: "filesystem"
+    type: react
+    description: "File system manipulation agent"
+    pre_prompt: "You have the ability to manipulate the file system. If the user asks something else, refuse politely."
+    tools:
+      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+        verbose: true
+    mcp_servers:
+      - "filesystem"
+    examples:
+      - "What are the configuration files in current directory"
 
-    - name: "eval-test"
-      type: react
-      description: "Minimal profile for evaluation tests — no tools, no LLM (both injected at test time)"
-      system_prompt: "You are a helpful assistant."
+  eval_test:
+    name: "eval-test"
+    type: react
+    description: "Minimal profile for evaluation tests — no tools, no LLM (both injected at test time)"
+    system_prompt: "You are a helpful assistant."
 
-    - name: "Weather"
-      type: react
-      description: "Weather assistant with web search"
-      tools:
-        - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-          verbose: true
-      mcp_servers:
-        - "filesystem"
-      pre_prompt: "You are a helpful weather assistant. Always provide current weather information and be specific about locations and conditions."
-      examples:
-        - "What is the current weather in Toulouse?"
-        - "Will it rain tomorrow in Paris?"
+  weather:
+    name: "Weather"
+    type: react
+    description: "Weather assistant with web search"
+    tools:
+      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+        verbose: true
+    mcp_servers:
+      - "filesystem"
+    pre_prompt: "You are a helpful weather assistant. Always provide current weather information and be specific about locations and conditions."
+    examples:
+      - "What is the current weather in Toulouse?"
+      - "Will it rain tomorrow in Paris?"

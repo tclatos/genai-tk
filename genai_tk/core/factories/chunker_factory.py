@@ -91,12 +91,12 @@ class ChunkerFactory:
         """Create a TextSplitter for a file, optionally with auto-detection.
 
         If chunker_name is "auto", selects the chunker based on file extension
-        using config.chunker_auto_map.
+        using config.chunkers.auto_map.
 
         Args:
             path: File path (str or UPath).
             chunker_name: Chunker configuration name.
-                If "auto", uses file extension to select from chunker_auto_map.
+                If "auto", uses file extension to select from chunkers.auto_map.
 
         Returns:
             Configured TextSplitter instance.
@@ -110,7 +110,7 @@ class ChunkerFactory:
 
         if chunker_name == "auto":
             config = global_config()
-            auto_map = config.get_dict("chunker_auto_map", {})
+            auto_map = config.get_dict("chunkers.auto_map", {})
 
             # Try file extension first
             ext = path.suffix.lower()
@@ -123,7 +123,7 @@ class ChunkerFactory:
             else:
                 raise KeyError(
                     f"No chunker mapping for extension '{ext}' and no '.default' fallback. "
-                    f"Configure in config.chunker_auto_map"
+                    f"Configure in config.chunkers.auto_map"
                 )
 
             return cls.create(selected_chunker)

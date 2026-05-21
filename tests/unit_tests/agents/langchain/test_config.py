@@ -28,17 +28,15 @@ MINIMAL_YAML: dict[str, Any] = {
     "langchain_agents": {
         "defaults": {"type": "react"},
         "default_profile": "simple",
-        "profiles": [
-            {"name": "simple", "type": "react", "llm": "parrot_local@fake", "tools": [], "mcp_servers": []},
-            {
-                "name": "deep_one",
-                "type": "deep",
-                "llm": "gpt41@openai",
-                "tools": [],
-                "mcp_servers": [],
-                "skill_directories": ["/skills"],
-            },
-        ],
+        "simple": {"name": "simple", "type": "react", "llm": "parrot_local@fake", "tools": [], "mcp_servers": []},
+        "deep_one": {
+            "name": "deep_one",
+            "type": "deep",
+            "llm": "gpt41@openai",
+            "tools": [],
+            "mcp_servers": [],
+            "skill_directories": ["/skills"],
+        },
     }
 }
 
@@ -114,8 +112,9 @@ class TestLangchainAgentsConfig:
         cfg = LangchainAgentsConfig.model_validate(MINIMAL_YAML["langchain_agents"])
         assert cfg.default_profile == "simple"
         assert len(cfg.profiles) == 2
-        assert cfg.profiles[0].name == "simple"
-        assert cfg.profiles[1].type == "deep"
+        names = {p.name for p in cfg.profiles}
+        assert "simple" in names
+        assert any(p.type == "deep" for p in cfg.profiles)
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +153,7 @@ class TestLoadUnifiedConfig:
             "langchain_agents": {
                 "defaults": {"type": "deep", "llm": "gpt41@openai"},
                 "default_profile": "d",
-                "profiles": [{"name": "d"}],
+                "d": {"name": "d"},
             }
         }
         cfg_file = _write_yaml(tmp_path, data)
@@ -167,7 +166,6 @@ class TestLoadUnifiedConfig:
             "langchain_agents": {
                 "defaults": {"middlewares": [{"class": "mod.RichMiddleware"}]},
                 "default_profile": "",
-                "profiles": [],
             }
         }
         cfg_file = _write_yaml(tmp_path, data)
@@ -206,7 +204,7 @@ class TestResolveProfile:
             "langchain_agents": {
                 "defaults": {"llm": "default_llm@fake"},
                 "default_profile": "p",
-                "profiles": [{"name": "p"}],  # no llm set
+                "p": {"name": "p"},  # no llm set
             }
         }
         cfg_file = _write_yaml(tmp_path, data)
@@ -219,7 +217,7 @@ class TestResolveProfile:
             "langchain_agents": {
                 "defaults": {"llm": "default_llm@fake"},
                 "default_profile": "p",
-                "profiles": [{"name": "p", "llm": "profile_llm@fake"}],
+                "p": {"name": "p", "llm": "profile_llm@fake"},
             }
         }
         cfg_file = _write_yaml(tmp_path, data)
@@ -237,7 +235,7 @@ class TestResolveProfile:
             "langchain_agents": {
                 "defaults": {"middlewares": [{"class": "mod.DefaultMiddleware"}]},
                 "default_profile": "p",
-                "profiles": [{"name": "p"}],  # no middlewares
+                "p": {"name": "p"},  # no middlewares
             }
         }
         cfg_file = _write_yaml(tmp_path, data)
@@ -251,7 +249,7 @@ class TestResolveProfile:
             "langchain_agents": {
                 "defaults": {"middlewares": [{"class": "mod.DefaultMiddleware"}]},
                 "default_profile": "p",
-                "profiles": [{"name": "p", "middlewares": [{"class": "mod.ProfileMiddleware"}]}],
+                "p": {"name": "p", "middlewares": [{"class": "mod.ProfileMiddleware"}]},
             }
         }
         cfg_file = _write_yaml(tmp_path, data)
@@ -265,7 +263,7 @@ class TestResolveProfile:
             "langchain_agents": {
                 "defaults": {},
                 "default_profile": "p",
-                "profiles": [{"name": "p", "type": "react", "skill_directories": ["/skills"]}],
+                "p": {"name": "p", "type": "react", "skill_directories": ["/skills"]},
             }
         }
         cfg_file = _write_yaml(tmp_path, data)
@@ -410,7 +408,7 @@ class TestResolveProfileBackend:
             "langchain_agents": {
                 "defaults": {"backend": default_backend},
                 "default_profile": "p",
-                "profiles": [profile_data],
+                "p": profile_data,
             }
         }
         cfg_file = tmp_path / "langchain.yaml"
@@ -451,7 +449,7 @@ class TestResolveProfileBackend:
             "langchain_agents": {
                 "defaults": {},
                 "default_profile": "p",
-                "profiles": [{"name": "p", "type": "react", "backend": {"type": "aio_sandbox"}}],
+                "p": {"name": "p", "type": "react", "backend": {"type": "aio_sandbox"}},
             }
         }
         import yaml

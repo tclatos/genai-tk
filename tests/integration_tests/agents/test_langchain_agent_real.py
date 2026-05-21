@@ -286,18 +286,18 @@ class TestNamedProfiles:
         assert agent._profile.type == "react"
 
     def test_coding_profile_is_deep(self) -> None:
-        """'Coding' profile resolves to type=deep with file-system enabled."""
+        """'coding' profile resolves to type=deep with file-system enabled."""
         pytest.importorskip("deepagents", reason="deepagents package required")
-        agent = LangchainAgent("Coding", llm=LLM)
+        agent = LangchainAgent("coding", llm=LLM)
         assert agent._profile is not None
         assert agent._profile.type == "deep"
         assert agent._profile.enable_file_system is True
         assert agent._profile.enable_planning is True
 
     def test_research_profile_is_deep_with_planning(self) -> None:
-        """'Research' profile resolves to type=deep with planning and skill directories."""
+        """'research' profile resolves to type=deep with planning and skill directories."""
         pytest.importorskip("deepagents", reason="deepagents package required")
-        agent = LangchainAgent("Research", llm=LLM)
+        agent = LangchainAgent("research", llm=LLM)
         assert agent._profile is not None
         assert agent._profile.type == "deep"
         assert agent._profile.enable_planning is True

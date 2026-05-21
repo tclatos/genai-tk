@@ -1,12 +1,3 @@
-# Genai-Tk Evolution Ideas - Roadmap candidates - 
-
-
-- ~~Merge  genai_tk/extra/retrievers into  genai_tk/core/retrievers.~~ Done: moved to `workflow/retrievers/`.
-- ~~move extra/rag to core/rag~~ Done: moved to `workflow/rag/`.
-- ~~remove /home/tcl/prj/genai-tk/genai_tk/extra/loaders/markdown_loader.py~~ Done: moved to `workflow/loaders/`.
-
-
-
 
 # TOC
 
@@ -35,9 +26,6 @@ examples/notebooks/middleware_anonymization_demo.ipynb
 - The result returned with LLM is displayed
 - the user can visualize the configurarauon and oyther information to understand how it works
 
-
-## Comprehensive workflow tests
-- Improve test for the new workflow feature : paralelism, caching, ...
 
 ## Ladybug embeddings
 

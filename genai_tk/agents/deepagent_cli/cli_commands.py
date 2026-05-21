@@ -71,9 +71,9 @@ def _resolve_profile_settings(
     if profile_name:
         profile = config.get_profile(profile_name)
         if profile is None:
-            names = [p.name for p in config.profiles]
+            keys = list(config.profiles_dict.keys())
             console.print(
-                f"[red]Profile not found:[/red] {profile_name!r}. Available: {', '.join(names) or '(none defined)'}"
+                f"[red]Profile not found:[/red] {profile_name!r}. Available: {', '.join(keys) or '(none defined)'}"
             )
             raise typer.Exit(1)
 
@@ -110,7 +110,7 @@ def _list_profiles() -> None:
         return
 
     table = Table(title="Deep Agent Profiles")
-    table.add_column("Name", style="cyan", no_wrap=True)
+    table.add_column("Key", style="cyan", no_wrap=True)
     table.add_column("LLM", style="magenta")
     table.add_column("Auto-approve", style="yellow")
     table.add_column("Memory", style="green")
@@ -119,10 +119,10 @@ def _list_profiles() -> None:
     table.add_column("Description", style="dim")
 
     default = config.default_profile
-    for p in config.profiles:
-        name = f"* {p.name}" if default and p.name == default else p.name
+    for key, p in config.profiles_dict.items():
+        key_cell = f"* {key}" if default and key == default else key
         table.add_row(
-            name,
+            key_cell,
             p.llm or "(global default)",
             "✓" if p.auto_approve else "✗",
             "✓" if p.enable_memory else "✗",

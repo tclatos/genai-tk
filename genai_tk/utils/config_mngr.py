@@ -19,6 +19,8 @@ QualifiedFunctionName  # 'module.path.function_name'
 
 from __future__ import annotations
 
+import fnmatch
+import io
 import os
 from pathlib import Path
 from typing import Annotated, Any, Optional, TypeVar, overload
@@ -103,8 +105,10 @@ class OmegaConfig(BaseModel):
 
     root: DictConfig
     selected_config: str
+    provenance: dict[str, list[Path]] = Field(default_factory=dict)
+    """Maps each top-level config key to the list of YAML files that contributed it."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)  # to make pydantic happy
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def selected(self) -> DictConfig:
@@ -114,7 +118,6 @@ class OmegaConfig(BaseModel):
     def singleton() -> OmegaConfig:
         """Returns the singleton instance of Config."""
 
-        # Load main config file
         app_conf_path = Path(APPLICATION_CONFIG_FILE)
         searched_paths = [str(app_conf_path)]
         if not app_conf_path.exists():
@@ -141,35 +144,220 @@ class OmegaConfig(BaseModel):
         # Process :env pseudo-key to load environment variables
         OmegaConfig._process_env_variables(config)
 
-        # Load and merge additional config files
-        config = OmegaConfig._process_merge_files(config)
+        # Build initial provenance from app_conf itself
+        provenance: dict[str, list[Path]] = {
+            str(k): [app_conf_path] for k in config.keys() if not str(k).startswith(":")
+        }
 
-        # Determine which config to use
-        # @TODO : remove config_name_from_env as its set on the YAML
-        config_name_from_env = os.environ.get("BLUEPRINT_CONFIG")
-        config_name_from_yaml = config.get("default_config")  # type: ignore
-        if config_name_from_env and config_name_from_env not in config:
+        # Determine profile name early (before merging) for profile-dir loading
+        env_profile = os.environ.get("BLUEPRINT_CONFIG")
+        raw_profile = OmegaConf.select(config, "profile", default=None)
+        if raw_profile is None:
+            raw_profile = OmegaConf.select(config, "default_config", default="baseline")
+        profile = env_profile or str(raw_profile)
+
+        # Legacy :merge: support — emit deprecation warning and fall back
+        has_merge = ":merge" in config or "merge" in config
+        # Auto-scan only when: (a) the file is named app_conf.yaml (canonical entry point),
+        # OR (b) config_dirs is explicitly set.  This prevents spurious scans when
+        # OmegaConfig.create() is called on small test or intermediate config files.
+        is_app_conf = app_conf_path.name == "app_conf.yaml"
+        has_config_dirs = OmegaConf.select(config, "config_dirs", default=None) is not None
+        should_auto_scan = (is_app_conf or has_config_dirs) and not has_merge
+        if has_merge:
             logger.warning(
-                f"Configuration selected by environment variable 'BLUEPRINT_CONFIG' not found: {config_name_from_env}"
+                "':merge:' in app_conf.yaml is deprecated. "
+                "Remove it and use 'config_dirs:' / 'config_exclude:' for automatic directory scanning."
             )
-            config_name_from_env = None
-        if config_name_from_yaml and config_name_from_yaml not in config and config_name_from_yaml != "baseline":
-            logger.warning(f"Configuration selected by key 'default_config' not found: {config_name_from_yaml}")
-            config_name_from_yaml = None
-        selected_config = config_name_from_env or config_name_from_yaml or "baseline"
+            config = OmegaConfig._process_merge_files(config)
+        elif should_auto_scan:
+            config, provenance = OmegaConfig._auto_scan_and_merge(config, app_conf_path, profile, provenance)
 
-        # Clean up pseudo-keys from final config
-        if ":merge" in config:
-            del config[":merge"]
-        if "merge" in config:
-            del config["merge"]
-        # :env keys are already removed during processing
+        # Clean up pseudo-keys
+        for key in [":merge", "merge"]:
+            if key in config:
+                del config[key]
 
-        # Perform early validation
-        instance = OmegaConfig(root=config, selected_config=selected_config)  # type: ignore
+        instance = OmegaConfig(root=config, selected_config=profile, provenance=provenance)  # type: ignore
         instance._validate_config()
-
         return instance
+
+    # -----------------------------------------------------------------------
+    # Auto-scan loading
+    # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _auto_scan_and_merge(
+        config: DictConfig,
+        app_conf_path: Path,
+        profile: str,
+        provenance: dict[str, list[Path]],
+    ) -> tuple[DictConfig, dict[str, list[Path]]]:
+        """Scan config directories, load all YAML files, merge in order.
+
+        Load order:
+        1. Sorted YAML files from config_dirs (excluding app_conf.yaml, overrides.yaml, profiles/)
+        2. Profile overlay: config_dirs/<dir>/profiles/<profile>/*.yaml (sorted)
+        3. overrides.yaml (always last, per config_dir)
+        """
+        app_conf_dir = app_conf_path.parent
+
+        # Resolve config_dirs from config (default: the app_conf directory itself)
+        config_dirs_raw = OmegaConf.select(config, "config_dirs", default=None)
+        if config_dirs_raw is None:
+            config_dirs = [app_conf_dir]
+        else:
+            dirs_container = OmegaConf.to_container(config_dirs_raw, resolve=False)
+            config_dirs = [
+                Path(d) if Path(d).is_absolute() else app_conf_dir.parent / str(d)
+                for d in (dirs_container if isinstance(dirs_container, list) else [dirs_container])
+            ]
+
+        # Resolve exclude patterns
+        exclude_raw = OmegaConf.select(config, "config_exclude", default=None)
+        exclude_patterns: list[str] = []
+        if exclude_raw is not None:
+            ex_container = OmegaConf.to_container(exclude_raw, resolve=False)
+            exclude_patterns = list(ex_container) if isinstance(ex_container, list) else [str(ex_container)]
+        # Always exclude the profiles/ subtree from base scan
+        exclude_patterns.append("profiles/**")
+
+        base_files, profile_files, override_files = OmegaConfig._collect_yaml_files(
+            config_dirs, app_conf_path, exclude_patterns, profile
+        )
+        logger.debug(f"Auto-loading {len(base_files)} base, {len(profile_files)} profile, {len(override_files)} override YAML files")
+
+        for yaml_path in base_files:
+            config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
+        for yaml_path in profile_files:
+            config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
+        for yaml_path in override_files:
+            config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
+
+        return config, provenance
+
+    @staticmethod
+    def _collect_yaml_files(
+        config_dirs: list[Path],
+        app_conf_path: Path,
+        exclude_patterns: list[str],
+        profile: str,
+    ) -> tuple[list[Path], list[Path], list[Path]]:
+        """Collect YAML files to merge, partitioned into base / profile / overrides."""
+        base_files: list[Path] = []
+        profile_files: list[Path] = []
+        override_files: list[Path] = []
+
+        for config_dir in config_dirs:
+            if not config_dir.exists():
+                logger.warning(f"Config directory does not exist: {config_dir}")
+                continue
+
+            overrides_path = config_dir / "overrides.yaml"
+            profile_dir = config_dir / "profiles" / profile
+
+            for yaml_path in sorted(config_dir.rglob("*.yaml")):
+                # Skip app_conf.yaml
+                if yaml_path.resolve() == app_conf_path.resolve():
+                    continue
+                # Defer overrides.yaml to the end
+                if yaml_path.resolve() == overrides_path.resolve():
+                    continue
+                # Skip anything inside a profiles/ directory
+                try:
+                    yaml_path.relative_to(config_dir / "profiles")
+                    continue  # it's inside profiles/
+                except ValueError:
+                    pass
+
+                rel_path = yaml_path.relative_to(config_dir)
+                if any(fnmatch.fnmatch(str(rel_path), pat) for pat in exclude_patterns):
+                    continue
+
+                base_files.append(yaml_path)
+
+            # Profile overlay
+            if profile_dir.exists():
+                for yaml_path in sorted(profile_dir.rglob("*.yaml")):
+                    profile_files.append(yaml_path)
+
+            if overrides_path.exists():
+                override_files.append(overrides_path)
+
+        return base_files, profile_files, override_files
+
+    @staticmethod
+    def _merge_file(
+        config: DictConfig,
+        yaml_path: Path,
+        provenance: dict[str, list[Path]],
+    ) -> tuple[DictConfig, dict[str, list[Path]]]:
+        """Load a single YAML file and merge it into config, updating provenance."""
+        try:
+            new_conf = OmegaConf.load(yaml_path)
+        except Exception as e:
+            raise ConfigParseError(str(yaml_path), original_error=e) from e
+
+        if not isinstance(new_conf, DictConfig):
+            raise ConfigTypeError(f"file_{yaml_path.name}", expected_type="DictConfig", actual_type=type(new_conf))
+
+        OmegaConfig._process_env_variables(new_conf, parent_config=config)
+
+        # Remove pseudo-keys
+        for key in [":merge", "merge", ":env"]:
+            if key in new_conf:
+                del new_conf[key]
+
+        # Warn on overlapping sub-keys
+        OmegaConfig._check_provenance_conflicts(new_conf, config, provenance, yaml_path)
+
+        # Record provenance
+        for key in new_conf.keys():
+            key_str = str(key)
+            if not key_str.startswith(":"):
+                provenance.setdefault(key_str, []).append(yaml_path)
+
+        merged = OmegaConf.merge(config, new_conf)
+        if not isinstance(merged, DictConfig):
+            raise ConfigTypeError("merged_config", expected_type="DictConfig", actual_type=type(merged))
+        return merged, provenance
+
+    @staticmethod
+    def _check_provenance_conflicts(
+        new_conf: DictConfig,
+        current_config: DictConfig,
+        provenance: dict[str, list[Path]],
+        source: Path,
+    ) -> None:
+        """Warn when a new YAML file sets the same leaf key as an already-loaded file.
+
+        Only warns on actual value collisions (non-dict leaves sharing the same key path),
+        not on dict-valued sub-keys that different files legitimately extend.
+        """
+        for key in new_conf.keys():
+            key_str = str(key)
+            if key_str.startswith(":") or key_str not in provenance:
+                continue
+            try:
+                existing_val = current_config.get(key_str)
+                new_val = new_conf.get(key_str)
+                if isinstance(existing_val, DictConfig) and isinstance(new_val, DictConfig):
+                    # Recurse one level: only report leaf-level conflicts
+                    leaf_conflicts = [
+                        sub_key
+                        for sub_key in set(existing_val.keys()) & set(new_val.keys())
+                        if not isinstance(existing_val.get(sub_key), DictConfig)
+                        or not isinstance(new_val.get(sub_key), DictConfig)
+                    ]
+                    if leaf_conflicts:
+                        existing_files = [str(f) for f in provenance.get(key_str, [])]
+                        logger.warning(
+                            f"Config key '{key_str}' has overlapping leaf keys {sorted(leaf_conflicts)} "
+                            f"defined in {existing_files} and {source}. "
+                            "Later file wins. Use a profile overlay or overrides.yaml to override intentionally."
+                        )
+            except Exception:
+                pass
 
     def select_config(self, config_name: str) -> None:
         """Select a different configuration section to override defaults."""
@@ -199,7 +387,7 @@ class OmegaConfig(BaseModel):
                 llm_entries = self.get("llm.registry", default=None)
             if llm_entries is None:
                 warnings.append(
-                    "No LLM providers found (llm.exceptions). Ensure provider files are in the :merge list."
+                    "No LLM providers found (llm.exceptions). Ensure provider YAML files are in config_dirs."
                 )
             elif not isinstance(llm_entries, (list, ListConfig)):
                 errors.append(f"llm.exceptions should be a list, got {type(llm_entries).__name__}")
@@ -213,7 +401,7 @@ class OmegaConfig(BaseModel):
             emb_entries = self.get("embeddings.registry", default=None)
             if emb_entries is None:
                 warnings.append(
-                    "No embeddings providers found (embeddings.registry). Ensure provider files are in the :merge list."
+                    "No embeddings providers found (embeddings.registry). Ensure provider YAML files are in config_dirs."
                 )
             elif not isinstance(emb_entries, (list, ListConfig)):
                 errors.append(f"embeddings.registry should be a list, got {type(emb_entries).__name__}")
@@ -258,40 +446,88 @@ class OmegaConfig(BaseModel):
             raise ConfigValidationError(errors, config_name=self.selected_config)
 
     def merge_with(self, file_path: str | Path) -> OmegaConfig:
-        """Merge additional YAML configuration file into the current config.
+        """Merge a YAML file into the current config.
 
         Args:
             file_path: Path to YAML file to merge
         Returns:
             self for method chaining
         """
-        path = Path(file_path)
-        if not path.exists():
-            raise ConfigFileNotFoundError(str(file_path))
+        return self.merge_yaml(file_path)
 
-        try:
-            new_conf = OmegaConf.load(path)
-        except Exception as e:
-            raise ConfigParseError(str(file_path), original_error=e) from e
+    def merge_yaml(self, content: str | Path) -> OmegaConfig:
+        """Dynamically merge YAML content (raw string or file path) into the current config.
+
+        When ``content`` is a string that resolves to an existing file path, the file is loaded.
+        Otherwise the string is parsed as raw YAML.
+
+        Args:
+            content: YAML string, YAML file path (str or Path)
+        Returns:
+            self for method chaining
+
+        Example:
+            ```python
+            cfg = global_config()
+            # from a file
+            cfg.merge_yaml(Path("config/extra.yaml"))
+            # from a string
+            cfg.merge_yaml("llm:\\n  models:\\n    default: gpt-4o@openai")
+            ```
+        """
+        source: Path
+        if isinstance(content, Path):
+            if not content.exists():
+                raise ConfigFileNotFoundError(str(content))
+            new_conf = OmegaConf.load(content)
+            source = content
+        else:
+            # Try as file path first
+            candidate = Path(content)
+            if candidate.exists():
+                new_conf = OmegaConf.load(candidate)
+                source = candidate
+            else:
+                # Parse as raw YAML string
+                try:
+                    new_conf = OmegaConf.load(io.StringIO(content))
+                except Exception as e:
+                    raise ConfigParseError("<string>", original_error=e) from e
+                source = Path("<string>")
 
         if not isinstance(new_conf, DictConfig):
-            raise ConfigTypeError(f"merge_file_{path.name}", expected_type="DictConfig", actual_type=type(new_conf))
+            raise ConfigTypeError(f"merge_yaml_{source.name}", expected_type="DictConfig", actual_type=type(new_conf))
 
-        # Process :env pseudo-key to load environment variables (pass self.root for interpolation)
         OmegaConfig._process_env_variables(new_conf, parent_config=self.root)
 
-        # Process :merge pseudo-key recursively (pass self.root as parent config)
-        new_conf = OmegaConfig._process_merge_files(new_conf, parent_config=self.root)
+        # Remove pseudo-keys
+        for key in [":merge", "merge", ":env"]:
+            if key in new_conf:
+                del new_conf[key]
 
-        # Clean up pseudo-keys before merging
-        if ":merge" in new_conf:
-            del new_conf[":merge"]
-        if "merge" in new_conf:
-            del new_conf["merge"]
-        # :env keys are already removed during processing
+        OmegaConfig._check_provenance_conflicts(new_conf, self.root, self.provenance, source)
 
-        self.root = OmegaConf.merge(self.root, new_conf)  # type: ignore
+        for key in new_conf.keys():
+            key_str = str(key)
+            if not key_str.startswith(":"):
+                self.provenance.setdefault(key_str, []).append(source)
+
+        merged = OmegaConf.merge(self.root, new_conf)
+        if not isinstance(merged, DictConfig):
+            raise ConfigTypeError("merge_yaml_result", expected_type="DictConfig", actual_type=type(merged))
+        self.root = merged  # type: ignore
         return self
+
+    def config_keys_info(self) -> dict[str, list[str]]:
+        """Return top-level config key provenance as a dict mapping key → list of source file names.
+
+        Useful for introspection and the ``cli info config-keys`` command.
+
+        Returns:
+            Dict where each key is a top-level config key and the value is the list of
+            source file paths (as strings) that contributed that key.
+        """
+        return {k: [str(p) for p in paths] for k, paths in self.provenance.items()}
 
     def get(self, key: str, default: Any = _MISSING) -> Any:
         """Get a configuration value using dot notation.
@@ -879,10 +1115,13 @@ def load_yaml_configs(
         except Exception as exc:
             raise ConfigParseError(str(yaml_path), original_error=exc) from exc
 
-        # Overlay file onto global config so ${paths.*} interpolations resolve
+        # Overlay file onto global config so ${paths.*} interpolations resolve,
+        # but strip top_level_key from base_cfg to prevent its pre-loaded values
+        # from polluting the explicitly loaded file content.
         if base_cfg is not None:
             try:
-                merged_node = OmegaConf.merge(base_cfg, file_node)
+                context_cfg = OmegaConf.masked_copy(base_cfg, [k for k in base_cfg.keys() if k != top_level_key])
+                merged_node = OmegaConf.merge(context_cfg, file_node)
             except Exception:
                 merged_node = file_node
         else:

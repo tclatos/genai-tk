@@ -914,21 +914,21 @@ See [prefect.md](prefect.md) for Prefect server setup and deployed flow patterns
 ### In an agent YAML profile
 
 ```yaml
-# config/agents/langchain.yaml
+# config/agents/langchain/deep.yaml
 langchain_agents:
-  profiles:
-    - name: KnowledgeAgent
-      type: react
-      llm: default
-      system_prompt: "You are a knowledgeable assistant. Use the search tool to answer questions."
-      tools:
-        - spec: rag_search
-          config:
-            retriever: hybrid_ensemble
-            tool_name: knowledge_search
-            tool_description: "Search the company knowledge base"
-            default_filter: {source: docs}
-            top_k: 5
+  knowledge_agent:                    # Profile KEY
+    name: "Knowledge Agent"           # Display name
+    type: react
+    llm: default
+    system_prompt: "You are a knowledgeable assistant. Use the search tool to answer questions."
+    tools:
+      - spec: rag_search
+        config:
+          retriever: hybrid_ensemble
+          tool_name: knowledge_search
+          tool_description: "Search the company knowledge base"
+          default_filter: {source: docs}
+          top_k: 5
 ```
 
 ### Programmatically

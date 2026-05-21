@@ -148,8 +148,8 @@ print(response.content)
 # ReAct agent — interactive chat
 uv run cli agents langchain --chat
 
-# Single query with a named profile
-uv run cli agents langchain -p Coding "Explain async generators"
+# Single query with a specific profile (by KEY)
+uv run cli agents langchain -p coding "Explain async generators"
 
 # Show all agent profiles and frameworks
 uv run cli agents langchain --list
@@ -287,14 +287,14 @@ Standard Thought → Action → Observation loop. Good general-purpose default.
 
 ```bash
 cli agents langchain --chat                           # interactive session
-cli agents langchain -p Coding "Review this code"    # named profile
+cli agents langchain -p coding "Review this code"    # profile by KEY
 cli agents langchain --list                           # show profiles
 ```
 
 ```python
 from genai_tk.agents.langchain import LangchainAgent
 
-agent = LangchainAgent("Research")
+agent = LangchainAgent("research")
 result = agent.run("Summarise the 2024 GPT-4 technical report")
 ```
 
@@ -320,21 +320,21 @@ langchain_agents:
 Extends ReAct with multi-step planning, subagent delegation, and optional Docker sandbox execution. Requires the `deepagents` extra package.
 
 ```bash
-cli agents langchain -p Research --chat
+cli agents langchain -p research --chat
 ```
 
 ```yaml
 langchain_agents:
-  profiles:
-    - name: Research
-      type: deep
-      llm: gpt_41@openai
-      enable_planning: true
-      skills:
-        directories:
-          - ${paths.project}/skills    # SKILL.md files read on demand
-      backend:
-        type: aio_sandbox              # optional Docker sandbox
+  research:                             # Profile KEY
+    name: "Research"                    # Display name
+    type: deep
+    llm: gpt_41@openai
+    enable_planning: true
+    skills:
+      directories:
+        - ${paths.project}/skills       # SKILL.md files read on demand
+    backend:
+      type: aio_sandbox                 # optional Docker sandbox
 ```
 
 ---
@@ -354,8 +354,8 @@ cli init --deer-flow          # clones Deer-flow and installs its backend deps
 
 ```bash
 cli agents deerflow --chat                              # interactive (default profile)
-cli agents deerflow -p "Research Assistant" --trace "Explain quantum key distribution"
-cli agents deerflow -p "Research Assistant" --mode ultra --chat   # full planning + sub-agents
+cli agents deerflow -p research_assistant --trace "Explain quantum key distribution"
+cli agents deerflow -p research_assistant --mode ultra --chat   # full planning + sub-agents
 cli agents deerflow --list                              # show profiles + modes
 ```
 
@@ -430,8 +430,8 @@ cli sandbox start
 cli sandbox pull
 
 # Use with any agent
-cli agents langchain  -p Research --sandbox docker "Write and run a Python script"
-cli agents deerflow   -p "Research Assistant" --sandbox docker --chat
+cli agents langchain  -p research --sandbox docker "Write and run a Python script"
+cli agents deerflow   -p research_assistant --sandbox docker --chat
 cli agents smolagents --executor docker "Run some code"
 ```
 
@@ -459,8 +459,8 @@ mcp_servers_config:
 ```
 
 ```bash
-cli agents deerflow -p "Research Assistant" --mcp math_server "…"
-cli agents langchain -p Research --mcp custom_server "…"
+cli agents deerflow -p research_assistant --mcp math_server "…"
+cli agents langchain -p research --mcp custom_server "…"
 ```
 
 See [docs/mcp-servers.md](docs/mcp-servers.md) for the full reference.
