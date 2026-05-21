@@ -99,7 +99,15 @@ class ImportResolver:
                 for attr in obj_path:
                     obj = getattr(obj, attr)
                 return obj
-            except ImportError:
+            except ImportError as e:
+                # Only skip to the next shorter module path when the module itself
+                # does not exist on the filesystem.  If the module was found but
+                # raised an error during initialisation (e.g. a version mismatch in
+                # a transitive dependency), re-raise immediately so the real cause
+                # is visible instead of an opaque AttributeError.
+                module_not_found = isinstance(e, ModuleNotFoundError) and (e.name is None or mod.startswith(e.name))
+                if not module_not_found:
+                    raise ImportError(f"Failed to import module '{mod}' while resolving '{qualified_name}': {e}") from e
                 continue
             except AttributeError as e:
                 raise AttributeError(
