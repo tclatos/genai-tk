@@ -282,6 +282,11 @@ class OmegaConfig(BaseModel):
             if profile_dir.exists():
                 for yaml_path in sorted(profile_dir.rglob("*.yaml")):
                     profile_files.append(yaml_path)
+            else:
+                logger.warning(
+                    f"Profile '{profile}' directory not found: {profile_dir}\n"
+                    f"  Available profiles: {[p.name for p in (config_dir / 'profiles').iterdir() if p.is_dir()] if (config_dir / 'profiles').exists() else '(no profiles/ directory)'}"
+                )
 
             if overrides_path.exists():
                 override_files.append(overrides_path)
