@@ -1,0 +1,62 @@
+"""RAG CLI commands for {{ project_name }}."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Annotated, Optional
+
+import typer
+from rich.console import Console
+
+from genai_tk.cli.base import CliTopCommand
+
+console = Console()
+
+
+class RagCommands(CliTopCommand):
+    """RAG pipeline commands for {{ project_name }}."""
+
+    description: str = "RAG — ingest documents and query the knowledge base"
+
+    def get_description(self) -> tuple[str, str]:
+        return "rag", self.description
+
+    def register_sub_commands(self, cli_app: typer.Typer) -> None:
+        @cli_app.command()
+        def ingest(
+            source: Annotated[Path, typer.Argument(help="Path to document(s) to ingest.")],
+            collection: Annotated[str, typer.Option("--collection", "-c")] = "default",
+        ) -> None:
+            """Ingest documents into the vector store."""
+            from genai_tk.workflow.rag.ingest import ingest_documents
+
+            console.print(f"[cyan]Ingesting {source} into collection '{collection}'...[/cyan]")
+            count = ingest_documents(str(source), collection=collection)
+            console.print(f"[green]✓ Ingested {count} document(s)[/green]")
+
+        @cli_app.command()
+        def query(
+            question: Annotated[str, typer.Argument(help="Question to answer from the knowledge base.")],
+            collection: Annotated[str, typer.Option("--collection", "-c")] = "default",
+            top_k: Annotated[int, typer.Option("--top-k", "-k")] = 4,
+        ) -> None:
+            """Query the RAG pipeline with a question."""
+            from genai_tk.workflow.rag.retriever import get_retriever
+            from genai_tk.core.factories.llm_factory import get_llm
+            from genai_tk.core.prompts import def_prompt
+            from langchain_core.output_parsers import StrOutputParser
+            from langchain_core.runnables import RunnablePassthrough
+
+            retriever = get_retriever(collection=collection, top_k=top_k)
+            llm = get_llm()
+            prompt = def_prompt(
+                system="Answer the question using only the provided context. Be concise.",
+                user="Context:\n{context}\n\nQuestion: {question}",
+            )
+            chain = (
+                {"context": retriever, "question": RunnablePassthrough()}
+                | prompt
+                | llm
+                | StrOutputParser()
+            )
+            console.print(f"\n[bold]{chain.invoke(question)}[/bold]\n")

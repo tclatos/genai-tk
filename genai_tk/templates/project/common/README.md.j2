@@ -1,0 +1,53 @@
+# {{ project_name }}
+
+Built with [genai-tk](https://github.com/tclatos/genai-tk).
+
+## Quick Start
+
+```bash
+uv sync                                  # install dependencies
+just run                                 # {{ quickstart_run }}
+just skills                              # list available skills
+cli --help                               # explore all commands
+```
+
+## Template: {{ template_label }}
+
+{{ template_description }}
+
+## Project Layout
+
+```
+{{ package_name }}/         # main package
+config/                     # YAML configuration (auto-merged)
+skills/
+  custom/                   # your project skills
+  community/                # installed from git / skills.sh
+docs/
+  SKILLS.md                 # skills guide
+  EXTENDING.md              # how to add features
+```
+
+## Key Commands
+
+```bash
+# Agents
+cli agents langchain --list              # show configured agent profiles
+cli agents langchain -p default --chat   # chat with default agent
+
+# Skills
+cli skills list                          # show all skills
+cli skills add --skillssh langchain-ai/langchain-skills
+cli skills create my-skill               # scaffold a new skill
+
+# Development
+just test                                # run tests
+just lint                                # lint + validate skills
+just fmt                                 # format with ruff
+```
+
+## Adding Features
+
+See `docs/EXTENDING.md` for how to add CLI commands, tools, agent profiles, and pages.
+
+Community skills: [skills.sh](https://www.skills.sh) · [langchain-skills](https://github.com/langchain-ai/langchain-skills)

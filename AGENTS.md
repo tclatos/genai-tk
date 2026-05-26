@@ -125,9 +125,12 @@ def get_llm(llm: str | None = None) -> BaseChatModel:
 - See `docs/sandbox_support.md` for setup and `docs/browser_control.md` for the browser tooling
 
 ### Skills (SKILL.md)
-- One SKILL.md per site or domain — kept in `skills/custom/<name>/SKILL.md`
+- One SKILL.md per domain — kept in `skills/custom/<name>/SKILL.md` (your project) or `skills/genai-tk/` (contributor skills)
 - Skills are read by the agent on demand, not injected into every prompt
-- Keep Enedis/site-specific waits and selectors in the skill file, not in Python
+- Use `cli skills list` to see all discovered skills; `cli skills validate --all` to check them
+- Install community skills: `cli skills add --skillssh langchain-ai/langchain-skills`
+- Create a new skill: `cli skills create <name>` (scaffolds skills.sh-format SKILL.md)
+- Keep site-specific selectors, commands, and domain details in the skill file, not in Python
 
 ## Documentation
 
@@ -142,7 +145,7 @@ Current docs index:
 | File | Topic |
 |------|-------|
 | `docs/cli.md` | All CLI command groups, sub-commands, and how to add new commands |
-| `docs/scaffolding.md` | `cli init` — full project scaffold, generated files, config auto-patching |
+| `docs/scaffolding.md` | `cli init` — template presets, generated files, skills setup, multi-agent support files |
 | `docs/copilot-agent-support.md` | Copilot Agent skills, AGENTS.md, copilot-instructions.md |
 | `docs/core.md` | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, `LlmCache`, `ChainRegistry` |
 | `docs/extra.md` | Non-pipeline tooling: agent graphs, anonymization, BAML, image analysis, KV store, PgVector |

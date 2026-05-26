@@ -1,0 +1,80 @@
+# {{ project_name }} — Agent Map
+
+> Built with [genai-tk](https://github.com/tclatos/genai-tk).  
+> **Agents:** this is your entry point. Read top-to-bottom, then follow the pointers.
+
+## Build Commands
+
+```bash
+uv sync              # install dependencies
+just run             # {{ run_command }}
+just test            # run tests
+just lint            # ruff check + skills validate
+just fmt             # ruff format
+just skills          # list available skills
+```
+
+## Project Structure
+
+```
+{{ package_name }}/
+{% for entry in structure_entries %}  {{ entry }}
+{% endfor %}config/
+  app_conf.yaml        # CLI commands registry, profile selection
+  baseline.yaml        # default LLM / embeddings
+  agents/              # agent profiles (LangChain, DeerFlow)
+  providers/           # LLM provider aliases
+skills/
+  custom/              # your project skills (SKILL.md files)
+  community/           # installed from git / skills.sh
+docs/
+  SKILLS.md            # how to use and manage skills
+  EXTENDING.md         # how to add features to this project
+```
+
+## Architecture Invariants
+
+1. **Pydantic v2** for all data models — never `dataclass`
+2. **Absolute imports** only: `from {{ package_name }}.commands import ...`
+3. **uv** for all Python execution and package management
+4. **Skills** for domain knowledge — don't bloat system prompts
+5. **Config over code** — agent profiles, tools, and MCP servers live in `config/`
+
+## Skills System
+
+Skills are SKILL.md files that agents load on demand. Prefer using them over injecting long system prompts.
+
+```bash
+just skills                              # list all skills
+cli skills add <name>                    # install bundled skill
+cli skills add --git <url> --path <sub>  # install from git
+cli skills add --skillssh owner/repo     # install via skills.sh (npx)
+cli skills create my-skill               # scaffold a new skill
+cli skills validate --all                # lint all skills
+```
+
+> Community skills: https://www.skills.sh · https://github.com/langchain-ai/langchain-skills
+
+## Where to Look Next
+
+| Task | Read |
+|------|------|
+| Add a CLI command | `docs/EXTENDING.md` → "CLI Commands" |
+| Add a tool | `docs/EXTENDING.md` → "Agent Tools" |
+| Add / edit a skill | `docs/SKILLS.md` |
+| Add an agent profile | `config/agents/langchain.yaml` |
+| Add a webapp page | `docs/EXTENDING.md` → "Webapp Pages" |
+| Configure LLM / MCP | `config/baseline.yaml`, `config/mcp_servers.yaml` |
+| genai-tk internals | https://github.com/tclatos/genai-tk/tree/main/docs |
+
+## Copilot Skills (VS Code)
+
+These procedural step-by-step skills are available via `@workspace`:
+
+| Skill | Invocation |
+|-------|-----------|
+| Add CLI command | `add-cli-command` |
+| Add webapp page | `add-webapp-page` |
+| Add agent profile | `add-agent-profile` |
+| Add LCEL chain | `add-chain` |
+| Add tool | `add-tool` |

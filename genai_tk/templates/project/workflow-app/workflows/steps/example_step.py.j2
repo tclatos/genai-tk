@@ -1,0 +1,40 @@
+"""Workflow step functions for {{ project_name }}.
+
+Each function here is a Prefect flow or task that can be referenced in
+config/workflows/pipeline.yaml under `steps[*].uses`.
+
+See docs/EXTENDING.md and genai-tk's docs/workflows.md for full guidance.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from loguru import logger
+
+
+def example_step(input_dir: str, output_dir: str, **kwargs) -> dict:
+    """Example workflow step — copy files from input to output.
+
+    Args:
+        input_dir: Source directory path.
+        output_dir: Destination directory path.
+
+    Returns:
+        Dict with 'processed' count.
+    """
+    import shutil
+
+    src = Path(input_dir)
+    dst = Path(output_dir)
+    dst.mkdir(parents=True, exist_ok=True)
+
+    count = 0
+    for file in src.glob("*"):
+        if file.is_file():
+            shutil.copy2(file, dst / file.name)
+            count += 1
+            logger.info("Copied: {}", file.name)
+
+    logger.info("Step complete: {} files processed", count)
+    return {"processed": count}

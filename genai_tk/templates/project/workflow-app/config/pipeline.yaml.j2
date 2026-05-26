@@ -1,0 +1,22 @@
+workflows:
+  example_pipeline:
+    description: "Example 2-step pipeline: process → summarize"
+    steps:
+      - id: process
+        uses: {{ package_name }}.workflows.steps.example_step.example_step
+        inputs:
+          input_dir: "${paths.data_root}/raw"
+          output_dir: "${paths.data_root}/processed"
+
+      - id: summarize
+        uses: genai_tk.workflow.prefect.flows.baml_flow.baml_flow
+        needs: [process]
+        inputs:
+          source_dir: "${paths.data_root}/processed"
+          output_dir: "${paths.data_root}/summaries"
+
+workflow_profiles:
+  example:
+    workflow: example_pipeline
+    values:
+      {}

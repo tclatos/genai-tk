@@ -47,4 +47,5 @@ cli:
     - genai_tk.extra.structured.commands_baml.BamlCommands
     - genai_tk.workflow.rag.commands_rag.RagCommands
     - genai_tk.mcp.cli_commands.McpCommands
+    - genai_tk.cli.commands_skills.SkillsCommands
     - genai_tk.main.cli.register_commands

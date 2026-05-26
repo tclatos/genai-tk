@@ -1,0 +1,61 @@
+"""Agent CLI commands for {{ project_name }}."""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Annotated, Optional
+
+import typer
+from rich.console import Console
+
+from genai_tk.cli.base import CliTopCommand
+
+console = Console()
+
+
+class AgentCommands(CliTopCommand):
+    """Agent commands for {{ project_name }}."""
+
+    description: str = "Run and manage AI agents"
+
+    def get_description(self) -> tuple[str, str]:
+        return "agent", self.description
+
+    def register_sub_commands(self, cli_app: typer.Typer) -> None:
+        @cli_app.command()
+        def chat(
+            query: Annotated[Optional[str], typer.Argument(help="Query to send (omit for interactive mode)")] = None,
+            model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
+            profile: Annotated[str, typer.Option("-p", "--profile", help="Agent profile key")] = "default",
+        ) -> None:
+            """Chat with a configured agent profile."""
+            from langchain_core.messages import HumanMessage
+            from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+            from genai_tk.agents.langchain.factory import create_langchain_agent
+            from genai_tk.utils.config_mngr import global_config
+
+            cfg = global_config()
+
+            async def _run() -> None:
+                agent_config = load_unified_config()
+                agent_profile = resolve_profile(agent_config, profile)
+                agent = await create_langchain_agent(
+                    agent_profile,
+                    llm_override=model if model != "default" else None,
+                    force_memory_checkpointer=True,
+                )
+                if query:
+                    result = await agent.ainvoke({"messages": [HumanMessage(content=query)]})
+                    last = result["messages"][-1]
+                    console.print(f"\n[bold]{last.content}[/bold]\n")
+                else:
+                    console.print("[cyan]Interactive mode — type 'exit' to quit.[/cyan]\n")
+                    while True:
+                        user_input = typer.prompt("You")
+                        if user_input.lower() in ("exit", "quit", "q"):
+                            break
+                        result = await agent.ainvoke({"messages": [HumanMessage(content=user_input)]})
+                        last = result["messages"][-1]
+                        console.print(f"\n[bold]Agent:[/bold] {last.content}\n")
+
+            asyncio.run(_run())

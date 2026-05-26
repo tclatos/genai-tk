@@ -1,0 +1,27 @@
+langchain_agents:
+  default:
+    name: "Default Agent"
+    type: react
+    llm: default
+    system_prompt: >
+      You are a helpful AI assistant for {{ project_name }}.
+      Use available tools when they help answer the question.
+    tools:
+      - spec: {{ package_name }}.tools.example_tool.create_example_tools
+        type: factory
+    mcp_servers: []
+    skill_directories:
+      - ${paths.project}/skills/custom
+      - ${paths.project}/skills/community
+
+  research:
+    name: "Research Agent"
+    type: deep
+    llm: default
+    enable_planning: true
+    system_prompt: >
+      You are a research assistant. Plan your approach, use available tools,
+      and produce well-structured, cited responses.
+    skill_directories:
+      - ${paths.project}/skills/custom
+      - ${paths.project}/skills/community

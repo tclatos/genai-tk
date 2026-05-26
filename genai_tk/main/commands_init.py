@@ -4,12 +4,13 @@ Registered statically in cli.py so they work from an empty directory
 (i.e. immediately after `uv add genai-tk`).
 
 Usage:
-    cli init                            # full scaffold: config + package + examples + Copilot files
-    cli init --name "My Project"        # set project name
-    cli init --minimal                  # config + Makefile only (no Python scaffold)
-    cli init --force                    # overwrite existing files
-    cli init --deer-flow                # also install the Deer-flow backend
-    cli init --deer-flow --path ~/my-deer-flow
+    cli init                                    # interactive template picker
+    cli init -t agent-app --name "My Project"   # agent app scaffold
+    cli init -t rag-app                         # RAG pipeline scaffold
+    cli init -t workflow-app                    # workflow scaffold
+    cli init -t minimal                         # config + justfile only
+    cli init --force                            # overwrite existing files
+    cli init --deer-flow                        # also install Deer-flow
 """
 
 from __future__ import annotations
@@ -35,19 +36,7 @@ _CONFIG_PKG_PATH = "default_config"  # inside genai_tk package (wheel-bundled)
 
 
 def _copy_makefile(force: bool, app_name: str) -> None:
-    """Copy the bundled Makefile.template to ./Makefile, substituting APP_NAME."""
-    target = Path.cwd() / "Makefile"
-    if target.exists() and not force:
-        console.print("[yellow]Makefile already exists (use --force to overwrite)[/yellow]")
-        return
-    try:
-        src = pkg_files("genai_tk") / _CONFIG_PKG_PATH / "Makefile.template"
-        content = src.read_text(encoding="utf-8")
-        content = content.replace("{{APP_NAME}}", app_name)
-        target.write_text(content, encoding="utf-8")
-        console.print(f"[green]✓ Wrote[/green] [bold]{target}[/bold]")
-    except Exception as exc:
-        console.print(f"[red]Could not copy Makefile:[/red] {exc}")
+    """No-op — projects now use justfile instead of Makefile."""
 
 
 def _patch_webapp_yaml(config_dir: Path, app_name: str) -> None:
@@ -114,12 +103,74 @@ def _copy_tree(src_traversable, dest: Path, force: bool, written_ref) -> None:
     """Noop — only _copy_tree_counted is used."""
 
 
-def _scaffold_project(project_dir: Path, project_name: str, *, force: bool = False) -> None:
-    """Generate Python package, examples, and Copilot support files."""
+def _pick_template() -> str:
+    """Interactive template picker using questionary (falls back to typer.prompt)."""
+    choices = [
+        ("agent-app", "Agent App      — tools, skills, agent profiles, webapp page"),
+        ("rag-app", "RAG Pipeline   — document ingestion, vector store, retrieval"),
+        ("workflow-app", "Workflow App   — multi-step YAML pipelines, Prefect orchestration"),
+        ("minimal", "Minimal        — config + justfile only, no example code"),
+    ]
+    try:
+        import questionary
+        from questionary import Choice
+
+        result = questionary.select(
+            "Choose a project template:",
+            choices=[Choice(title=f"[{k}]  {v}", value=k) for k, v in choices],
+        ).ask()
+        return result or "agent-app"
+    except ImportError:
+        console.print("[bold]Available templates:[/bold]")
+        for key, desc in choices:
+            console.print(f"  [cyan]{key}[/cyan]  {desc}")
+        console.print()
+        chosen = typer.prompt(
+            "Template",
+            default="agent-app",
+        )
+        valid = {k for k, _ in choices}
+        return chosen if chosen in valid else "agent-app"
+
+
+def _print_next_steps(app_name: str, template: str, df_root: Path | None) -> None:
+    """Print the post-init 'next steps' banner."""
+    from genai_tk.main.scaffolder import TEMPLATE_META, _sanitize_package_name
+
+    pkg = _sanitize_package_name(app_name)
+    meta = TEMPLATE_META.get(template, {})
+    run_cmd = meta.get("run_command", "cli --help")
+
+    console.print("\n[bold green]✓ Done![/bold green]\n")
+    console.print(f"  Project:  [bold]{app_name}[/bold]  (template: [cyan]{template}[/cyan])")
+    if template != "minimal":
+        console.print(f"  Package:  [bold]{pkg}/[/bold]")
+
+    console.print("\n[bold]Next steps:[/bold]")
+    console.print("  [dim]uv sync[/dim]                                  install dependencies")
+    console.print(f"  [dim]{run_cmd}[/dim]")
+    console.print("  [dim]just skills[/dim]                              list available skills")
+    console.print("  [dim]just lint[/dim]                                format + validate skills")
+
+    console.print("\n[bold]Add community skills:[/bold]")
+    console.print("  [cyan]cli skills add --skillssh langchain-ai/langchain-skills[/cyan]  [dim](LangChain)[/dim]")
+    console.print("  [dim]Browse: https://www.skills.sh · npx skills add <owner/repo>[/dim]")
+
+    if df_root:
+        console.print("\n[bold]Deer-flow:[/bold] add to [bold].env[/bold]:")
+        console.print(f"  [bold cyan]DEER_FLOW_PATH={df_root.absolute()}[/bold cyan]")
+
+    console.print("\n[dim]Docs: AGENTS.md · docs/SKILLS.md · docs/EXTENDING.md[/dim]\n")
+
+
+def _scaffold_project(
+    project_dir: Path, project_name: str, *, template: str = "agent-app", force: bool = False
+) -> None:
+    """Generate Python package, examples, skills dir, and agent-support files."""
     try:
         from genai_tk.main.scaffolder import ProjectScaffolder
 
-        scaffolder = ProjectScaffolder(project_dir, project_name, force=force)
+        scaffolder = ProjectScaffolder(project_dir, project_name, template=template, force=force)  # type: ignore[arg-type]
         scaffolder.scaffold()
     except ImportError:
         console.print("[yellow]Jinja2 not installed — skipping project scaffold.[/yellow]")
@@ -264,44 +315,40 @@ class InitCommands(CliTopCommand):
             ctx: typer.Context,
             force: Annotated[
                 bool,
-                typer.Option("--force", "-f", help="Overwrite existing config files and Makefile."),
+                typer.Option("--force", "-f", help="Overwrite existing files."),
             ] = False,
             name: Annotated[
                 Optional[str],
+                typer.Option("--name", "-n", help="Project name (default: current directory name)."),
+            ] = None,
+            template: Annotated[
+                Optional[str],
                 typer.Option(
-                    "--name",
-                    "-n",
-                    help="Project name used in webapp.yaml and Makefile (default: current directory name).",
+                    "--template",
+                    "-t",
+                    help="Project template: agent-app | rag-app | workflow-app | minimal",
                 ),
             ] = None,
-            minimal: Annotated[
-                bool,
-                typer.Option("--minimal", help="Only copy config and Makefile (no Python package scaffold)."),
-            ] = False,
             deer_flow: Annotated[
                 bool,
                 typer.Option("--deer-flow", "-d", help="Also clone and install the Deer-flow backend."),
             ] = False,
             deer_flow_path: Annotated[
                 Optional[str],
-                typer.Option(
-                    "--deer-flow-path",
-                    help="Custom Deer-flow clone directory (default: ~/deer-flow).",
-                ),
+                typer.Option("--deer-flow-path", help="Custom Deer-flow clone directory (default: ~/deer-flow)."),
             ] = None,
         ) -> None:
-            """Initialize a new genai-tk project with config, example code, and Copilot support.
-
-            Run this once in a new project after installing genai-tk:
+            """Initialize a new genai-tk project.
 
             \\b
             Examples:
-                cli init                                   # full scaffold
-                cli init --name "My Project"               # set project name
-                cli init --minimal                         # config + Makefile only
+                cli init                                   # interactive template picker
+                cli init -t agent-app --name "My Project"  # agent app
+                cli init -t rag-app                        # RAG pipeline
+                cli init -t workflow-app                   # workflow orchestration
+                cli init -t minimal                        # config + justfile only
                 cli init --force                           # overwrite existing files
                 cli init --deer-flow                       # also install Deer-flow
-                cli init --deer-flow --deer-flow-path ~/projects/deer-flow
             """
             if ctx.invoked_subcommand is not None:
                 return
@@ -310,43 +357,28 @@ class InitCommands(CliTopCommand):
             dest = Path.cwd() / "config"
             console.print(f"\n[bold]Initializing genai-tk project in[/bold] {Path.cwd()}\n")
 
+            # ── Template selection ──────────────────────────────────────
+            chosen_template = template
+            if not chosen_template:
+                chosen_template = _pick_template()
+
+            # ── Config ─────────────────────────────────────────────────
             _copy_default_config(dest, force=force)
             _patch_webapp_yaml(dest, app_name)
-            _copy_makefile(force=force, app_name=app_name)
 
-            if not minimal:
-                _scaffold_project(Path.cwd(), app_name, force=force)
+            # ── Scaffold ────────────────────────────────────────────────
+            if chosen_template != "minimal":
+                _scaffold_project(Path.cwd(), app_name, template=chosen_template, force=force)
+            else:
+                # Minimal: just render common templates (no Python package)
+                _scaffold_project(Path.cwd(), app_name, template="minimal", force=force)
 
+            # ── Deer-flow (optional add-on) ──────────────────────────
             if deer_flow:
                 df_path = Path(deer_flow_path) if deer_flow_path else None
                 df_root = _install_deer_flow(df_path)
             else:
                 df_root = None
 
-            console.print("\n[bold green]Done.[/bold green]\n")
-
-            if df_root:
-                console.print(
-                    f"[bold]Set up Deer-flow in your .env:[/bold]\n"
-                    f"  [bold cyan]DEER_FLOW_PATH={df_root.absolute()}[/bold cyan]\n"
-                )
-
-            console.print(f"Project name: [bold]{app_name}[/bold]")
-            if not minimal:
-                from genai_tk.main.scaffolder import _sanitize_package_name
-
-                pkg = _sanitize_package_name(app_name)
-                console.print(f"Package:      [bold]{pkg}/[/bold]")
-                console.print()
-                console.print("[bold]You can try these commands:[/bold]")
-                console.print(
-                    '  [cyan]uv run cli info  config"[/cyan]  (check you have keys set up correctly and correct defaults'
-                )
-                console.print('  [cyan]uv run cli core llm -i "tell me a joke on Java"[/cyan]')
-                console.print('  [cyan]uv run cli example joke "Python"[/cyan]')
-                #                console.print('  [cyan]uv run cli example chain "AI engineers"[/cyan]')
-                console.print('  [cyan]uv run cli example agent "What is 2+2?"[/cyan]')
-                console.print()
-            console.print("Run [bold]make webapp[/bold] to launch the agent demo UI.\n")
-            if not deer_flow:
-                console.print("Tip: run [bold]cli init --deer-flow[/bold] to also install the Deer-flow backend.\n")
+            # ── Post-init banner ─────────────────────────────────────
+            _print_next_steps(app_name, chosen_template, df_root)

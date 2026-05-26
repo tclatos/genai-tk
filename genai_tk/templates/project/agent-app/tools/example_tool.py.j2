@@ -1,0 +1,25 @@
+"""Example LangChain tool for {{ project_name }}.
+
+Copy and adapt this as a starting point for custom tools.
+See docs/EXTENDING.md → "Agent Tools" for full instructions.
+"""
+
+from __future__ import annotations
+
+from langchain_core.tools import BaseTool, tool
+
+
+@tool
+def example_calculator(expression: str) -> str:
+    """Evaluate a safe arithmetic expression. Examples: '2+2', '10*5/2', '3**4'."""
+    try:
+        # Restricted eval — only arithmetic, no builtins
+        result = eval(expression, {"__builtins__": {}})  # noqa: S307
+        return str(result)
+    except Exception as exc:
+        return f"Error evaluating '{expression}': {exc}"
+
+
+def create_example_tools() -> list[BaseTool]:
+    """Factory: returns all tools in this module for use in agent profiles."""
+    return [example_calculator]  # type: ignore[list-item]

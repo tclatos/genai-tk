@@ -1,0 +1,28 @@
+# Copilot Instructions for {{ project_name }}
+
+This is a **genai-tk** project. Primary instructions: see `AGENTS.md`.
+
+## Key Rules
+
+- `uv` to run Python and manage packages — never `pip` directly
+- Pydantic v2 models — never `dataclass`
+- Absolute imports: `from {{ package_name }}.commands import ...`
+- Python 3.12+ syntax: `str | None`, `list[str]`
+- ruff (line-length 120)
+
+## Quick Import Reference
+
+```python
+from genai_tk.core.factories.llm_factory import get_llm
+from genai_tk.cli.base import CliTopCommand
+from genai_tk.utils.config_mngr import global_config
+```
+
+## Using Skills
+
+To extend this project, prefer reading the relevant skill:
+- **Add CLI command** → read `skills/genai-tk/add-cli-command/SKILL.md`
+- **Add tool** → read `skills/genai-tk/add-tool/SKILL.md`
+- **Add agent profile** → `config/agents/langchain.yaml` + `docs/EXTENDING.md`
+
+Full guide: `AGENTS.md` → `docs/EXTENDING.md` → `docs/SKILLS.md`

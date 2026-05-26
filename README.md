@@ -21,7 +21,7 @@ Four agent frameworks (ReAct, Deep, Deer-flow, SmolAgents) sharing YAML profiles
 - **Deep agent** — multi-step planning + subagent delegation (LangChain)
 - **Deer-flow** — native web research, multi-agent orchestration (LangGraph / ByteDance)
 - **SmolAgents** — code-first automation (Hugging Face)
-- Skills system — markdown domain-knowledge files loaded on demand
+- **Skills system** — `SKILL.md` domain-knowledge files loaded on demand; managed with `cli skills`
 - Docker sandbox — isolated execution, browser automation
 - MCP servers — protocol-standard tool integration
 - See: `cli agents`, [docs/agents.md](docs/agents.md), [AGENTS.md](AGENTS.md)
@@ -60,19 +60,21 @@ uv init
 # Add genai-tk to your project
 uv add git+https://github.com/tclatos/genai-tk@main
 
-# Initialize with a full project scaffold (recommended)
-uv run cli init --name "My AI Project"
-# ↑ generates: config/, Makefile, Python package with example CLI/chain/webapp,
-#              AGENTS.md, and .github/copilot-instructions.md for Copilot Agent
+# Interactive template picker (recommended)
+uv run cli init
 
-# --minimal: config + Makefile only, no example code
-uv run cli init --minimal
+# Or choose a template directly:
+uv run cli init -t agent-app  --name "My AI Project"   # tools, skills, agent profiles
+uv run cli init -t rag-app    --name "My RAG App"       # document ingestion + retrieval
+uv run cli init -t workflow-app                         # YAML-driven pipelines
+uv run cli init -t minimal                              # config + justfile only
 
 # (optional) also clone the Deer-flow backend
 uv run cli init --deer-flow
 
-# Install the generated package so CLI example commands work
+# Install the generated package so CLI commands work
 uv sync
+just run                                                # start the application
 
 # After running cli init --deer-flow, add this to your .env:
 # DEER_FLOW_PATH=~/deer-flow  (or wherever you cloned it)
@@ -88,8 +90,8 @@ uv add git+https://github.com/tclatos/genai-tk@main
 uv add "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
 
 # Initialize config in the current directory
-uv run cli init --name "My Project"  # full scaffold (recommended)
-uv run cli init --minimal            # config + Makefile only
+uv run cli init                      # interactive template picker
+uv run cli init -t agent-app         # agent app with tools + skills
 uv run cli init --deer-flow          # also clone the Deer-flow backend
 
 # Install the generated package
@@ -404,21 +406,36 @@ cli agents smolagents --executor e2b "Scrape and summarise this webpage: …"   
 
 ### Skills — domain knowledge on demand
 
-Skills are markdown files (`SKILL.md`) that agents load **when needed**, rather than injecting all knowledge into every prompt. This keeps context lean and enables per-task specialisation.
+Skills are `SKILL.md` files that agents load **when needed** — not injected on every call. This keeps context lean and enables per-task specialisation.
 
 ```
 skills/
-├── public/              # shipped with Deer-flow
-│   ├── deep-research/
-│   │   └── SKILL.md
-│   └── data-analysis/
+├── custom/              # your project skills (committed)
+│   └── my-domain/
 │       └── SKILL.md
-└── custom/              # your project skills
-    └── my-domain/
-        └── SKILL.md
+├── community/           # installed via cli skills add (gitignored)
+└── bundled/             # copies of genai-tk bundled skills
 ```
 
-Any agent that supports `skill_directories` (LangChain deep, all Deer-flow profiles) can discover and use skill files. In Docker sandbox mode the skill directories are automatically bind-mounted read-only at `/mnt/skills/`.
+Every `cli init` project gets a `skills/` tree, a `docs/SKILLS.md` guide, and a
+`getting-started` example skill. Use the `cli skills` command group to manage them:
+
+```bash
+cli skills list                                           # all discovered skills
+cli skills add getting-started                            # bundled skill
+cli skills add --skillssh langchain-ai/langchain-skills   # from GitHub (skills.sh format)
+cli skills add --git https://github.com/org/repo --path my-skill
+cli skills create my-domain-skill                        # interactive scaffold
+cli skills validate --all                                 # validate frontmatter + structure
+cli skills info my-skill                                  # show full SKILL.md
+```
+
+Any agent that supports `skill_directories` (LangChain deep, all Deer-flow profiles)
+can discover and use skill files. In Docker sandbox mode the skill directories are
+automatically bind-mounted read-only at `/mnt/skills/`.
+
+See [docs/scaffolding.md](docs/scaffolding.md) for the complete skills guide and
+[skills.sh](https://www.skills.sh) for the community registry.
 
 ---
 

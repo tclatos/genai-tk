@@ -11,6 +11,7 @@ dependencies = [
     "pydantic>=2.7.0,<3",       # Data validation and settings management
     "loguru>=0.7.3",            # Structured logging with better UX
     "typer>=0.13.0",            # CLI framework with type hints
+    "questionary>=2.0",         # Interactive CLI prompts (template picker)
     "omegaconf>=2.3.0",         # Hierarchical configuration system
     "rich[jupyter]>=13.9.4",    # Rich terminal formatting and progress bars
     "universal-pathlib>=0.2.6", # Unified path interface for local/cloud storage

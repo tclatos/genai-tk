@@ -1,0 +1,181 @@
+# Skills Guide
+
+Skills are SKILL.md files that give agents **procedural knowledge on demand**.
+Instead of bloating every system prompt, agents read skills when they need specific capabilities.
+
+This project uses the [skills.sh](https://www.skills.sh) format — compatible with GitHub Copilot,
+Cursor, Claude Code, Codex, and other AI coding agents.
+
+## Quick Reference
+
+```bash
+cli skills list                              # show all installed skills
+cli skills add deep-research                 # install a bundled skill
+cli skills add --git <url> --path <subdir>   # install from git repo
+cli skills add --skillssh langchain-ai/langchain-skills   # via skills.sh
+cli skills create my-skill                   # scaffold a new skill
+cli skills validate --all                    # lint all skills
+cli skills info <name>                       # show metadata + content
+```
+
+## Skill Directory Layout
+
+```
+skills/
+├── custom/              # your own project-specific skills
+│   └── my-domain/
+│       └── SKILL.md
+├── community/           # installed from git or skills.sh
+│   └── langchain-retrieval/
+│       └── SKILL.md
+└── bundled/             # copied from genai-tk bundled catalog
+    └── deep-research/
+        └── SKILL.md
+```
+
+Tracked in `skills.yaml` at the project root.
+
+## Writing a Skill
+
+Use `cli skills create <name>` to scaffold, then edit the generated SKILL.md.
+
+### Format (skills.sh compatible)
+
+```markdown
+---
+name: my-skill-name
+description: One sentence — what this skill enables an agent to do.
+tags: [rag, langchain, search]
+version: "1.0"
+author: ""
+---
+
+# My Skill Name
+
+## When to Use
+
+Describe the scenario where an agent should apply this skill.
+Be specific: "Use when the user asks to query the knowledge graph using Cypher."
+
+## Workflow
+
+1. Step one — what to do first
+2. Step two — concrete action with example
+3. Step three — how to handle the result
+
+## Code Map
+
+| Concern | Path |
+|---------|------|
+| Main logic | `{{ package_name }}/...` |
+| Config | `config/...` |
+
+## References
+
+- Link to relevant docs
+- Link to related skill
+```
+
+### Best Practices
+
+- **One skill, one domain** — focused skills are read more reliably than broad ones
+- **Be imperative** — "Navigate to...", "Call...", not "You might want to..."
+- **Include concrete examples** — selectors, query patterns, CLI invocations
+- **Code Map section** — tells the agent where to look in the codebase
+- **≤300 lines** — shorter is loaded more reliably; split large skills
+
+## Community Skills
+
+### skills.sh Registry
+
+[skills.sh](https://www.skills.sh) is an open registry of reusable agent skills:
+
+```bash
+# Install from skills.sh (requires Node.js / npx)
+cli skills add --skillssh langchain-ai/langchain-skills
+
+# Or use npx directly
+npx skills add langchain-ai/langchain-skills
+
+# Browse topics
+# https://www.skills.sh/topic/agent-workflows
+```
+
+### LangChain Official Skills
+
+[langchain-ai/langchain-skills](https://github.com/langchain-ai/langchain-skills) is the
+official LangChain skill collection. Recommended installs:
+
+```bash
+# Full collection
+cli skills add --skillssh langchain-ai/langchain-skills
+
+# Specific skill via git
+cli skills add --git https://github.com/langchain-ai/langchain-skills --path retrieval
+cli skills add --git https://github.com/langchain-ai/langchain-skills --path agents
+```
+
+### Installing from Any Git Repo
+
+Skills can live anywhere in a git repo — just point to the directory containing SKILL.md:
+
+```bash
+# Entire repo is a single skill
+cli skills add --git https://github.com/my-org/my-skill
+
+# Skill is in a subdirectory
+cli skills add --git https://github.com/my-org/skills-monorepo --path rag/retrieval
+
+# Pin to a specific version
+cli skills add --git https://github.com/my-org/my-skill --ref v1.2.0
+```
+
+The installed skill is recorded in `skills.yaml` with the git SHA for reproducibility.
+
+## Wiring Skills to Agents
+
+In your agent profile (`config/agents/langchain.yaml`):
+
+```yaml
+langchain_agents:
+  my_agent:
+    name: "My Agent"
+    type: deep
+    llm: default
+    skill_directories:
+      - ${paths.project}/skills/custom
+      - ${paths.project}/skills/community
+```
+
+For DeerFlow profiles (`config/agents/deerflow.yaml`):
+
+```yaml
+deerflow_agents:
+  - name: Research Agent
+    skill_directories:
+      - ${paths.project}/skills/custom
+    available_skills:
+      - my-domain  # optional filter; omit to expose all
+```
+
+## Sharing Your Skills
+
+To share a skill publicly via skills.sh:
+
+1. Create a GitHub repo with your skills in subdirectories:
+   ```
+   my-skills/
+   └── my-skill-name/
+       └── SKILL.md
+   ```
+2. Push to GitHub
+3. Others can install with:
+   ```bash
+   cli skills add --skillssh your-org/my-skills
+   npx skills add your-org/my-skills
+   ```
+
+Add a badge to your README:
+```markdown
+[![skills.sh](https://skills.sh/b/your-org/my-skills)](https://skills.sh/your-org/my-skills)
+```

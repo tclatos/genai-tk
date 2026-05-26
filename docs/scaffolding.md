@@ -1,9 +1,9 @@
 # Project Scaffolding (`cli init`)
 
-`cli init` initialises a new genai-tk project.  By default it generates a
-**full project scaffold** — a working Python package with example CLI commands,
-an LCEL chain, a Streamlit webapp page, and Copilot Agent support files — in
-addition to copying the default `config/` tree and `Makefile`.
+`cli init` bootstraps a new genai-tk project in the current directory. It copies
+the default `config/` tree, scaffolds a Python package from a **template preset**,
+and generates `AGENTS.md`, a `justfile`, and multi-agent support files so AI coding
+assistants (Copilot, Cursor, Windsurf, Codex) work out of the box.
 
 ---
 
@@ -11,152 +11,172 @@ addition to copying the default `config/` tree and `Makefile`.
 
 ```bash
 mkdir my-project && cd my-project
-uv init                                       # create a bare uv project
+uv init
 uv add git+https://github.com/tclatos/genai-tk@main
 
-uv run cli init --name "My AI Project"        # full scaffold (recommended)
-uv run cli init                               # same, project name from cwd
-uv run cli init --minimal                     # config + Makefile only, no example code
-uv run cli init --deer-flow                   # also clone the Deer-flow backend
+uv run cli init                             # interactive template picker (recommended)
+uv run cli init -t agent-app --name "My AI Project"
+uv run cli init --deer-flow                 # also clone the Deer-flow backend
 
-uv sync                                       # install the generated package
+uv sync
+just run                                    # start the application
+```
+
+---
+
+## Templates
+
+Choose a template with `--template / -t`. When omitted, an interactive picker is shown.
+
+| Template | What you get | Run command |
+|----------|-------------|-------------|
+| `agent-app` | Tools, agent profiles, skills, webapp page | `cli agents langchain --chat` |
+| `rag-app` | Document ingestion, vector store, retrieval | `cli rag query "…"` |
+| `workflow-app` | YAML-driven multi-step pipeline + Prefect | `cli workflow run example` |
+| `minimal` | Config + justfile only, no example code | `cli --help` |
+
+```bash
+# Interactive picker (uses questionary; falls back to text prompt)
+uv run cli init
+
+# Explicit template
+uv run cli init -t agent-app
+uv run cli init -t rag-app     --name "My RAG App"
+uv run cli init -t workflow-app
+uv run cli init -t minimal
+
+# Overwrite existing files
+uv run cli init -t agent-app --force
 ```
 
 ---
 
 ## What gets generated
 
-### Config tree (`config/`)
-
-Copied from the genai-tk defaults on first run; skipped if already present.
+### Common (all templates)
 
 ```
-config/
-├── app_conf.yaml          ← CLI commands, webapp navigation, service defaults
-├── baseline.yaml          ← default LLM, embeddings, cache
-├── overrides.yaml         ← empty — per-environment overrides
-├── webapp.yaml            ← Streamlit app name, pages_dir, navigation
-├── providers/
-│   ├── llm.yaml           ← LLM model aliases
-│   └── embeddings.yaml    ← Embeddings model aliases
-└── agents/
-    └── langchain.yaml     ← ReAct / deep / custom agent profiles
-```
-
-### Python package (`<package_name>/`)
-
-Package name is derived from the project name (lowercased, spaces → underscores).
-
-```
-<package_name>/
-├── __init__.py
-├── main/
-│   └── streamlit.py       ← Streamlit entry point (delegates to genai-tk)
-├── commands/
-│   └── example_commands.py  ← ExampleCommands: joke / chain / agent / deerflow
-├── chains/
-│   └── joke_chain.py      ← Simple LCEL chain registered with chain_registry
-└── webapp/
-    └── pages/
-        └── demos/
-            └── hello_agent.py  ← ReAct agent page with chat UI + calculator tool
-```
-
-### Copilot support
-
-```
-AGENTS.md                             ← Architecture overview and coding conventions
+config/               ← copied from genai-tk defaults
+AGENTS.md             ← architecture map for AI agents (Codex, Claude, OpenCode, …)
+justfile              ← task runner (just run / just lint / just skills)
+README.md             ← project overview
+pyproject.toml        ← package mode enabled, genai-tk dependency
+docs/
+├── SKILLS.md         ← skills guide: format, skills.sh, community sources
+└── EXTENDING.md      ← how to add CLI commands, tools, chains, webapp pages
 .github/
-└── copilot-instructions.md           ← Always-active Copilot hints
+└── copilot-instructions.md   ← lean pointer to AGENTS.md (auto-loaded by Copilot)
+.cursor/
+└── rules/genai-tk.mdc        ← Cursor rules
+.windsurfrules                ← Windsurf rules
+skills/
+├── custom/           ← your skills (committed to repo)
+├── community/        ← installed via `cli skills add` (gitignored)
+└── bundled/          ← copies of genai-tk bundled skills (optional)
 ```
 
-### Project files
+### `agent-app` additions
 
 ```
-pyproject.toml    ← uv project with genai-tk dependency and scoped package discovery
-README.md         ← Project overview and getting started guide
-Makefile          ← make webapp / test / example-joke / example-chain / example-agent
+<package>/
+├── __init__.py
+├── commands/
+│   └── agent_commands.py     ← AgentCommands CLI group
+├── tools/
+│   └── example_tool.py       ← example LangChain tool
+├── webapp/pages/demos/
+│   └── hello_agent.py        ← Streamlit chat UI
+└── main/
+    └── streamlit.py          ← Streamlit entry point
+config/agents/
+└── langchain.yaml            ← default + research agent profiles
+skills/custom/
+└── getting-started/
+    └── SKILL.md              ← example skill with skills.sh format
+```
+
+### `rag-app` additions
+
+```
+<package>/
+├── __init__.py
+└── commands/
+    └── rag_commands.py       ← RagCommands CLI group (ingest + query)
+data/
+├── raw/                      ← drop source documents here
+└── processed/
+```
+
+### `workflow-app` additions
+
+```
+<package>/
+├── __init__.py
+└── workflows/
+    └── steps/
+        └── example_step.py   ← Prefect flow step
+config/workflows/
+└── pipeline.yaml             ← workflow + profile YAML
 ```
 
 ---
 
-## Example commands
+## Skills system
 
-After `uv sync`, the generated `ExampleCommands` group is immediately runnable:
-
-```bash
-# Show all example sub-commands
-uv run cli example --help
-
-# Primary LLM call via a simple LCEL chain
-uv run cli example joke "software engineers"
-
-# Pre-registered chain via the chain registry
-uv run cli example chain "Python devs"
-
-# ReAct agent with a built-in calculator tool
-uv run cli example agent "What is 2 + 2?"
-
-# Deer-flow deep-research agent (requires --deer-flow init)
-uv run cli example deerflow "Explain transformer attention"
-```
-
-Or use the convenience `make` targets:
+Every project gets a `skills/` tree and `docs/SKILLS.md` guide out of the box.
+Skills are `SKILL.md` files (YAML frontmatter + markdown) that give agents
+domain knowledge on demand — loaded progressively, not injected on every call.
 
 ```bash
-make example-joke    # cli example joke "programming"
-make example-chain   # cli example chain "AI engineers"
-make example-agent   # cli example agent "What is 2+2?"
+# List all skills in the project
+just skills
+cli skills list
+
+# Add a bundled skill (from genai-tk)
+cli skills add getting-started
+
+# Install from a GitHub repo (skills.sh format)
+cli skills add --skillssh langchain-ai/langchain-skills
+
+# Install from a git repo
+cli skills add --git https://github.com/your-org/my-skills --path my-skill
+
+# Create a new skill interactively
+cli skills create my-domain-skill
+
+# Validate all skills
+cli skills validate --all
 ```
+
+See [docs/skills.md](../docs/skills.md) *(if present)* or the generated `docs/SKILLS.md`
+in your project for the complete reference, including skills.sh format and community sources.
 
 ---
 
 ## Config auto-patching
 
-`cli init` patches several config files automatically to wire the generated
-code into the toolkit's discovery mechanisms.
+`cli init` patches several config files automatically after rendering templates.
 
 ### `config/app_conf.yaml` — CLI command registration
-
-Appends the generated command group to the `cli.commands` list:
 
 ```yaml
 cli:
   commands:
-    - ...existing entries...
-    - my_project.commands.example_commands.ExampleCommands
+    - genai_tk.main.cli.register_commands
+    - my_project.commands.agent_commands.AgentCommands   # ← appended
 ```
 
-### `config/webapp.yaml` — Streamlit navigation
-
-Activates the generated pages directory and adds the hello-agent demo page:
+### `config/webapp.yaml` — Streamlit navigation (agent-app only)
 
 ```yaml
 ui:
-  app_name: My AI Project
   pages_dir: ${paths.project}/my_project/webapp/pages
   navigation:
     demos:
       - demos/hello_agent.py
 ```
 
-`${paths.project}` is an OmegaConf interpolation that resolves to the project
-root at config-load time, making the path work regardless of current working
-directory.
-
-### `Makefile` — Streamlit entry point
-
-Sets `STREAMLIT_ENTRY` so `make webapp` launches the generated entry point
-(which Streamlit uses to resolve the pages directory):
-
-```make
-STREAMLIT_ENTRY ?= my_project/main/streamlit.py
-```
-
 ### `pyproject.toml` — package discovery
-
-Adds scoped `setuptools` discovery so `uv sync` installs the package without
-accidentally picking up `config/` as a namespace package:
 
 ```toml
 [tool.uv]
@@ -166,55 +186,81 @@ package = true
 include = ["my_project*"]
 ```
 
+All patches are idempotent — re-running `cli init` is safe.
+
 ---
 
-## CLI options
+## CLI reference
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--name TEXT` | cwd name | Human-readable project name |
-| `--minimal` | false | Config + Makefile only — skip example code |
-| `--deer-flow` | false | Also clone the Deer-flow backend |
-| `--path TEXT` | `~/deer-flow` | Clone path for Deer-flow |
-| `--force` | false | Overwrite files that already exist |
+| `--template / -t TEXT` | interactive | Template: `agent-app` \| `rag-app` \| `workflow-app` \| `minimal` |
+| `--name / -n TEXT` | cwd name | Human-readable project name |
+| `--deer-flow / -d` | false | Also clone the Deer-flow backend |
+| `--deer-flow-path TEXT` | `~/deer-flow` | Clone path for Deer-flow |
+| `--force / -f` | false | Overwrite files that already exist |
 
-`cli init` is **idempotent** — re-running it skips files that already exist
-unless `--force` is passed.  Config patches are also idempotent (checked before
-writing).
+`cli init` is **idempotent** — re-running skips files that already exist unless `--force` is passed.
 
 ---
 
-## Webapp
+## Multi-agent support
+
+The generated files target four AI coding assistants:
+
+| File | Tool |
+|------|------|
+| `AGENTS.md` | Codex, Claude Code, OpenCode, Gemini CLI (primary source of truth) |
+| `.github/copilot-instructions.md` | GitHub Copilot (auto-injected, ≤25 lines, pointer to AGENTS.md) |
+| `.cursor/rules/genai-tk.mdc` | Cursor |
+| `.windsurfrules` | Windsurf |
+
+All files follow the **progressive disclosure** principle: agents get a concise
+map with pointers to skills and docs, not a full manual.
+
+---
+
+## justfile tasks
+
+```bash
+just          # list all tasks
+just run      # start the application
+just lint     # ruff format + check + cli skills validate --all
+just skills   # cli skills list
+just webapp   # uv run cli webapp  (agent-app template)
+```
+
+---
+
+## Webapp (agent-app)
 
 After `uv sync`:
 
 ```bash
-make webapp          # launches Streamlit on http://localhost:8501
+just webapp   # or: uv run cli webapp
 ```
 
-The **Hello Agent** demo page at `demos/hello_agent.py` shows:
-
-- LLM selector (sidebar) — swap models without restarting
-- Chat history display
-- A built-in `calculator` tool wired to a ReAct agent
-
-Extend the sidebar with `render_llm_selector()`, or add new pages following
-the [add-webapp-page](../skills/copilot/add-webapp-page/SKILL.md) skill.
+The **Hello Agent** demo page shows a chat UI with LLM selector and a built-in
+`calculator` tool wired to a ReAct agent.
 
 ---
 
-## Next steps
+## Extending the project
 
-Once the scaffold is running, extend it:
+See the generated `docs/EXTENDING.md` and `AGENTS.md` in your project for
+step-by-step guides on:
 
-| Goal | How |
-|------|-----|
-| Add a new CLI command group | Follow [skills/copilot/add-cli-command](../skills/copilot/add-cli-command/SKILL.md) |
-| Add a Streamlit page | Follow [skills/copilot/add-webapp-page](../skills/copilot/add-webapp-page/SKILL.md) |
-| Add an LCEL chain | Follow [skills/copilot/add-chain](../skills/copilot/add-chain/SKILL.md) |
-| Configure an agent profile | Follow [skills/copilot/add-agent-profile](../skills/copilot/add-agent-profile/SKILL.md) |
-| Add MCP servers | See [docs/mcp-servers.md](mcp-servers.md) |
-| Enable Docker sandbox | See [docs/sandbox_support.md](sandbox_support.md) |
+- Adding a CLI command group
+- Adding a LangChain tool
+- Adding an agent profile
+- Adding a webapp page
+- Adding a SKILL.md
+- Adding an MCP server
 
-See [docs/copilot-agent-support.md](copilot-agent-support.md) for details on
-how the generated Copilot files help GitHub Copilot understand and extend the project.
+Or use the toolkit's own contributor skills:
+
+```bash
+cli skills add add-tool       # bundled skill: how to create a tool
+cli skills add add-skill      # bundled skill: how to create a skill
+cli skills add add-mcp-server # bundled skill: how to add an MCP server
+```
