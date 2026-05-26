@@ -1,6 +1,6 @@
 ---
 name: add-agent-profile
-description: Step-by-step procedure to configure a new agent profile with tools and MCP servers in a genai-tk project.
+description: Step-by-step procedure to configure a new dict-keyed LangChain, DeepAgent, or DeerFlow agent profile with tools, skills, middleware, and MCP servers in a genai-tk project.
 ---
 
 # Add an Agent Profile
@@ -8,31 +8,35 @@ description: Step-by-step procedure to configure a new agent profile with tools 
 Follow these steps to add a new agent profile to a genai-tk project.
 
 ## Prerequisites
-- The project was initialized with `cli init` (has `config/agents/` directory)
-- Agent profiles are defined in `config/agents/langchain.yaml`
+- The project has a `config/agents/` directory
+- LangChain profiles are dict-keyed and live under `config/agents/langchain/*.yaml`
+- See `docs/agents.md` and `skills/genai-tk/agent-profiles/SKILL.md` before changing runtime behavior
 
-## Step 1: Edit langchain.yaml
+## Step 1: Edit a LangChain Profile YAML
 
-Add a new profile to `config/agents/langchain.yaml`:
+Add a new profile key to the closest file under `config/agents/langchain/`:
 
 ```yaml
 langchain_agents:
-  profiles:
-    - name: MyAgent
-      type: react                    # react | deep | custom
-      llm: default                   # LLM identifier (from providers/llm.yaml)
-      system_prompt: |
-        You are a helpful assistant specialized in [domain].
-        Use the provided tools to answer questions accurately.
-      tools:
-        - spec: web_search           # Built-in tool spec
-          config:
-            provider: tavily
-        - factory: my_package.tools.my_tools.create_tools  # Custom tool factory
-      mcp_servers: []                # Optional: MCP server names from mcp_servers.yaml
-      middlewares: []                # Optional: middleware classes
-      checkpointer:
-        type: memory                 # memory | sqlite | postgres
+  my_agent:                         # profile key used by: cli agents langchain -p my_agent
+    name: My Agent                  # display name
+    type: react                     # react | deep | custom
+    llm: default                    # LLM identifier or alias from config/providers/llm.yaml
+    system_prompt: |
+      You are a helpful assistant specialized in [domain].
+      Use the provided tools to answer questions accurately.
+    tools:
+      - spec: web_search
+        config:
+          provider: tavily
+      - factory: my_package.tools.my_tools.create_tools
+    mcp_servers: []
+    middlewares: []
+    checkpointer:
+      type: memory                  # none | memory | postgres
+    skills:
+      directories:
+        - ${paths.project}/skills
 ```
 
 ## Step 2: Create Custom Tools (if needed)
@@ -47,7 +51,7 @@ from langchain_core.tools import tool
 
 @tool
 def my_custom_tool(query: str) -> str:
-    """Description of what this tool does — the LLM reads this docstring."""
+    """Description of what this tool does - the LLM reads this docstring."""
     # Implementation here
     return f"Result for: {query}"
 
@@ -60,23 +64,23 @@ def create_tools() -> list:
 ## Step 3: Test the Agent
 
 ```bash
-# List available profiles
+# List available profiles; use the profile key, not the display name
 uv run cli agents langchain --list
 
 # Run in chat mode
-uv run cli agents langchain --profile MyAgent --chat
+uv run cli agents langchain -p my_agent --chat
 
 # Run with a single question
-uv run cli agents langchain --profile MyAgent -q "What is the weather today?"
+uv run cli agents langchain -p my_agent "What is the weather today?"
 ```
 
 ## Agent Types
 
 | Type | Description | Use for |
 |------|-------------|---------|
-| `react` | Standard ReAct loop (Thought → Action → Observation) | General-purpose tasks |
+| `react` | Standard ReAct loop (Thought -> Action -> Observation) | General-purpose tasks |
 | `deep` | Multi-step planning with subagents and skills | Complex research/analysis |
-| `custom` | LangGraph Functional API — maximum flexibility | Custom workflows |
+| `custom` | LangGraph Functional API - maximum flexibility | Custom workflows |
 
 ## Tool Configuration Options
 
@@ -98,22 +102,25 @@ tools:
 
 ## Adding MCP Servers to Agent
 
-1. Define MCP server in `config/mcp_servers.yaml`
+1. Define external MCP servers in `config/mcp_servers.yaml` under `mcpServers`
 2. Reference by name in the agent profile:
 
 ```yaml
-mcp_servers:
-  - name: my-server
+mcpServers:
+  my-server:
     command: uvx
     args: ["my-mcp-server"]
     env:
       API_KEY: ${oc.env:MY_API_KEY}
 
 # In agent profile:
-profiles:
-  - name: MyAgent
+langchain_agents:
+  my_agent:
+    name: My Agent
     mcp_servers: [my-server]
 ```
+
+Use `config/mcp/servers.yaml` only when exposing genai-tk assets as project MCP servers served by `uv run cli mcp serve`.
 
 ## DeerFlow Agents
 
