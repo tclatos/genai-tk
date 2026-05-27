@@ -136,3 +136,4 @@ skills/public/*
 .deer-flow/
 ext/deer-flow/
 .blueprint*
+tests/baml_src/contract_ru_extraction.baml
