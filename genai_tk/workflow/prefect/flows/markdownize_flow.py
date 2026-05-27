@@ -347,7 +347,7 @@ def _is_markdownize_compatible(file_path: UPath) -> bool:
     """Check if file is compatible with any supported converter."""
     suffix = file_path.suffix.lower()
     # markitdown formats
-    markitdown_formats = {".pdf", ".docx", ".pptx"}
+    markitdown_formats = {".pdf", ".docx", ".pptx", ".xlsx", ".xls", ".html", ".htm", ".csv", ".json"}
     # Image formats (markitdown only)
     ocr_formats = {".jpeg", ".jpg", ".png", ".gif", ".bmp"}
     return suffix in (markitdown_formats | ocr_formats)
@@ -358,7 +358,7 @@ async def _process_single_file_task(
     file_info: _FileToProcess,
     output_dir: str,
     root_dir: str,
-    converter: str = "markitdown",
+    pdf_converter: str = "markitdown",
 ) -> tuple[str, str]:  # (source_path, relative_output_path)
     """Process a single file and save markdown output.
 
@@ -378,7 +378,11 @@ async def _process_single_file_task(
         relative_source_path = UPath(upath.name)
 
     # Change extension to .md and maintain directory structure
-    relative_output_path = relative_source_path.with_suffix(".md")
+    # Include the original file extension in the output filename: review.xlsx → review_xlsx.md
+    stem = relative_source_path.stem
+    suffix = relative_source_path.suffix.lstrip(".")
+    new_name = f"{stem}_{suffix}.md"
+    relative_output_path = relative_source_path.parent / new_name
     output_file = output_upath / relative_output_path
 
     # Ensure parent directories exist
@@ -387,7 +391,7 @@ async def _process_single_file_task(
     content = None
 
     # Try edgeparse for PDFs if selected
-    if converter == "edgeparse" and upath.suffix.lower() == ".pdf":
+    if pdf_converter == "edgeparse" and upath.suffix.lower() == ".pdf":
         try:
             import edgeparse
 
@@ -397,7 +401,7 @@ async def _process_single_file_task(
             logger.warning(f"edgeparse failed for {upath.name}: {str(e)}. Falling back to markitdown.")
 
     # Try Mistral OCR for PDFs if selected
-    elif converter == "mistral" and upath.suffix.lower() == ".pdf":
+    elif pdf_converter == "mistral" and upath.suffix.lower() == ".pdf":
         try:
             from genai_tk.workflow.loaders.mistral_ocr import mistral_ocr as mistral_ocr_func
 
@@ -453,7 +457,7 @@ def markdownize_flow(
     pathspecs: list[str] | None = None,
     batch_size: int = 5,
     force: bool = False,
-    converter: str = "markitdown",
+    pdf_converter: str = "markitdown",
 ) -> MarkdownizeManifest:
     """Run markdownize as a Prefect flow.
 
@@ -464,14 +468,30 @@ def markdownize_flow(
             common document extensions.
         batch_size: Number of files to process concurrently per batch.
         force: Reprocess files even if unchanged in manifest.
-        converter: Backend -- ``"markitdown"`` (default), ``"mistral"``, or
-            ``"edgeparse"``.
+        pdf_converter: Backend for PDF files -- ``"markitdown"`` (default),
+            ``"mistral"``, or ``"edgeparse"``.  All other formats always use
+            markitdown.
 
     Returns:
         Updated manifest with processing results.
     """
     if pathspecs is None:
-        pathspecs = ["**/*.pdf", "**/*.docx", "**/*.pptx", "**/*.jpg", "**/*.jpeg", "**/*.png", "**/*.gif", "**/*.bmp"]
+        pathspecs = [
+            "**/*.pdf",
+            "**/*.docx",
+            "**/*.pptx",
+            "**/*.xlsx",
+            "**/*.xls",
+            "**/*.html",
+            "**/*.htm",
+            "**/*.csv",
+            "**/*.json",
+            "**/*.jpg",
+            "**/*.jpeg",
+            "**/*.png",
+            "**/*.gif",
+            "**/*.bmp",
+        ]
 
     file_paths = resolve_files(base_dir, pathspecs=pathspecs)
 
@@ -516,7 +536,7 @@ def markdownize_flow(
                 file_info,
                 output_dir=str(output_upath),
                 root_dir=resolved_output,
-                converter=converter,
+                pdf_converter=pdf_converter,
             )
             for file_info in batch
         ]

@@ -199,6 +199,11 @@ default-groups = ["dev", "postgres", "browser-control", "evals"]
 package = true
 
 [tool.uv.sources]
+
+[tool.uv.workspace]
+members = [
+    "prj1",
+]
 # Note: a patched wheel (without the spurious volcengine-python-sdk dep) lives in vendor/.
 # It can't be referenced here as a path because uv doesn't support .whl file paths for
 # transitive git dependencies. To use the patched wheel instead, run:

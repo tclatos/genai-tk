@@ -39,7 +39,7 @@ workflows:
         output_dir: "${values.output_dir}"
         pathspecs: "${values.pathspecs}"
         batch_size: "${values.batch_size}"
-        converter: "${values.converter}"
+        pdf_converter: "${values.converter}"
 
     ppt2pdf_step:
       invoke:
@@ -75,6 +75,13 @@ workflows:
         max_chunk_tokens: "${values.chunk_size}"
         chunker_name: "${values.chunker}"
 
+    merge_markdown_step:
+      invoke:
+        kind: flow
+        target: genai_tk.workflow.prefect.flows.merge_markdown_flow.merge_markdown_flow
+      with:
+        base_dir: "${values.base_dir}"
+
   # -------------------------------------------------------------------------
   # Workflow definitions
   # -------------------------------------------------------------------------
@@ -84,9 +91,20 @@ workflows:
       defaults:
         converter: mistral
         batch_size: 5
+        base_dir: "${paths.data_root}"
+        output_dir: "${paths.data_root}/markdown"
+        pathspecs: null
       steps:
         - id: convert
           ref: markdownize_step
+
+    merge_markdown:
+      description: "Merge all Markdown files in a directory into a single MERGED.md"
+      defaults:
+        base_dir: "${paths.data_root}/markdown"
+      steps:
+        - id: merge
+          ref: merge_markdown_step
 
     ppt2pdf_documents:
       description: "Convert PowerPoint files to PDF"
