@@ -18,25 +18,26 @@ from genai_tk.workflow.compiler import WorkflowCompilationError, WorkflowCompile
 from genai_tk.workflow.executor import WorkflowExecutionError, execute_workflow
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 from genai_tk.workflow.models import (
+    ParamSpec,
+    PipelineStep,
     ResolvedWorkflowInvocation,
     StepSpec,
-    StepTemplateSpec,
-    WorkflowProfileSpec,
+    WorkflowDefV2,
     WorkflowSpec,
 )
 from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory
+from genai_tk.workflow.registry import RegisteredWorkflow, WorkflowRegistry, registry, workflow
 from genai_tk.workflow.resolver import (
     WorkflowResolutionError,
-    list_step_template_names,
+    list_preset_names,
     list_workflow_names,
-    list_workflow_profile_names,
-    load_workflow_profile,
-    load_workflow_spec,
+    load_workflows,
     parse_cli_overrides,
     resolve_workflow_invocation,
 )
 
 __all__ = [
+    # compiled models
     "ArtifactSpec",
     "CacheSpec",
     "CompiledStep",
@@ -46,22 +47,40 @@ __all__ = [
     "InvokeSpec",
     "ManifestCache",
     "PrefectFlowFactory",
-    "ResolvedWorkflowInvocation",
     "StepKind",
+    # models
+    "ParamSpec",
+    "PipelineStep",
+    "ResolvedWorkflowInvocation",
     "StepSpec",
-    "StepTemplateSpec",
+    "WorkflowDefV2",
+    "WorkflowSpec",
+    # compiled models
+    "ArtifactSpec",
+    "CacheSpec",
+    "CompiledStep",
+    "CompiledWorkflow",
+    "ExecutionSpec",
+    "ForeachSpec",
+    "InvokeSpec",
+    "ManifestCache",
+    "PrefectFlowFactory",
+    "StepKind",
+    # registry
+    "RegisteredWorkflow",
+    "WorkflowRegistry",
+    "registry",
+    "workflow",
+    # compiler / executor
     "WorkflowCompilationError",
     "WorkflowCompiler",
     "WorkflowExecutionError",
-    "WorkflowProfileSpec",
-    "WorkflowResolutionError",
-    "WorkflowSpec",
     "execute_workflow",
-    "list_step_template_names",
+    # resolver
+    "WorkflowResolutionError",
+    "list_preset_names",
     "list_workflow_names",
-    "list_workflow_profile_names",
-    "load_workflow_profile",
-    "load_workflow_spec",
+    "load_workflows",
     "parse_cli_overrides",
     "resolve_workflow_invocation",
 ]

@@ -1,3 +1,6 @@
+# BAML
+Develop Workflows to generate structured output with BAML, usable through the 'cli workflow run" command, and composable . Update  commands 'cli  baml extract' and 'cli  baml run' so they call  'cli workfow'  (they will likely be depreciated later)
+
 
 # TOC
 

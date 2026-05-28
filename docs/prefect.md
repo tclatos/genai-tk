@@ -313,90 +313,79 @@ a higher-level **Workflow Engine** that is YAML-driven and composable.
 
 The Workflow Engine lets you:
 
-- Define **workflows** as DAGs of steps using YAML (no Python coding required)
-- Bind workflows to **profiles** with concrete parameter values
+- Define **workflows** as DAGs of steps using YAML
+- Bundle concrete parameter sets in named **presets** inside the workflow definition
 - Chain **multiple Prefect flows** together with dependency tracking
+- **Compose** workflows as sub-steps of other workflows
 - Invoke workflows via `cli workflow run` with `--dry-run` support
-- Integrate workflows into existing commands via `--config PROFILE`
 
 **Example:** Chain PDF-to-Markdown conversion with RAG ingestion:
 
 ```yaml
 workflows:
-  ingest_pipeline:
-    steps:
-      - id: convert_ppts
-        uses: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
-        inputs:
-          base_dir: "${profile.ppt_dir}"
-          output_dir: "${profile.pdf_dir}"
+  full_ingest_pipeline:
+    description: "PPT → PDF → Markdown → RAG ingestion"
+    pipeline:
+      - id: ppt_to_pdf
+        run: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
+        with:
+          base_dir: "${paths.data_root}/ppts"
+          output_dir: "${paths.data_root}/pdfs"
 
       - id: to_markdown
-        uses: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-        needs: [convert_ppts]
-        inputs:
-          base_dir: "${profile.pdf_dir}"
-          output_dir: "${profile.md_dir}"
+        run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+        after: [ppt_to_pdf]
+        with:
+          base_dir: "${paths.data_root}/pdfs"
+          output_dir: "${paths.data_root}/md"
+          pathspecs: ["**/*.pdf"]
 
-      - id: ingest_to_rag
-        uses: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
-        needs: [to_markdown]
-        inputs:
-          base_dir: "${profile.md_dir}"
-
-workflow_profiles:
-  marketing:
-    workflow: ingest_pipeline
-    values:
-      ppt_dir: /data/marketing/ppts
-      pdf_dir: /data/marketing/pdfs
-      md_dir: /data/marketing/markdown
+      - id: ingest
+        run: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+        after: [to_markdown]
+        with:
+          base_dir: "${paths.data_root}/md"
+    presets:
+      marketing:
+        base_dir: "${paths.data_root}/marketing"
 ```
 
 Invoke with:
 
 ```bash
 # See the full 3-step plan
-uv run cli workflow run marketing --dry-run
+uv run cli workflow run full_ingest_pipeline/marketing --dry-run
 
 # Execute all steps in order
-uv run cli workflow run marketing
+uv run cli workflow run full_ingest_pipeline/marketing
 ```
 
 ### How It Works
 
-1. **Workflow Definition** — Steps specify a Prefect flow (via dotted path), inputs, and
-   dependencies via `needs:`.
+1. **Workflow Definition** — Steps specify a callable target (via dotted Python path or
+   workflow name), arguments (`with:`), and dependencies (`after:`).
 
-2. **Resolution** — The engine resolves profile values (e.g., `${profile.ppt_dir}`) into
-   concrete paths and parameters.
+2. **Resolution** — Preset values and CLI `--set` overrides are merged with workflow
+   `defaults` to produce concrete parameter values.  `${values.*}` references in `with:`
+   are resolved against this merged dict.
 
-3. **Topological Sort** — Steps are ordered based on dependencies (`needs:`); circular
+3. **Pre-flight Validation** — Before Prefect starts, the engine validates each step's
+   keyword arguments against its function signature, giving a clean error for typos or
+   renamed parameters instead of a verbose Prefect traceback.
+
+4. **Topological Sort** — Steps are ordered based on `after:` dependencies; circular
    dependencies are detected and reported.
 
-4. **Execution** — Each step invokes its Prefect flow via `run_flow_ephemeral()`. If a step
+5. **Execution** — Each step invokes its target via the Prefect task runner.  If a step
    fails, the `on_failure:` policy determines whether to abort, skip, or continue.
-
-### Integration with CLI Commands
-
-Existing commands (`markdownize`, `ppt2pdf`, `rag add-files`) can accept `--config PROFILE`
-to use workflow profiles:
-
-```bash
-# Traditional style
-uv run cli tools markdownize ./input ./output --batch-size 5
-
-# Workflow style
-uv run cli tools markdownize --config marketing --set batch_size=20 --dry-run
-```
 
 ### See Also
 
 For the complete Workflow Engine guide, including:
-- How to define workflows and profiles
-- Parameter interpolation and overrides
+- Full DSL syntax (`run:`, `pipeline:`, `presets:`, `params:`, `cache:`)
+- Sub-workflow composition and the `@workflow` decorator
+- CLI reference (`list`, `show`, `run`, `validate`)
 - Error handling modes (`abort`, `skip`, `continue`)
-- Examples and best practices
 - Step implementation guide
 
 See [workflows.md](workflows.md).

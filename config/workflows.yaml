@@ -1,216 +1,154 @@
 # ---------------------------------------------------------------------------
-# Workflow configuration
+# Workflow configuration  (DSL v2)
 # ---------------------------------------------------------------------------
 #
-# All workflow config lives under the top-level 'workflows:' key, with three
-# sub-sections:
+# Workflows live directly under the top-level 'workflows:' key.
+# Each entry is a named, directly runnable workflow.
 #
-#  workflows.step_templates  — reusable step definitions (invoke, with, …).
-#                    Referenced by workflow steps with `ref: <name>`.
-#                    Step-level fields override template fields; the `with`
-#                    dict is merged key-by-key.
+# Single-step workflow:
+#   workflows:
+#     my_flow:
+#       run: dotted.path.to.callable_or_flow
+#       defaults: {key: value}
+#       presets:
+#         my_preset: {key: concrete_value}
 #
-#  workflows.definitions     — named pipelines composed of steps.
-#                    `defaults:` provides fallback values for ${values.*}
-#                    placeholders when a profile doesn't supply them.
+# Multi-step pipeline:
+#   workflows:
+#     my_pipeline:
+#       pipeline:
+#         - id: step1
+#           run: my_flow          # workflow name OR dotted path OR @workflow name
+#           with: {key: value}
+#         - id: step2
+#           run: another_flow
+#           after: [step1]        # readable alias for wait_for
+#           with: {key: value}
 #
-#  workflows.profiles        — named, concrete invocations of a workflow bound to
-#                    specific directories and settings. Run one with:
-#                      cli workflow run <profile_name>
-#                      cli workflow run <profile_name> --dry-run
-#                      cli workflow run <profile_name> --set batch_size=5
+# CLI usage:
+#   cli workflow run markdownize                     # use defaults
+#   cli workflow run markdownize/rainbow             # named preset
+#   cli workflow run markdownize --set base_dir=/x   # ad-hoc override
+#   cli workflow list                                # all workflows + presets
+#   cli workflow show markdownize                    # inspect DAG + params
 #
 # Value resolution priority (highest first):
-#   CLI --set overrides  >  profile values  >  workflow defaults
+#   CLI --set > preset values > workflow defaults
 # ---------------------------------------------------------------------------
 
 workflows:
 
-  # -------------------------------------------------------------------------
-  # Step templates — reuse these across workflows to avoid repetition
-  # -------------------------------------------------------------------------
-  step_templates:
-    markdownize_step:
-      invoke:
-        kind: flow
-        target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-      with:
-        base_dir: "${values.base_dir}"
-        output_dir: "${values.output_dir}"
-        pathspecs: "${values.pathspecs}"
-        batch_size: "${values.batch_size}"
-        pdf_converter: "${values.converter}"
+  # ---------------------------------------------------------------------------
+  # Document conversion workflows
+  # ---------------------------------------------------------------------------
 
-    ppt2pdf_step:
-      invoke:
-        kind: flow
-        target: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
-      with:
-        base_dir: "${values.base_dir}"
-        output_dir: "${values.output_dir}"
-        pathspecs: "${values.pathspecs}"
-        batch_size: "${values.batch_size}"
-
-    anonymize_step:
-      invoke:
-        kind: flow
-        target: genai_tk.workflow.prefect.flows.anonymize_flow.anonymize_files_flow
-      with:
-        base_dir: "${values.base_dir}"
-        output_dir: "${values.output_dir}"
-        pathspecs: "${values.pathspecs}"
-        batch_size: "${values.batch_size}"
-        save_mapping: "${values.save_mapping}"
-        faker_seed: "${values.faker_seed}"
-
-    rag_ingest_step:
-      invoke:
-        kind: flow
-        target: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
-      with:
-        base_dir: "${values.base_dir}"
-        retriever_name: "${values.retriever_name}"
-        pathspecs: "${values.pathspecs}"
-        batch_size: "${values.batch_size}"
-        max_chunk_tokens: "${values.chunk_size}"
-        chunker_name: "${values.chunker}"
-
-    merge_markdown_step:
-      invoke:
-        kind: flow
-        target: genai_tk.workflow.prefect.flows.merge_markdown_flow.merge_markdown_flow
-      with:
-        base_dir: "${values.base_dir}"
-
-  # -------------------------------------------------------------------------
-  # Workflow definitions
-  # -------------------------------------------------------------------------
-  definitions:
-    markdownize_documents:
-      description: "Convert documents to Markdown format"
-      defaults:
-        converter: mistral
-        batch_size: 5
-        base_dir: "${paths.data_root}"
-        output_dir: "${paths.data_root}/markdown"
-        pathspecs: null
-      steps:
-        - id: convert
-          ref: markdownize_step
-
-    merge_markdown:
-      description: "Merge all Markdown files in a directory into a single MERGED.md"
-      defaults:
-        base_dir: "${paths.data_root}/markdown"
-      steps:
-        - id: merge
-          ref: merge_markdown_step
-
-    ppt2pdf_documents:
-      description: "Convert PowerPoint files to PDF"
-      defaults:
-        batch_size: 5
-      steps:
-        - id: convert
-          ref: ppt2pdf_step
-
-    rag_add_files:
-      description: "Ingest files into a retriever store"
-      defaults:
-        batch_size: 10
-        chunk_size: 512
-        chunker: auto
-      steps:
-        - id: ingest
-          ref: rag_ingest_step
-
-    anonymize_files:
-      description: "Detect and replace PII in text files (Presidio + Faker)"
-      defaults:
-        batch_size: 10
-        save_mapping: false
-        faker_seed: 42
-      steps:
-        - id: anonymize
-          ref: anonymize_step
-
-    anonymize_and_ingest:
-      description: "Anonymize text files then ingest into a RAG vector store"
-      defaults:
-        batch_size: 10
-        save_mapping: false
-        faker_seed: 42
-        chunk_size: 512
-        chunker: auto
-      steps:
-        - id: anonymize
-          ref: anonymize_step
-          with:
-            # Override output_dir to write to the intermediate anonymized directory.
-            output_dir: "${values.anon_dir}"
-
-        - id: ingest
-          ref: rag_ingest_step
-          wait_for: [anonymize]
-          with:
-            # Chain: ingest reads from the anonymized directory produced above.
-            base_dir: "${values.anon_dir}"
-
-  # -------------------------------------------------------------------------
-  # Workflow profiles — concrete, named invocations ready to run
-  # -------------------------------------------------------------------------
-  profiles:
-    # --- Markdownize ---
-    markdownize_docs:
-      workflow: markdownize_documents
-      values:
+  markdownize:
+    description: "Convert documents (PDF/DOCX/PPTX) to Markdown format"
+    run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+    defaults:
+      pdf_converter: mistral
+      batch_size: 5
+      base_dir: "${paths.data_root}"
+      output_dir: "${paths.data_root}/markdown"
+      pathspecs: null
+    params:
+      base_dir: {required: true}
+      output_dir: {required: true}
+    presets:
+      docs:
         base_dir: "${paths.data_root}/documents"
         output_dir: "${paths.data_root}/markdown"
-        pathspecs:
-          - "**/*.pdf"
-          - "**/*.docx"
-          - "**/*.pptx"
+        pathspecs: ["**/*.pdf", "**/*.docx", "**/*.pptx"]
 
-    # --- PPT to PDF ---
-    ppt2pdf_docs:
-      workflow: ppt2pdf_documents
-      values:
+  merge_markdown:
+    description: "Merge all Markdown files in a directory into a single MERGED.md"
+    run: genai_tk.workflow.prefect.flows.merge_markdown_flow.merge_markdown_flow
+    defaults:
+      base_dir: "${paths.data_root}/markdown"
+    params:
+      base_dir: {required: true}
+
+  ppt2pdf:
+    description: "Convert PowerPoint files to PDF"
+    run: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
+    defaults:
+      batch_size: 5
+    params:
+      base_dir: {required: true}
+      output_dir: {required: true}
+    presets:
+      docs:
         base_dir: "${paths.data_root}/presentations"
         output_dir: "${paths.data_root}/pdfs"
-        pathspecs:
-          - "**/*.pptx"
-          - "**/*.ppt"
-          - "**/*.odp"
+        pathspecs: ["**/*.pptx", "**/*.ppt", "**/*.odp"]
 
-    # --- RAG ingestion ---
-    rag_ingest_docs:
-      workflow: rag_add_files
-      values:
+  # ---------------------------------------------------------------------------
+  # RAG ingestion workflows
+  # ---------------------------------------------------------------------------
+
+  rag_ingest:
+    description: "Ingest files into a retriever (vector) store"
+    run: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
+    defaults:
+      batch_size: 10
+      chunk_size: 512
+      chunker: auto
+    params:
+      base_dir: {required: true}
+      retriever_name: {required: true}
+    presets:
+      docs:
         base_dir: "${paths.data_root}/markdown"
         retriever_name: default
-        pathspecs:
-          - "**/*.md"
+        pathspecs: ["**/*.md"]
 
-    # --- Anonymize only ---
-    anonymize_docs:
-      workflow: anonymize_files
-      values:
+  # ---------------------------------------------------------------------------
+  # PII anonymization workflows
+  # ---------------------------------------------------------------------------
+
+  anonymize:
+    description: "Detect and replace PII in text files (Presidio + Faker)"
+    run: genai_tk.workflow.prefect.flows.anonymize_flow.anonymize_files_flow
+    defaults:
+      batch_size: 10
+      save_mapping: false
+      faker_seed: 42
+    params:
+      base_dir: {required: true}
+      output_dir: {required: true}
+    presets:
+      docs:
         base_dir: "${paths.data_root}/documents"
         output_dir: "${paths.data_root}/anonymized"
-        pathspecs:
-          - "**/*.txt"
-          - "**/*.md"
+        pathspecs: ["**/*.txt", "**/*.md"]
 
-    # --- Anonymize then ingest ---
-    anonymize_and_ingest_docs:
-      workflow: anonymize_and_ingest
-      values:
+  anonymize_and_ingest:
+    description: "Anonymize text files then ingest into a RAG vector store"
+    pipeline:
+      - id: anonymize
+        run: anonymize
+        with:
+          output_dir: "${values.anon_dir}"
+
+      - id: ingest
+        run: rag_ingest
+        after: [anonymize]
+        with:
+          base_dir: "${values.anon_dir}"
+    defaults:
+      batch_size: 10
+      save_mapping: false
+      faker_seed: 42
+      chunk_size: 512
+      chunker: auto
+    params:
+      base_dir: {required: true}
+      anon_dir: {required: true}
+      retriever_name: {required: true}
+    presets:
+      docs:
         base_dir: "${paths.data_root}/documents"
         anon_dir: "${paths.data_root}/anonymized"
         retriever_name: default
-        pathspecs:
-          - "**/*.txt"
-          - "**/*.md"
-
-
+        pathspecs: ["**/*.txt", "**/*.md"]
 
