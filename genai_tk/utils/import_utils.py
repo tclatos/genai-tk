@@ -224,6 +224,29 @@ class ImportResolver:
         return instances
 
 
+def import_model(dotted_path: str) -> type:
+    """Import a class from a dotted Python path.
+
+    Convenience wrapper around ImportResolver.import_from_qualified()
+    specifically for loading Pydantic model classes.
+
+    Args:
+        dotted_path: Dotted import path, e.g. ``myapp.baml_client.types.Resume``.
+
+    Returns:
+        The class object.
+
+    Example:
+        ```python
+        from genai_tk.utils.import_utils import import_model
+
+        Resume = import_model("myapp.baml_client.types.Resume")
+        instance = Resume(name="John", skills=["Python"])
+        ```
+    """
+    return ImportResolver.import_from_qualified(dotted_path)
+
+
 # Module-level aliases for convenience
 import_from_qualified = ImportResolver.import_from_qualified
 instantiate_from_qualified_names = ImportResolver.instantiate_from_qualified_names

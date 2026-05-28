@@ -43,7 +43,7 @@ TEMPLATE_META: dict[str, dict] = {
             "loaders/          # document loaders",
             "data/             # raw / processed documents",
         ],
-        "project_recipes": "# Ingest documents\ningest:\n    uv run cli rag ingest data/raw\n\n# Query\nquery question=\"What is this about?\":\n    uv run cli rag query \"{{question}}\"\n",
+        "project_recipes": '# Ingest documents\ningest:\n    uv run cli rag ingest data/raw\n\n# Query\nquery question="What is this about?":\n    uv run cli rag query "{{question}}"\n',
     },
     "workflow-app": {
         "label": "Workflow App",
@@ -55,7 +55,7 @@ TEMPLATE_META: dict[str, dict] = {
             "workflows/steps/  # workflow step functions",
             "config/workflows/ # workflow YAML definitions",
         ],
-        "project_recipes": "# Dry-run a workflow\ndry-run workflow=\"example\":\n    uv run cli workflow run {{workflow}} --dry-run\n\n# Run a workflow\nrun workflow=\"example\":\n    uv run cli workflow run {{workflow}}\n",
+        "project_recipes": '# Dry-run a workflow\ndry-run workflow="example":\n    uv run cli workflow run {{workflow}} --dry-run\n\n# Run a workflow\nrun workflow="example":\n    uv run cli workflow run {{workflow}}\n',
     },
     "minimal": {
         "label": "Minimal",
@@ -166,6 +166,9 @@ class ProjectScaffolder:
                 gitkeep.write_text("")
                 self._written += 1
 
+        # ── Copy genai-tk bundled skills into skills/genai-tk/ ────────
+        self._copy_genai_tk_skills()
+
         # ── Package sub-package __init__.py files ─────────────────────
         for sub in self._get_package_subdirs():
             init_path = self.project_dir / self.package_name / sub / "__init__.py"
@@ -173,8 +176,7 @@ class ProjectScaffolder:
 
         if self._written:
             console.print(
-                f"[green]✓ Scaffolded {self._written} file(s)[/green] "
-                f"(template: [bold]{self.template}[/bold])"
+                f"[green]✓ Scaffolded {self._written} file(s)[/green] (template: [bold]{self.template}[/bold])"
             )
         if self._skipped:
             console.print(f"[yellow]  ({self._skipped} file(s) already exist — use --force to overwrite)[/yellow]")
@@ -263,6 +265,26 @@ class ProjectScaffolder:
             return base + ["workflows", "workflows/steps"]
         return []
 
+    def _copy_genai_tk_skills(self) -> None:
+        """Copy skills/genai-tk/ from the installed package into the project's skills/genai-tk/."""
+        import shutil
+
+        try:
+            bundled_root = Path(str(pkg_files("genai_tk") / "skills" / "genai-tk"))
+        except Exception:
+            return
+        if not bundled_root.is_dir():
+            return
+
+        dest = self.project_dir / "skills" / "genai-tk"
+        if dest.exists() and not self.force:
+            return
+
+        shutil.copytree(bundled_root, dest, dirs_exist_ok=True)
+        count = sum(1 for _ in dest.rglob("SKILL.md"))
+        self._written += count
+        console.print(f"[green]✓ Installed {count} genai-tk skill(s)[/green] → skills/genai-tk/")
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -293,7 +315,9 @@ class ProjectScaffolder:
         command_classes = {
             "agent-app": f"{self.package_name}.commands.agent_commands.AgentCommands",
             "rag-app": f"{self.package_name}.commands.rag_commands.RagCommands",
-            "workflow-app": f"{self.package_name}.commands.workflow_commands.WorkflowCommands",
+            # workflow-app: genai_tk.workflow.commands.WorkflowCommands (already registered in app_conf)
+            # handles `cli workflow run` — no project-level WorkflowCommands needed.
+            "workflow-app": None,
             "minimal": None,
         }
         entry_class = command_classes.get(self.template)

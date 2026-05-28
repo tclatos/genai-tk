@@ -33,6 +33,7 @@ def _make_invocation(
 def test_execute_workflow_delegates_to_factory(mock_run, mock_compile):
     """execute_workflow compiles and runs via PrefectFlowFactory."""
     mock_compiled = MagicMock(spec=CompiledWorkflow)
+    mock_compiled.steps = []  # _preflight_check_signatures iterates this
     mock_compile.return_value = mock_compiled
     mock_run.return_value = {"convert": {"files_processed": 5}}
 
@@ -51,7 +52,9 @@ def test_execute_workflow_delegates_to_factory(mock_run, mock_compile):
 @patch("genai_tk.workflow.prefect.flow_factory.PrefectFlowFactory.run")
 def test_execute_workflow_force_sets_values(mock_run, mock_compile):
     """When force=True, values dict gets force/force_rebuild keys."""
-    mock_compile.return_value = MagicMock(spec=CompiledWorkflow)
+    compiled = MagicMock(spec=CompiledWorkflow)
+    compiled.steps = []
+    mock_compile.return_value = compiled
     mock_run.return_value = {}
 
     invocation = _make_invocation(
@@ -73,7 +76,9 @@ def test_execute_workflow_wraps_flow_error(mock_compile, mock_run):
     """PrefectFlowFactory errors are re-raised as WorkflowExecutionError."""
     from genai_tk.workflow.prefect.flow_factory import WorkflowExecutionError as FlowError
 
-    mock_compile.return_value = MagicMock(spec=CompiledWorkflow)
+    compiled = MagicMock(spec=CompiledWorkflow)
+    compiled.steps = []
+    mock_compile.return_value = compiled
     mock_run.side_effect = FlowError("step failed")
 
     invocation = _make_invocation([StepSpec(id="s1", invoke=InvokeSpec(target="json.dumps"))])

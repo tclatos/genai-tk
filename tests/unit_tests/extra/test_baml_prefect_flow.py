@@ -1,102 +1,153 @@
-"""Tests for the Prefect-based BAML structured extraction flow."""
+"""Unit tests for BAML Prefect flow helper functions.
 
-# ruff: noqa: F821  # File is fully skipped; names were removed during refactoring
+These tests cover the pure-Python helpers in baml_flow.py that do not require
+a live BAML client or Prefect runtime.  End-to-end flow tests (with stub
+task submission) live in tests/integration_tests/test_baml_prefect_flow_integration.py.
+"""
+
 from __future__ import annotations
 
-import pytest
+import json
+from datetime import datetime, timezone
+from pathlib import Path
 
-# Mark all tests in this module as integration tests requiring complex setup
-pytestmark = pytest.mark.skip(
-    reason="BAML Prefect flow tests require complex mocking of internal dependencies. "
-    "These should be refactored as integration tests with real BAML environment."
+import pytest
+from upath import UPath
+
+from genai_tk.workflow.prefect.flows.baml_flow import (
+    BamlExtractionManifest,
+    BamlExtractionManifestEntry,
+    _find_existing_manifest,
+    _iter_supported_files,
+    _save_manifest,
 )
 
 
-def test_flow_writes_json_and_manifest_under_model_dir(tmp_path, monkeypatch) -> None:
-    """The flow should write JSON outputs and manifest under structured/<model_name>/."""
-
-    calls, _ = _patch_flow_dependencies(tmp_path, monkeypatch)
-
-    # Create a single markdown file to process.
-    docs_dir = tmp_path / "docs"
-    docs_dir.mkdir()
-    md_file = docs_dir / "example.md"
-    md_file.write_text("# Example", encoding="utf-8")
-
-    manifest = mod.baml_structured_extraction_flow(
-        root_dir=str(docs_dir),
-        output_dir="${paths.data_root}/structured",
-        recursive=False,
-        batch_size=2,
-        force=False,
-        function_name="ExtractDummy",
-        config_name="default",
-        llm=None,
-    )
-
-    # Verify that BAML was invoked once and manifest contains model_name.
-    assert len(calls) == 1
-    assert manifest.model_name == _DummyModel.__name__
-
-    data_root = UPath(tmp_path / "data_root")
-    structured_root = data_root / "structured"
-    model_dir = structured_root / _DummyModel.__name__
-
-    # Manifest must be stored under structured/<model_name>/.
-    manifest_path = model_dir / "manifest.json"
-    assert manifest_path.exists()
-
-    # At least one JSON output must be present in the model directory.
-    json_files = list(model_dir.glob("*.json"))
-    assert json_files, "Expected at least one JSON file in the model directory"
+# ---------------------------------------------------------------------------
+# _iter_supported_files
+# ---------------------------------------------------------------------------
 
 
-@pytest.mark.unit
-def test_flow_uses_manifest_to_skip_unchanged_files(tmp_path, monkeypatch) -> None:
-    """A second run on unchanged files should not re-invoke BAML when force is False."""
+class TestIterSupportedFiles:
+    def test_yields_markdown_files(self, tmp_path: Path) -> None:
+        md = UPath(tmp_path / "doc.md")
+        md.write_text("# hello")
+        result = list(_iter_supported_files([md]))
+        assert len(result) == 1
+        assert result[0].name == "doc.md"
 
-    calls, _ = _patch_flow_dependencies(tmp_path, monkeypatch)
+    def test_yields_pdf_files(self, tmp_path: Path) -> None:
+        pdf = UPath(tmp_path / "report.pdf")
+        pdf.write_bytes(b"%PDF")
+        result = list(_iter_supported_files([pdf]))
+        assert len(result) == 1
 
-    docs_dir = tmp_path / "docs"
-    docs_dir.mkdir()
-    md_file = docs_dir / "example.md"
-    md_file.write_text("# Example", encoding="utf-8")
+    def test_skips_unsupported_extensions(self, tmp_path: Path) -> None:
+        txt = UPath(tmp_path / "notes.txt")
+        txt.write_text("plain text")
+        result = list(_iter_supported_files([txt]))
+        assert result == []
 
-    # First run populates manifest and outputs.
-    manifest1 = mod.baml_structured_extraction_flow(
-        root_dir=str(docs_dir),
-        output_dir="${paths.data_root}/structured",
-        recursive=False,
-        batch_size=2,
-        force=False,
-        function_name="ExtractDummy",
-        config_name="default",
-        llm=None,
-    )
+    def test_mixed_files_only_yields_supported(self, tmp_path: Path) -> None:
+        files = []
+        for name in ("a.md", "b.txt", "c.pdf", "d.docx", "e.markdown"):
+            p = UPath(tmp_path / name)
+            p.write_bytes(b"x")
+            files.append(p)
+        result = list(_iter_supported_files(files))
+        names = {r.name for r in result}
+        assert names == {"a.md", "c.pdf", "e.markdown"}
 
-    assert manifest1.model_name == _DummyModel.__name__
-    assert len(calls) == 1
+    def test_empty_input_returns_empty(self) -> None:
+        assert list(_iter_supported_files([])) == []
 
-    # Second run on the same content should use the manifest to skip.
-    manifest2 = mod.baml_structured_extraction_flow(
-        root_dir=str(docs_dir),
-        output_dir="${paths.data_root}/structured",
-        recursive=False,
-        batch_size=2,
-        force=False,
-        function_name="ExtractDummy",
-        config_name="default",
-        llm=None,
-    )
 
-    # No additional BAML invocations expected.
-    assert len(calls) == 1
-    assert manifest2.model_name == _DummyModel.__name__
+# ---------------------------------------------------------------------------
+# BamlExtractionManifest — serialisation round-trip
+# ---------------------------------------------------------------------------
 
-    data_root = UPath(tmp_path / "data_root")
-    structured_root = data_root / "structured"
-    model_dir = structured_root / _DummyModel.__name__
 
-    # Ensure the manifest still lives under the model directory after rerun.
-    manifest_path = model_dir / "manifest.json"
-    assert manifest_path.exists()
+class TestBamlExtractionManifest:
+    def test_empty_manifest_serialises(self) -> None:
+        manifest = BamlExtractionManifest(function_name="ExtractFoo", config_name="default")
+        data = json.loads(manifest.model_dump_json())
+        assert data["function_name"] == "ExtractFoo"
+        assert data["entries"] == {}
+
+    def test_manifest_with_entry_round_trips(self) -> None:
+        entry = BamlExtractionManifestEntry(
+            source_hash="abc123",
+            output_path="results/doc.json",
+            processed_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        )
+        manifest = BamlExtractionManifest(
+            function_name="ExtractBar",
+            config_name="default",
+            entries={"docs/doc.md": entry},
+        )
+        recovered = BamlExtractionManifest.model_validate_json(manifest.model_dump_json())
+        assert recovered.entries["docs/doc.md"].source_hash == "abc123"
+        assert recovered.entries["docs/doc.md"].output_path == "results/doc.json"
+
+    def test_manifest_llm_field_optional(self) -> None:
+        manifest = BamlExtractionManifest(function_name="F", config_name="c")
+        assert manifest.llm is None
+        manifest2 = BamlExtractionManifest(function_name="F", config_name="c", llm="gpt4")
+        assert manifest2.llm == "gpt4"
+
+
+# ---------------------------------------------------------------------------
+# _save_manifest / _find_existing_manifest
+# ---------------------------------------------------------------------------
+
+
+class TestManifestIO:
+    def _make_manifest(self) -> BamlExtractionManifest:
+        return BamlExtractionManifest(
+            function_name="ExtractTest",
+            config_name="default",
+            llm="gpt4",
+            entries={
+                "doc.md": BamlExtractionManifestEntry(
+                    source_hash="deadbeef",
+                    output_path="out/doc.json",
+                )
+            },
+        )
+
+    def test_save_creates_json_file(self, tmp_path: Path) -> None:
+        manifest = self._make_manifest()
+        path = UPath(tmp_path / "manifest.json")
+        _save_manifest(manifest, path)
+        assert path.exists()
+        data = json.loads(path.read_text())
+        assert data["function_name"] == "ExtractTest"
+
+    def test_find_loads_saved_manifest(self, tmp_path: Path) -> None:
+        manifest = self._make_manifest()
+        path = UPath(tmp_path / "manifest.json")
+        _save_manifest(manifest, path)
+
+        loaded, loaded_path = _find_existing_manifest(UPath(tmp_path), "ExtractTest", "default", "gpt4")
+        assert loaded is not None
+        assert loaded.function_name == "ExtractTest"
+        assert "doc.md" in loaded.entries
+        assert loaded_path == path
+
+    def test_find_returns_none_when_missing(self, tmp_path: Path) -> None:
+        loaded, path = _find_existing_manifest(UPath(tmp_path), "F", "c", "llm")
+        assert loaded is None
+        assert path is None
+
+    def test_find_returns_none_on_corrupt_json(self, tmp_path: Path) -> None:
+        bad = UPath(tmp_path / "manifest.json")
+        bad.write_text("not valid json")
+        loaded, path = _find_existing_manifest(UPath(tmp_path), "F", "c", "llm")
+        assert loaded is None
+        assert path == bad
+
+    def test_save_creates_parent_dirs(self, tmp_path: Path) -> None:
+        manifest = self._make_manifest()
+        deep_path = UPath(tmp_path / "a" / "b" / "manifest.json")
+        _save_manifest(manifest, deep_path)
+        assert deep_path.exists()

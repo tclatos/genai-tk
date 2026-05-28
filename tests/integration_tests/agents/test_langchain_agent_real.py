@@ -13,9 +13,9 @@ Docker tests additionally require ``--include-docker``.
 
 Run examples::
 
-    # Deterministic structure tests (no LLM, subset of this file)
+    # Deterministic structure tests (no LLM, no --include-real-models needed)
     uv run pytest tests/integration_tests/agents/test_langchain_agent_real.py \\
-        -k "profile_loads or skill_directory_initializes" -v
+        -k "profile_is or skill_directory_resolves or has_filesystem_backend" -v
 
     # All tests with real models
     uv run pytest tests/integration_tests/agents/test_langchain_agent_real.py \\

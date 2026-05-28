@@ -202,6 +202,9 @@ See [agents.md](agents.md) for full agent configuration reference.
 
 ### `baml` — Structured Output (BAML)
 
+> **Note**: The BAML CLI commands now delegate to the workflow engine for composability and caching.
+> See [workflows.md](workflows.md) for workflow-based composition and [baml.md](baml.md) for full integration details.
+
 ```bash
 # Run a BAML function on text input
 uv run cli baml run ExtractResume -i "John Smith; SW engineer"
@@ -213,14 +216,25 @@ cat resume.txt | uv run cli baml run ExtractResume
 uv run cli baml run FakeResume -i "Jane Doe, architect" \
     --out-dir ./output --out-file jane_doe.json
 
-# Batch extract markdown files
+# Batch extract markdown/PDF files
 uv run cli baml extract ./docs ./output \
-    --recursive --function ExtractRainbow
+    --function ExtractRainbow
 
 # Batch extraction with file filters and force re-run
 uv run cli baml extract ./reports ./output \
-    --include 'report_*.md' --exclude '*_draft.md' \
-    --recursive --force
+    --pathspec '**/*.md' --pathspec '!**/*_draft.md' \
+    --force --function ExtractRainbow
+```
+
+These commands delegate to `cli workflow run baml_run` and `cli workflow run baml_extract`
+respectively.  For programmatic usage or multi-step pipelines, use the workflow commands directly:
+
+```bash
+# Workflow-based execution (same as cli baml run, but composable)
+uv run cli workflow run baml_run/default --set input_text="..." --set function_name=ExtractResume
+
+# Workflow-based extraction (same as cli baml extract, but composable)
+uv run cli workflow run baml_extract/default --base-dir ./docs --to ./output
 ```
 
 See [baml.md](baml.md) for the full BAML integration guide.
@@ -376,7 +390,7 @@ single quotes to prevent shell expansion:
 
 ```bash
 uv run cli baml extract '${paths.data_root}/docs' '${paths.data_root}/output' \
-    --recursive --function ExtractRainbow
+    --function ExtractRainbow
 ```
 
 The following variables are always available:

@@ -1,6 +1,12 @@
+Create a command calling a worflow that 
+- cli workflow run baml_extract --set base_dir="$ONEDRIVE/prj/RFQ_pricing" --set output_dir="$ONEDRIVE/prj/RFQ_pricing/out"  --set function_name=ExtractRUFacts   --set pathspecs='["MERGED.md"]' --set llm=gpt-oss-120@openrouter --force
+
 # BAML
 Develop Workflows to generate structured output with BAML, usable through the 'cli workflow run" command, and composable . Update  commands 'cli  baml extract' and 'cli  baml run' so they call  'cli workfow'  (they will likely be depreciated later)
 
+# Model to Table CSV
+Create a Workflown that takes a JSON file, a Pydantic model and a list of keys, and generate a table in CSV or Excel format. 
+Then create a workflox that  combine it with the BAML workflow previously created.
 
 # TOC
 
@@ -99,4 +105,7 @@ look at /home/tcl/prj/genai-tk/genai_tk/tools/langchain/sql_tool_factory.py, tha
 Use https://github.com/GrahamDumpleton/wrapt for @once
 
 
+
+# CLI
+cli workflow run baml_extract --set base_dir="$ONEDRIVE/prj/RFQ_pricing" --set output_dir="$ONEDRIVE/prj/RFQ_pricing/out"  --set function_name=ExtractRUFacts   --set pathspecs='["MERGED.md"]' --set llm=gpt5-mini@edenai --force
 

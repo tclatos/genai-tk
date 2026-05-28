@@ -204,9 +204,8 @@ class WorkflowCommands(CliTopCommand):
                 )
                 raise typer.Exit(1) from exc
 
-            _render_workflow_summary(workflow_name, invocation)
-
             if dry_run:
+                _render_workflow_summary(workflow_name, invocation)
                 _render_cache_status(invocation, console)
                 console.print(Panel("Dry run complete — no execution performed.", border_style="green"))
                 return

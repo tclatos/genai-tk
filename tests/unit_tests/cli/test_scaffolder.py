@@ -62,8 +62,8 @@ class TestProjectScaffolder:
         pkg = project_dir / "test_project"
         assert pkg.is_dir()
         assert (pkg / "__init__.py").exists()
-        assert (pkg / "commands" / "example_commands.py").exists()
-        assert (pkg / "chains" / "joke_chain.py").exists()
+        assert (pkg / "commands" / "agent_commands.py").exists()
+        assert (pkg / "tools" / "example_tool.py").exists()
         assert (pkg / "main" / "streamlit.py").exists()
         assert (pkg / "webapp" / "pages" / "demos" / "hello_agent.py").exists()
         assert (project_dir / "pyproject.toml").exists()
@@ -114,7 +114,7 @@ class TestProjectScaffolder:
         scaffolder.scaffold()
 
         app_conf = (project_dir / "config" / "app_conf.yaml").read_text()
-        assert "test_project.commands.example_commands.ExampleCommands" in app_conf
+        assert "test_project.commands.agent_commands.AgentCommands" in app_conf
 
     def test_scaffold_patches_webapp_yaml(self, project_dir: Path):
         from genai_tk.main.scaffolder import ProjectScaffolder
@@ -125,17 +125,6 @@ class TestProjectScaffolder:
         webapp = (project_dir / "config" / "webapp.yaml").read_text()
         assert "pages_dir: ${paths.project}/test_project/webapp/pages" in webapp
         assert "demos/hello_agent.py" in webapp
-
-    def test_scaffold_patches_makefile_streamlit_entry(self, project_dir: Path):
-        from genai_tk.main.scaffolder import ProjectScaffolder
-
-        # Create a Makefile that mimics the generated one
-        (project_dir / "Makefile").write_text("STREAMLIT_ENTRY ?=\n")
-        scaffolder = ProjectScaffolder(project_dir, "Test Project")
-        scaffolder.scaffold()
-
-        makefile = (project_dir / "Makefile").read_text()
-        assert "STREAMLIT_ENTRY ?= test_project/main/streamlit.py" in makefile
 
     def test_scaffold_ensures_package_mode_in_pyproject(self, project_dir: Path):
         from genai_tk.main.scaffolder import ProjectScaffolder

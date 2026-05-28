@@ -152,3 +152,120 @@ workflows:
         retriever_name: default
         pathspecs: ["**/*.txt", "**/*.md"]
 
+  # ---------------------------------------------------------------------------
+  # BAML structured extraction workflows
+  # ---------------------------------------------------------------------------
+
+  baml_extract:
+    description: "Extract structured data from files (Markdown/PDF) using BAML"
+    run: genai_tk.workflow.prefect.flows.baml_flow.baml_structured_extraction_flow
+    with:
+      base_dir: "${values.base_dir}"
+      output_dir: "${values.output_dir}"
+      pathspecs: "${values.pathspecs}"
+      batch_size: "${values.batch_size}"
+      function_name: "${values.function_name}"
+      config_name: "${values.config_name}"
+      llm: "${values.llm}"
+    defaults:
+      batch_size: 5
+      function_name: ExtractRainbow
+      config_name: default
+      llm: default
+      pathspecs: ["**/*.md"]
+    params:
+      base_dir: {required: true}
+      output_dir: {required: true}
+      function_name: {required: true}
+    presets:
+      default:
+        base_dir: "${paths.data_root}"
+        output_dir: "${paths.data_root}/structured"
+        pathspecs: ["**/*.md"]
+        function_name: ExtractRainbow
+
+  baml_run:
+    description: "Extract structured data from a single text input using BAML"
+    run: genai_tk.workflow.prefect.flows.baml_flow.baml_single_input_flow
+    with:
+      input_text: "${values.input_text}"
+      function_name: "${values.function_name}"
+      config_name: "${values.config_name}"
+      llm: "${values.llm}"
+    defaults:
+      config_name: default
+      llm: default
+    params:
+      input_text: {required: true}
+      function_name: {required: true}
+    presets:
+      default:
+        input_text: ""
+        function_name: ExtractRainbow
+
+  # ---------------------------------------------------------------------------
+  # JSON → tabular (CSV / Excel) workflows
+  # ---------------------------------------------------------------------------
+
+  json_to_table:
+    description: "Convert JSON extraction outputs to CSV or Excel table"
+    run: genai_tk.workflow.prefect.flows.json_to_table_flow.json_to_table_flow
+    defaults:
+      model: null
+      keys: null
+      pathspecs: ["**/*.json"]
+      sheet_name: Sheet1
+    params:
+      input_dir: {required: true}
+      output_file: {required: true}
+    presets:
+      default:
+        input_dir: "${paths.data_root}/structured"
+        output_file: "${paths.data_root}/table.csv"
+
+  # Pipeline: BAML batch extraction then tabularize results
+  baml_to_table:
+    description: "BAML structured extraction then export to CSV/Excel"
+    pipeline:
+      - id: extract
+        run: baml_extract
+        with:
+          base_dir: "${values.base_dir}"
+          output_dir: "${values.structured_dir}"
+          function_name: "${values.function_name}"
+          config_name: "${values.config_name}"
+          llm: "${values.llm}"
+          pathspecs: "${values.pathspecs}"
+          batch_size: "${values.batch_size}"
+
+      - id: tabularize
+        run: json_to_table
+        after: [extract]
+        with:
+          input_dir: "${values.structured_dir}"
+          output_file: "${values.output_file}"
+          model: "${values.model}"
+          keys: "${values.keys}"
+          sheet_name: "${values.sheet_name}"
+
+    defaults:
+      config_name: default
+      llm: default
+      pathspecs: ["**/*.md"]
+      batch_size: 5
+      model: null
+      keys: null
+      sheet_name: Sheet1
+    params:
+      base_dir: {required: true}
+      structured_dir: {required: true}
+      output_file: {required: true}
+      function_name: {required: true}
+    presets:
+      default:
+        base_dir: "${paths.data_root}"
+        structured_dir: "${paths.data_root}/structured"
+        output_file: "${paths.data_root}/table.csv"
+        function_name: ExtractRainbow
+        pathspecs: ["**/*.md"]
+

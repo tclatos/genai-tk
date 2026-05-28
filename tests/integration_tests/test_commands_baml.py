@@ -17,8 +17,15 @@ def _run_baml_invoke(function_name: str, params: dict, *, config_name: str, llm:
         return asyncio.run(baml_invoke(function_name, params, config_name=config_name, llm=llm))
     except ValueError as exc:
         msg = str(exc)
-        if "baml-py is likely out of date" in msg or "Failed to load BAML function" in msg:
-            pytest.skip("BAML client mismatch in test environment")
+        if (
+            "baml-py is likely out of date" in msg
+            or "Failed to load BAML function" in msg
+            or "BAML client package not found" in msg
+        ):
+            pytest.skip(
+                f"BAML not available in this environment: {msg}. "
+                "Configure 'structured.<config_name>.baml_client' in overrides.yaml to enable."
+            )
         raise
 
 

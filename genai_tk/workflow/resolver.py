@@ -31,8 +31,7 @@ from omegaconf.errors import InterpolationKeyError
 
 from genai_tk.utils.config_mngr import OmegaConfig, global_config
 from genai_tk.workflow.compiled_models import ArtifactSpec, ExecutionSpec, InvokeSpec, StepKind
-from genai_tk.workflow.models import ResolvedWorkflowInvocation, StepSpec, WorkflowSpec
-from genai_tk.workflow.models import PipelineStep, WorkflowDefV2
+from genai_tk.workflow.models import PipelineStep, ResolvedWorkflowInvocation, StepSpec, WorkflowDefV2, WorkflowSpec
 from genai_tk.workflow.registry import WorkflowRegistry
 from genai_tk.workflow.registry import registry as _global_registry
 
@@ -89,10 +88,12 @@ def resolve_workflow_invocation(
     preset_values = wf.presets.get(preset_name, {}) if preset_name else {}
     cli_values = cli_overrides or {}
     values = _merge_dicts(wf.defaults, preset_values, cli_values)
+    if force:
+        values["force"] = True
 
     _validate_required_params(wf, values, name_or_preset)
 
-    workflow_spec = _v2_to_workflow_spec(wf, all_workflows, reg)
+    workflow_spec = _v2_to_workflow_spec(wf, all_workflows, reg, extra_values=values)
 
     return ResolvedWorkflowInvocation(
         requested_name=name_or_preset,
@@ -139,7 +140,7 @@ def load_workflows(config: OmegaConfig | None = None) -> dict[str, WorkflowDefV2
         if not isinstance(data, dict):
             continue
         if "run" not in data and "pipeline" not in data:
-                        continue
+            continue
         try:
             workflows[name] = WorkflowDefV2.model_validate({"name": name, **data})
         except Exception as exc:
@@ -273,14 +274,24 @@ def _v2_to_workflow_spec(
     wf: WorkflowDefV2,
     all_workflows: dict[str, WorkflowDefV2],
     reg: WorkflowRegistry,
+    *,
+    extra_values: dict[str, Any] | None = None,
 ) -> WorkflowSpec:
     """Convert a :class:`WorkflowDefV2` to the v1 :class:`WorkflowSpec` for the compiler."""
     if wf.run:
         target = _resolve_run_to_path(wf.run, all_workflows, reg, step_id="<root>")
-        # Auto-wire all declared default keys as ${values.KEY} references so the
-        # compiler resolves them against the effective values dict.  This removes
-        # the need to write explicit 'with:' mappings for single-step workflows.
+        # Auto-wire all declared default keys and required params as ${values.KEY}
+        # references so the compiler resolves them against the effective values dict.
+        # This removes the need to write explicit 'with:' mappings for single-step workflows.
         auto_with = {k: f"${{values.{k}}}" for k in wf.defaults}
+        # Include required params that may not have defaults
+        for param_name in wf.params:
+            if param_name not in auto_with:
+                auto_with[param_name] = f"${{values.{param_name}}}"
+        # Include any extra runtime values (e.g. force injected by --force flag)
+        for extra_key in extra_values or {}:
+            if extra_key not in auto_with:
+                auto_with[extra_key] = f"${{values.{extra_key}}}"
         steps = [
             StepSpec(
                 id="run",

@@ -201,9 +201,7 @@ package = true
 [tool.uv.sources]
 
 [tool.uv.workspace]
-members = [
-    "prj1",
-]
+members = ["prj1"]
 # Note: a patched wheel (without the spurious volcengine-python-sdk dep) lives in vendor/.
 # It can't be referenced here as a path because uv doesn't support .whl file paths for
 # transitive git dependencies. To use the patched wheel instead, run:
@@ -220,6 +218,9 @@ packages = ["genai_tk"]
 # Explicitly bundle config/ as package data under genai_tk/default_config/ in the wheel.
 # The symlink genai_tk/default_config -> ../config serves editable (dev) installs only.
 "config" = "genai_tk/default_config"
+# Bundle skills/genai-tk/ under genai_tk/skills/genai-tk/ in the wheel.
+# The symlink genai_tk/skills -> ../skills serves editable (dev) installs only.
+"skills/genai-tk" = "genai_tk/skills/genai-tk"
 
 [build-system]
 requires = ["hatchling"]

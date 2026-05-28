@@ -589,6 +589,83 @@ uv run python -c "from genai_tk.workflow.prefect.flows.markdownize_flow import m
 - `rag_ingest` — ingest files into vector store; preset `docs`
 - `anonymize` — PII removal; preset `docs`
 - `anonymize_and_ingest` — pipeline: anonymize → RAG ingest
+- `baml_extract` — extract structured data from files (Markdown/PDF); preset `default`
+- `baml_run` — extract structured data from single text input; preset `default`
+- `json_to_table` — convert JSON files in a directory to a single CSV/Excel table; preset `default`
+- `baml_to_table` — 2-step pipeline: BAML extraction → tabularize to CSV/Excel; preset `default`
+
+#### BAML Workflows
+
+The `baml_extract` and `baml_run` workflows enable **composable, cacheable BAML extraction**
+within the workflow engine:
+
+```bash
+# Extract structured data from a directory
+uv run cli workflow run baml_extract/default --set base_dir=./docs --to ./output
+
+# Extract from a single text input
+uv run cli workflow run baml_run/default --set input_text="John Smith; 10 yrs Python"
+
+# Compose in a multi-step pipeline
+uv run cli workflow run full_pipeline/default  # if pipeline includes baml_extract step
+```
+
+Both workflows maintain manifests for incremental processing — unchanged files/inputs
+are skipped on subsequent runs.  Use `--force` to re-process everything.
+
+For full BAML documentation, see [docs/baml.md](baml.md).  CLI commands `cli baml run`
+and `cli baml extract` delegate to these workflows.
+
+#### JSON to Table Workflows
+
+The `json_to_table` workflow converts a directory of JSON files (e.g. BAML extraction outputs)
+to a single flat CSV or Excel file using pandas:
+
+```bash
+# Convert JSON outputs to CSV
+uv run cli workflow run json_to_table \
+    --set input_dir=./data/structured/Resume \
+    --set output_file=./data/results.csv \
+    --set keys='["name","skills","years_experience"]'
+
+# Excel output (auto-detected by .xlsx extension)
+uv run cli workflow run json_to_table/default \
+    --set output_file=./data/results.xlsx
+
+# With Pydantic model for validation/coercion
+uv run cli workflow run json_to_table \
+    --set input_dir=./data/structured/Resume \
+    --set output_file=./data/results.csv \
+    --set model=myapp.baml_client.types.Resume
+```
+
+The `baml_to_table` pipeline combines both steps — extract structured data then export to table:
+
+```bash
+# Full pipeline: Markdown → BAML extraction → CSV
+uv run cli workflow run baml_to_table \
+    --set base_dir=./docs \
+    --set structured_dir=./data/structured \
+    --set output_file=./data/results.csv \
+    --set function_name=ExtractResume \
+    --set keys='["name","skills","years_experience"]'
+
+# Using the default preset with ad-hoc overrides
+uv run cli workflow run baml_to_table/default \
+    --set function_name=ExtractResume \
+    --set output_file=./data/results.xlsx
+```
+
+**Key `json_to_table` parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `input_dir` | yes | Directory of JSON files to read |
+| `output_file` | yes | Destination `.csv` or `.xlsx` path |
+| `model` | no | Dotted Python path to a Pydantic model for validation |
+| `keys` | no | List of columns to include (all keys used when omitted) |
+| `pathspecs` | no | File filter patterns (default `["**/*.json"]`) |
+| `sheet_name` | no | Excel sheet name (default `Sheet1`) |
 
 ### genai-graph Examples
 
