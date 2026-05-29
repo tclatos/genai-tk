@@ -312,37 +312,3 @@ class TestFlowBodyCaching:
             results = flow_fn.fn()
 
         assert results["soft"] is None
-
-
-# ---------------------------------------------------------------------------
-# _PrefectFlowBuilder: module registration
-# ---------------------------------------------------------------------------
-
-
-class TestPrefectFlowBuilder:
-    def test_registers_in_module_namespace(self) -> None:
-
-        import genai_tk.workflow.prefect.flow_factory as ff_module
-        from genai_tk.workflow.prefect.flow_factory import _PrefectFlowBuilder
-
-        builder = _PrefectFlowBuilder()
-        called = []
-
-        def inner_fn() -> dict[str, Any]:
-            called.append(True)
-            return {}
-
-        flow = builder.build("test__registration_flow", inner_fn)
-
-        # The wrapper should be registered in the flow_factory module
-        safe_name = "test__registration_flow"
-        assert hasattr(ff_module, safe_name)
-
-    def test_safe_name_replaces_hyphens(self) -> None:
-
-        from genai_tk.workflow.prefect.flow_factory import _PrefectFlowBuilder
-
-        builder = _PrefectFlowBuilder()
-        flow = builder.build("my-hyphenated-name", dict)
-        # Prefect flow name can contain hyphens; safe_name is used for Python identifier
-        assert flow.name == "my-hyphenated-name"

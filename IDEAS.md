@@ -1,3 +1,7 @@
+# scafolding
+- suggest after init to install BAML : uv run baml-cli init --dest <PATH>   
+
+
 Create a command calling a worflow that 
 - cli workflow run baml_extract --set base_dir="$ONEDRIVE/prj/RFQ_pricing" --set output_dir="$ONEDRIVE/prj/RFQ_pricing/out"  --set function_name=ExtractRUFacts   --set pathspecs='["MERGED.md"]' --set llm=gpt-oss-120@openrouter --force
 

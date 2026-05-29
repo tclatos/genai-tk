@@ -34,6 +34,15 @@ test:
 
 
 
+# Prefect server configuration
+prefect:
+  host: "127.0.0.1"
+  port: 4200
+  # api_url is derived from host/port when not set explicitly
+  # api_url: "http://127.0.0.1:4200/api"
+  # pid_file: "${paths.data_root}/.prefect/prefect.pid"
+  auto_start: true   # auto-start server when 'cli workflow run' is called
+
 # Command Line Interface configuration
 cli:
   commands:  # List modules.functions or modules.classes to register CLI commands
@@ -41,6 +50,7 @@ cli:
     - genai_tk.cli.commands_info.InfoCommands
     - genai_tk.cli.commands_test.TestCommands
     - genai_tk.workflow.commands.WorkflowCommands
+    - genai_tk.workflow.prefect_commands.PrefectCommands
     - genai_tk.extra.commands_extra.ExtraCommands
     - genai_tk.agents.commands_agents.AgentCommands
     - genai_tk.agents.sandbox.cli_commands.SandboxCommands

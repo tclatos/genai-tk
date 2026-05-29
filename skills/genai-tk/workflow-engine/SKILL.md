@@ -8,10 +8,11 @@ description: Work on YAML-driven workflows, Prefect flow wrappers, workflow comp
 ## Read First
 
 - `docs/workflows.md`
-- `docs/prefect.md` (Workflow Engine section)
+- `docs/prefect.md`
 - `genai_tk/workflow/models.py`
 - `genai_tk/workflow/resolver.py`
 - `genai_tk/workflow/executor.py`
+- `genai_tk/utils/prefect_server.py`
 - `config/workflows.yaml`
 
 ## Code Map
@@ -24,7 +25,9 @@ description: Work on YAML-driven workflows, Prefect flow wrappers, workflow comp
 | Compiled (execution) models | `genai_tk/workflow/compiled_models.py` |
 | Compiler (v2 → compiled) | `genai_tk/workflow/compiler.py` |
 | Executor + pre-flight checks | `genai_tk/workflow/executor.py` |
-| CLI commands | `genai_tk/workflow/commands.py` |
+| CLI commands (workflow) | `genai_tk/workflow/commands.py` |
+| CLI commands (prefect server) | `genai_tk/workflow/prefect_commands.py` |
+| Prefect server singleton | `genai_tk/utils/prefect_server.py` |
 | Prefect integration | `genai_tk/workflow/prefect/` |
 | Built-in flows | `genai_tk/workflow/prefect/flows/` |
 | Cache manifests | `genai_tk/workflow/flow_cache/` |
@@ -66,7 +69,11 @@ description: Work on YAML-driven workflows, Prefect flow wrappers, workflow comp
 uv run cli workflow list
 uv run cli workflow show <name>
 uv run cli workflow run <name>[/<preset>] --dry-run
+uv run cli workflow serve <name>[/<preset>]   # register as Prefect deployment
 uv run cli workflow validate
+uv run cli prefect start      # start local server (auto-starts on workflow run)
+uv run cli prefect stop
+uv run cli prefect status
 GENAITK_PROFILE=pytest uv run pytest tests/unit_tests/workflow -q
 ```
 
@@ -76,3 +83,4 @@ GENAITK_PROFILE=pytest uv run pytest tests/unit_tests/workflow -q
 - Do not split arguments between v1 `inputs:` and `params:` blocks — use `with:`.
 - Do not use `step_templates:`, `definitions:`, or `workflow_profiles:` — these are legacy DSL keys (no longer supported).
 - Do not require a live Prefect server for unit tests.
+- Do not call `run_flow_ephemeral` or use `ephemeral_prefect_settings` — both are deleted.  Call flows directly after `prefect_server().ensure_running()`.

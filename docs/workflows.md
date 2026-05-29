@@ -303,6 +303,42 @@ uv run cli workflow run markdownize/docs --dry-run
 | `--force` | Set `force=True` and `force_rebuild=True` in values |
 | `--dry-run` | Resolve and show the plan; do not execute |
 
+### `cli workflow serve NAME[/PRESET] [OPTIONS]`
+
+Register a workflow as a long-running Prefect **deployment** that polls for scheduled or
+manually triggered runs.  Blocks the terminal until stopped with Ctrl-C.
+
+```bash
+# Serve a workflow (the Prefect server must be running)
+uv run cli workflow serve markdownize/docs
+
+# Give the deployment a custom name
+uv run cli workflow serve markdownize/docs --name nightly-markdownize
+
+# Schedule via cron
+uv run cli workflow serve markdownize/docs --cron "0 2 * * *"
+
+# Schedule at a fixed interval (seconds)
+uv run cli workflow serve markdownize/docs --interval 3600
+```
+
+| Option | Purpose |
+|--------|---------|
+| `--name` | Deployment name shown in the Prefect UI |
+| `--cron` | Cron schedule (e.g. `"0 2 * * *"`) |
+| `--interval` | Interval schedule in seconds |
+
+### `cli prefect`
+
+Control the Prefect server daemon.  See [prefect.md](prefect.md) for full details.
+
+```bash
+cli prefect start       # start background daemon (auto-starts on workflow run)
+cli prefect stop        # stop the daemon
+cli prefect status      # show running state + URLs
+cli prefect ui          # open the dashboard in a browser
+```
+
 ### `cli workflow validate`
 
 Validate every workflow definition: check Python targets are importable, DAGs are acyclic,

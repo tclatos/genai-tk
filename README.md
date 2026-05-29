@@ -29,11 +29,11 @@ Four agent frameworks (ReAct, Deep, Deer-flow, SmolAgents) sharing YAML profiles
 ### ⚙️ **Workflows**
 Orchestrate multi-step AI pipelines with Prefect and a YAML DSL for composable, reusable workflows.
 - **Workflow DSL** — YAML-configured steps, dependencies, and sub-workflows (no Python needed)
-- **Prefect flows** — in-process ephemeral execution, no long-lived server required
+- **Prefect server** — explicit local server managed via `cli prefect start/stop/status`; auto-starts before workflow runs
 - **Document pipelines** — markdownize, OCR, PDF extraction, chunking
 - **RAG pipeline** — full retrieval pipeline with BM25 + dense hybrid search
 - **Structured extraction** — BAML-based extraction with type-safe output
-- See: `cli workflow`, [docs/workflows.md](docs/workflows.md), [docs/prefect.md](docs/prefect.md)
+- See: `cli workflow`, `cli prefect`, [docs/workflows.md](docs/workflows.md), [docs/prefect.md](docs/prefect.md)
 
 ---
 

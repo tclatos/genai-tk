@@ -9,12 +9,16 @@ import pytest
 
 from genai_tk.core.factories.retriever_factory import RetrieverFactory
 from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
-from genai_tk.workflow.prefect.run import run_flow_ephemeral
 
 
 def _run_ingestion(**kwargs):
-    """Run rag_file_ingestion_flow in ephemeral Prefect context."""
-    return run_flow_ephemeral(rag_file_ingestion_flow, **kwargs)
+    """Run rag_file_ingestion_flow against the configured Prefect server."""
+    from genai_tk.utils.prefect_server import prefect_server
+
+    server = prefect_server()
+    server.ensure_running()
+    server.configure_api_url()
+    return rag_file_ingestion_flow(**kwargs)
 
 
 class TestRagFileIngestionFlowChunkers:

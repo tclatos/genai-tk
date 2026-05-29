@@ -4,8 +4,9 @@ GenAI Toolkit uses [Prefect](https://docs.prefect.io/) for orchestrating multi-s
 tasks — document conversion, RAG ingestion, structured extraction — so that each step is
 observable, retryable, and optionally parallelised.
 
-All flows run in **ephemeral mode by default** (no external server required).  Connecting to a
-deployed Prefect server unlocks the dashboard, persistent run history, and scheduling.
+Flows connect to a **locally-managed Prefect server** that is started and stopped explicitly
+via `cli prefect`.  This avoids the lock contention and stale-database issues of the old
+in-process ephemeral approach.
 
 ---
 
@@ -20,51 +21,45 @@ deployed Prefect server unlocks the dashboard, persistent run history, and sched
 
 ---
 
-## Runtime Modes
+## Managing the Prefect Server
 
-### Ephemeral (default)
-
-The flow runs **inside the calling process** with no external daemon.  This is the default when
-no Prefect API URL is configured.  Suitable for local development and CI.
+GenAI Toolkit manages the Prefect server as an explicit background daemon.  Use the
+`cli prefect` command group to control it:
 
 ```bash
-# All CLI flow commands work out-of-the-box — no Prefect server needed
-uv run cli tools markdownize ./docs ./output --recursive
+# Start as a background daemon (auto-starts when workflows run if auto_start: true)
+cli prefect start
+
+# Start in foreground — useful for debugging; Ctrl-C to stop
+cli prefect start --foreground
+
+# Check running state + URLs
+cli prefect status
+
+# Stop the background daemon
+cli prefect stop
+
+# Open the Prefect UI in a browser
+cli prefect ui
 ```
 
-Prefect logging is suppressed (`WARNING` level) to keep terminal output clean.
+When `prefect.auto_start: true` (the default), the server is started automatically the first
+time a `cli workflow run` or `cli workflow serve` is executed — you do not need to start it
+manually.
 
-### Deployed Prefect Server
+### Configuration
 
-Point flows at a running Prefect server to get the dashboard, scheduling, and run history.
-
-**Configuration (preferred):**
 ```yaml
-# config/init/overrides.yaml
+# config/app_conf.yaml (or any auto-scanned YAML)
 prefect:
-  api_url: http://127.0.0.1:4200/api
+  host: "127.0.0.1"
+  port: 4200
+  auto_start: true   # start automatically before workflow runs
 ```
 
-**Environment variable (alternative):**
-```bash
-export GENAI_PREFECT_API_URL=http://127.0.0.1:4200/api
-```
-
-Start a local server:
-```bash
-prefect server start
-# Server is available at http://127.0.0.1:4200
-```
-
-When `api_url` is set, flows connect to the server automatically — no code change needed.
-
-### Mode Selection Logic
-
-```
-GENAI_PREFECT_API_URL env var set?  → use that URL
-  else prefect.api_url in config?   → use that URL
-    else                            → ephemeral in-process mode
-```
+The PID file is stored at `<paths.data_root>/.prefect/prefect.pid` (or
+`~/.cache/genai_tk/.prefect/prefect.pid` if `paths.data_root` is not configured).  The
+`PREFECT_API_URL` environment variable is set automatically when the server is started.
 
 ---
 
@@ -164,38 +159,41 @@ definition changes, triggering automatic re-extraction.
 
 ## Programmatic Usage
 
-All flows can be called directly from Python using the `run_flow_ephemeral` helper, which
-wraps the call inside the correct Prefect runtime context:
+Flows can be called directly from Python.  The server must be running (or `auto_start: true`);
+call `ensure_running()` to start it if needed:
 
 ```python
-from genai_tk.workflow.prefect.run import run_flow_ephemeral
+from genai_tk.utils.prefect_server import prefect_server
 from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
 from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
 
+# Ensure server is up (no-op if already running)
+server = prefect_server()
+server.ensure_running()
+server.configure_api_url()  # sets PREFECT_API_URL in the current process
+
 # Convert documents
-run_flow_ephemeral(
-    markdownize_flow,
+markdownize_flow(
     source_dir="./docs",
     output_dir="./output",
     recursive=True,
 )
 
 # Ingest into vector store
-run_flow_ephemeral(
-    rag_file_ingestion_flow,
+rag_file_ingestion_flow(
     source_dir="./output",
     force=False,
 )
 ```
 
-Or use the context manager directly for finer control:
+To register a flow as a long-running Prefect deployment (receives runs from the server queue):
 
 ```python
-from genai_tk.workflow.prefect.run import ephemeral_prefect_settings
-from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
+from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory
+from genai_tk.workflow.resolver import resolve_workflow_invocation
 
-with ephemeral_prefect_settings():
-    result = markdownize_flow(source_dir="./docs", output_dir="./out")
+compiled = resolve_workflow_invocation("markdownize/docs")
+PrefectFlowFactory(compiled=compiled).serve(name="markdownize-docs")
 ```
 
 ---

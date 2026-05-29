@@ -1,6 +1,6 @@
 """PrefectFlowFactory: builds a real Prefect flow from a CompiledWorkflow.
 
-This is the central object in the new workflow engine.  It follows the same
+This is the central object in the workflow engine.  It follows the same
 factory pattern used elsewhere in the toolkit: configure via Pydantic fields,
 then call ``get()`` to obtain the runtime object.
 
@@ -15,8 +15,11 @@ Usage — from a resolved invocation (executor path)::
     # Inspect the flow (dry-run / DAG inspection)
     flow_fn = factory.get()
 
-    # Execute inside ephemeral Prefect context
+    # Execute against the configured Prefect server
     results = factory.run()
+
+    # Start a long-running deployment listener
+    factory.serve(name="my-deployment", cron="0 2 * * *")
 
 Usage — directly from a profile name::
 
@@ -29,14 +32,6 @@ Independent steps (no shared ``wait_for`` edges) are submitted concurrently
 via Prefect futures to the flow's ``ThreadPoolTaskRunner``.  Steps that declare
 ``wait_for`` are submitted with those futures as dependencies, so Prefect's
 runtime enforces ordering while maximising concurrency.
-
-_PrefectFlowBuilder
--------------------
-Dynamic ``@flow``-decorated functions created inside another function can cause
-Prefect serialisation / discovery issues because the resulting function is not
-importable by dotted path.  ``_PrefectFlowBuilder`` assigns a stable
-``__name__`` and registers the wrapper as an attribute of this module before
-applying ``@flow``, making every generated flow properly discoverable.
 
 Workflow-level manifest caching
 --------------------------------
@@ -52,8 +47,7 @@ from __future__ import annotations
 
 import json
 import re
-import sys
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 from pydantic import BaseModel
@@ -95,16 +89,48 @@ class PrefectFlowFactory(BaseModel):
         return _build_prefect_flow(self.compiled, max_workers=self.max_workers)
 
     def run(self) -> dict[str, Any]:
-        """Execute the workflow inside an ephemeral (or configured) Prefect context.
+        """Execute the workflow against the configured Prefect server.
+
+        Calls :func:`~genai_tk.utils.prefect_server.prefect_server` to ensure
+        the server is running (auto-starts if ``prefect.auto_start`` is true),
+        then runs the flow in the current process.
 
         Returns:
             Mapping of ``step_id → result`` for all executed steps.
         """
-        from genai_tk.workflow.prefect.run import ephemeral_prefect_settings
+        from genai_tk.utils.prefect_server import prefect_server
+
+        server = prefect_server()
+        server.ensure_running()
+        server.configure_api_url()
 
         flow_fn = self.get()
-        with ephemeral_prefect_settings():
-            return flow_fn()
+        return flow_fn()
+
+    def serve(self, *, name: str | None = None, **serve_kwargs: Any) -> None:
+        """Start a long-running Prefect deployment listener for this workflow.
+
+        Registers the flow as a deployment with the Prefect server and blocks,
+        waiting for run requests from the UI, API, or schedules.
+
+        Args:
+            name: Deployment name (defaults to the workflow name).
+            **serve_kwargs: Extra keyword arguments forwarded to ``flow.serve()``
+                (e.g. ``cron``, ``interval``, ``tags``, ``pause_on_shutdown``).
+        """
+        from genai_tk.utils.prefect_server import prefect_server
+
+        server = prefect_server()
+        server.ensure_running()
+        server.configure_api_url()
+
+        flow_fn = self.get()
+        deploy_name = name or self.compiled.name
+        flow_fn.serve(
+            name=deploy_name,
+            parameters=self.compiled.values,
+            **serve_kwargs,
+        )
 
     # ------------------------------------------------------------------
     # Convenience constructor
@@ -135,54 +161,6 @@ class PrefectFlowFactory(BaseModel):
         invocation = resolve_workflow_invocation(workflow_or_profile, cli_overrides=values or {})
         compiled = WorkflowCompiler().compile(invocation.workflow, invocation.values)
         return cls(compiled=compiled, max_workers=max_workers)
-
-
-# ---------------------------------------------------------------------------
-# _PrefectFlowBuilder: register wrapper in module namespace before @flow
-# ---------------------------------------------------------------------------
-
-
-class _PrefectFlowBuilder:
-    """Create properly-named, module-registered Prefect flows.
-
-    Prefect requires that flow functions be importable by dotted path for
-    deployment and serialisation.  Dynamically-created functions defined inside
-    another function body are not discoverable.  This class assigns a stable
-    ``__name__`` / ``__qualname__`` to the wrapper and registers it as an
-    attribute of this module before applying ``@flow``.
-    """
-
-    def build(
-        self,
-        name: str,
-        fn: Callable[[], dict[str, Any]],
-        **flow_kwargs: Any,
-    ) -> Flow[[], dict[str, Any]]:
-        """Wrap *fn* as a named, module-registered Prefect flow.
-
-        Args:
-            name: Human-readable flow name (also used as Python identifier).
-            fn: The inner callable implementing the flow logic.
-            **flow_kwargs: Extra keyword arguments forwarded to ``@flow``.
-
-        Returns:
-            A Prefect ``Flow`` object.
-        """
-        from prefect import flow as prefect_flow
-
-        safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", name)
-
-        def wrapper() -> dict[str, Any]:
-            return fn()
-
-        wrapper.__name__ = safe_name
-        wrapper.__qualname__ = safe_name
-        wrapper.__module__ = __name__
-
-        # Register in this module so Prefect can resolve it by import path.
-        setattr(sys.modules[__name__], safe_name, wrapper)
-
-        return prefect_flow(wrapper, name=name, **flow_kwargs)  # pyright: ignore[reportArgumentType, reportCallIssue]
 
 
 # ---------------------------------------------------------------------------
@@ -342,9 +320,14 @@ def _build_prefect_flow(
 
         return results
 
-    return _PrefectFlowBuilder().build(
+    # With an external Prefect server, there is no need to register the flow
+    # wrapper in the module namespace for discovery.  A plain @flow-decorated
+    # function is sufficient for both immediate execution and flow.serve().
+    from prefect import flow as prefect_flow
+
+    return prefect_flow(
+        _flow_body,
         name=compiled.name,
-        fn=_flow_body,
         task_runner=ThreadPoolTaskRunner(max_workers=max_workers),
         description=compiled.description or "",
     )

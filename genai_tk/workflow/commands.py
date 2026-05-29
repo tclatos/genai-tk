@@ -376,3 +376,77 @@ class WorkflowCommands(CliTopCommand):
             if errors:
                 console.print(Panel("\n".join(errors), title="Errors", border_style="red"))
                 raise typer.Exit(1)
+
+        @cli_app.command("serve")
+        def serve(
+            workflow_name: Annotated[
+                str,
+                typer.Argument(help="Workflow name, or 'workflow_name/preset_name' to select a named preset."),
+            ],
+            set_values: Annotated[
+                list[str] | None,
+                typer.Option("--set", help="Override values using KEY=VALUE syntax", metavar="KEY=VALUE"),
+            ] = None,
+            deployment_name: Annotated[
+                str | None,
+                typer.Option("--name", "-n", help="Deployment name (defaults to workflow name)"),
+            ] = None,
+            cron: Annotated[
+                str | None,
+                typer.Option("--cron", help="Cron schedule string (e.g. '0 2 * * *')"),
+            ] = None,
+            interval: Annotated[
+                int | None,
+                typer.Option("--interval", help="Schedule interval in seconds"),
+            ] = None,
+        ) -> None:
+            """Start a long-running Prefect deployment listener for a workflow.
+
+            Registers the workflow as a Prefect deployment and blocks, waiting for
+            run requests triggered from the Prefect UI, API, or a schedule.
+
+            Use ``--cron`` or ``--interval`` to schedule automatic runs.
+
+            Examples::
+
+                # Listen for manual triggers from the UI
+                cli workflow serve markdownize/docs
+
+                # Schedule to run every night at 2 AM
+                cli workflow serve baml_extract/default --cron "0 2 * * *"
+
+                # Run every 60 seconds
+                cli workflow serve markdownize/docs --interval 60
+            """
+            console = Console()
+            try:
+                cli_overrides = parse_cli_overrides(set_values)
+                invocation = resolve_workflow_invocation(workflow_name, cli_overrides=cli_overrides)
+            except WorkflowResolutionError as exc:
+                console.print(Panel(str(exc), title="Workflow Resolution Error", border_style="red"))
+                raise typer.Exit(1) from exc
+
+            from genai_tk.workflow.compiler import WorkflowCompiler
+            from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory
+
+            compiled = WorkflowCompiler().compile(invocation.workflow, invocation.values)
+            factory = PrefectFlowFactory(compiled=compiled)
+
+            serve_kwargs: dict = {}
+            if cron:
+                serve_kwargs["cron"] = cron
+            if interval:
+                serve_kwargs["interval"] = interval
+
+            deploy_name = deployment_name or invocation.workflow_name
+            console.print(
+                Panel(
+                    f"Starting deployment [bold]{deploy_name}[/bold] (blocking)\n"
+                    f"Workflow: {invocation.workflow_name}\n"
+                    f"Preset:   {invocation.profile_name or '<none>'}\n\n"
+                    f"Trigger runs from: [cyan]cli prefect ui[/cyan]",
+                    title="cli workflow serve",
+                    border_style="cyan",
+                )
+            )
+            factory.serve(name=deploy_name, **serve_kwargs)

@@ -157,11 +157,14 @@ class RagCommands(CliTopCommand):
                 return
 
             try:
+                from genai_tk.utils.prefect_server import prefect_server
                 from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
-                from genai_tk.workflow.prefect.run import run_flow_ephemeral
 
-                result = run_flow_ephemeral(
-                    rag_file_ingestion_flow,
+                server = prefect_server()
+                server.ensure_running()
+                server.configure_api_url()
+
+                result = rag_file_ingestion_flow(
                     base_dir=base_dir,
                     retriever_name=retriever_name,
                     max_chunk_tokens=chunk_size,
