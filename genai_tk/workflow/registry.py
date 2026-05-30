@@ -36,6 +36,7 @@ class RegisteredWorkflow(BaseModel):
     description: str
     dotted_path: str
     callable_: Any  # the actual function — arbitrary type
+    hidden: bool = False
 
     model_config = {"arbitrary_types_allowed": True}
 
@@ -80,7 +81,7 @@ class WorkflowRegistry:
             cls._instance = inst
         return cls._instance
 
-    def register(self, fn: Callable, *, name: str | None = None, description: str = "") -> None:
+    def register(self, fn: Callable, *, name: str | None = None, description: str = "", hidden: bool = False) -> None:
         """Register *fn* under an optional *name* (defaults to ``fn.__name__``)."""
         wf_name = name or fn.__name__
         module = getattr(fn, "__module__", None) or ""
@@ -92,6 +93,7 @@ class WorkflowRegistry:
             description=desc,
             dotted_path=dotted_path,
             callable_=fn,
+            hidden=hidden,
         )
 
     def get(self, name: str) -> RegisteredWorkflow | None:
@@ -115,6 +117,7 @@ def workflow(
     *,
     name: str | None = None,
     description: str = "",
+    hidden: bool = False,
 ) -> Any:
     """Register a callable as a named workflow.
 
@@ -132,17 +135,18 @@ def workflow(
         fn: The callable to register (when used without arguments).
         name: Override the registration name (default: ``fn.__name__``).
         description: Human-readable description shown in ``cli workflow list``.
+        hidden: When ``True``, omit from ``cli workflow list`` (still runnable).
 
     Returns:
         The original callable, unmodified.
     """
     if fn is not None:
         # Called as @workflow without parentheses
-        registry.register(fn, name=name, description=description)
+        registry.register(fn, name=name, description=description, hidden=hidden)
         return fn
 
     def decorator(fn2: Callable) -> Callable:
-        registry.register(fn2, name=name, description=description)
+        registry.register(fn2, name=name, description=description, hidden=hidden)
         return fn2
 
     return decorator

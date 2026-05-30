@@ -143,6 +143,7 @@ def load_workflows(config: OmegaConfig | None = None) -> dict[str, WorkflowDefV2
                 name=reg_entry.name,
                 description=reg_entry.description,
                 run=reg_entry.dotted_path,
+                hidden=reg_entry.hidden,
             )
 
     return workflows
@@ -320,7 +321,9 @@ def _v2_to_workflow_spec(
             )
         ]
     else:
-        steps = _expand_pipeline(wf.pipeline, all_workflows, reg, _ancestors=frozenset({wf.name}))
+        steps = _expand_pipeline(
+            wf.pipeline, all_workflows, reg, _ancestors=frozenset({wf.name}), extra_values=extra_values
+        )
 
     return WorkflowSpec(
         name=wf.name,
@@ -336,6 +339,7 @@ def _expand_pipeline(
     reg: WorkflowRegistry,
     *,
     _ancestors: frozenset[str],
+    extra_values: dict[str, Any] | None = None,
 ) -> list[StepSpec]:
     """Recursively expand a list of pipeline steps into a flat :class:`StepSpec` list.
 
@@ -359,8 +363,20 @@ def _expand_pipeline(
 
             sub_wf = all_workflows[sub_name]
             if sub_wf.run:
-                # Single-step workflow used as a sub-workflow
-                sub_pipeline = [PipelineStep(id="run", run=sub_wf.run, **{"with": {}})]
+                # Single-step workflow used as a sub-workflow.
+                # Auto-wire its declared defaults and params as ${values.KEY} so the
+                # compiler resolves them from the effective values dict (which includes
+                # CLI --set overrides and --force).  Explicit with: keys on the parent
+                # pipeline step are merged on top, overriding the auto-wired values.
+                auto_with: dict[str, Any] = {k: f"${{values.{k}}}" for k in sub_wf.defaults}
+                for param_name in sub_wf.params:
+                    if param_name not in auto_with:
+                        auto_with[param_name] = f"${{values.{param_name}}}"
+                # Also wire any extra runtime values (e.g. force from --force flag)
+                for extra_key in extra_values or {}:
+                    if extra_key not in auto_with:
+                        auto_with[extra_key] = f"${{values.{extra_key}}}"
+                sub_pipeline = [PipelineStep(id="run", run=sub_wf.run, **{"with": auto_with})]
                 sub_pipeline[0].cache = sub_wf.resolved_cache()
             else:
                 sub_pipeline = sub_wf.pipeline
@@ -370,6 +386,7 @@ def _expand_pipeline(
                 all_workflows,
                 reg,
                 _ancestors=_ancestors | {sub_name},
+                extra_values=extra_values,
             )
 
             parent_deps = _resolve_deps(ps.dependencies, terminal_map)

@@ -123,6 +123,9 @@ class WorkflowDefV2(BaseModel):
     # Named presets (concrete value sets, referenced as ``name/preset``)
     presets: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
+    # When True, omit from ``cli workflow list`` (still runnable)
+    hidden: bool = False
+
     model_config = {"populate_by_name": True}
 
     @model_validator(mode="after")

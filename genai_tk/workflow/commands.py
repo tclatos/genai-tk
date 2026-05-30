@@ -245,6 +245,8 @@ class WorkflowCommands(CliTopCommand):
             tbl.add_column("Description", style="white")
 
             for name, wf in sorted(workflows.items()):
+                if wf.hidden:
+                    continue
                 presets = ", ".join(sorted(wf.presets)) if wf.presets else "[dim]-[/dim]"
                 step_count = "1" if wf.run else str(len(wf.pipeline))
                 tbl.add_row(name, presets, step_count, wf.description or "[dim]-[/dim]")
