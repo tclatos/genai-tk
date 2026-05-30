@@ -165,6 +165,128 @@ class PrefectFlowFactory(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Standalone convenience helpers
+# ---------------------------------------------------------------------------
+
+
+def flow_from_yaml(
+    source: str | Path | dict,
+    *,
+    workflow_name: str | None = None,
+    values: dict[str, Any] | None = None,
+    max_workers: int = 4,
+) -> "Flow[[], dict[str, Any]]":
+    """Parse a workflow YAML definition and return a ready-to-call Prefect ``@flow``.
+
+    This is the simplest entry-point for programmatic or notebook use: define a
+    workflow inline as YAML (or load one from a file), pass optional runtime values,
+    and get back a standard Prefect ``Flow`` object that you can call, inspect, or
+    hand to ``flow.serve()``.
+
+    The returned flow uses the toolkit's Prefect server singleton — call
+    :func:`~genai_tk.utils.prefect_server.prefect_server` (or ``cli prefect start``)
+    before invoking it if ``prefect.auto_start`` is ``false``.
+
+    Args:
+        source: One of:
+            - A YAML **string** containing a ``workflows:`` block.
+            - A :class:`~pathlib.Path` to a YAML file.
+            - A plain ``dict`` already parsed from YAML.
+        workflow_name: Which workflow to extract when the YAML defines more than
+            one.  If there is only one workflow in the YAML this argument can be
+            omitted.
+        values: Optional parameter overrides (same as ``--set KEY=VALUE`` on the
+            CLI).  Merged on top of the workflow ``defaults`` and any ``presets``.
+        max_workers: Thread pool size for parallel step execution.
+
+    Returns:
+        A Prefect ``Flow`` function.
+
+    Raises:
+        ValueError: When ``workflow_name`` is required but not given, or when the
+            named workflow does not exist in ``source``.
+
+    Example:
+        ```python
+        from genai_tk.workflow.prefect.flow_factory import flow_from_yaml
+
+        YAML = '''
+        workflows:
+          greet:
+            run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+            defaults:
+              base_dir: /data/pdfs
+              output_dir: /data/md
+        '''
+
+        flow = flow_from_yaml(YAML)
+        flow()  # execute immediately
+        ```
+
+        With a file and runtime overrides:
+        ```python
+        flow = flow_from_yaml(
+            Path("config/workflows/my_pipeline.yaml"),
+            workflow_name="my_pipeline",
+            values={"batch_size": 10},
+        )
+        flow()
+        ```
+    """
+    from omegaconf import OmegaConf
+
+    from genai_tk.workflow.compiler import WorkflowCompiler
+    from genai_tk.workflow.resolver import (
+        WorkflowResolutionError,
+        _merge_dicts,  # noqa: PLC2701
+        _v2_to_workflow_spec,  # noqa: PLC2701
+        parse_workflows_from_dict,
+    )
+
+    # --- parse source ---
+    if isinstance(source, Path):
+        raw_dict: dict = OmegaConf.to_container(OmegaConf.load(source), resolve=False)  # type: ignore[assignment]
+    elif isinstance(source, str):
+        import yaml as _yaml
+
+        raw_dict = _yaml.safe_load(source)  # type: ignore[assignment]
+    elif isinstance(source, dict):
+        raw_dict = source
+    else:
+        raise TypeError(f"source must be a str, Path, or dict, got {type(source).__name__}")
+
+    raw_workflows: dict = raw_dict.get("workflows", raw_dict)  # bare dict also accepted
+
+    # --- validate workflow entries (shared logic with load_workflows) ---
+    candidates = parse_workflows_from_dict(raw_workflows)
+
+    if not candidates:
+        raise ValueError("No valid workflow definitions found in source.")
+
+    if workflow_name is None:
+        if len(candidates) > 1:
+            raise ValueError(f"Multiple workflows found ({', '.join(candidates)}). Pass workflow_name= to select one.")
+        workflow_name = next(iter(candidates))
+
+    if workflow_name not in candidates:
+        raise WorkflowResolutionError(f"Workflow '{workflow_name}' not found. Available: {', '.join(candidates)}")
+
+    wf = candidates[workflow_name]
+
+    # --- resolve values (defaults → overrides) ---
+    resolved_values = _merge_dicts(wf.defaults, values or {})
+
+    # --- compile & build flow ---
+    from genai_tk.workflow.registry import registry as _reg
+
+    all_workflows = candidates
+    workflow_spec = _v2_to_workflow_spec(wf, all_workflows, _reg, extra_values=resolved_values)
+    compiled = WorkflowCompiler().compile(workflow_spec, resolved_values)
+    factory = PrefectFlowFactory(compiled=compiled, max_workers=max_workers)
+    return factory.get()
+
+
+# ---------------------------------------------------------------------------
 # Manifest path & fingerprint helpers (also used by --dry-run in commands.py)
 # ---------------------------------------------------------------------------
 
@@ -275,6 +397,34 @@ def _build_prefect_flow(
 
             wait_futures = [futures[dep] for dep in step.wait_for if dep in futures and futures[dep] is not None]
             step_task = step_tasks[step.id]
+
+            # --- foreach fan-out ---
+            if step.foreach is not None:
+                # Eagerly collect dependency results so foreach.from_ref can be resolved.
+                # These steps have already been submitted; waiting here is safe because
+                # topological order guarantees all wait_for steps are already submitted.
+                for dep in step.wait_for:
+                    if dep not in results and dep in futures and futures[dep] is not None:
+                        results[dep] = futures[dep].result()
+                collection = _resolve_step_ref(step.foreach.from_ref, results)
+                if not isinstance(collection, (list, tuple)):
+                    raise WorkflowExecutionError(
+                        f"Step '{step.id}' foreach.from resolved to {type(collection).__name__}, expected list."
+                    )
+                item_var = step.foreach.as_var
+                fan_futures = []
+                for item in collection:
+                    item_inputs = _prepare_inputs(step.with_, results, item_var=item)
+                    fan_future = (
+                        step_task.submit(**item_inputs, wait_for=wait_futures)
+                        if wait_futures
+                        else step_task.submit(**item_inputs)
+                    )
+                    fan_futures.append(fan_future)
+                futures[step.id] = fan_futures  # list of futures for fan-out
+                logger.debug("Submitted step '{}' (foreach × {})", step.id, len(fan_futures))
+                continue
+
             future = (
                 step_task.submit(**step_inputs, wait_for=wait_futures)
                 if wait_futures
@@ -294,7 +444,11 @@ def _build_prefect_flow(
 
             on_failure = step_map[step_id].execution.on_failure
             try:
-                result = futures[step_id].result()
+                # foreach fan-out: collect a list of results
+                if isinstance(futures.get(step_id), list):
+                    result = [f.result() for f in futures[step_id]]
+                else:
+                    result = futures[step_id].result()
                 results[step_id] = result
                 logger.info("Step '{}' completed", step_id)
 
@@ -332,31 +486,44 @@ def _build_prefect_flow(
     )
 
 
-def _prepare_inputs(with_: dict[str, Any], results: dict[str, Any]) -> dict[str, Any]:
-    """Resolve ``${steps.*}`` references and strip None values from step inputs.
+def _prepare_inputs(
+    with_: dict[str, Any],
+    results: dict[str, Any],
+    *,
+    item_var: Any = None,
+) -> dict[str, Any]:
+    """Resolve ``${steps.*}`` and ``${item}`` references, strip None values.
 
     ``${steps.<id>.result.<field>}`` references are resolved against the
-    already-collected results dict.  Other values pass through unchanged.
+    already-collected results dict.  ``${item}`` resolves to *item_var* when
+    the caller is processing a ``foreach`` fan-out iteration.  Other values
+    pass through unchanged.
     """
     resolved: dict[str, Any] = {}
     for key, val in with_.items():
-        resolved[key] = _resolve_step_ref(val, results)
+        resolved[key] = _resolve_step_ref(val, results, item_var=item_var)
 
     # Remove None values so steps can use their own parameter defaults.
     return {k: v for k, v in resolved.items() if v is not None}
 
 
-def _resolve_step_ref(val: Any, results: dict[str, Any]) -> Any:
-    """Replace ``${steps.<id>.result.<field>}`` with the actual result value."""
+def _resolve_step_ref(val: Any, results: dict[str, Any], *, item_var: Any = None) -> Any:
+    """Replace ``${steps.<id>.result.<field>}`` and ``${item}`` with actual values."""
     if not isinstance(val, str):
         return val
 
-    m = re.fullmatch(r"\$\{steps\.([^.}]+)\.result\.([^}]+)\}", val)
+    # ${item} — current foreach iteration value
+    if val == "${item}":
+        return item_var
+
+    m = re.fullmatch(r"\$\{steps\.([^.}]+)\.result\.([^}]*)\}", val)
     if m:
         step_id, field = m.group(1), m.group(2)
         step_result = results.get(step_id)
         if step_result is None:
             return None
+        if not field:
+            return step_result  # empty field → whole result
         if isinstance(step_result, dict):
             return step_result.get(field)
         return getattr(step_result, field, None)

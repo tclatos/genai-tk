@@ -1,3 +1,8 @@
+# Artifect
+https://docs.prefect.io/v3/concepts/artifacts 
+
+
+
 # scafolding
 - suggest after init to install BAML : uv run baml-cli init --dest <PATH>   
 

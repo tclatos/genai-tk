@@ -1,12 +1,19 @@
 # Prefect Workflow Orchestration
 
-GenAI Toolkit uses [Prefect](https://docs.prefect.io/) for orchestrating multi-step, long-running
-tasks — document conversion, RAG ingestion, structured extraction — so that each step is
-observable, retryable, and optionally parallelised.
+GenAI Toolkit integrates [Prefect](https://docs.prefect.io/) as its execution engine for
+long-running, multi-step tasks — document conversion, RAG ingestion, structured extraction.
+Every Prefect flow benefits from observability, retries, and optional parallelism.
 
-Flows connect to a **locally-managed Prefect server** that is started and stopped explicitly
-via `cli prefect`.  This avoids the lock contention and stale-database issues of the old
-in-process ephemeral approach.
+**Two complementary ways to run Prefect flows:**
+
+| Approach | When to use |
+|----------|-------------|
+| **`@flow`-decorated function** (standard Prefect) | Existing flows, custom logic, one-off scripts |
+| **YAML Workflow definition** | Multi-step pipelines, reusable parameterised workflows, scheduled runs |
+
+Both approaches share the same **local Prefect server** managed by `cli prefect`.
+
+> **See also:** [workflows.md](workflows.md) — full DSL reference and how to build YAML pipelines.
 
 ---
 
@@ -157,78 +164,173 @@ definition changes, triggering automatic re-extraction.
 
 ---
 
-## Programmatic Usage
+## Running Any `@flow` Function
 
-Flows can be called directly from Python.  The server must be running (or `auto_start: true`);
-call `ensure_running()` to start it if needed:
+The toolkit's Prefect server can execute **any** Prefect `@flow` — your own flows, third-party
+flows, or the built-in ones. Use the server singleton to start the server and set `PREFECT_API_URL`:
+
+```python
+from genai_tk.utils.prefect_server import prefect_server
+from prefect import flow, task
+
+# Ensure server is up (no-op if already running, auto-starts if auto_start: true)
+server = prefect_server()
+server.ensure_running()
+server.configure_api_url()   # sets PREFECT_API_URL in the current process
+
+@task
+def process_item(item: str) -> str:
+    return item.upper()
+
+@flow(name="my-custom-flow")
+def my_flow(items: list[str]) -> list[str]:
+    futures = [process_item.submit(item) for item in items]
+    return [f.result() for f in futures]
+
+# Execute — run is visible in the Prefect UI (http://localhost:4200)
+results = my_flow(items=["hello", "world"])
+```
+
+### Calling Built-in Flows Directly
 
 ```python
 from genai_tk.utils.prefect_server import prefect_server
 from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
 from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
 
-# Ensure server is up (no-op if already running)
 server = prefect_server()
 server.ensure_running()
-server.configure_api_url()  # sets PREFECT_API_URL in the current process
+server.configure_api_url()
 
-# Convert documents
-markdownize_flow(
-    source_dir="./docs",
-    output_dir="./output",
-    recursive=True,
-)
-
-# Ingest into vector store
-rag_file_ingestion_flow(
-    source_dir="./output",
-    force=False,
-)
+markdownize_flow(source_dir="./docs", output_dir="./output", recursive=True)
+rag_file_ingestion_flow(source_dir="./output", force=False)
 ```
 
-To register a flow as a long-running Prefect deployment (receives runs from the server queue):
+### Serving a `@flow` as a Deployment
+
+Register any `@flow` as a long-running deployment that polls for scheduled or manually
+triggered runs from the UI or API:
 
 ```python
-from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory
-from genai_tk.workflow.resolver import resolve_workflow_invocation
+server = prefect_server()
+server.ensure_running()
+server.configure_api_url()
 
-compiled = resolve_workflow_invocation("markdownize/docs")
-PrefectFlowFactory(compiled=compiled).serve(name="markdownize-docs")
+# Blocks the process; Ctrl-C to stop
+my_flow.serve(name="my-flow-daily", cron="0 9 * * 1-5")  # Weekdays at 9 AM
 ```
 
 ---
 
-## Writing a New Flow
+## Running YAML-Defined Workflows
 
-A minimal Prefect flow integrated with the toolkit:
+### Via CLI (recommended)
+
+```bash
+# List all configured workflows
+uv run cli workflow list
+
+# Dry-run: see the execution plan without running
+uv run cli workflow run markdownize/docs --dry-run
+
+# Execute a workflow with a named preset
+uv run cli workflow run markdownize/docs
+
+# Pass ad-hoc overrides
+uv run cli workflow run markdownize --base-dir /data/pdfs --to /data/md
+
+# Force recomputation (bypass caches)
+uv run cli workflow run markdownize/docs --force
+```
+
+### Via `PrefectFlowFactory` (programmatic)
+
+```python
+from genai_tk.workflow import PrefectFlowFactory
+
+# Resolve + compile from config by workflow name / preset
+factory = PrefectFlowFactory.from_profile("markdownize/docs", values={"batch_size": 10})
+results = factory.run()                              # execute immediately
+factory.serve(name="nightly-markdownize", cron="0 2 * * *")  # or serve
+```
+
+### Via `flow_from_yaml` (inline YAML — great for notebooks and scripts)
+
+`flow_from_yaml` parses a workflow **inline** and returns a standard Prefect `@flow` — no
+config directory needed.  Accepts a YAML **string**, a **`Path`**, or a **`dict`**:
+
+```python
+from genai_tk.workflow import flow_from_yaml
+
+YAML = """
+workflows:
+  convert_docs:
+    description: "PDF → Markdown"
+    run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+    defaults:
+      base_dir: /data/pdfs
+      output_dir: /data/md
+      batch_size: 5
+"""
+
+flow = flow_from_yaml(YAML)
+flow()   # execute — visible in the Prefect UI
+```
+
+Multi-step, from a file:
+
+```python
+from pathlib import Path
+from genai_tk.workflow import flow_from_yaml
+
+flow = flow_from_yaml(
+    Path("config/workflows/my_pipeline.yaml"),
+    workflow_name="full_pipeline",
+    values={"batch_size": 10},
+)
+flow()
+```
+
+---
+
+## Writing a New `@flow`
+
+A minimal flow integrated with the toolkit:
 
 ```python
 # myapp/my_flow.py
+from pathlib import Path
 from prefect import flow, task
-from prefect.task_runners import ConcurrentTaskRunner
-from genai_tk.workflow.prefect.run import run_flow_ephemeral
+from genai_tk.utils.prefect_server import prefect_server
 
 
 @task
-def process_item(item: str) -> str:
-    return item.upper()
+def convert_file(src: Path, dest: Path) -> str:
+    dest.write_text(src.read_text().upper())
+    return str(dest)
 
 
-@flow(task_runner=ConcurrentTaskRunner())
-def my_flow(items: list[str]) -> list[str]:
-    futures = [process_item.submit(item) for item in items]
+@flow(name="uppercase-files")
+def uppercase_flow(input_dir: str, output_dir: str) -> list[str]:
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    futures = [
+        convert_file.submit(src, out / src.name)
+        for src in Path(input_dir).glob("*.txt")
+    ]
     return [f.result() for f in futures]
 
 
-# Invoke via the runtime helper (handles ephemeral vs server mode automatically)
 if __name__ == "__main__":
-    results = run_flow_ephemeral(my_flow, items=["a", "b", "c"])
-    print(results)
+    server = prefect_server()
+    server.ensure_running()
+    server.configure_api_url()
+    uppercase_flow(input_dir="./in", output_dir="./out")
 ```
 
 ### Manifest-Based Incremental Processing
 
-For flows that process files, implement a manifest to skip unchanged inputs:
+For flows that process files, use a manifest to skip unchanged inputs:
 
 ```python
 from pathlib import Path
@@ -246,9 +348,7 @@ class Manifest(BaseModel):
 
 
 def load_manifest(path: Path) -> Manifest:
-    if path.exists():
-        return Manifest.model_validate_json(path.read_text())
-    return Manifest()
+    return Manifest.model_validate_json(path.read_text()) if path.exists() else Manifest()
 
 
 def save_manifest(manifest: Manifest, path: Path) -> None:
@@ -262,129 +362,56 @@ def my_file_flow(input_dir: str, output_dir: str, force: bool = False) -> None:
     manifest = load_manifest(manifest_path)
 
     for src in Path(input_dir).glob("**/*.md"):
-        content = src.read_bytes()
-        file_hash = buffer_digest(content)
+        file_hash = buffer_digest(src.read_bytes())
         key = str(src)
-
         entry = manifest.entries.get(key)
         if not force and entry and entry.source_hash == file_hash:
             continue  # skip unchanged
 
-        # … process src …
         dest = out / src.name.replace(".md", ".json")
-        manifest.entries[key] = ManifestEntry(
-            source_hash=file_hash, output_path=str(dest)
-        )
+        # … process src → dest …
+        manifest.entries[key] = ManifestEntry(source_hash=file_hash, output_path=str(dest))
 
     save_manifest(manifest, manifest_path)
 ```
 
 ---
 
-## Deployment (Prefect Server)
+## Exposing a `@flow` as a YAML Workflow Step
 
-For production workloads — scheduling, retries, alerting — deploy a Prefect server and
-configure the toolkit to connect to it.
+Once you have a `@flow` function, expose it in YAML so it can be composed and run via CLI:
 
-```bash
-# Start server (create ~/.prefect/ profile first if needed)
-prefect server start
-
-# Point the toolkit at the server
-export GENAI_PREFECT_API_URL=http://127.0.0.1:4200/api
-
-# All CLI flows now register runs in the dashboard
-uv run cli tools markdownize ./docs ./output
+```yaml
+# config/workflows/my_workflows.yaml
+workflows:
+  uppercase_files:
+    description: "Convert text files to uppercase"
+    run: myapp.my_flow.uppercase_flow
+    defaults:
+      input_dir: "${paths.data_root}/in"
+      output_dir: "${paths.data_root}/out"
+    params:
+      input_dir: {required: true}
+      output_dir: {required: true}
 ```
 
-Prefect also provides a `prefect.yaml` for deploying flows as scheduled deployments — see
-the [Prefect deployment docs](https://docs.prefect.io/latest/deploy/) for details.
+```bash
+uv run cli workflow run uppercase_files --base-dir ./texts --to ./output
+```
+
+See [workflows.md](workflows.md) for the full YAML DSL reference.
 
 ---
 
-## Workflow Engine (Composable Pipelines)
+## Key Classes and Functions
 
-For **complex multi-step pipelines** that chain together multiple flows, the toolkit provides
-a higher-level **Workflow Engine** that is YAML-driven and composable.
+| Symbol | Module | Purpose |
+|--------|--------|---------|
+| `prefect_server()` | `genai_tk.utils.prefect_server` | Singleton — start / stop / configure the local server |
+| `PrefectFlowFactory` | `genai_tk.workflow` | Build and run a Prefect flow from a compiled workflow |
+| `PrefectFlowFactory.from_profile()` | `genai_tk.workflow` | Create factory from a workflow name/preset string |
+| `flow_from_yaml()` | `genai_tk.workflow` | Parse YAML inline and return a `@flow` object |
+| `WorkflowCompiler` | `genai_tk.workflow` | Compile a `WorkflowDefV2` into a `CompiledWorkflow` |
+| `execute_workflow()` | `genai_tk.workflow` | Execute a `ResolvedWorkflowInvocation` |
 
-### Overview
-
-The Workflow Engine lets you:
-
-- Define **workflows** as DAGs of steps using YAML
-- Bundle concrete parameter sets in named **presets** inside the workflow definition
-- Chain **multiple Prefect flows** together with dependency tracking
-- **Compose** workflows as sub-steps of other workflows
-- Invoke workflows via `cli workflow run` with `--dry-run` support
-
-**Example:** Chain PDF-to-Markdown conversion with RAG ingestion:
-
-```yaml
-workflows:
-  full_ingest_pipeline:
-    description: "PPT → PDF → Markdown → RAG ingestion"
-    pipeline:
-      - id: ppt_to_pdf
-        run: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
-        with:
-          base_dir: "${paths.data_root}/ppts"
-          output_dir: "${paths.data_root}/pdfs"
-
-      - id: to_markdown
-        run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
-        after: [ppt_to_pdf]
-        with:
-          base_dir: "${paths.data_root}/pdfs"
-          output_dir: "${paths.data_root}/md"
-          pathspecs: ["**/*.pdf"]
-
-      - id: ingest
-        run: genai_tk.workflow.prefect.flows.rag_flow.rag_file_ingestion_flow
-        after: [to_markdown]
-        with:
-          base_dir: "${paths.data_root}/md"
-    presets:
-      marketing:
-        base_dir: "${paths.data_root}/marketing"
-```
-
-Invoke with:
-
-```bash
-# See the full 3-step plan
-uv run cli workflow run full_ingest_pipeline/marketing --dry-run
-
-# Execute all steps in order
-uv run cli workflow run full_ingest_pipeline/marketing
-```
-
-### How It Works
-
-1. **Workflow Definition** — Steps specify a callable target (via dotted Python path or
-   workflow name), arguments (`with:`), and dependencies (`after:`).
-
-2. **Resolution** — Preset values and CLI `--set` overrides are merged with workflow
-   `defaults` to produce concrete parameter values.  `${values.*}` references in `with:`
-   are resolved against this merged dict.
-
-3. **Pre-flight Validation** — Before Prefect starts, the engine validates each step's
-   keyword arguments against its function signature, giving a clean error for typos or
-   renamed parameters instead of a verbose Prefect traceback.
-
-4. **Topological Sort** — Steps are ordered based on `after:` dependencies; circular
-   dependencies are detected and reported.
-
-5. **Execution** — Each step invokes its target via the Prefect task runner.  If a step
-   fails, the `on_failure:` policy determines whether to abort, skip, or continue.
-
-### See Also
-
-For the complete Workflow Engine guide, including:
-- Full DSL syntax (`run:`, `pipeline:`, `presets:`, `params:`, `cache:`)
-- Sub-workflow composition and the `@workflow` decorator
-- CLI reference (`list`, `show`, `run`, `validate`)
-- Error handling modes (`abort`, `skip`, `continue`)
-- Step implementation guide
-
-See [workflows.md](workflows.md).
 

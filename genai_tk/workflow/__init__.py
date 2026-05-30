@@ -25,7 +25,7 @@ from genai_tk.workflow.models import (
     WorkflowDefV2,
     WorkflowSpec,
 )
-from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory
+from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory, flow_from_yaml
 from genai_tk.workflow.registry import RegisteredWorkflow, WorkflowRegistry, registry, workflow
 from genai_tk.workflow.resolver import (
     WorkflowResolutionError,
@@ -33,6 +33,7 @@ from genai_tk.workflow.resolver import (
     list_workflow_names,
     load_workflows,
     parse_cli_overrides,
+    parse_workflows_from_dict,
     resolve_workflow_invocation,
 )
 
@@ -47,6 +48,7 @@ __all__ = [
     "InvokeSpec",
     "ManifestCache",
     "PrefectFlowFactory",
+    "flow_from_yaml",
     "StepKind",
     # models
     "ParamSpec",
@@ -55,17 +57,6 @@ __all__ = [
     "StepSpec",
     "WorkflowDefV2",
     "WorkflowSpec",
-    # compiled models
-    "ArtifactSpec",
-    "CacheSpec",
-    "CompiledStep",
-    "CompiledWorkflow",
-    "ExecutionSpec",
-    "ForeachSpec",
-    "InvokeSpec",
-    "ManifestCache",
-    "PrefectFlowFactory",
-    "StepKind",
     # registry
     "RegisteredWorkflow",
     "WorkflowRegistry",
@@ -82,5 +73,6 @@ __all__ = [
     "list_workflow_names",
     "load_workflows",
     "parse_cli_overrides",
+    "parse_workflows_from_dict",
     "resolve_workflow_invocation",
 ]

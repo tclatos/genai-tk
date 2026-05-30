@@ -133,6 +133,38 @@ def load_workflows(config: OmegaConfig | None = None) -> dict[str, WorkflowDefV2
     if not isinstance(raw, dict):
         return {}
 
+    workflows = parse_workflows_from_dict(raw)
+
+    # Also include Python-registered workflows (from @workflow decorator)
+    for reg_entry in _global_registry.list_all():
+        if reg_entry.name not in workflows:
+            # Synthesise a single-step WorkflowDefV2 from the registry entry
+            workflows[reg_entry.name] = WorkflowDefV2(
+                name=reg_entry.name,
+                description=reg_entry.description,
+                run=reg_entry.dotted_path,
+            )
+
+    return workflows
+
+
+def parse_workflows_from_dict(raw: dict) -> dict[str, WorkflowDefV2]:
+    """Parse a raw ``workflows:`` dict into validated :class:`WorkflowDefV2` objects.
+
+    Skips legacy v1 keys (``step_templates``, ``definitions``, ``profiles``),
+    private keys (starting with ``_``), and entries that lack ``run:`` or
+    ``pipeline:``.  Does **not** include Python-registered workflows — use
+    :func:`load_workflows` for the full set.
+
+    Args:
+        raw: The raw dict corresponding to the ``workflows:`` YAML section.
+
+    Returns:
+        Mapping of workflow name → :class:`WorkflowDefV2`.
+
+    Raises:
+        WorkflowResolutionError: When a workflow entry fails Pydantic validation.
+    """
     workflows: dict[str, WorkflowDefV2] = {}
     for name, data in raw.items():
         if name.startswith("_") or name in _LEGACY_KEYS:
@@ -145,17 +177,6 @@ def load_workflows(config: OmegaConfig | None = None) -> dict[str, WorkflowDefV2
             workflows[name] = WorkflowDefV2.model_validate({"name": name, **data})
         except Exception as exc:
             raise WorkflowResolutionError(f"Invalid workflow definition '{name}': {exc}") from exc
-
-    # Also include Python-registered workflows (from @workflow decorator)
-    for reg_entry in _global_registry.list_all():
-        if reg_entry.name not in workflows:
-            # Synthesise a single-step WorkflowDefV2 from the registry entry
-            workflows[reg_entry.name] = WorkflowDefV2(
-                name=reg_entry.name,
-                description=reg_entry.description,
-                run=reg_entry.dotted_path,
-            )
-
     return workflows
 
 
@@ -200,12 +221,7 @@ def parse_cli_overrides(values: list[str] | None) -> dict[str, Any]:
     try:
         resolved = OmegaConf.to_container(overrides, resolve=True)
     except InterpolationKeyError as exc:
-        missing_key = _extract_interpolation_context(exc)
-        cfg = global_config()
-        hint = _suggest_available_paths(cfg)
-        raise WorkflowResolutionError(
-            f"Configuration interpolation error in CLI overrides: key '{missing_key}' not found. {hint}"
-        ) from exc
+        raise WorkflowResolutionError(f"Configuration interpolation error in CLI overrides: {exc}") from exc
     if not isinstance(resolved, dict):
         raise WorkflowResolutionError("CLI overrides must resolve to a mapping")
     return resolved

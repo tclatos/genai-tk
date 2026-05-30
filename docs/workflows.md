@@ -1,13 +1,57 @@
 # Workflows: YAML-Driven Task Orchestration
 
-The **Workflow Engine** provides a YAML-based abstraction layer over Prefect that makes it
-simple to:
+The **Workflow Engine** provides a YAML DSL that wraps Prefect flows into composable,
+parameterised pipelines.  It sits on top of Prefect — every step is ultimately a Prefect
+`@flow` invocation — but adds a declarative layer for chaining, parameterisation, and
+caching without writing boilerplate Python.
 
-- Define **multi-step pipelines** without writing Python
-- Make Prefect flows **composable** and **reusable**
-- Chain pre-processing (ppt2pdf → markdownize) with domain logic (KG creation, RAG ingestion)
-- Use **named presets** to bundle concrete parameter sets inside the workflow definition
-- Run workflows with `--dry-run` to see the full execution plan before committing
+**Core ideas:**
+
+- Define **multi-step pipelines** in YAML without writing Python glue code
+- Make Prefect flows **composable** and **reusable** across projects
+- Bundle concrete parameter sets in named **presets** inside each workflow definition
+- Chain steps with explicit **dependencies** (`after:`); independent steps run in parallel
+- Use **named presets** to switch between data sources without duplicating workflow code
+- Run with `--dry-run` to see the full plan (DAG, caches, values) before executing
+
+> **See also:** [prefect.md](prefect.md) — how to write `@flow` functions, run them directly,
+> and manage the local Prefect server.
+
+---
+
+## How the DSL Works
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  YAML definition  (config/workflows/*.yaml)                             │
+│                                                                         │
+│  workflows:                                                             │
+│    my_pipeline:                                                         │
+│      pipeline:                                                          │
+│        - id: step_a                                                     │
+│          run: myapp.flows.flow_a      ← any @flow or plain callable     │
+│          with:                                                          │
+│            input: "${values.base_dir}"                                  │
+│        - id: step_b                                                     │
+│          run: myapp.flows.flow_b                                        │
+│          after: [step_a]             ← dependency → parallel by default │
+└─────────────────────────────────────────────────────────────────────────┘
+         │
+         │  cli workflow run my_pipeline/my_preset
+         ▼
+┌───────────────────┐   ┌───────────────────┐   ┌────────────────────┐
+│  Resolver         │   │  Compiler          │   │  PrefectFlowFactory│
+│  (merge values,   │──►│  (validate,        │──►│  (build @flow,     │
+│   pick preset)    │   │   topological sort)│   │   submit tasks)    │
+└───────────────────┘   └───────────────────┘   └────────────────────┘
+```
+
+**Execution path:**
+
+1. `resolver.py` — parses the `workflow_name[/preset_name]` string, merges `defaults → preset → CLI --set`, validates required params.
+2. `compiler.py` — compiles the `WorkflowDefV2` into a flat `CompiledWorkflow` (expands sub-workflows, resolves `${values.*}` references, topological sort).
+3. `executor.py` — pre-flight checks keyword signatures, then calls `PrefectFlowFactory`.
+4. `PrefectFlowFactory` — dynamically builds a Prefect `@flow` that submits each step as a `@task` with the correct `wait_for` dependencies, runs manifests checks for caching.
 
 ---
 
@@ -35,6 +79,127 @@ uv run cli workflow run markdownize \
 
 # Validate all workflow definitions
 uv run cli workflow validate
+```
+
+---
+
+## Built-in Workflows
+
+The following workflows ship with genai-tk and are defined in `config/workflows.yaml`.
+Run `cli workflow list` to see all of them with their presets.
+
+| Workflow | Description | Key Defaults |
+|----------|-------------|--------------|
+| `markdownize` | Convert PDF/DOCX/PPTX/ODP → Markdown | `batch_size: 5`, `pdf_converter: mistral` |
+| `ppt2pdf` | Convert PPT/PPTX/ODP → PDF via LibreOffice | `pathspecs: ["**/*.pptx", "**/*.ppt", "**/*.odp"]` |
+| `rag_ingest` | Chunk, embed, and upsert documents into vector store | `force: false` |
+| `baml_extract` | Structured extraction from Markdown via BAML | `function_name: required` |
+| `anonymize` | PII anonymization with Presidio | `base_dir: required` |
+| `baml_to_table` | BAML extraction + flatten to CSV/XLSX | `output_file: required` |
+
+### Running a built-in workflow
+
+```bash
+# See the full list
+uv run cli workflow list
+
+# Inspect a workflow's DAG, params, and presets
+uv run cli workflow show markdownize
+
+# Run with a preset
+uv run cli workflow run markdownize/docs
+
+# Run with ad-hoc values (no preset needed)
+uv run cli workflow run markdownize \
+    --base-dir /data/pdfs --to /data/md --pathspec '**/*.pdf'
+```
+
+---
+
+## Creating Your First Workflow
+
+Follow these steps to add a new workflow to your project.
+
+### Step 1: Write (or reuse) a `@flow` function
+
+Any Python callable works.  If you're using a Prefect `@flow`:
+
+```python
+# myproject/flows/my_step.py
+from prefect import flow, task
+from pathlib import Path
+
+@task
+def process(src: Path, dest: Path) -> str:
+    dest.write_text(src.read_text().upper())
+    return str(dest)
+
+@flow(name="uppercase-files")
+def uppercase_flow(base_dir: str, output_dir: str) -> list[str]:
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    futures = [process.submit(f, out / f.name) for f in Path(base_dir).glob("*.txt")]
+    return [f.result() for f in futures]
+```
+
+### Step 2: Add a YAML workflow definition
+
+Create or edit any YAML file under `config/` (e.g. `config/workflows/my_workflows.yaml`):
+
+```yaml
+workflows:
+  uppercase_files:
+    description: "Convert text files to uppercase"
+    run: myproject.flows.my_step.uppercase_flow
+    defaults:
+      base_dir: "${paths.data_root}/in"
+      output_dir: "${paths.data_root}/out"
+    params:
+      base_dir:  {required: true}
+      output_dir: {required: true}
+    presets:
+      demo:
+        base_dir: /tmp/demo_in
+        output_dir: /tmp/demo_out
+```
+
+### Step 3: Validate and run
+
+```bash
+# Check the definition is correct (imports resolve, DAG is acyclic)
+uv run cli workflow validate
+
+# Dry-run: see what would happen
+uv run cli workflow run uppercase_files/demo --dry-run
+
+# Execute
+uv run cli workflow run uppercase_files/demo
+```
+
+### Step 4 (optional): Use programmatically
+
+```python
+from genai_tk.workflow import PrefectFlowFactory
+
+factory = PrefectFlowFactory.from_profile("uppercase_files/demo")
+results = factory.run()
+print(results)
+```
+
+Or inline with `flow_from_yaml` (no config directory needed):
+
+```python
+from genai_tk.workflow import flow_from_yaml
+
+flow = flow_from_yaml("""
+workflows:
+  uppercase_files:
+    run: myproject.flows.my_step.uppercase_flow
+    defaults:
+      base_dir: /tmp/in
+      output_dir: /tmp/out
+""")
+flow()
 ```
 
 ---
@@ -116,7 +281,7 @@ workflows:
 | `with` | | Arguments passed to the callable (merged on top of sub-workflow defaults) |
 | `cache` | | Cache policy: `none` (default), `manifest`, `hybrid` |
 | `execution` | | Retry / failure policy |
-| `foreach` | | Fan-out: run this step once per item in a list |
+| `foreach` | | Fan-out: run this step once per item in a list — see [`foreach:` Block](#foreach-block--fan-out--map) |
 
 ### `with:` Values
 
@@ -151,6 +316,77 @@ execution:
   retry_delay_seconds: 30.0
   tags: [slow, gpu]
 ```
+
+### `foreach:` Block — Fan-Out / Map
+
+Run a step **once per item** in a collection.  All iterations are submitted concurrently
+as Prefect tasks (bounded by the flow's `max_workers`).
+
+```yaml
+foreach:
+  from: "${steps.prev_step.result.}"  # expression that resolves to a list
+  as: item                             # name of the loop variable (default: item)
+  concurrency_limit: 4                 # optional: cap parallel iterations
+```
+
+Reference the current iteration value in `with:` using `${item}`:
+
+```yaml
+- id: process_each
+  run: my_module.process_item
+  after: [produce]
+  foreach:
+    from: "${steps.produce.result.}"
+    as: item
+  with:
+    value: "${item}"
+```
+
+**How it works:**
+
+1. `from:` is resolved against already-collected step results.  The predecessor step is
+   awaited eagerly before fan-out starts so the list is available immediately.
+2. One Prefect task is submitted per item.  Tasks are independent and run concurrently.
+3. The step's result in subsequent `${steps.<id>.result.}` references is a **list** — one
+   entry per iteration, in submission order.
+
+**Full example — produce a list then process each item:**
+
+```yaml
+workflows:
+  fan_out_demo:
+    description: "Produce a list, then process each item in parallel"
+    pipeline:
+      - id: produce
+        run: my_module.produce_items    # returns ["item-0", "item-1", ...]
+        with:
+          count: 10
+
+      - id: process_each
+        run: my_module.process_item     # called once per item
+        after: [produce]
+        foreach:
+          from: "${steps.produce.result.}"
+          as: item
+        with:
+          value: "${item}"
+
+      - id: summarise
+        run: my_module.summarise        # receives list of all processed results
+        after: [process_each]
+        with:
+          items: "${steps.process_each.result.}"
+```
+
+**Rules and constraints:**
+
+- `from:` must resolve to a `list` or `tuple` at runtime — a `WorkflowExecutionError` is
+  raised otherwise.
+- `${item}` is only valid inside the `with:` block of the step that declares `foreach:`.
+- Manifest caching is **not** applied to fan-out steps (the fingerprint is per-step, not
+  per-item).
+- `foreach:` and `pipeline:` (multi-step) are fully compatible; single-step shorthand
+  (`run:`) does not support `foreach:`.
 
 ### `params:` Block
 
@@ -713,7 +949,9 @@ uv run cli workflow run baml_to_table/default \
 
 ## See Also
 
-- [Prefect Documentation](prefect.md) — Prefect flows, ephemeral vs server mode
-- [Configuration](configuration.md) — Config file format and OmegaConf interpolation
-- [CLI Reference](cli.md) — Full CLI command reference
+- [prefect.md](prefect.md) — Running `@flow` functions directly, managing the Prefect server, `flow_from_yaml`
+- [configuration.md](configuration.md) — Config file format and OmegaConf interpolation
+- [cli.md](cli.md) — Full CLI command reference
+- [core.md](core.md) — Vector store / embeddings configuration (used by `rag_ingest`)
+- [baml.md](baml.md) — BAML structured extraction (used by `baml_extract`)
 - [AGENTS.md](../AGENTS.md) — Copilot agent coding guidelines
