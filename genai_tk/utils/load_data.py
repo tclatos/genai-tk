@@ -9,7 +9,6 @@ from io import BytesIO
 from pathlib import Path
 
 import pandas as pd
-from upath import UPath
 
 from genai_tk.utils.singleton import once
 
@@ -22,7 +21,7 @@ TABULAR_FILE_FORMATS_READERS = {
 
 
 @once
-def load_tabular_data_once(file_or_filename: str | UPath | BytesIO, **kwargs) -> pd.DataFrame:
+def load_tabular_data_once(file_or_filename: str | Path | BytesIO, **kwargs) -> pd.DataFrame:
     """Load tabular data from a file path or ByteIO  object (such as Streamlit UploadedFile ).
 
     Args:
@@ -36,7 +35,7 @@ def load_tabular_data_once(file_or_filename: str | UPath | BytesIO, **kwargs) ->
         ValueError: If the file doesn't exist or has an unsupported format
     """
     if isinstance(file_or_filename, str):
-        file_or_filename = UPath(file_or_filename)
+        file_or_filename = Path(file_or_filename)
     if isinstance(file_or_filename, Path):
         assert file_or_filename.exists()
         loaded_file = BytesIO(file_or_filename.read_bytes())

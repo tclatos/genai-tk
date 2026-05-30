@@ -15,13 +15,13 @@ import json
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
 from pydantic import BaseModel, Field
-from upath import UPath
 
 from genai_tk.extra.structured.baml_util import baml_invoke, prompt_fingerprint
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
@@ -52,11 +52,11 @@ class BamlExtractionManifest(BaseModel):
 
 
 def _find_existing_manifest(
-    output_root: UPath,
+    output_root: Path,
     function_name: str,
     config_name: str,
     llm: str,
-) -> tuple[BamlExtractionManifest | None, UPath | None]:
+) -> tuple[BamlExtractionManifest | None, Path | None]:
     """Load existing manifest from output directory if it exists.
 
     Returns:
@@ -76,7 +76,7 @@ def _find_existing_manifest(
     return None, None
 
 
-def _save_manifest(manifest: BamlExtractionManifest, manifest_path: UPath) -> None:
+def _save_manifest(manifest: BamlExtractionManifest, manifest_path: Path) -> None:
     """Save manifest to JSON file."""
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_json = manifest.model_dump_json(indent=2)
@@ -85,7 +85,7 @@ def _save_manifest(manifest: BamlExtractionManifest, manifest_path: UPath) -> No
 
 @dataclass(slots=True)
 class _FileToProcess:
-    path: UPath
+    path: Path
     content_hash: str
     content_text: str
     content_bytes: bytes | None = None
@@ -101,7 +101,7 @@ def _compute_hash(content: bytes) -> str:
     return buffer_digest(content)
 
 
-def _iter_supported_files(files: list[UPath]) -> Iterable[UPath]:
+def _iter_supported_files(files: list[Path]) -> Iterable[Path]:
     """Yield supported files (Markdown and PDF) from a pre-resolved list."""
     for path in files:
         if path.suffix.lower() in SUPPORTED_EXTENSIONS:
@@ -109,7 +109,7 @@ def _iter_supported_files(files: list[UPath]) -> Iterable[UPath]:
 
 
 def _prepare_files(
-    files: Iterable[UPath],
+    files: Iterable[Path],
     cache: ManifestCache,
     schema_fp: str | None,
     force: bool,
@@ -175,23 +175,23 @@ async def _process_single_file_task(
     # back to ``structured/<function_name>/``.
     if isinstance(result, BaseModel):
         model_name: str | None = type(result).__name__
-        output_root = UPath(structured_root) / model_name
+        output_root = Path(structured_root) / model_name
         json_text = result.model_dump_json(indent=2)
     else:
         model_name = None
-        output_root = UPath(structured_root) / function_name
+        output_root = Path(structured_root) / function_name
         # Fallback: store generic JSON-serialisable data
         json_text = json.dumps(result, indent=2, default=str)
 
     output_root.mkdir(parents=True, exist_ok=True)
 
     # Preserve directory structure: compute relative path from root_dir to source file
-    root_dir_path = UPath(root_dir)
+    root_dir_path = Path(root_dir)
     try:
         relative_source_path = upath.relative_to(root_dir_path)
     except ValueError:
         # If file is not under root_dir, use just the filename
-        relative_source_path = UPath(upath.name)
+        relative_source_path = Path(upath.name)
 
     # Change extension to .json and maintain directory structure
     relative_output_path = relative_source_path.with_suffix(".json")
@@ -258,7 +258,7 @@ def baml_structured_extraction_flow(
     logger.info("Discovered {} files to process", len(file_paths))
 
     resolved_output = resolve_config_path(output_dir)
-    structured_root_upath = UPath(resolved_output)
+    structured_root_upath = Path(resolved_output)
     structured_root_upath.mkdir(parents=True, exist_ok=True)
 
     # Compute schema fingerprint once (used as code_version for cache freshness)
@@ -271,7 +271,7 @@ def baml_structured_extraction_flow(
     manifest_path = structured_root_upath / "manifest.json"
     cache = ManifestCache.load(manifest_path)
 
-    files = list(_iter_supported_files([UPath(p) for p in file_paths]))
+    files = list(_iter_supported_files([Path(p) for p in file_paths]))
     to_process, skipped = _prepare_files(files, cache, schema_fp=schema_fp, force=force)
 
     if skipped:
@@ -374,7 +374,7 @@ async def _process_single_input_task(
         existing_entry = existing_manifest.entries.get(input_key)
         if existing_entry and existing_entry.source_hash == input_hash:
             # Load and return existing result
-            output_path_obj = UPath(output_dir) / existing_entry.output_path
+            output_path_obj = Path(output_dir) / existing_entry.output_path
             if output_path_obj.exists():
                 logger.info("Skipping - result already exists: {}", output_path_obj)
                 json_text = output_path_obj.read_text(encoding="utf-8")
@@ -402,7 +402,7 @@ async def _process_single_input_task(
         json_text = json.dumps(result, indent=2, default=str)
 
     # Create output directory structure: output_dir/ModelName/
-    output_root = UPath(output_dir)
+    output_root = Path(output_dir)
     if model_name:
         output_root = output_root / model_name
 
@@ -455,10 +455,10 @@ def baml_single_input_flow(
 
     # Load existing manifest if output is configured
     existing_manifest: BamlExtractionManifest | None = None
-    manifest_path: UPath | None = None
+    manifest_path: Path | None = None
 
     if resolved_output_dir and output_file:
-        output_root = UPath(resolved_output_dir)
+        output_root = Path(resolved_output_dir)
         output_root.mkdir(parents=True, exist_ok=True)
 
         existing_manifest, manifest_path = _find_existing_manifest(
@@ -518,7 +518,7 @@ def baml_single_input_flow(
         # Save manifest
         model_dir_name = model_name or function_name
         if manifest_path is None:
-            manifest_dir = UPath(resolved_output_dir) / model_dir_name
+            manifest_dir = Path(resolved_output_dir) / model_dir_name
             manifest_path = manifest_dir / "manifest.json"
 
         _save_manifest(existing_manifest, manifest_path)

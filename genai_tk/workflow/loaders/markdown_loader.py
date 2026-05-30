@@ -1,18 +1,18 @@
 import os
 import tempfile
+from pathlib import Path
 from typing import Iterator, List
 
 from langchain_core.document_loaders.base import BaseLoader
 from langchain_core.documents import Document
 from loguru import logger
 from pydantic import BaseModel
-from upath import UPath
 
 
 class MarkdownLoader(BaseLoader, BaseModel):
     """Load and chunk Markdown files using Chonkie."""
 
-    file_paths: List[str | UPath]
+    file_paths: List[str | Path]
     chunk_size: int = 500
     chunk_overlap: int = 50
     include_metadata: bool = True
@@ -21,7 +21,7 @@ class MarkdownLoader(BaseLoader, BaseModel):
     def model_post_init(self, __context: dict) -> None:
         """Post-initialization logic for validation and setup."""
         # Convert string paths to Path objects
-        self.file_paths = [UPath(fp) if isinstance(fp, str) else fp for fp in self.file_paths]
+        self.file_paths = [Path(fp) if isinstance(fp, str) else fp for fp in self.file_paths]
 
         # Validate file existence and warn about non-Markdown files
         for fp in self.file_paths:
@@ -34,7 +34,7 @@ class MarkdownLoader(BaseLoader, BaseModel):
         """Lazy load and chunk all Markdown files."""
         for file_path in self.file_paths:
             try:
-                content = UPath(file_path).read_text()
+                content = Path(file_path).read_text()
                 chunks = self._chunk_markdown(content, str(file_path))
                 for chunk in chunks:
                     yield chunk

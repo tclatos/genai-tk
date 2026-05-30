@@ -9,11 +9,11 @@ Typical usage::
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
 from prefect import flow, task
-from upath import UPath
 
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
 from genai_tk.core.factories.retriever_factory import ManagedRetriever, RetrieverFactory
@@ -26,12 +26,12 @@ from genai_tk.workflow.flow_cache.manifest import ManifestCache
 class FileToProcess:
     """File to be processed for RAG ingestion."""
 
-    path: UPath
+    path: Path
     content_hash: str
     content: str
 
 
-def _load_file_content(path: UPath) -> str:
+def _load_file_content(path: Path) -> str:
     """Load file content with error handling."""
     try:
         return path.read_text(encoding="utf-8")
@@ -41,7 +41,7 @@ def _load_file_content(path: UPath) -> str:
 
 
 def _prepare_files(
-    files: list[UPath],
+    files: list[Path],
     force: bool,
     managed: ManagedRetriever,
     cache: ManifestCache | None = None,
@@ -112,7 +112,7 @@ def process_file_task(
     retriever_name: str,
     max_chunk_tokens: int,
     chunker_name: str = "auto",
-    root_dir: UPath | None = None,
+    root_dir: Path | None = None,
 ) -> int:
     """Process a single file and add its chunks to the retriever store.
 
@@ -205,7 +205,7 @@ def rag_file_ingestion_flow(
     """
     logger.info("Starting RAG file ingestion from '{}' to retriever '{}'", base_dir, retriever_name)
 
-    resolved_base = UPath(resolve_config_path(base_dir))
+    resolved_base = Path(resolve_config_path(base_dir))
     if not resolved_base.exists():
         raise ValueError(f"base_dir does not exist: {resolved_base}")
 
@@ -226,7 +226,7 @@ def rag_file_ingestion_flow(
     cache: ManifestCache | None = None
     manifest_path = None
     if manifest_dir:
-        manifest_path = UPath(manifest_dir) / "manifest.json"
+        manifest_path = Path(manifest_dir) / "manifest.json"
         cache = ManifestCache.load(manifest_path)
 
     files_to_process, skipped = _prepare_files(files, force, managed, cache=cache)
@@ -271,7 +271,7 @@ def rag_file_ingestion_flow(
                     pass
 
     if cache is not None and manifest_path is not None:
-        UPath(manifest_dir).mkdir(parents=True, exist_ok=True)  # type: ignore[arg-type]
+        Path(manifest_dir).mkdir(parents=True, exist_ok=True)  # type: ignore[arg-type]
         cache.save(manifest_path)
 
     logger.info("Completed: {} files, {} chunks", len(files_to_process), total_chunks)

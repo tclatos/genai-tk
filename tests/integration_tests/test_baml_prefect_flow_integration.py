@@ -1,8 +1,9 @@
 """Integration-style tests for BAML Prefect flows with deterministic stubs."""
 
+from pathlib import Path
+
 import pytest
 from pydantic import BaseModel
-from upath import UPath
 
 import genai_tk.workflow.prefect.flows.baml_flow as mod
 from genai_tk.workflow.prefect.flows.baml_flow import (
@@ -55,7 +56,7 @@ def test_baml_structured_extraction_flow_writes_manifest(tmp_path, monkeypatch) 
     assert isinstance(manifest, BamlExtractionManifest)
     assert len(manifest.entries) == 1
 
-    manifest_path = UPath(output_dir) / "manifest.json"
+    manifest_path = Path(output_dir) / "manifest.json"
     assert manifest_path.exists()
 
 
@@ -89,5 +90,5 @@ def test_baml_single_input_flow_updates_manifest(tmp_path, monkeypatch) -> None:
     assert isinstance(result, BaseModel)
     assert model_name == _DummyModel.__name__
 
-    manifest_path = UPath(output_dir) / _DummyModel.__name__ / "manifest.json"
+    manifest_path = Path(output_dir) / _DummyModel.__name__ / "manifest.json"
     assert manifest_path.exists()

@@ -18,13 +18,13 @@ import asyncio
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
 from pydantic import BaseModel, Field
-from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
@@ -61,8 +61,8 @@ class MistralOCRBatchProcessor:
 
     async def process_batch(
         self,
-        file_paths: list[UPath],
-        output_dir: UPath,
+        file_paths: list[Path],
+        output_dir: Path,
     ) -> dict[str, dict[str, str]]:
         """Process PDF files in batch using Mistral OCR API.
 
@@ -105,7 +105,7 @@ class MistralOCRBatchProcessor:
 
         return results
 
-    def _prepare_batch_request(self, file_path: UPath, index: int) -> str:
+    def _prepare_batch_request(self, file_path: Path, index: int) -> str:
         """Prepare a single batch request in JSONL format.
 
         Args:
@@ -132,8 +132,8 @@ class MistralOCRBatchProcessor:
         self,
         client,
         batch_requests: list[str],
-        file_paths: list[UPath],
-        output_dir: UPath,
+        file_paths: list[Path],
+        output_dir: Path,
     ) -> dict[str, dict[str, str]]:
         """Submit batch job and poll for completion.
 
@@ -227,8 +227,8 @@ class MistralOCRBatchProcessor:
         self,
         client,
         output_file_id: str,
-        file_paths: list[UPath],
-        output_dir: UPath,
+        file_paths: list[Path],
+        output_dir: Path,
     ) -> dict[str, dict[str, str]]:
         """Process batch results and save outputs.
 
@@ -273,9 +273,9 @@ class MistralOCRBatchProcessor:
 
     async def _save_ocr_output(
         self,
-        source_path: UPath,
+        source_path: Path,
         ocr_response,
-        output_dir: UPath,
+        output_dir: Path,
     ) -> str:
         """Save OCR output as markdown.
 
@@ -310,7 +310,7 @@ class MistralOCRBatchProcessor:
 
 @dataclass(slots=True)
 class _FileToProcess:
-    path: UPath
+    path: Path
     content_hash: str
 
 
@@ -343,7 +343,7 @@ def _prepare_files(
     return to_process, skipped
 
 
-def _is_markdownize_compatible(file_path: UPath) -> bool:
+def _is_markdownize_compatible(file_path: Path) -> bool:
     """Check if file is compatible with any supported converter."""
     suffix = file_path.suffix.lower()
     # markitdown formats
@@ -367,15 +367,15 @@ async def _process_single_file_task(
     upath = file_info.path
     logger.info(f"Processing file: {upath}")
 
-    output_upath = UPath(output_dir)
+    output_upath = Path(output_dir)
 
     # Preserve directory structure: compute relative path from root_dir to source file
-    root_dir_path = UPath(root_dir)
+    root_dir_path = Path(root_dir)
     try:
         relative_source_path = upath.relative_to(root_dir_path)
     except ValueError:
         # If file is not under root_dir, use just the filename
-        relative_source_path = UPath(upath.name)
+        relative_source_path = Path(upath.name)
 
     # Change extension to .md and maintain directory structure
     # Include the original file extension in the output filename: review.xlsx → review_xlsx.md
@@ -502,13 +502,13 @@ def markdownize_flow(
     logger.info(f"Discovered {len(file_paths)} files to process")
 
     resolved_output = resolve_config_path(output_dir)
-    output_upath = UPath(resolved_output)
+    output_upath = Path(resolved_output)
     output_upath.mkdir(parents=True, exist_ok=True)
 
     manifest_path = output_upath / "manifest.json"
     cache = ManifestCache.load(manifest_path)
 
-    files = [UPath(p) for p in file_paths if _is_markdownize_compatible(UPath(p))]
+    files = [Path(p) for p in file_paths if _is_markdownize_compatible(Path(p))]
     to_process, skipped = _prepare_files(files, cache, force=force)
 
     if skipped:

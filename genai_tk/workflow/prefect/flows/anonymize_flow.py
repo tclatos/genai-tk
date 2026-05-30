@@ -21,11 +21,11 @@ Typical usage::
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ThreadPoolTaskRunner  # type: ignore[attr-defined]
-from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_files
 from genai_tk.utils.hashing import buffer_digest
@@ -68,9 +68,9 @@ def anonymize_file_task(
     """
     from faker import Faker
 
-    upath = UPath(source_path)
-    output_upath = UPath(output_dir)
-    root_upath = UPath(root_dir)
+    upath = Path(source_path)
+    output_upath = Path(output_dir)
+    root_upath = Path(root_dir)
 
     try:
         text = upath.read_text(encoding="utf-8")
@@ -89,7 +89,7 @@ def anonymize_file_task(
     try:
         relative_path = upath.relative_to(root_upath)
     except ValueError:
-        relative_path = UPath(upath.name)
+        relative_path = Path(upath.name)
 
     output_path = output_upath / relative_path
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -165,7 +165,7 @@ def anonymize_files_flow(
     )
 
     # Load manifest for incremental processing
-    output_upath = UPath(output_dir)
+    output_upath = Path(output_dir)
     manifest_path = output_upath / "manifest.json"
     cache = ManifestCache.load(manifest_path)
 
@@ -176,18 +176,18 @@ def anonymize_files_flow(
         logger.warning("No files found to anonymize")
         return cache
 
-    files_to_process: list[UPath] = []
+    files_to_process: list[Path] = []
     skipped = 0
     for f in files:
         try:
-            content_hash = buffer_digest(UPath(f).read_bytes())
+            content_hash = buffer_digest(Path(f).read_bytes())
         except Exception as exc:
             logger.error("Cannot read {}: {}", f, exc)
             continue
         if cache.is_fresh(str(f), fingerprint=content_hash, force=force):
             skipped += 1
             continue
-        files_to_process.append(UPath(f))
+        files_to_process.append(Path(f))
 
     logger.info("Processing {} files, skipping {} unchanged", len(files_to_process), skipped)
 

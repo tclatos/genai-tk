@@ -10,10 +10,10 @@ Provides two thin functions:
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import pathspec
 from loguru import logger
-from upath import UPath
 
 
 def resolve_config_path(path_str: str) -> str:
@@ -48,7 +48,7 @@ def resolve_files(
     base_dir: str,
     *,
     pathspecs: list[str] | None = None,
-) -> list[UPath]:
+) -> list[Path]:
     """Return all files under *base_dir* matched by *pathspecs*.
 
     Pathspecs follow ``.gitignore`` / gitwildmatch semantics: plain patterns
@@ -61,7 +61,7 @@ def resolve_files(
             (all files, recursive).
 
     Returns:
-        Sorted list of matched UPath objects.
+        Sorted list of matched Path objects.
 
     Example:
         ```python
@@ -72,7 +72,7 @@ def resolve_files(
         ```
     """
     resolved_root = resolve_config_path(base_dir)
-    root = UPath(resolved_root)
+    root = Path(resolved_root)
 
     if not root.exists():
         logger.error("base_dir does not exist: {}", root)
@@ -84,7 +84,7 @@ def resolve_files(
     specs = pathspecs if pathspecs is not None else ["**/*"]
     spec = pathspec.PathSpec.from_lines("gitignore", specs)
 
-    matched: list[UPath] = []
+    matched: list[Path] = []
     for path in root.rglob("*"):
         if not path.is_file():
             continue
@@ -93,7 +93,7 @@ def resolve_files(
         except ValueError:
             continue
         if spec.match_file(rel):
-            matched.append(UPath(str(path)))
+            matched.append(Path(str(path)))
 
     matched.sort()
     if not matched:

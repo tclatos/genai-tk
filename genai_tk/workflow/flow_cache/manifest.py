@@ -9,10 +9,10 @@ Usage
 
 .. code-block:: python
 
-    from upath import UPath
+    from pathlib import Path
     from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
-    cache = ManifestCache.load(UPath("output/manifest.json"))
+    cache = ManifestCache.load(Path("output/manifest.json"))
 
     for file in files_to_process:
         content_hash = compute_hash(file)
@@ -26,7 +26,7 @@ Usage
             outputs={"output_path": str(output)},
         )
 
-    cache.save(UPath("output/manifest.json"))
+    cache.save(Path("output/manifest.json"))
 
 For BAML extraction or other flows that also depend on a prompt/schema
 version, pass ``code_version``:
@@ -40,11 +40,11 @@ version, pass ``code_version``:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
 from pydantic import BaseModel, Field
-from upath import UPath
 
 
 class CacheRecord(BaseModel):
@@ -149,7 +149,7 @@ class ManifestCache(BaseModel):
     # ------------------------------------------------------------------
 
     @classmethod
-    def load(cls, path: UPath | None, *, warn_on_error: bool = True) -> ManifestCache:
+    def load(cls, path: Path | None, *, warn_on_error: bool = True) -> ManifestCache:
         """Load from a JSON file, returning an empty cache if the file does not exist.
 
         Args:
@@ -170,7 +170,7 @@ class ManifestCache(BaseModel):
                 return cls()
             raise
 
-    def save(self, path: UPath) -> None:
+    def save(self, path: Path) -> None:
         """Persist the cache to a JSON file.
 
         Args:

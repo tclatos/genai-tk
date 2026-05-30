@@ -79,12 +79,12 @@ class TestResolveFiles:
         assert len(result) == 1
         assert "root" in str(result[0])
 
-    def test_returns_upath_objects(self, tmp_path: Path) -> None:
-        from upath import UPath
+    def test_returns_path_objects(self, tmp_path: Path) -> None:
+        from pathlib import Path
 
         (tmp_path / "test.txt").write_text("content")
         result = resolve_files(str(tmp_path), pathspecs=["**/*.txt"])
-        assert all(isinstance(p, UPath) for p in result)
+        assert all(isinstance(p, Path) for p in result)
 
     def test_not_a_directory_returns_empty(self, tmp_path: Path) -> None:
         f = tmp_path / "file.txt"

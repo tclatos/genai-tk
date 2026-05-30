@@ -3,8 +3,8 @@ Module for computing cryptographic and non-cryptographic hash digests of files a
 
 This module provides utilities for hashing data using various algorithms including xxHash3
 (xxh3_64, xxh3_128) for high-performance hashing and standard algorithms (sha256, md5).
-It supports hashing both in-memory byte buffers and files on disk, with compatibility for
-both standard pathlib.Path and upath.UPath objects.
+It supports hashing both in-memory byte buffers and files on disk, with standard pathlib.Path
+objects.
 
 Supported hash algorithms:
     - xxh3_64: 64-bit xxHash3 (default, fastest)
@@ -19,10 +19,6 @@ Example:
     >>> # Compute buffer hash with explicit algorithm
     >>> data = b"Hello, World!"
     >>> hex_hash = buffer_digest(data, algorithm="sha256")
-    >>>
-    >>> # Use with remote paths via UPath
-    >>> remote_file = UPath("s3://bucket/file.bin")
-    >>> digest = file_digest(remote_file, algorithm="xxh3_128")
 
 """
 
@@ -31,7 +27,6 @@ from pathlib import Path
 from typing import Literal
 
 import xxhash
-from upath import UPath
 
 HashAlgorithm = Literal["xxh3_64", "xxh3_128", "sha256", "md5"]
 
@@ -72,7 +67,7 @@ def buffer_digest(input: bytes, algorithm: HashAlgorithm = "xxh3_64") -> str:
     return hasher.hexdigest()
 
 
-def file_digest(file_path: Path | UPath, algorithm: HashAlgorithm = "xxh3_64") -> str:
+def file_digest(file_path: Path, algorithm: HashAlgorithm = "xxh3_64") -> str:
     """Compute the digest of a file.
 
     Args:
@@ -111,12 +106,12 @@ if __name__ == "__main__":
         digest = file_digest(test_file, algorithm=algo)
         print(f"{algo:12s}: {digest}")
 
-    # Test with UPath (using default algorithm)
+    # Test with Path (using default algorithm)
     print("\n" + "-" * 60)
-    print("Testing UPath compatibility (default algorithm):")
-    upath_file = UPath(test_file)
+    print("Testing Path compatibility (default algorithm):")
+    path_file = Path(test_file)
     path_digest = file_digest(test_file)
-    upath_digest = file_digest(upath_file)
+    file_digest_result = file_digest(path_file)
     print(f"Path digest:  {path_digest}")
-    print(f"UPath digest: {upath_digest}")
-    print(f"Digests match: {path_digest == upath_digest}")
+    print(f"File digest:  {file_digest_result}")
+    print(f"Digests match: {path_digest == file_digest_result}")

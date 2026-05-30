@@ -3,8 +3,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from upath import UPath
-
 from genai_tk.utils.spacy_model_mngr import SpaCyModelManager
 
 
@@ -14,10 +12,10 @@ class TestSpaCyModelManager:
     def test_get_model_path(self, tmp_path: Path) -> None:
         """Test that model path is correctly constructed."""
         with patch("genai_tk.utils.spacy_model_mngr.global_config") as mock_config:
-            mock_config.return_value.get_dir_path.return_value = UPath(tmp_path)
+            mock_config.return_value.get_dir_path.return_value = Path(tmp_path)
 
             model_name = "en_core_web_sm"
-            expected_path = UPath(tmp_path) / "spacy_models" / model_name
+            expected_path = Path(tmp_path) / "spacy_models" / model_name
 
             result = SpaCyModelManager.get_model_path(model_name)
 
@@ -30,7 +28,7 @@ class TestSpaCyModelManager:
         model_path = tmp_path / "spacy_models" / model_name
         model_path.mkdir(parents=True, exist_ok=True)
 
-        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=UPath(model_path)):
+        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=Path(model_path)):
             assert SpaCyModelManager.is_model_installed(model_name) is True
 
     def test_is_model_installed_false(self, tmp_path: Path) -> None:
@@ -38,7 +36,7 @@ class TestSpaCyModelManager:
         model_name = "en_core_web_sm"
         model_path = tmp_path / "spacy_models" / model_name
 
-        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=UPath(model_path)):
+        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=Path(model_path)):
             assert SpaCyModelManager.is_model_installed(model_name) is False
 
     @patch("subprocess.run")
@@ -47,11 +45,11 @@ class TestSpaCyModelManager:
         model_name = "en_core_web_sm"
         model_path = tmp_path / "spacy_models" / model_name
 
-        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=UPath(model_path)):
+        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=Path(model_path)):
             with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.is_model_installed", return_value=False):
                 result = SpaCyModelManager.download_model(model_name)
 
-                assert result == UPath(model_path)
+                assert result == Path(model_path)
                 mock_subprocess.assert_called_once_with(
                     ["python", "-m", "spacy", "download", model_name],
                     check=True,
@@ -63,11 +61,11 @@ class TestSpaCyModelManager:
         model_name = "en_core_web_sm"
         model_path = tmp_path / "spacy_models" / model_name
 
-        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=UPath(model_path)):
+        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=Path(model_path)):
             with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.is_model_installed", return_value=True):
                 result = SpaCyModelManager.download_model(model_name)
 
-                assert result == UPath(model_path)
+                assert result == Path(model_path)
                 mock_subprocess.assert_not_called()
 
     @patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.download_model")
@@ -76,7 +74,7 @@ class TestSpaCyModelManager:
         model_name = "en_core_web_sm"
         model_path = tmp_path / "spacy_models" / model_name
 
-        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=UPath(model_path)):
+        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=Path(model_path)):
             with patch("builtins.__import__") as mock_import:
                 mock_spacy = MagicMock()
                 mock_spacy.load.side_effect = [OSError, None]  # First call fails, second succeeds
@@ -91,7 +89,7 @@ class TestSpaCyModelManager:
         model_path = tmp_path / "spacy_models" / model_name
         model_path.mkdir(parents=True, exist_ok=True)
 
-        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=UPath(model_path)):
+        with patch("genai_tk.utils.spacy_model_mngr.SpaCyModelManager.get_model_path", return_value=Path(model_path)):
             with patch("builtins.__import__") as mock_import:
                 mock_spacy = MagicMock()
                 mock_spacy.load.return_value = None  # Model loads successfully

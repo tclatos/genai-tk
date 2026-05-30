@@ -7,11 +7,11 @@ Pydantic BaseModel provided at runtime.
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any, Generic, Type, TypeVar
 
 from loguru import logger
 from pydantic import BaseModel
-from upath import UPath
 
 LLM_ID = None
 KV_STORE_ID = "file"
@@ -148,7 +148,7 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
         else:
             raise ValueError(f"Failed to process document: {document_id}")
 
-    async def process_files(self, md_files: list[UPath], batch_size: int = 5) -> None:
+    async def process_files(self, md_files: list[Path], batch_size: int = 5) -> None:
         """Process markdown files in batches using BAML."""
         document_ids = []
         markdown_contents = []

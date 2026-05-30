@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from langchain_text_splitters import RecursiveCharacterTextSplitter, TextSplitter
-from upath import UPath
 
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
 from genai_tk.workflow.rag.chonkie_splitter import ChonkieTextSplitter
@@ -53,49 +54,49 @@ class TestChunkerFactoryCreateForFile:
 
     def test_create_for_file_markdown_extension(self) -> None:
         """Test auto-detection for .md files."""
-        splitter = ChunkerFactory.create_for_file(UPath("document.md"), "auto")
+        splitter = ChunkerFactory.create_for_file(Path("document.md"), "auto")
         assert isinstance(splitter, ChonkieTextSplitter)
 
     def test_create_for_file_markdown_alternate_extension(self) -> None:
         """Test auto-detection for .markdown files."""
-        splitter = ChunkerFactory.create_for_file(UPath("readme.markdown"), "auto")
+        splitter = ChunkerFactory.create_for_file(Path("readme.markdown"), "auto")
         assert isinstance(splitter, ChonkieTextSplitter)
 
     def test_create_for_file_rst_extension(self) -> None:
         """Test auto-detection for .rst files (also uses markdown)."""
-        splitter = ChunkerFactory.create_for_file(UPath("docs.rst"), "auto")
+        splitter = ChunkerFactory.create_for_file(Path("docs.rst"), "auto")
         assert isinstance(splitter, ChonkieTextSplitter)
 
     def test_create_for_file_python_extension(self) -> None:
         """Test auto-detection for .py files (recursive)."""
-        splitter = ChunkerFactory.create_for_file(UPath("script.py"), "auto")
+        splitter = ChunkerFactory.create_for_file(Path("script.py"), "auto")
         assert isinstance(splitter, RecursiveCharacterTextSplitter)
 
     def test_create_for_file_java_extension(self) -> None:
         """Test auto-detection for .java files (recursive)."""
-        splitter = ChunkerFactory.create_for_file(UPath("Main.java"), "auto")
+        splitter = ChunkerFactory.create_for_file(Path("Main.java"), "auto")
         assert isinstance(splitter, RecursiveCharacterTextSplitter)
 
     def test_create_for_file_javascript_extension(self) -> None:
         """Test auto-detection for .js files (recursive)."""
-        splitter = ChunkerFactory.create_for_file(UPath("app.js"), "auto")
+        splitter = ChunkerFactory.create_for_file(Path("app.js"), "auto")
         assert isinstance(splitter, RecursiveCharacterTextSplitter)
 
     def test_create_for_file_text_extension(self) -> None:
         """Test auto-detection for .txt files (recursive)."""
-        splitter = ChunkerFactory.create_for_file(UPath("notes.txt"), "auto")
+        splitter = ChunkerFactory.create_for_file(Path("notes.txt"), "auto")
         assert isinstance(splitter, RecursiveCharacterTextSplitter)
 
     def test_create_for_file_unknown_extension_uses_default(self) -> None:
         """Test that unknown extensions use .default mapping."""
-        splitter = ChunkerFactory.create_for_file(UPath("data.unknown"), "auto")
+        splitter = ChunkerFactory.create_for_file(Path("data.unknown"), "auto")
         # Should fall back to default, which is recursive
         assert isinstance(splitter, RecursiveCharacterTextSplitter)
 
     def test_create_for_file_explicit_chunker(self) -> None:
         """Test specifying explicit chunker overrides auto-detection."""
         # File is .md but we request recursive
-        splitter = ChunkerFactory.create_for_file(UPath("doc.md"), "recursive")
+        splitter = ChunkerFactory.create_for_file(Path("doc.md"), "recursive")
         assert isinstance(splitter, RecursiveCharacterTextSplitter)
 
     def test_create_for_file_with_path_string(self) -> None:
@@ -135,7 +136,7 @@ class TestChunkerFactoryIntegration:
         from langchain_core.documents import Document
 
         # Create markdown chunker via auto-detection
-        splitter = ChunkerFactory.create_for_file(UPath("doc.md"), "auto")
+        splitter = ChunkerFactory.create_for_file(Path("doc.md"), "auto")
 
         # Split document
         text = "# Title\n\nContent."

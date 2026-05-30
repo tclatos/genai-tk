@@ -107,7 +107,7 @@ class TestResolveStepRef:
 
 
 class TestWorkflowManifestPath:
-    def test_returns_upath_under_data_root(self, tmp_path) -> None:
+    def test_returns_path_under_data_root(self, tmp_path) -> None:
         with patch("genai_tk.utils.config_mngr.global_config") as mock_cfg:
             mock_cfg.return_value.paths.data_root = str(tmp_path)
             path = workflow_manifest_path("my_workflow")
@@ -176,11 +176,11 @@ class TestFlowBodyCaching:
     @patch("genai_tk.workflow.prefect.flow_factory.workflow_manifest_path")
     def test_cached_step_is_skipped(self, mock_manifest_path, tmp_path) -> None:
         """A step with a fresh manifest entry must not be submitted."""
-        from upath import UPath
+        from pathlib import Path
 
         from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
-        manifest_path = UPath(tmp_path / "manifest.json")
+        manifest_path = Path(tmp_path / "manifest.json")
         mock_manifest_path.return_value = manifest_path
 
         # Pre-populate the manifest with a fresh entry
@@ -206,11 +206,11 @@ class TestFlowBodyCaching:
     @patch("genai_tk.workflow.prefect.flow_factory.workflow_manifest_path")
     def test_stale_step_is_executed_and_recorded(self, mock_manifest_path, tmp_path) -> None:
         """A step with a stale manifest entry must be executed and re-recorded."""
-        from upath import UPath
+        from pathlib import Path
 
         from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
-        manifest_path = UPath(tmp_path / "manifest2.json")
+        manifest_path = Path(tmp_path / "manifest2.json")
         mock_manifest_path.return_value = manifest_path
 
         # Pre-populate with STALE fingerprint
@@ -239,11 +239,11 @@ class TestFlowBodyCaching:
     @patch("genai_tk.workflow.prefect.flow_factory.workflow_manifest_path")
     def test_force_bypasses_cache(self, mock_manifest_path, tmp_path) -> None:
         """When force=True, even a fresh step must be re-executed."""
-        from upath import UPath
+        from pathlib import Path
 
         from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
-        manifest_path = UPath(tmp_path / "manifest3.json")
+        manifest_path = Path(tmp_path / "manifest3.json")
         mock_manifest_path.return_value = manifest_path
 
         cache = ManifestCache()
@@ -266,9 +266,9 @@ class TestFlowBodyCaching:
     @patch("genai_tk.workflow.prefect.flow_factory.workflow_manifest_path")
     def test_no_cache_backend_always_executes(self, mock_manifest_path, tmp_path) -> None:
         """Steps with cache backend 'none' are always executed."""
-        from upath import UPath
+        from pathlib import Path
 
-        manifest_path = UPath(tmp_path / "manifest4.json")
+        manifest_path = Path(tmp_path / "manifest4.json")
         mock_manifest_path.return_value = manifest_path
 
         step = _step("run", cache_backend="none")
@@ -286,9 +286,9 @@ class TestFlowBodyCaching:
 
     @patch("genai_tk.workflow.prefect.flow_factory.workflow_manifest_path")
     def test_step_failure_with_abort_raises(self, mock_manifest_path, tmp_path) -> None:
-        from upath import UPath
+        from pathlib import Path
 
-        mock_manifest_path.return_value = UPath(tmp_path / "mf.json")
+        mock_manifest_path.return_value = Path(tmp_path / "mf.json")
 
         step = _step("bad", on_failure="abort")
         workflow = _workflow("wf", [step])
@@ -300,9 +300,9 @@ class TestFlowBodyCaching:
 
     @patch("genai_tk.workflow.prefect.flow_factory.workflow_manifest_path")
     def test_step_failure_with_skip_continues(self, mock_manifest_path, tmp_path) -> None:
-        from upath import UPath
+        from pathlib import Path
 
-        mock_manifest_path.return_value = UPath(tmp_path / "mf.json")
+        mock_manifest_path.return_value = Path(tmp_path / "mf.json")
 
         step = _step("soft", on_failure="skip")
         workflow = _workflow("wf", [step])

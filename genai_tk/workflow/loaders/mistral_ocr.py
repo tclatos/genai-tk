@@ -14,6 +14,7 @@ import asyncio
 import base64
 import json
 import os
+from pathlib import Path
 from typing import Iterator
 
 from langchain_community.document_loaders.base import BaseLoader
@@ -22,12 +23,11 @@ from loguru import logger
 from mistralai.client import Mistral
 from mistralai.client.models import OCRResponse
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from upath import UPath
 
 from genai_tk.utils.pydantic_utils.kv_store import load_object_from_kvstore, save_object_to_kvstore
 
 
-def _encode_to_base64(path: UPath) -> str:
+def _encode_to_base64(path: Path) -> str:
     """Encode file content to base64 string."""
     return base64.b64encode(path.read_bytes()).decode("utf-8")
 
@@ -36,7 +36,7 @@ def _encode_to_base64(path: UPath) -> str:
 # TODO : Impletent Asnyc
 
 
-def mistral_ocr(path: UPath, use_cache: bool = True) -> OCRResponse:
+def mistral_ocr(path: Path, use_cache: bool = True) -> OCRResponse:
     """Process a PDF file using Mistral OCR API.
 
     Handles both local files and remote URLs. Supports caching of results
@@ -100,14 +100,14 @@ class MistralOcrLoader(BaseLoader):
         use_cache: Whether to use cached OCR results
     """
 
-    def __init__(self, path: UPath | str, use_cache: bool = True) -> None:
+    def __init__(self, path: Path | str, use_cache: bool = True) -> None:
         self.path = path
         self.use_cache = use_cache
 
     def lazy_load(self) -> Iterator[Document]:
         """Lazy load document content using Mistral OCR."""
         if isinstance(self.path, str):
-            self.path = UPath(self.path)
+            self.path = Path(self.path)
         ocr_response = mistral_ocr(self.path, self.use_cache)
         for page in ocr_response.pages:
             yield Document(
@@ -140,7 +140,7 @@ def sanitize_filename(filename: str) -> str:
     return filename.replace(" ", "_")
 
 
-async def process_pdf_batch(pdf_paths: list[UPath], output_dir: UPath, use_cache: bool = True) -> None:
+async def process_pdf_batch(pdf_paths: list[Path], output_dir: Path, use_cache: bool = True) -> None:
     """Process multiple PDF files using Mistral's batch OCR API.
 
     Handles caching, progress tracking, and result saving. Processes files
@@ -311,9 +311,11 @@ async def process_pdf_batch(pdf_paths: list[UPath], output_dir: UPath, use_cache
 
 # Quick test
 if __name__ == "__main__":
+    from pathlib import Path
+
     from devtools import debug
 
-    doc = UPath("https://arxiv.org/pdf/2201.04234")
+    doc = Path("https://arxiv.org/pdf/2201.04234")
 
     # res = mistral_ocr(doc, use_cache=True)
     # debug(res)

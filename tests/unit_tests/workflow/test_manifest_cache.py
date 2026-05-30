@@ -5,8 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from upath import UPath
-
 from genai_tk.workflow.flow_cache.manifest import CacheRecord, ManifestCache
 
 # ---------------------------------------------------------------------------
@@ -102,7 +100,7 @@ class TestRecordMutations:
 
 class TestPersistence:
     def test_save_and_reload(self, tmp_path: Path) -> None:
-        path = UPath(tmp_path / "manifest.json")
+        path = Path(tmp_path / "manifest.json")
         cache = ManifestCache()
         cache.record_success("build", "fp42", outputs={"result": {"total": 10}})
         cache.save(path)
@@ -112,25 +110,25 @@ class TestPersistence:
         assert reloaded.get_output("build", "result") == {"total": 10}
 
     def test_load_non_existent_returns_empty(self, tmp_path: Path) -> None:
-        path = UPath(tmp_path / "no_such.json")
+        path = Path(tmp_path / "no_such.json")
         cache = ManifestCache.load(path)
         assert cache.records == {}
 
     def test_load_corrupt_file_returns_empty_with_warning(self, tmp_path: Path) -> None:
-        path = UPath(tmp_path / "bad.json")
+        path = Path(tmp_path / "bad.json")
         path.write_text("{ not valid json", encoding="utf-8")
         cache = ManifestCache.load(path, warn_on_error=True)
         assert cache.records == {}
 
     def test_save_creates_parent_dirs(self, tmp_path: Path) -> None:
-        deep_path = UPath(tmp_path / "a" / "b" / "c" / "manifest.json")
+        deep_path = Path(tmp_path / "a" / "b" / "c" / "manifest.json")
         cache = ManifestCache()
         cache.record_success("x", "fp1")
         cache.save(deep_path)
         assert deep_path.exists()
 
     def test_processed_at_is_persisted(self, tmp_path: Path) -> None:
-        path = UPath(tmp_path / "manifest.json")
+        path = Path(tmp_path / "manifest.json")
         ts = datetime(2026, 1, 15, 10, 0, 0, tzinfo=timezone.utc)
         cache = ManifestCache()
         cache.records["s"] = CacheRecord(key="s", fingerprint="fp", processed_at=ts)

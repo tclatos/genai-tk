@@ -23,7 +23,6 @@ from pathlib import Path
 from loguru import logger
 from prefect import flow
 from pydantic import BaseModel, Field
-from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_config_path
 
@@ -97,7 +96,7 @@ def _is_annex(filename: str) -> bool:
     return bool(_ANNEX_PATTERNS.search(filename))
 
 
-def _sort_key(md_path: UPath) -> tuple[int, int, str]:
+def _sort_key(md_path: Path) -> tuple[int, int, str]:
     """Sort key: (extension_priority, is_annex, lowercase_name)."""
     ext = _extract_original_extension(md_path.name)
     priority = _EXTENSION_PRIORITY.get(ext, 99)
@@ -117,7 +116,7 @@ def _make_anchor(display_name: str) -> str:
     return anchor
 
 
-def _collect_md_files(base_dir: UPath) -> list[UPath]:
+def _collect_md_files(base_dir: Path) -> list[Path]:
     """Collect all .md files in base_dir (non-recursive), excluding MERGED.md."""
     return sorted(
         (p for p in base_dir.glob("*.md") if p.name.upper() != "MERGED.MD"),
@@ -125,7 +124,7 @@ def _collect_md_files(base_dir: UPath) -> list[UPath]:
     )
 
 
-def _build_merged_content(files: Iterable[UPath]) -> tuple[str, list[str]]:
+def _build_merged_content(files: Iterable[Path]) -> tuple[str, list[str]]:
     """Build the merged markdown content with TOC.
 
     Returns:
@@ -178,7 +177,7 @@ def merge_markdown_flow(
         MergeResult with path and merged file count.
     """
     resolved = resolve_config_path(base_dir)
-    base_upath = UPath(resolved)
+    base_upath = Path(resolved)
 
     if not base_upath.is_dir():
         logger.error(f"Directory does not exist: {base_upath}")

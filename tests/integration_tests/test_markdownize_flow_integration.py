@@ -1,7 +1,8 @@
 """Integration-style tests for markdownize flow with deterministic stubs."""
 
+from pathlib import Path
+
 import pytest
-from upath import UPath
 
 import genai_tk.workflow.prefect.flows.markdownize_flow as mod
 from genai_tk.workflow.prefect.flows.markdownize_flow import (
@@ -49,7 +50,7 @@ def test_markdownize_flow_creates_manifest(tmp_path, monkeypatch) -> None:
     assert isinstance(manifest, MarkdownizeManifest)
     assert len(manifest.entries) == 1
 
-    manifest_path = UPath(output_dir) / "manifest.json"
+    manifest_path = Path(output_dir) / "manifest.json"
     assert manifest_path.exists()
 
 

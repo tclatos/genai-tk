@@ -8,6 +8,8 @@ Supports both explicit chunker selection and automatic selection based on file e
 
 Example:
     ```python
+    from pathlib import Path
+
     from genai_tk.core.factories import ChunkerFactory
 
     # Create a named chunker from config
@@ -15,18 +17,17 @@ Example:
     docs = splitter.split_documents([Document(page_content=text)])
 
     # Auto-select chunker based on file extension
-    from upath import UPath
-
-    splitter = ChunkerFactory.create_for_file(UPath("document.md"))
+    splitter = ChunkerFactory.create_for_file(Path("document.md"))
     docs = splitter.split_documents([Document(page_content=text)])
     ```
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from langchain_text_splitters import TextSplitter
 from loguru import logger
-from upath import UPath
 
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.import_utils import ImportResolver
@@ -85,7 +86,7 @@ class ChunkerFactory:
     @classmethod
     def create_for_file(
         cls,
-        path: UPath | str,
+        path: Path | str,
         chunker_name: str = "auto",
     ) -> TextSplitter:
         """Create a TextSplitter for a file, optionally with auto-detection.
@@ -94,7 +95,7 @@ class ChunkerFactory:
         using config.chunkers.auto_map.
 
         Args:
-            path: File path (str or UPath).
+            path: File path (str or Path).
             chunker_name: Chunker configuration name.
                 If "auto", uses file extension to select from chunkers.auto_map.
 
@@ -106,7 +107,7 @@ class ChunkerFactory:
                 but no mapping exists for the file extension.
         """
         if isinstance(path, str):
-            path = UPath(path)
+            path = Path(path)
 
         if chunker_name == "auto":
             config = global_config()

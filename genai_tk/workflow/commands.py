@@ -159,7 +159,7 @@ class WorkflowCommands(CliTopCommand):
             the workflow.  Presets supply concrete values for the workflow's
             parameters (e.g. directory paths).
 
-            Shorthand options map to workflow values:
+            Shorthand options map to common workflow values:
             - ``--pathspec`` → ``values.pathspecs`` (repeatable, prefix ! to exclude)
             - ``--to`` → ``values.output_dir``
             - ``--base-dir`` → ``values.base_dir``

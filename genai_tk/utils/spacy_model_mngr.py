@@ -31,9 +31,9 @@ if __name__ == "__main__":
 """
 
 import subprocess
+from pathlib import Path
 
 from loguru import logger
-from upath import UPath
 
 from genai_tk.utils.config_mngr import global_config
 
@@ -42,7 +42,7 @@ class SpaCyModelManager:
     """Manages SpaCy model installation and configuration."""
 
     @staticmethod
-    def get_model_path(model_name: str) -> UPath:
+    def get_model_path(model_name: str) -> Path:
         """Get the path where the SpaCy model should be stored."""
         path = global_config().get_dir_path("paths.models", create_if_not_exists=True)
         return path / "spacy_models" / model_name
@@ -54,7 +54,7 @@ class SpaCyModelManager:
         return model_path.exists()
 
     @staticmethod
-    def download_model(model_name: str) -> UPath:
+    def download_model(model_name: str) -> Path:
         """Download the SpaCy model if not already present."""
         model_path = SpaCyModelManager.get_model_path(model_name)
 

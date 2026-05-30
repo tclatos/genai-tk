@@ -639,15 +639,16 @@ uv run cli rag add-files ./documents --chunker auto --chunk-size 256
 ```
 
 ```python
+from pathlib import Path
+
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
-from upath import UPath
 
 # Auto-detect
-splitter = ChunkerFactory.create_for_file(UPath("doc.md"), "auto")
-splitter = ChunkerFactory.create_for_file(UPath("code.py"), "auto")
+splitter = ChunkerFactory.create_for_file(Path("doc.md"), "auto")
+splitter = ChunkerFactory.create_for_file(Path("code.py"), "auto")
 
 # Explicit
-splitter = ChunkerFactory.create_for_file(UPath("doc.md"), "markdown")
+splitter = ChunkerFactory.create_for_file(Path("doc.md"), "markdown")
 ```
 
 ### Document Metadata

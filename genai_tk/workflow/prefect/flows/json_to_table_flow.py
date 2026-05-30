@@ -28,7 +28,6 @@ from typing import Any
 
 from loguru import logger
 from prefect import flow, task
-from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.import_utils import import_model
@@ -91,7 +90,7 @@ def _record_from_json(
 
 
 @task
-def load_json_files_task(input_dir: str, pathspecs: list[str] | None) -> list[UPath]:
+def load_json_files_task(input_dir: str, pathspecs: list[str] | None) -> list[Path]:
     """Discover JSON files in input_dir matching pathspecs.
 
     Args:
@@ -109,7 +108,7 @@ def load_json_files_task(input_dir: str, pathspecs: list[str] | None) -> list[UP
 
 @task
 def build_dataframe_task(
-    json_files: list[UPath],
+    json_files: list[Path],
     model_dotted_path: str | None,
     keys: list[str] | None,
 ) -> list[dict[str, Any]]:

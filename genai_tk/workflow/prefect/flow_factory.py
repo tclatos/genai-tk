@@ -47,12 +47,13 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 from pydantic import BaseModel
-from upath import UPath
 
+from genai_tk.utils.config_mngr import global_config
 from genai_tk.workflow.compiled_models import CompiledStep, CompiledWorkflow
 
 if TYPE_CHECKING:
@@ -168,7 +169,7 @@ class PrefectFlowFactory(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def workflow_manifest_path(workflow_name: str) -> UPath:
+def workflow_manifest_path(workflow_name: str) -> Path:
     """Return the path to the workflow-level step-cache manifest.
 
     Uses ``paths.data_root`` from global config when available, falling back
@@ -181,11 +182,9 @@ def workflow_manifest_path(workflow_name: str) -> UPath:
         Path to the manifest JSON file.
     """
     try:
-        from genai_tk.utils.config_mngr import global_config
-
-        data_root = UPath(str(global_config().paths.data_root))
+        data_root = global_config().get_dir_path("paths.data_root")
     except Exception:
-        data_root = UPath.home() / ".cache" / "genai_tk"
+        data_root = Path.home() / ".cache" / "genai_tk"
     return data_root / ".workflow_manifests" / workflow_name / "manifest.json"
 
 

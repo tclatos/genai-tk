@@ -11,11 +11,11 @@ from __future__ import annotations
 import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ThreadPoolTaskRunner
-from upath import UPath
 
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
@@ -26,7 +26,7 @@ SUPPORTED_EXTENSIONS = {".ppt", ".pptx", ".odp"}
 
 @dataclass(slots=True)
 class _FileToProcess:
-    path: UPath
+    path: Path
     content_hash: str
 
 
@@ -67,13 +67,13 @@ def _prepare_files(
     return to_process, skipped
 
 
-def _is_ppt_compatible(file_path: UPath) -> bool:
+def _is_ppt_compatible(file_path: Path) -> bool:
     """Check if file is a PowerPoint-compatible format."""
     suffix = file_path.suffix.lower()
     return suffix in SUPPORTED_EXTENSIONS
 
 
-def _convert_with_libreoffice(input_path: UPath, output_dir: UPath) -> UPath:
+def _convert_with_libreoffice(input_path: Path, output_dir: Path) -> Path:
     """Convert a file to PDF using LibreOffice in headless mode.
 
     Args:
@@ -146,15 +146,15 @@ def _process_single_file_task(
     """
     upath = file_info.path
 
-    output_upath = UPath(output_dir)
+    output_upath = Path(output_dir)
 
     # Preserve directory structure: compute relative path from root_dir to source file
-    root_dir_path = UPath(root_dir)
+    root_dir_path = Path(root_dir)
     try:
         relative_source_path = upath.relative_to(root_dir_path)
     except ValueError:
         # If file is not under root_dir, use just the filename
-        relative_source_path = UPath(upath.name)
+        relative_source_path = Path(upath.name)
 
     # Compute output directory preserving structure
     relative_output_dir = relative_source_path.parent
@@ -219,13 +219,13 @@ def ppt2pdf_flow(
     logger.info("Discovered {} files to process", len(file_paths))
 
     resolved_output = resolve_config_path(output_dir)
-    output_upath = UPath(resolved_output)
+    output_upath = Path(resolved_output)
     output_upath.mkdir(parents=True, exist_ok=True)
 
     manifest_path = output_upath / "manifest.json"
     cache = ManifestCache.load(manifest_path)
 
-    files = [UPath(p) for p in file_paths if _is_ppt_compatible(UPath(p))]
+    files = [Path(p) for p in file_paths if _is_ppt_compatible(Path(p))]
     to_process, skipped = _prepare_files(files, cache, force=force)
 
     if skipped:

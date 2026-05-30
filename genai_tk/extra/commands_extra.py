@@ -123,14 +123,14 @@ class ExtraCommands(CliTopCommand):
                 python -m src.ai_extra.mistral_ocr ocr_pdf "*.pdf" "data/*.pdf" --output-dir=./ocr_results
             """
 
-            from upath import UPath
+            from pathlib import Path
 
             from genai_tk.workflow.loaders.mistral_ocr import process_pdf_batch
 
             # Collect all PDF files matching the patterns
             all_files = []
             for pattern in file_patterns:
-                path = UPath(pattern)
+                path = Path(pattern)
 
                 # Handle glob patterns
                 if "*" in pattern:
@@ -155,7 +155,7 @@ class ExtraCommands(CliTopCommand):
             logger.info("Found {} PDF files to process", len(pdf_files))
 
             # Process the files
-            output_path = UPath(output_dir)
+            output_path = Path(output_dir)
             asyncio.run(process_pdf_batch(pdf_files, output_path, use_cache))
 
             logger.info("OCR processing complete. Results saved to {}", output_dir)
