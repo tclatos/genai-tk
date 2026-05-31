@@ -80,6 +80,7 @@ class CompiledStep(BaseModel):
     cache: CacheSpec = Field(default_factory=CacheSpec)
     artifacts: ArtifactSpec = Field(default_factory=ArtifactSpec)
     foreach: ForeachSpec | None = None
+    inline: bool = False
 
     model_config = {"populate_by_name": True}
 

@@ -471,6 +471,9 @@ def _build_prefect_flow(
             manifest.save(manifest_path)
             logger.debug("Manifest saved to {}", manifest_path)
 
+        # Workflow-level summary artifact (opt-in via artifacts.publish_result)
+        _publish_workflow_artifact(compiled.name, sorted_steps, results)
+
         return results
 
     # With an external Prefect server, there is no need to register the flow
@@ -529,3 +532,37 @@ def _resolve_step_ref(val: Any, results: dict[str, Any], *, item_var: Any = None
         return getattr(step_result, field, None)
 
     return val
+
+
+def _publish_workflow_artifact(
+    workflow_name: str,
+    steps: list[CompiledStep],
+    results: dict[str, Any],
+) -> None:
+    """Create a markdown summary artifact for the workflow run (best-effort)."""
+    publishable = [s for s in steps if s.artifacts.publish_result]
+    if not publishable:
+        return
+
+    try:
+        from prefect.artifacts import create_markdown_artifact
+    except ImportError:
+        return
+
+    lines = [f"# Workflow: {workflow_name}", "", "| Step | Result |", "|------|--------|"]
+    for step in steps:
+        res = results.get(step.id)
+        if res is None:
+            summary = "—"
+        elif isinstance(res, dict):
+            parts = [f"{k}={v}" for k, v in res.items() if k != "config_name"]
+            summary = ", ".join(parts[:4]) or "ok"
+        else:
+            summary = str(res)[:80]
+        lines.append(f"| {step.id} | {summary} |")
+
+    try:
+        safe_key = re.sub(r"[^a-z0-9-]", "-", workflow_name.lower())
+        create_markdown_artifact("\n".join(lines), key=f"workflow-{safe_key}")
+    except Exception:
+        logger.debug("Failed to create workflow summary artifact")

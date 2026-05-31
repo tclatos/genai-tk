@@ -95,6 +95,18 @@ def _make_step_task(step: CompiledStep) -> Task:
         # flow / task / callable — all resolved the same way at runtime.
         callable_obj = _import_target(target)
 
+        # When inline=True and the target is a @flow-decorated function,
+        # call .fn to bypass subflow creation — internal tasks run directly
+        # under the parent workflow flow.
+        if step.inline:
+            try:
+                from prefect.flows import Flow as PrefectFlow
+
+                if isinstance(callable_obj, PrefectFlow):
+                    callable_obj = callable_obj.fn
+            except ImportError:
+                pass
+
         def _fn(**kwargs: Any) -> Any:
             return callable_obj(**kwargs)
 

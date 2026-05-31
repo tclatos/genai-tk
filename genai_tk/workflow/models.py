@@ -70,6 +70,7 @@ class PipelineStep(BaseModel):
     cache: CacheSpec = Field(default_factory=CacheSpec)
     execution: ExecutionSpec = Field(default_factory=ExecutionSpec)
     foreach: ForeachSpec | None = None
+    inline: bool = False
 
     model_config = {"populate_by_name": True}
 
@@ -161,6 +162,7 @@ class StepSpec(BaseModel):
     execution: ExecutionSpec = Field(default_factory=ExecutionSpec)
     artifacts: ArtifactSpec = Field(default_factory=ArtifactSpec)
     foreach: ForeachSpec | None = None
+    inline: bool = False
 
     model_config = {"populate_by_name": True}
 

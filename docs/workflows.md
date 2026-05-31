@@ -282,7 +282,7 @@ workflows:
 | `cache` | | Cache policy: `none` (default), `manifest`, `hybrid` |
 | `execution` | | Retry / failure policy |
 | `foreach` | | Fan-out: run this step once per item in a list — see [`foreach:` Block](#foreach-block--fan-out--map) |
-
+| `inline` | | When `true`, suppress Prefect subflow creation — see [Subflow Naming and Inline Mode](#subflow-naming-and-inline-mode) |
 ### `with:` Values
 
 Arguments passed to the callable.  Supports `${values.*}` interpolation:
@@ -316,6 +316,23 @@ execution:
   retry_delay_seconds: 30.0
   tags: [slow, gpu]
 ```
+
+### `artifacts:` Block
+
+Control whether Prefect artifacts are created for this step after it completes.
+
+```yaml
+artifacts:
+  publish_result: true    # emit a workflow-level markdown summary artifact (default: false)
+```
+
+When at least one step in a workflow has `publish_result: true`, the workflow engine
+creates a markdown artifact keyed `workflow-<name>` after the collect phase.  The artifact
+is a table of every step id and its result summary, visible in the Prefect UI Artifacts tab.
+
+Individual step functions (e.g. `create_kg_flow`) may also create their own artifacts
+with step-scoped keys such as `kg-create-<config_name>`.  These are independent of the
+workflow-level artifact.
 
 ### `foreach:` Block — Fan-Out / Map
 
@@ -439,6 +456,50 @@ steps are **expanded in-place** and prefixed with `{step_id}.` to avoid ID colli
 - Parent's `with:` is merged on top of sub-workflow's auto-wired defaults — explicit values win.
 - Sub-workflows are recursive; cycles are detected and reported as errors.
 
+### Subflow Naming and Inline Mode
+
+When the workflow engine runs a step whose target is a Prefect `@flow`-decorated function, that
+function is called from inside a Prefect task.  Prefect sees the nested `@flow` call and
+automatically creates a **subflow run** — visible in the Prefect UI under the parent workflow
+flow run.
+
+**Named subflows** are the default behaviour.  Step functions should use
+`flow.with_options(flow_run_name=...)` to give each subflow invocation a descriptive name
+instead of the generic function name:
+
+```python
+run_fn = create_kg_flow.with_options(flow_run_name=f"kg:{config_name}/{factory_short}")
+result = run_fn(config_name=config_name, ...)
+```
+
+In the Prefect UI each subflow now shows as e.g. `kg:rainbow_add_crm/ReviewedOpportunityGraph`
+rather than a generic `create_kg_flow` label.
+
+**Inline mode** suppresses subflow creation entirely.  All internal Prefect tasks run directly
+under the parent workflow flow — useful when you want a single flat flow run in the Prefect UI
+or need to avoid the overhead of subflow state tracking.
+
+Enable it at the YAML step level:
+
+```yaml
+pipeline:
+  - id: build_kg
+    run: kg_build
+    inline: true        # step_factory calls flow.fn() instead of flow()
+    with:
+      inline: true      # forwarded to kg_build_step — it calls create_kg_flow.fn()
+      graph: { factory: myproject.graphs.MyGraph }
+      kg_name: my_kg
+```
+
+The `inline: true` step field is handled at the **framework level** by `step_factory.py`:
+when the resolved target is a Prefect `Flow` object, `.fn` is used to call the underlying
+Python function without creating a subflow context.  The `inline` key inside `with:` is an
+**application-level convention** — the step function itself must accept and honour it.
+
+> Tradeoff: inline mode loses per-subflow retry state and independent Prefect UI panels for
+> each KG build.  Use it when you prefer a single cohesive flow run over granular observability.
+
 **Example:**
 
 ```yaml
@@ -473,22 +534,70 @@ workflows:
 
 ### Python `@workflow` Decorator
 
-Register a Python callable as a named workflow without YAML:
+Register a Python callable as a named workflow without YAML.
 
 ```python
 from genai_tk.workflow import workflow
 
-@workflow(
-    name="my_step",
-    description="My Python step",
-    defaults={"batch_size": 5},
-)
+# Full form — explicit name and description:
+@workflow(name="my_step", description="My Python step")
 def my_step(input_dir: str, output_dir: str, batch_size: int = 5) -> dict:
+    ...
+
+# Shorthand — uses function name as the registration key:
+@workflow
+def markdownize(base_dir: str, output_dir: str) -> dict:
     ...
 ```
 
+**What it does:** the decorator registers the function in the module-level
+`WorkflowRegistry` singleton under the given `name` (or `fn.__name__`).  The
+original function is returned **unchanged** — it keeps its type, signature, and
+callability.  The registry entry stores the dotted Python path derived from
+`fn.__module__` and `fn.__qualname__`, so the function can be resolved by the
+workflow engine even if it is never imported directly.
+
+**Arguments:**
+
+| Argument | Default | Purpose |
+|---|---|---|
+| `name` | `fn.__name__` | Registration key used in `run: <name>` YAML and `cli workflow list` |
+| `description` | first docstring line | Short description shown in `cli workflow list` |
+| `hidden` | `False` | Omit from `cli workflow list` (step is still runnable) |
+
+> **Note:** there is no `defaults=` argument on `@workflow`.  Defaults belong
+> in the YAML workflow definition under `defaults:`.  The decorator's only
+> job is registration — it does not alter execution behaviour.
+
 Decorated callables appear in `cli workflow list` and can be used as `run:` targets by name
 in YAML pipeline steps.
+
+**Example from genai-graph:**
+
+```python
+# genai_graph/orchestration/workflow_steps.py
+from genai_tk.workflow.registry import workflow
+
+@workflow(name="kg_build", description="Build a KG from a single graph factory config", hidden=True)
+def kg_build_step(*, graph: dict, kg_name: str = "inline", delete_first: bool = False) -> dict:
+    from genai_graph.orchestration.flows import create_kg_flow
+    ...
+    result = create_kg_flow.with_options(flow_run_name=f"kg:{kg_name}")(config_name=kg_name)
+    return {"config_name": kg_name, "total_processed": result.stats.total_processed}
+```
+
+The corresponding YAML references this step by its registered name:
+
+```yaml
+workflows:
+  build_my_kg:
+    run: kg_build          # resolves to kg_build_step via registry
+    defaults:
+      delete_first: false
+    params:
+      graph: {required: true}
+      kg_name: {required: true}
+```
 
 ---
 
@@ -748,20 +857,27 @@ from genai_tk.workflow import workflow
 
 @workflow(
     name="kg_build",
-    description="Build a knowledge graph from inline configs",
-    defaults={"delete_first": False, "export_html": True},
+    description="Build a knowledge graph from inline config",
 )
 def kg_build_step(
-    graphs: list[dict],
+    graph: dict,
     kg_name: str = "inline",
     delete_first: bool = False,
     export_html: bool = True,
     force_rebuild: bool = False,
+    inline: bool = False,
 ) -> dict:
-    ...
+    from myproject.flows import my_kg_flow
+    run_fn = my_kg_flow.fn if inline else my_kg_flow.with_options(flow_run_name=f"kg:{kg_name}")
+    result = run_fn(config_name=kg_name, delete_first=delete_first)
+    return {"config_name": kg_name, "total_processed": result.stats.total_processed}
 ```
 
 The decorated callable is registered globally and can be used as `run: kg_build` in YAML.
+
+The `defaults:` for parameters live in the YAML workflow definition — not in the `@workflow`
+decorator itself.  The decorator only registers the callable; the function signature provides
+default values for Python-side calls.
 
 ---
 
@@ -941,9 +1057,30 @@ uv run cli workflow run baml_to_table/default \
 
 ### genai-graph Examples
 
-- `config/workflows/graph_construction.yaml` — `kg_build` (library), `one_rainbow`, `learned` (3-level composition)
+- `config/workflows/graph_construction.yaml` — `kg_build` (library), `one_rainbow`, `stratnav_subset_rainbow_crm` (3-level composition)
 - `config/workflows/data_injection.yaml` — `ppt2pdf_documents`, `markdownize_documents`, `full_kg_pipeline`
-- `genai_graph/orchestration/workflow_steps.py` — `@workflow`-decorated `kg_build_step`
+- `genai_graph/orchestration/workflow_steps.py` — `@workflow`-decorated `kg_build_step` and `kg_create_step`
+
+**Subflow naming:** `kg_build_step` uses `create_kg_flow.with_options(flow_run_name=f"kg:{kg_name}/{factory_short}")`
+so each KG build appears with a descriptive name in the Prefect UI (e.g. `kg:rainbow_add_crm/ReviewedOpportunityGraph`)
+instead of the generic `create_kg_flow` label.
+
+**Inline mode example** — flatten all KG builds into a single Prefect flow run:
+
+```yaml
+pipeline:
+  - id: build
+    run: kg_build
+    inline: true        # step_factory uses create_kg_flow.fn()
+    with:
+      inline: true      # kg_build_step also calls create_kg_flow.fn()
+      graph: { factory: myproject.MyGraph }
+      kg_name: my_kg
+```
+
+**Artifacts:** each `create_kg_flow` subflow creates a `kg-create-<config_name>` artifact in
+the Prefect UI with a markdown summary (document stats, bundle breakdown, warnings).  Add
+`artifacts: { publish_result: true }` to any step to also get a workflow-level step summary.
 
 ---
 

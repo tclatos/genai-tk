@@ -91,6 +91,7 @@ class WorkflowCompiler:
             cache=CacheSpec(**step.cache.model_dump()),
             artifacts=ArtifactSpec(**step.artifacts.model_dump()),
             foreach=step.foreach,
+            inline=step.inline,
         )
 
     def _resolve_invoke(self, step: StepSpec) -> InvokeSpec:

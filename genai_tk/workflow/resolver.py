@@ -419,6 +419,7 @@ def _expand_pipeline(
                         execution=sub_step.execution,
                         artifacts=sub_step.artifacts,
                         foreach=sub_step.foreach,
+                        inline=sub_step.inline,
                     )
                 )
         else:
@@ -435,6 +436,7 @@ def _expand_pipeline(
                     execution=ps.execution,
                     artifacts=ArtifactSpec(),
                     foreach=ps.foreach,
+                    inline=ps.inline,
                 )
             )
 
