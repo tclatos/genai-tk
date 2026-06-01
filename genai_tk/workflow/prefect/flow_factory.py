@@ -64,6 +64,24 @@ class WorkflowExecutionError(RuntimeError):
     """Raised when a workflow step fails and ``on_failure`` is ``abort``."""
 
 
+def _root_cause_message(exc: BaseException) -> str:
+    """Walk the exception chain and return the most informative message.
+
+    Prefect wraps the original exception through several async layers; this
+    traverses ``__cause__`` / ``__context__`` to find the leaf message so that
+    ``WorkflowExecutionError`` surfaces the real problem rather than a Prefect
+    wrapper message.
+    """
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    deepest = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        deepest = current
+        current = current.__cause__ or (current.__context__ if not current.__suppress_context__ else None)
+    return str(deepest)
+
+
 class PrefectFlowFactory(BaseModel):
     """Build and run a Prefect flow from a :class:`~genai_tk.workflow.compiled_models.CompiledWorkflow`.
 
@@ -463,7 +481,8 @@ def _build_prefect_flow(
 
             except Exception as exc:
                 if on_failure == "abort":
-                    raise WorkflowExecutionError(f"Step '{step_id}' failed: {exc}") from exc
+                    root_msg = _root_cause_message(exc)
+                    raise WorkflowExecutionError(f"Step '{step_id}' failed: {root_msg}") from exc
                 logger.warning("Step '{}' failed ({}): {}", step_id, on_failure, exc)
                 results[step_id] = None
 

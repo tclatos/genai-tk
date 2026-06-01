@@ -23,6 +23,7 @@ from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
 from pydantic import BaseModel, Field
 
+from genai_tk.core.factories.llm_factory import LlmFactory
 from genai_tk.extra.structured.baml_util import baml_invoke, prompt_fingerprint
 from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
@@ -43,6 +44,7 @@ class BamlExtractionManifest(BaseModel):
     function_name: str
     config_name: str
     llm: str | None = None
+    resolved_llm: str | None = None
     model_name: str | None = None
     entries: dict[str, BamlExtractionManifestEntry] = Field(default_factory=dict)
 
@@ -168,7 +170,14 @@ async def _process_single_file_task(
         input_doc = file_info.content_text
 
     params: dict[str, Any] = {"__input__": input_doc}
-    result = await baml_invoke(function_name, params, config_name, llm)
+    try:
+        result = await baml_invoke(function_name, params, config_name, llm)
+    except Exception as exc:
+        from genai_tk.extra.structured.exceptions import StructuredOutputError
+
+        if isinstance(exc, StructuredOutputError):
+            logger.error("BAML error: {}", exc)
+        raise
 
     # Determine model name and output directory. For Pydantic models we
     # use ``structured/<model_name>/`` as the root; otherwise we fall
@@ -257,6 +266,11 @@ def baml_structured_extraction_flow(
 
     logger.info("Discovered {} files to process", len(file_paths))
 
+    resolved_llm: str | None = None
+    if llm and llm != "default":
+        resolved_llm = LlmFactory(llm=llm).get_id()
+        logger.info("Resolved BAML LLM override '{}' -> '{}'", llm, resolved_llm)
+
     resolved_output = resolve_config_path(output_dir)
     structured_root_upath = Path(resolved_output)
     structured_root_upath.mkdir(parents=True, exist_ok=True)
@@ -283,6 +297,7 @@ def baml_structured_extraction_flow(
             function_name=function_name,
             config_name=config_name,
             llm=llm,
+            resolved_llm=resolved_llm,
             entries={
                 k: BamlExtractionManifestEntry(
                     source_hash=rec.fingerprint,
@@ -335,6 +350,7 @@ def baml_structured_extraction_flow(
         function_name=function_name,
         config_name=config_name,
         llm=llm,
+        resolved_llm=resolved_llm,
         model_name=detected_model_name,
         entries={
             k: BamlExtractionManifestEntry(

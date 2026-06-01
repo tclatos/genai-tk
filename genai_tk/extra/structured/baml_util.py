@@ -6,6 +6,7 @@ including dynamic loading, type inspection, and validation.
 
 import importlib
 import inspect
+import re
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Type, get_args, get_origin
@@ -15,9 +16,40 @@ from baml_py import ClientRegistry
 from loguru import logger
 from pydantic import BaseModel
 
+from genai_tk.extra.structured.exceptions import (
+    BamlClientLoadError,
+    BamlFunctionNotFoundError,
+    BamlVersionMismatchError,
+)
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.utils.pydantic_utils.common import validate_pydantic_model
+
+_VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
+
+_DEFAULT_BAML_HTTP_OPTIONS = {
+    "connect_timeout_ms": 10_000,
+    "time_to_first_token_timeout_ms": 120_000,
+    "idle_timeout_ms": 120_000,
+    "request_timeout_ms": 900_000,
+}
+
+
+def _parse_baml_versions(err_msg: str) -> tuple[str | None, str | None]:
+    """Extract (generator_version, library_version) from a BAML version-mismatch error."""
+    gen_ver: str | None = None
+    lib_ver: str | None = None
+    for line in err_msg.splitlines():
+        lo = line.lower()
+        if "generator" in lo or "baml_client" in lo:
+            m = _VERSION_RE.search(line)
+            if m:
+                gen_ver = m.group(1)
+        elif "current version" in lo or "baml-py" in lo:
+            m = _VERSION_RE.search(line)
+            if m:
+                lib_ver = m.group(1)
+    return gen_ver, lib_ver
 
 
 def load_baml_client(config_name: str = "default") -> tuple[Any, Any]:
@@ -48,15 +80,25 @@ def load_baml_client(config_name: str = "default") -> tuple[Any, Any]:
     try:
         types_module = importlib.import_module(f"{baml_client_package}.types")
     except ImportError as e:
-        raise ImportError(f"Failed to import types module from '{baml_client_package}.types': {e}") from e
+        err_msg = str(e)
+        if "out of date" in err_msg or "baml-py" in err_msg:
+            gen_ver, lib_ver = _parse_baml_versions(err_msg)
+            raise BamlVersionMismatchError(gen_ver, lib_ver, err_msg) from e
+        raise BamlClientLoadError(
+            config_name, f"Failed to import types module from '{baml_client_package}.types': {e}", e
+        ) from e
 
     try:
         async_client_module = importlib.import_module(f"{baml_client_package}.async_client")
         baml_async_client = async_client_module.b
     except ImportError as e:
-        raise ImportError(f"Failed to import async client from '{baml_client_package}.async_client': {e}") from e
+        raise BamlClientLoadError(
+            config_name, f"Failed to import async client from '{baml_client_package}.async_client': {e}", e
+        ) from e
     except AttributeError as e:
-        raise AttributeError(f"Async client module does not have expected 'b' attribute: {e}") from e
+        raise BamlClientLoadError(
+            config_name, f"Async client module does not have expected 'b' attribute: {e}", e
+        ) from e
 
     return types_module, baml_async_client
 
@@ -138,12 +180,13 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
 
     try:
         llm_factory = LlmFactory(llm=llm_identifier, llm_params={"temperature": temperature})
+        resolved_llm_identifier = llm_factory.get_id()
         llm_info = llm_factory.info
         llm = llm_factory.get()
         llm_dict = llm.model_dump()
 
         if llm.__class__.__name__ == "ChatOpenAI":
-            provider = "openai-generic"
+            provider = "openai-generic" if llm_dict.get("openai_api_base") else "openai"
             model = llm_dict["model_name"]
         else:
             raise ValueError(f"Provider not (yet?) supported for BAML: {llm_info.provider}")  # type: ignore
@@ -156,10 +199,11 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
             options["temperature"] = llm_dict["temperature"]
         if "openai_api_base" in llm_dict:
             options["base_url"] = llm_dict["openai_api_base"]
+        options["http"] = dict(_DEFAULT_BAML_HTTP_OPTIONS)
 
         cr = ClientRegistry()
-        cr.add_llm_client(name=llm_identifier, provider=provider, options=options)
-        cr.set_primary(llm_identifier)
+        cr.add_llm_client(name=resolved_llm_identifier, provider=provider, options=options)
+        cr.set_primary(resolved_llm_identifier)
         return cr
     except Exception as e:
         raise ValueError(f"Failed to get LLM info for '{llm_identifier}': {e}") from e
@@ -167,7 +211,7 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
 
 def load_and_validate_baml_function(
     config_name: str, function_name: str, require_pydantic: bool = False
-) -> tuple[Callable[..., Awaitable[Any]], Type[Any] | None, Any, Any] | None:
+) -> tuple[Callable[..., Awaitable[Any]], Type[Any] | None, Any, Any]:
     """Load BAML client and get a validated function with its return type.
 
     Args:
@@ -176,33 +220,31 @@ def load_and_validate_baml_function(
         require_pydantic: If True, validates that return type is a Pydantic model
 
     Returns:
-        Tuple of (baml_function, return_type, baml_types, baml_async_client) or None on error
+        Tuple of (baml_function, return_type, baml_types, baml_async_client)
+
+    Raises:
+        BamlVersionMismatchError: If the installed baml-py version doesn't match the generated client.
+        BamlClientLoadError: If the BAML client modules cannot be imported.
+        BamlFunctionNotFoundError: If the requested function does not exist in the client.
+        BamlInvocationError: If return-type validation fails (require_pydantic=True).
     """
-    # Load BAML client
-    try:
-        baml_types, baml_async_client = load_baml_client(config_name)
-        logger.debug("Successfully loaded BAML client for config: {}", config_name)
-    except Exception as e:
-        logger.error("Failed to load BAML client: {}", e)
-        return None
+    # Load BAML client — let structured exceptions propagate to the caller
+    baml_types, baml_async_client = load_baml_client(config_name)
+    logger.debug("Successfully loaded BAML client for config: {}", config_name)
 
     # Get BAML function and return type
     try:
         baml_function, return_type = get_baml_function(baml_async_client, function_name)
-    except AttributeError as e:
-        logger.error(str(e))
-        return None
+    except AttributeError:
+        raise BamlFunctionNotFoundError(function_name, config_name)
 
     # Validate return type if required
     if require_pydantic:
         if return_type is None:
-            logger.error("Could not deduce return type from BAML function '{}'", function_name)
-            return None
-        try:
-            return_type = validate_pydantic_model(return_type, function_name)
-        except ValueError as e:
-            logger.error("BAML function '{}' must return a Pydantic BaseModel: {}", function_name, e)
-            return None
+            from genai_tk.extra.structured.exceptions import BamlInvocationError
+
+            raise BamlInvocationError(function_name, "could not deduce return type from BAML function")
+        return_type = validate_pydantic_model(return_type, function_name)
 
     return baml_function, return_type, baml_types, baml_async_client
 
@@ -342,12 +384,13 @@ async def baml_invoke(
         Result from the BAML function execution
 
     Raises:
-        ValueError: If BAML function execution fails or return type validation fails
+        BamlVersionMismatchError: If the installed baml-py version doesn't match the generated client.
+        BamlClientLoadError: If the BAML client modules cannot be imported.
+        BamlFunctionNotFoundError: If the requested function does not exist in the client.
+        BamlInvocationError: If return-type validation fails.
     """
-    # Load and validate BAML function
+    # Load and validate BAML function — structured exceptions propagate directly
     result = load_and_validate_baml_function(config_name, function_name, require_pydantic=check_result_is_pydantic)
-    if result is None:
-        raise ValueError(f"Failed to load BAML function: {function_name}")
 
     baml_function, return_type, baml_types, baml_async_client = result
 

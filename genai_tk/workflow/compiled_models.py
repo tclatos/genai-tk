@@ -65,8 +65,8 @@ class ArtifactSpec(BaseModel):
     """Artifact and result publication policy for a step."""
 
     publish_result: bool = False
-    publish_metadata: bool = False
-    output_dir: str | None = None
+    # publish_metadata: bool = False
+    # output_dir: str | None = None
 
 
 class CompiledStep(BaseModel):
