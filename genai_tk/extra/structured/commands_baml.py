@@ -32,6 +32,7 @@ Note:
     Prefect flows are no longer used from the CLI.
 """
 
+import json
 import sys
 from typing import Annotated
 
@@ -179,12 +180,23 @@ class BamlCommands(CliTopCommand):
                 from genai_tk.workflow.executor import WorkflowExecutionError, execute_workflow
 
                 results = execute_workflow(invocation)
+                step_result = next(iter(results.values()), None)
+                resolved_llm = None
+                output_model_name = None
+
+                if isinstance(step_result, tuple):
+                    if len(step_result) >= 2:
+                        output_model_name = step_result[1]
+                    if len(step_result) >= 3:
+                        resolved_llm = step_result[2]
+                    relative_output_path = step_result[3] if len(step_result) >= 4 else None
+                else:
+                    relative_output_path = None
 
                 # Print result to stdout if no output file was specified
                 if not output_dir or not output_file:
                     # results is a dict of step_id -> return value; baml_run has one step "run"
-                    step_result = next(iter(results.values()), None)
-                    # baml_single_input_flow returns (result, model_name)
+                    # baml_single_input_flow returns (result, model_name, resolved_llm)
                     if isinstance(step_result, tuple):
                         step_result = step_result[0]
                     if step_result is not None:
@@ -193,7 +205,12 @@ class BamlCommands(CliTopCommand):
                         else:
                             print(json.dumps(step_result, indent=2, default=str))
                 else:
-                    logger.success(f"Result saved to {output_dir}/{function_name}/{output_file}")
+                    console.print(
+                        f"[green]BAML run complete.[/green]\n"
+                        f"  LLM     : {resolved_llm or 'default'}\n"
+                        f"  Schema  : {output_model_name or 'n/a'}\n"
+                        f"  Output  : {output_dir}/{relative_output_path or output_file}"
+                    )
 
             except WorkflowExecutionError as exc:
                 console.print(Panel(str(exc), title="Workflow Execution Error", border_style="red"))
@@ -322,8 +339,22 @@ class BamlCommands(CliTopCommand):
             try:
                 from genai_tk.workflow.executor import WorkflowExecutionError, execute_workflow
 
-                execute_workflow(invocation)
-                logger.success("BAML extraction completed successfully")
+                results = execute_workflow(invocation)
+                step_result = next(iter(results.values()), None)
+
+                if hasattr(step_result, "resolved_llm"):
+                    resolved_llm = step_result.resolved_llm
+                    output_model_name = getattr(step_result, "model_name", None)
+                    entry_count = len(getattr(step_result, "entries", {}) or {})
+                    console.print(
+                        f"[green]BAML extraction completed.[/green]\n"
+                        f"  LLM     : {resolved_llm or 'default'}\n"
+                        f"  Schema  : {output_model_name or 'n/a'}\n"
+                        f"  Files   : {entry_count}\n"
+                        f"  Output  : {output_dir}"
+                    )
+                else:
+                    logger.success("BAML extraction completed successfully")
 
             except WorkflowExecutionError as exc:
                 console.print(Panel(str(exc), title="Workflow Execution Error", border_style="red"))

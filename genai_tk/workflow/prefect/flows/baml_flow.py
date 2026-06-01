@@ -443,7 +443,7 @@ def baml_single_input_flow(
     output_dir: str | None = None,
     output_file: str | None = None,
     force: bool = False,
-) -> tuple[BaseModel | Any, str | None]:
+) -> tuple[BaseModel | Any, str | None, str | None, str | None]:
     """Run BAML on single text input as a Prefect flow.
 
     Args:
@@ -456,8 +456,14 @@ def baml_single_input_flow(
         force: Reprocess even if result exists in manifest
 
     Returns:
-        Tuple of (result, model_name) where result is the BAML output
+        Tuple of (result, model_name, resolved_llm, relative_output_path)
+        where result is the BAML output
     """
+
+    resolved_llm: str | None = None
+    if llm and llm != "default":
+        resolved_llm = LlmFactory(llm=llm).get_id()
+        logger.info("Resolved BAML LLM override '{}' -> '{}'", llm, resolved_llm)
 
     # Compute input hash for caching
     input_hash = _compute_hash(input_text.encode("utf-8"))
@@ -489,6 +495,7 @@ def baml_single_input_flow(
                 function_name=function_name,
                 config_name=config_name,
                 llm=llm,
+                resolved_llm=resolved_llm,
             )
 
     # Process the input
@@ -522,11 +529,13 @@ def baml_single_input_flow(
         if existing_manifest:
             existing_manifest.entries[input_key] = entry
             existing_manifest.model_name = model_name or existing_manifest.model_name
+            existing_manifest.resolved_llm = resolved_llm or existing_manifest.resolved_llm
         else:
             existing_manifest = BamlExtractionManifest(
                 function_name=function_name,
                 config_name=config_name,
                 llm=llm,
+                resolved_llm=resolved_llm,
                 model_name=model_name,
                 entries={input_key: entry},
             )
@@ -540,4 +549,4 @@ def baml_single_input_flow(
         _save_manifest(existing_manifest, manifest_path)
         logger.success(f"Manifest updated at {manifest_path}")
 
-    return result, model_name
+    return result, model_name, resolved_llm, relative_output_path

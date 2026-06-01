@@ -34,6 +34,8 @@ _DEFAULT_BAML_HTTP_OPTIONS = {
     "request_timeout_ms": 900_000,
 }
 
+_BAML_RUNTIME_CLIENT_NAME = "runtime_llm_override"
+
 
 def _parse_baml_versions(err_msg: str) -> tuple[str | None, str | None]:
     """Extract (generator_version, library_version) from a BAML version-mismatch error."""
@@ -202,8 +204,8 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
         options["http"] = dict(_DEFAULT_BAML_HTTP_OPTIONS)
 
         cr = ClientRegistry()
-        cr.add_llm_client(name=resolved_llm_identifier, provider=provider, options=options)
-        cr.set_primary(resolved_llm_identifier)
+        cr.add_llm_client(name=_BAML_RUNTIME_CLIENT_NAME, provider=provider, options=options)
+        cr.set_primary(_BAML_RUNTIME_CLIENT_NAME)
         return cr
     except Exception as e:
         raise ValueError(f"Failed to get LLM info for '{llm_identifier}': {e}") from e
