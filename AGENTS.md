@@ -160,5 +160,5 @@ Current docs index:
 | `docs/browser_control.md` | Browser automation (sandbox vs. direct Playwright) |
 | `docs/sandbox_support.md` | OpenSandbox Docker container setup and integration |
 | `docs/deer-flow.md` | DeerFlow integration — profiles, modes, chat commands |
-| `docs/webapp.md` | Built-in Streamlit webapp — `make webapp`, built-in agent pages, `genai_tk://` cross-package nav, `cli init` |
+| `docs/webapp.md` | Built-in Streamlit webapp — `just webapp`, built-in agent pages, `genai_tk://` cross-package nav, `cli init` |
 | `docs/TESTING_GUIDE.md` | Pytest fixtures, fake LLM/embeddings, async tests |

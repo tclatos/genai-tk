@@ -1,4 +1,4 @@
-# Web Interface (`make webapp`)
+# Web Interface (`just webapp`)
 
 genai-tk ships a Streamlit webapp so you can test agents interactively
 without writing any UI code.  Three built-in demo pages are included out
@@ -56,12 +56,12 @@ uv run cli init
 
 ```bash
 # From your project (or from genai-tk itself)
-make webapp
+just webapp
 ```
 
 This runs:
 ```
-uv run python -m streamlit run genai_tk/webapp/main/streamlit.py
+uv run python -m streamlit run <genai_tk-package>/webapp/main/streamlit.py
 ```
 
 Open <http://localhost:8501> in your browser.
@@ -97,15 +97,11 @@ See [Installation](#installation) above for how to bootstrap a new project.
 Once `cli init` has run:
 
 ```bash
-make webapp
+just webapp
 ```
 
-The generated `Makefile` has a `webapp` target pointing to genai-tk's built-in
-entry point.  Override `STREAMLIT_ENTRY` to use a custom file:
-
-```bash
-make webapp STREAMLIT_ENTRY=myapp/main/streamlit.py
-```
+The generated `justfile` has a `webapp` recipe that resolves the genai-tk
+entry point automatically via Python — no path override needed.
 
 ---
 

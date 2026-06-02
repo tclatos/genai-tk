@@ -1,8 +1,10 @@
 # use key-value store factory 
 use py-key-value-aio
 
-# doc
-The @workflow decorator is difficult to understand. Doc is very limited, with no exemples in genai-tk, and it seems not matching the module doc, and its use un genai-graph.
+# markdown
+all option to generate HMTMl with  Edgeparse
+ 
+Implement a "jsonify" version with liteparse v2
 
 # Artifect
 https://docs.prefect.io/v3/concepts/artifacts 

@@ -34,8 +34,8 @@ description: Add or modify the genai-tk Streamlit webapp, pages, navigation, UI 
 ## Commands
 
 ```bash
-make webapp
-uv run streamlit run genai_tk/webapp/main/streamlit.py
+just webapp
+uv run python -m streamlit run genai_tk/webapp/main/streamlit.py
 ```
 
 ## Avoid

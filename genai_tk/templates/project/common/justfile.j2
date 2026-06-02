@@ -45,6 +45,12 @@ add-skill name:
 lint-skills:
     uv run cli skills validate --all
 
+# ── Web Interface ────────────────────────────────────────────────────────────
+
+# Launch Streamlit webapp (entry point discovered from genai-tk package)
+webapp:
+    entry=$(uv run python -c 'import pathlib, genai_tk; print(pathlib.Path(genai_tk.__file__).parent / "webapp/main/streamlit.py")') && uv run python -m streamlit run "$entry"
+
 # ── Project-specific ─────────────────────────────────────────────────────────
 
 {{ project_recipes }}
