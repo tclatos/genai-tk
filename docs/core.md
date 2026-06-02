@@ -43,11 +43,23 @@ llm = get_llm(llm="gpt_4o@openai")
 # Use with JSON mode for structured output
 llm = get_llm(llm="gpt_4o@openai", json_mode=True)
 
+# Inline effort syntax (resolved to reasoning.effort)
+llm = get_llm(llm="gpt-oss-120b (high)@openrouter")
+
+# Nested reasoning payload (OpenAI-compatible providers)
+llm = get_llm(
+  llm="gpt-oss-120b@openrouter",
+  reasoning={"effort": "medium", "resume": "cursor-token", "max_tokens": 2048},
+)
+
 # Stream responses
 llm = get_llm()
 for chunk in llm.stream("Tell me about AI"):
     print(chunk.content, end="", flush=True)
 ```
+
+When reasoning options are requested for a model that is not marked as thinking-capable
+in models.dev metadata, the factory logs a warning and continues.
 
 **Related:**
 - `models_db.py` - Model registry and metadata storage

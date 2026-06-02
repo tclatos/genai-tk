@@ -258,6 +258,21 @@ from genai_tk.utils.config_mngr import global_config, switch_profile, use_active
 config = global_config()                        # singleton, auto-discovered
 value = config.get("llm.models.default")        # dot-separated key path
 
+# LLM runtime selection examples
+from genai_tk.core.factories.llm_factory import get_llm
+
+# Inline effort on model identifier
+llm = get_llm(llm="gpt-oss-120b (high)@openrouter")
+
+# Explicit reasoning payload (preferred for provider-specific options)
+llm = get_llm(
+  llm="gpt-oss-120b@openrouter",
+  reasoning={"effort": "high", "resume": "cursor-token", "max_tokens": 4096},
+)
+
+# Backward-compatible flat kwargs are still accepted
+llm = get_llm(llm="gpt-oss-120b@openrouter", reasoning_effort="high")
+
 # Switch the active deployment profile (reloads all config files)
 switch_profile("prod")                          # set GENAITK_PROFILE=prod + reload
 switch_profile("pytest")                        # use fake models for tests
@@ -266,6 +281,9 @@ switch_profile("pytest")                        # use fake models for tests
 config.use_context("training_local")            # merge training_local: sub-dict on top
 config.use_context("training_openai")           # switch to openai variant
 ```
+
+Reasoning payload fields are forwarded for OpenAI-compatible providers using the nested
+`reasoning` request object. Non-compatible providers may ignore these options.
 
 ## Debugging configuration
 

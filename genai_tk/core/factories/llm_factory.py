@@ -65,6 +65,8 @@ from genai_tk.utils.singleton import once
 
 SEED = 42  # Arbitrary value....
 DEFAULT_MAX_RETRIES = 2
+REASONING_EFFORT_PATTERN = re.compile(r"^(?P<alias>.+?)\s*\((?P<effort>[A-Za-z0-9_-]+)\)\s*$")
+REASONING_EFFORT_VALUES = {"low", "medium", "high"}
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +244,80 @@ def _is_litellm(text: str) -> bool:
     """
     PATTERN = r"^([a-zA-Z0-9_.-]{6,}/){1,2}[a-zA-Z0-9_.-]{11,}$"
     return bool(re.match(PATTERN, text))
+
+
+def _split_inline_reasoning_effort(llm: str) -> tuple[str, str | None]:
+    """Extract inline reasoning effort from an LLM identifier.
+
+    Supported forms include:
+    - ``model (high)@provider``
+    - ``model(high)@provider``
+    - ``model @provider`` (no effort, passthrough)
+    """
+    if "@" not in llm:
+        return llm, None
+    model_part, _, provider_part = llm.rpartition("@")
+    if not model_part:
+        return llm, None
+    match = REASONING_EFFORT_PATTERN.match(model_part.strip())
+    if not match:
+        return llm, None
+    alias = match.group("alias").strip()
+    effort = match.group("effort").strip()
+    if not alias:
+        return llm, None
+    return f"{alias}@{provider_part}", effort
+
+
+def _extract_reasoning_settings(
+    llm: str,
+    llm_params: dict[str, Any],
+) -> tuple[str, dict[str, Any], dict[str, Any] | None]:
+    """Normalize reasoning settings from inline llm syntax and kwargs.
+
+    Precedence rules:
+    1. Explicit ``reasoning={...}`` values override inline ``(effort)``.
+    2. Flat kwargs ``reasoning_effort`` / ``reasoning_resume`` / ``reasoning_max_tokens``
+       are accepted for backward compatibility but are normalized into ``reasoning``.
+    """
+    resolved_llm, inline_effort = _split_inline_reasoning_effort(llm)
+    params = llm_params.copy()
+
+    reasoning_value = params.pop("reasoning", None)
+    reasoning_payload: dict[str, Any] = {}
+    if isinstance(reasoning_value, dict):
+        for key in ("effort", "resume", "max_tokens"):
+            value = reasoning_value.get(key)
+            if value is not None:
+                reasoning_payload[key] = value
+    elif reasoning_value is not None:
+        logger.warning(
+            f"Ignoring invalid 'reasoning' value for '{resolved_llm}': expected dict, got {type(reasoning_value).__name__}."
+        )
+
+    legacy_map = {
+        "reasoning_effort": "effort",
+        "reasoning_resume": "resume",
+        "reasoning_max_tokens": "max_tokens",
+    }
+    for flat_key, nested_key in legacy_map.items():
+        value = params.pop(flat_key, None)
+        if value is not None and nested_key not in reasoning_payload:
+            reasoning_payload[nested_key] = value
+
+    if inline_effort and "effort" not in reasoning_payload:
+        reasoning_payload["effort"] = inline_effort
+
+    effort = reasoning_payload.get("effort")
+    if isinstance(effort, str):
+        normalized_effort = effort.strip().lower()
+        reasoning_payload["effort"] = normalized_effort
+        if normalized_effort not in REASONING_EFFORT_VALUES:
+            logger.warning(
+                f"Unknown reasoning effort '{effort}' for '{resolved_llm}'. Passing through as provider-specific value."
+            )
+
+    return resolved_llm, params, (reasoning_payload or None)
 
 
 class LlmInfo(BaseModel):
@@ -460,6 +536,15 @@ class LlmFactory(BaseModel):
     # Internal fields set during resolution
     llm_id: Annotated[str | None, Field(validate_default=True)] = None
     _resolved_llm_info: LlmInfo | None = PrivateAttr(default=None)
+    _reasoning_payload: dict[str, Any] | None = PrivateAttr(default=None)
+
+    @property
+    def reasoning_payload(self) -> dict[str, Any] | None:
+        """Return normalized reasoning payload, tolerating partially built test instances."""
+        try:
+            return self._reasoning_payload
+        except AttributeError:
+            return None
 
     @field_validator("cache")
     @classmethod
@@ -512,6 +597,11 @@ class LlmFactory(BaseModel):
 
     def model_post_init(self, __context: dict) -> None:
         """Post-initialization validation and ID resolution."""
+        normalized_llm, normalized_params, reasoning_payload = _extract_reasoning_settings(self.llm, self.llm_params)
+        object.__setattr__(self, "llm", normalized_llm)
+        object.__setattr__(self, "llm_params", normalized_params)
+        object.__setattr__(self, "_reasoning_payload", reasoning_payload)
+
         # Seed llm_id from the unified 'llm' parameter.
         # "standard Pydantic pattern for setting fields internally during model_post_init when you want to mutate state without re-triggering validation.""
         if self.llm_id is None:
@@ -860,6 +950,12 @@ class LlmFactory(BaseModel):
         if self.json_mode:
             llm_params |= {"response_format": {"type": "json_object"}}
 
+        if self.reasoning_payload and not self.info.supports_thinking:
+            logger.warning(
+                f"Model '{self.info.id}' is not marked as thinking-capable in models.dev metadata. "
+                f"Reasoning options requested: {self.reasoning_payload}."
+            )
+
         # Get provider info for configuration details
         provider_info = self.info.get_provider_info()
 
@@ -923,6 +1019,15 @@ class LlmFactory(BaseModel):
             create_params["extra_body"] = extra_body
         if custom_headers:
             create_params["default_headers"] = custom_headers
+
+        if self.reasoning_payload:
+            extra_body_payload = create_params.get("extra_body", {}).copy()
+            existing_reasoning = extra_body_payload.get("reasoning", {})
+            if not isinstance(existing_reasoning, dict):
+                existing_reasoning = {}
+            existing_reasoning.update(self.reasoning_payload)
+            extra_body_payload["reasoning"] = existing_reasoning
+            create_params["extra_body"] = extra_body_payload
 
         llm = ChatOpenAI(**create_params)
         return llm

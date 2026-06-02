@@ -18,6 +18,8 @@ from langchain_core.messages.human import HumanMessage
 from genai_tk.core.factories.llm_factory import (
     LlmFactory,
     LlmInfo,
+    _extract_reasoning_settings,
+    _split_inline_reasoning_effort,
     configurable,
     get_llm,
     get_llm_info,
@@ -318,3 +320,71 @@ def test_edenai_v3_uses_openai_compatible_endpoint() -> None:
     assert call_kwargs["base_url"] == "https://api.edenai.run/v3/llm"
     assert call_kwargs["model"] == "openai/gpt-4.1-mini-2025-04-14"
     assert call_kwargs["api_key"] == "test-key"
+
+
+def test_split_inline_reasoning_effort() -> None:
+    """Inline effort parser should extract model and effort from model@provider."""
+    llm_id, effort = _split_inline_reasoning_effort("gpt-oss-120b (high)@openrouter")
+    assert llm_id == "gpt-oss-120b@openrouter"
+    assert effort == "high"
+
+
+def test_extract_reasoning_settings_precedence() -> None:
+    """Explicit reasoning kwargs override inline effort and merge legacy flat keys."""
+    llm_id, params, reasoning_payload = _extract_reasoning_settings(
+        "gpt-oss-120b (high)@openrouter",
+        {
+            "temperature": 0.2,
+            "reasoning": {"effort": "low"},
+            "reasoning_max_tokens": 2048,
+        },
+    )
+
+    assert llm_id == "gpt-oss-120b@openrouter"
+    assert params == {"temperature": 0.2}
+    assert reasoning_payload == {"effort": "low", "max_tokens": 2048}
+
+
+def test_openai_compatible_injects_reasoning_payload() -> None:
+    """OpenAI-compatible path should send reasoning object inside extra_body."""
+    from unittest.mock import MagicMock, patch
+
+    mock_llm = MagicMock()
+    mock_chat_openai = MagicMock(return_value=mock_llm)
+
+    factory = LlmFactory.__new__(LlmFactory)
+    object.__setattr__(factory, "json_mode", False)
+    object.__setattr__(factory, "streaming", False)
+    object.__setattr__(factory, "reasoning", None)
+    object.__setattr__(factory, "cache", None)
+    object.__setattr__(factory, "llm_params", {})
+    object.__setattr__(factory, "llm_id", "gpt41mini@openrouter")
+    object.__setattr__(factory, "llm", "gpt41mini@openrouter")
+    object.__setattr__(factory, "_reasoning_payload", {"effort": "high", "max_tokens": 1024})
+    object.__setattr__(
+        factory,
+        "_resolved_llm_info",
+        LlmInfo(id="gpt41mini@openrouter", provider="openrouter", model="openai/gpt-4.1-mini"),
+    )
+
+    with patch("langchain_openai.ChatOpenAI", mock_chat_openai):
+        provider_info = factory.info.get_provider_info()
+        factory._create_openai_compatible_llm(provider_info, {"temperature": 0.1}, api_key="test-key")
+
+    call_kwargs = mock_chat_openai.call_args.kwargs
+    assert "extra_body" in call_kwargs
+    assert call_kwargs["extra_body"]["reasoning"] == {"effort": "high", "max_tokens": 1024}
+
+
+def test_warn_when_reasoning_requested_on_non_thinking_model() -> None:
+    """Factory should warn when reasoning options are requested on a non-thinking model."""
+    from unittest.mock import patch
+
+    factory = LlmFactory(llm=FAKE_LLM_ID, llm_params={"reasoning": {"effort": "high"}})
+
+    with patch("genai_tk.core.factories.llm_factory.logger.warning") as mock_warning:
+        model = factory.model_factory()
+
+    assert model is not None
+    warning_texts = [str(call.args[0]) for call in mock_warning.call_args_list if call.args]
+    assert any("not marked as thinking-capable" in text for text in warning_texts)
