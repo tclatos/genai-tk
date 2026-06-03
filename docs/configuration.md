@@ -1,17 +1,15 @@
 # Configuration
 
-The configuration system is based on [OmegaConf](https://omegaconf.readthedocs.io/) with hierarchical YAML files, environment variable substitution, and auto-discovery from parent directories.
+The configuration system is based on [OmegaConf](https://omegaconf.readthedocs.io/) with hierarchical YAML files, environment variable substitution, and gitignore-style file discovery.
 
 ## How it works
 
 1. On startup, `global_config()` walks up from the current working directory to find `config/app_conf.yaml`.
 2. `app_conf.yaml` is loaded first and sets the **profile** name (default: `local`).
-3. **Auto-scan** loads all `*.yaml` files from `config/` (recursively), sorted alphabetically:
-   - **Base files** — auto-loaded from `config/` root and subdirectories
-   - **Profile overlay** — auto-loaded from `config/profiles/<profile_name>/` (only if selected)
-   - **Overrides** — `config/overrides.yaml` loaded last (wins over everything)
-4. All files are **deep-merged** in order — dict values are merged, lists are replaced (OmegaConf behavior).
-5. `${oc.env:VAR,default}` expressions are resolved from environment (or `.env` file in project root).
+3. The optional **`:merge:`** key lists gitignore-style patterns — all matching `*.yaml` files relative to `config/` are deep-merged in sorted order.
+4. The optional **`:profiles:`** key contains an inline dict whose keys are profile names. The block matching the active profile is deep-merged last.
+5. Both `:merge:` and `:profiles:` pseudo-keys are stripped from the final config.
+6. `${oc.env:VAR,default}` expressions are resolved from environment (or `.env` file in project root).
 
 This works correctly whether you run from the project root, a notebook, a subdirectory, or a deployed container.
 
@@ -19,27 +17,19 @@ This works correctly whether you run from the project root, a notebook, a subdir
 
 ```
 config/
-├── app_conf.yaml               # Entry point: profile selection, paths
-├── profiles/
-│   ├── local/                  # Default profile (GENAITK_PROFILE=local)
-│   │   └── genai_def.yaml      # Default LLM, embeddings, cache, vector store
-│   ├── pytest/                 # Test profile (GENAITK_PROFILE=pytest)
-│   │   └── genai_def.yaml      # Fake models, memory cache
-│   └── prod/                   # Example: production profile
-│       └── genai_def.yaml      # Prod model selection, real DBs
-├── overrides.yaml              # Local overrides (loaded last, wins)
+├── app_conf.yaml               # Entry point: :merge: patterns, :profiles: block, paths
 ├── agents/
 │   ├── langchain/              # LangChain agent profiles (dict-based)
-│   │   ├── defaults.yaml       # Default settings and global config
-│   │   ├── simple.yaml         # React agent profiles (simple, filesystem, weather)
-│   │   ├── deep.yaml           # Deep agents (research, coding, data_analysis, etc.)
-│   │   ├── browser.yaml        # Browser automation agents
-│   │   └── text2sql.yaml       # Text-to-SQL agents
+│   │   ├── defaults.yaml
+│   │   ├── simple.yaml
+│   │   ├── deep.yaml
+│   │   ├── browser.yaml
+│   │   └── text2sql.yaml
 │   ├── deepagent/              # Deep agents (dict-based)
-│   │   ├── global.yaml         # Global settings
-│   │   ├── coder.yaml          # Coder profile
-│   │   ├── fast.yaml           # Fast profile
-│   │   └── researcher.yaml     # Researcher profile
+│   │   ├── global.yaml
+│   │   ├── coder.yaml
+│   │   ├── fast.yaml
+│   │   └── researcher.yaml
 │   └── deerflow.yaml           # Deer-flow agent profiles
 ├── providers/
 │   ├── llm.yaml                # LLM model declarations
@@ -50,25 +40,26 @@ config/
 └── README.md                   # This directory's structure
 ```
 
+There is no `profiles/` directory or `overrides.yaml` — profile-specific values live in the `:profiles:` block inside `app_conf.yaml`, and local overrides can be added there or via an explicit entry in `:merge:`.
+
 ## `app_conf.yaml` — entry point
 
 ```yaml
-# Profile selects a profile overlay directory: config/profiles/<profile>/
+# Profile selects which :profiles: block key is merged.
 # Override with GENAITK_PROFILE env var.
 profile: ${oc.env:GENAITK_PROFILE,local}
 
-# Directories scanned recursively for YAML files at startup.
-# Defaults to [config/] when omitted. All *.yaml files are merged (sorted),
-# except app_conf.yaml, profiles/, and anything in config_exclude.
-# config_dirs: [config/]
+# Gitignore-style patterns relative to this config/ directory.
+# All matching *.yaml files (except app_conf.yaml itself) are deep-merged in sorted order.
+:merge:
+  - "**/*.yaml"    # include everything
+  - "!demos/**"    # exclude demos/
+  - "!mcp/**"      # exclude mcp/
 
-# Glob patterns (relative to each config_dir) to skip during auto-scan.
-# config_exclude: []
-
+# Optional: set environment variables at startup (no-op if already set).
 :env:
   LOGURU_LEVEL: INFO
   LANGCHAIN_TRACING_V2: "false"
-  DEER_FLOW_PATH: ${oc.env:DEER_FLOW_PATH,${paths.project}/ext/deer-flow}
 
 paths:
   home: ${oc.env:HOME}
@@ -79,77 +70,137 @@ paths:
 test:
   unit: tests/unit_tests
   integration: tests/integration_tests
-  evals: tests/eval_tests
-  notebooks: examples/notebooks
 
 cli:
   commands:
     - genai_tk.cli.commands_core.CoreCommands
-    - genai_tk.cli.commands_info.InfoCommands
     # ... more commands
+
+# Profile-specific overlays — the key matching `profile` is deep-merged last.
+:profiles:
+  local:
+    llm:
+      models:
+        default: gpt_oss120@openrouter
+    llm_cache:
+      method: sqlite
+
+  pytest:
+    llm:
+      models:
+        default: parrot_local@fake
+    llm_cache:
+      method: memory
+
+  prod:
+    llm:
+      models:
+        default: gpt_4o@openai
+    monitoring:
+      langsmith: true
 ```
 
-**Key fields:**
-- `profile` — selects which `config/profiles/<profile>/` overlay is loaded. Default: `local`
-- `:env` — environment variables to set at startup (does not override existing env vars)
-- `${oc.env:VAR,default}` — reads `VAR` from environment, falls back to `default`
-- `paths.*` — auto-detected at runtime; absolute paths used by all components
+**Key pseudo-keys** (stripped before the final config is exposed):
 
-## Profile overlays
+| Key | Purpose |
+|---|---|
+| `:merge:` | List of gitignore-style patterns; matching files are deep-merged |
+| `:profiles:` | Dict of profile overlays; the key matching `profile` is applied |
+| `:env:` | Dict of env vars to set at startup (no-op if already in environment) |
 
-A **profile** is a directory under `config/profiles/<name>/` loaded on top of base configuration at startup. This is the deployment-level switch (local, prod, ci, docker). All YAML files in the profile directory are merged into root — **no wrapper key needed**.
+## `:merge:` — file discovery
+
+Patterns are **gitignore-style** (via [pathspec](https://pypi.org/project/pathspec/)), resolved relative to the directory containing `app_conf.yaml`.
+
+```yaml
+:merge:
+  - "**/*.yaml"      # recursive — all yaml files
+  - "!demos/**"      # exclude the demos/ subtree
+  - "!mcp/**"        # exclude mcp/ subtree
+  - "overrides.yaml" # explicit single file (if you want a local-only override file)
+```
+
+Rules:
+- `!` prefix **excludes** matching paths (like `.gitignore`)
+- Files are processed in **sorted** order
+- `app_conf.yaml` itself is always skipped
+- `:profiles:` in merged files is ignored (only `app_conf.yaml`'s `:profiles:` block is honoured)
+
+## `:profiles:` — inline profile overlays
+
+Instead of a `profiles/` directory, profile-specific config lives directly in `app_conf.yaml` under `:profiles:`. The key matching the active `profile` value is deep-merged last.
+
+```yaml
+profile: ${oc.env:GENAITK_PROFILE,local}
+
+:profiles:
+  local:
+    llm:
+      models:
+        default: gpt_oss120@openrouter
+    llm_cache:
+      method: sqlite
+
+  pytest:
+    llm:
+      models:
+        default: parrot_local@fake
+    llm_cache:
+      method: memory
+    vector_store:
+      postgres_url: null
+
+  test_unit:
+    # Named contexts for unit test use via use_context()
+    test_env:
+      llm:
+        models:
+          default: gpt-3.5-turbo
+    prod_env:
+      llm:
+        models:
+          default: gpt-4
+```
+
+The `:profiles:` block can also include a nested `:merge:` list to pull in additional files for a specific profile:
+
+```yaml
+:profiles:
+  prod:
+    :merge:
+      - "prod_secrets.yaml"   # loaded only when profile=prod
+    llm:
+      models:
+        default: gpt_4o@openai
+```
+
+### Switching profiles
+
+```bash
+# Load 'local' profile (default)
+python myapp.py
+
+# Load 'prod' profile
+GENAITK_PROFILE=prod python myapp.py
+
+# Load 'pytest' profile (used by conftest.py automatically)
+GENAITK_PROFILE=pytest python myapp.py
+```
+
+In Python:
+```python
+from genai_tk.utils.config_mngr import switch_profile
+switch_profile("prod")    # reloads all config with profile=prod
+```
 
 ### Two-layer system
 
 | Layer | Mechanism | When to use |
 |---|---|---|
-| **Profile** | `GENAITK_PROFILE=pytest` → loads `config/profiles/pytest/*.yaml` | Deployment environment (local, prod, ci, docker, pytest) |
+| **Profile** | `GENAITK_PROFILE=pytest` → applies `:profiles: pytest:` block | Deployment environment (local, prod, ci, docker, pytest) |
 | **Context** | `global_config().use_context("training_local")` | In-session overlay from a named top-level key, no file reload |
 
-`switch_profile()` changes the active profile and reloads all config files. `use_context()` changes which top-level key is merged as an overlay without reloading.
-
-### Using profiles
-
-**At startup** (automatic):
-```bash
-# Load config/profiles/local/ (default)
-python myapp.py
-
-# Load config/profiles/prod/
-GENAITK_PROFILE=prod python myapp.py
-
-# Load config/profiles/custom/
-GENAITK_PROFILE=custom python myapp.py
-```
-
-### Creating a profile
-
-```bash
-mkdir -p config/profiles/prod
-```
-
-Add any YAML files to override base configuration:
-```yaml
-# config/profiles/prod/llm.yaml
-llm:
-  models:
-    default: gpt_4o@openai  # Use GPT-4 in production
-
-# config/profiles/prod/embeddings.yaml
-embeddings:
-  models:
-    default: ada_002@openai  # Use Ada in production
-```
-
-Only the values you override are merged; base configuration remains in place.
-
-## Auto-scan loading order
-
-Files are loaded in this order:
-
-1. **Base files** from `config/` (and subdirectories), sorted alphabetically
-2. **Profile overlay** from `config/profiles/<profile>/` (alphabetically)
-3. **Overrides** — `config/overrides.yaml` (loaded last, wins)
+`switch_profile()` reloads all config files. `use_context()` merges a named top-level key as an overlay without reloading.
 
 ## OmegaConf merge behavior
 
@@ -270,9 +321,6 @@ llm = get_llm(
   reasoning={"effort": "high", "resume": "cursor-token", "max_tokens": 4096},
 )
 
-# Backward-compatible flat kwargs are still accepted
-llm = get_llm(llm="gpt-oss-120b@openrouter", reasoning_effort="high")
-
 # Switch the active deployment profile (reloads all config files)
 switch_profile("prod")                          # set GENAITK_PROFILE=prod + reload
 switch_profile("pytest")                        # use fake models for tests
@@ -281,9 +329,6 @@ switch_profile("pytest")                        # use fake models for tests
 config.use_context("training_local")            # merge training_local: sub-dict on top
 config.use_context("training_openai")           # switch to openai variant
 ```
-
-Reasoning payload fields are forwarded for OpenAI-compatible providers using the nested
-`reasoning` request object. Non-compatible providers may ignore these options.
 
 ## Debugging configuration
 
@@ -315,12 +360,12 @@ GENAITK_PROFILE=local  # optional: select profile
 
 ## Testing profiles
 
-Two built-in profiles serve the test suite:
+Two built-in profiles serve the test suite (defined inline in `app_conf.yaml`'s `:profiles:` block):
 
-| Profile | Directory | Purpose |
-|---|---|---|
-| `pytest` | `config/profiles/pytest/genai_def.yaml` | Fake models, memory caches — loaded by `conftest.py` via `switch_profile("pytest")` |
-| `test_unit` | `config/profiles/test_unit/test_unit.yaml` | `test_env:` and `prod_env:` context targets used by config-manager unit tests |
+| Profile | Purpose |
+|---|---|
+| `pytest` | Fake models, memory caches — activated by `conftest.py` via `switch_profile("pytest")` |
+| `test_unit` | `test_env:` and `prod_env:` context targets used by config-manager unit tests |
 
 The test suite switches profiles automatically — no manual env var needed.
 
@@ -341,3 +386,4 @@ After running, edit `.env` with your API keys.
 - [rag.md](rag.md) — RAG configuration and retrieval
 - [workflows.md](workflows.md) — Workflow engine and orchestration
 - [cli.md](cli.md) — CLI commands and `cli info config-keys`
+

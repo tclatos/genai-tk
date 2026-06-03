@@ -1,28 +1,135 @@
 # GenAI Toolkit Configuration
 # Basic configuration for running tests, Agents and CLI commands
 
-# Profile selects a profile overlay directory: config/profiles/<profile>/
-# Override with GENAITK_PROFILE env var.
+# Active profile — override with GENAITK_PROFILE env var.
 profile: ${oc.env:GENAITK_PROFILE,local}
 
-# Directories scanned recursively for YAML files at startup.
-# Defaults to [config/] when omitted. All *.yaml files are merged (sorted),
-# except app_conf.yaml, profiles/, and anything in config_exclude.
-config_dirs: [config/]
-
-# Glob patterns (relative to each config_dir) to skip during auto-scan.
-config_exclude: []
-
-:env:
-  LOGURU_LEVEL: INFO
-  LANGCHAIN_TRACING_V2: "false"  # Disable LangChain v2 tracing by default (can be enabled in overrides or env)
-  DEER_FLOW_PATH: ${oc.env:DEER_FLOW_PATH,${paths.project}/ext/deer-flow}
 
 paths:
   home: ${oc.env:HOME}
   project: ${oc.env:PWD}
   config: ${paths.project}/config
   data_root: ${paths.project}/data
+
+
+# :merge: lists gitignore-style patterns (relative to this directory) for YAML
+# files to load and deep-merge into the config, in sorted order.
+# Use '!' prefix to exclude files matched by an earlier pattern.
+:merge:
+  - "**/*.yaml"
+  - "!demos/**"
+  - "!mcp/**"
+
+# :profiles: provides inline per-profile overrides.  The block matching the active
+# profile is deep-merged after all :merge: files.  A nested :merge: within a
+# profile block loads additional files relative to this directory.
+:profiles:
+  local:
+    llm:
+      models:
+        default: gpt_oss120@openrouter
+        fake: parrot_local@fake
+        safe_llm: mistral-small@edenai
+        cheap_model: claude-haiku@openrouter
+        fast_model: claude-haiku@openrouter
+      cache: sqlite
+      cache_path: data/llm_cache/langchain.db
+    embeddings:
+      models:
+        default: qwen3_06b@deepinfra
+        local: artic_22@ollama
+        fake: embeddings_768@fake
+      cache: data/hf_models
+    vector_store:
+      default: InMemory
+    postgres:
+      default:
+        mode: external
+        url: postgresql+asyncpg://${oc.env:POSTGRES_USER,postgres}:${oc.env:POSTGRES_PASSWORD,password}@localhost:5432/genai
+    kv_store:
+      default:
+        type: LocalFileStore
+        path: ${paths.data_root}/kv_store
+      postgres:
+        type: SQLStore
+        path: postgresql://${oc.env:POSTGRES_USER,unknown_user}:${oc.env:POSTGRES_PASSWORD,password}@localhost:5432/ekg
+    llm_cache:
+      method: memory
+    chains:
+      root: tests.chains
+      modules:
+        - ${..root}.joke
+    structured:
+      default:
+        baml_client: tests.baml_client
+    monitoring:
+      langsmith: true
+      project: GenAI_demo
+
+  pytest:
+    llm:
+      models:
+        default: parrot_local@fake
+        fake: parrot_local@fake
+        test: claude-haiku@openrouter
+        cheap_model: claude-haiku@openrouter
+        fast_model: claude-haiku@openrouter
+    embeddings:
+      models:
+        default: embeddings_768@fake
+        fake: embeddings_768@fake
+        test: ada-002@openai
+      cache: data/hf_models
+    kv_store:
+      engine: memory
+    llm_cache:
+      method: memory
+    logging:
+      level: INFO
+    vector_store:
+      postgres_url: null
+
+  test_unit:
+    test_env:
+      llm:
+        models:
+          default: gpt-3.5-turbo
+        max_tokens: 1000
+        temperature: 0.7
+      features:
+        enable_caching: true
+        enable_logging: false
+      db:
+        host: localhost
+        port: 5432
+        name: test_db
+      cli:
+        commands:
+          - test.module:register_commands
+          - test.module2:register_commands
+      ui:
+        app_name: Test App
+        pages_dir: /tmp/pages
+    prod_env:
+      llm:
+        models:
+          default: gpt-4
+        max_tokens: 2000
+        temperature: 0.1
+      features:
+        enable_caching: true
+        enable_logging: true
+      db:
+        host: prod.example.com
+        port: 5432
+        name: prod_db
+
+
+:env:
+  LOGURU_LEVEL: INFO
+  LANGCHAIN_TRACING_V2: "false"  # Disable LangChain v2 tracing by default (can be enabled in overrides or env)
+  DEER_FLOW_PATH: ${oc.env:DEER_FLOW_PATH,${paths.project}/ext/deer-flow}
+
 
 # Test suite configuration
 # Paths are relative to the project root; absent keys fall back to common defaults.
@@ -32,15 +139,10 @@ test:
   evals: tests/eval_tests
   notebooks: examples/notebooks
 
-
-
 # Prefect server configuration
 prefect:
   host: "127.0.0.1"
   port: 4200
-  # api_url is derived from host/port when not set explicitly
-  # api_url: "http://127.0.0.1:4200/api"
-  # pid_file: "${paths.data_root}/.prefect/prefect.pid"
   auto_start: true   # auto-start server when 'cli workflow run' is called
 
 # Command Line Interface configuration
@@ -59,3 +161,4 @@ cli:
     - genai_tk.mcp.cli_commands.McpCommands
     - genai_tk.cli.commands_skills.SkillsCommands
     - genai_tk.main.cli.register_commands
+

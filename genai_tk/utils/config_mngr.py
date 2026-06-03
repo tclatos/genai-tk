@@ -19,7 +19,6 @@ QualifiedFunctionName  # 'module.path.function_name'
 
 from __future__ import annotations
 
-import fnmatch
 import io
 import os
 from pathlib import Path
@@ -149,32 +148,25 @@ class OmegaConfig(BaseModel):
             str(k): [app_conf_path] for k in config.keys() if not str(k).startswith(":")
         }
 
-        # Determine profile name early (before merging) for profile-dir loading
+        # Determine profile name early (before merging)
         env_profile = os.environ.get("GENAITK_PROFILE")
         raw_profile = OmegaConf.select(config, "profile", default=None)
         if raw_profile is None:
             raw_profile = OmegaConf.select(config, "default_config", default="local")
         profile = env_profile or str(raw_profile)
 
-        # Legacy :merge: support — emit deprecation warning and fall back
-        has_merge = ":merge" in config or "merge" in config
-        # Auto-scan only when: (a) the file is named app_conf.yaml (canonical entry point),
-        # OR (b) config_dirs is explicitly set.  This prevents spurious scans when
-        # OmegaConfig.create() is called on small test or intermediate config files.
-        is_app_conf = app_conf_path.name == "app_conf.yaml"
-        has_config_dirs = OmegaConf.select(config, "config_dirs", default=None) is not None
-        should_auto_scan = (is_app_conf or has_config_dirs) and not has_merge
-        if has_merge:
-            logger.warning(
-                "':merge:' in app_conf.yaml is deprecated. "
-                "Remove it and use 'config_dirs:' / 'config_exclude:' for automatic directory scanning."
-            )
-            config = OmegaConfig._process_merge_files(config)
-        elif should_auto_scan:
-            config, provenance = OmegaConfig._auto_scan_and_merge(config, app_conf_path, profile, provenance)
+        # Load files matched by :merge: pathspec patterns
+        if ":merge" in config:
+            base_files = OmegaConfig._resolve_merge_files(config, app_conf_path)
+            logger.debug(f"Loading {len(base_files)} YAML files from :merge: patterns")
+            for yaml_path in base_files:
+                config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
+
+        # Apply :profile: inline block for the active profile
+        config, provenance = OmegaConfig._apply_profile_block(config, profile, app_conf_path, provenance)
 
         # Clean up pseudo-keys
-        for key in [":merge", "merge"]:
+        for key in [":merge", ":profile"]:
             if key in config:
                 del config[key]
 
@@ -183,115 +175,107 @@ class OmegaConfig(BaseModel):
         return instance
 
     # -----------------------------------------------------------------------
-    # Auto-scan loading
+    # :merge: and :profiles: loading
     # -----------------------------------------------------------------------
 
     @staticmethod
-    def _auto_scan_and_merge(
-        config: DictConfig,
-        app_conf_path: Path,
-        profile: str,
-        provenance: dict[str, list[Path]],
-    ) -> tuple[DictConfig, dict[str, list[Path]]]:
-        """Scan config directories, load all YAML files, merge in order.
+    def _resolve_merge_files(config: DictConfig, app_conf_path: Path) -> list[Path]:
+        """Resolve :merge: pathspec patterns to an ordered list of YAML files.
 
-        Load order:
-        1. Sorted YAML files from config_dirs (excluding app_conf.yaml, overrides.yaml, profiles/)
-        2. Profile overlay: config_dirs/<dir>/profiles/<profile>/*.yaml (sorted)
-        3. overrides.yaml (always last, per config_dir)
+        Patterns are gitignore-style (pathspec gitignore) relative to the
+        directory containing app_conf.yaml.  Lines starting with ``!`` exclude
+        previously matched files.  app_conf.yaml itself is always skipped.
         """
-        app_conf_dir = app_conf_path.parent
+        import pathspec
 
-        # Resolve config_dirs from config (default: the app_conf directory itself)
-        config_dirs_raw = OmegaConf.select(config, "config_dirs", default=None)
-        if config_dirs_raw is None:
-            config_dirs = [app_conf_dir]
-        else:
-            dirs_container = OmegaConf.to_container(config_dirs_raw, resolve=False)
-            config_dirs = [
-                Path(d) if Path(d).is_absolute() else app_conf_dir.parent / str(d)
-                for d in (dirs_container if isinstance(dirs_container, list) else [dirs_container])
-            ]
+        merge_raw = OmegaConf.select(config, ":merge", default=None)
+        if merge_raw is None:
+            return []
 
-        # Resolve exclude patterns
-        exclude_raw = OmegaConf.select(config, "config_exclude", default=None)
-        exclude_patterns: list[str] = []
-        if exclude_raw is not None:
-            ex_container = OmegaConf.to_container(exclude_raw, resolve=False)
-            exclude_patterns = list(ex_container) if isinstance(ex_container, list) else [str(ex_container)]
-        # Always exclude the profiles/ subtree from base scan
-        exclude_patterns.append("profiles/**")
+        patterns = OmegaConf.to_container(merge_raw, resolve=False)
+        if not isinstance(patterns, list):
+            patterns = [str(patterns)]
 
-        base_files, profile_files, override_files = OmegaConfig._collect_yaml_files(
-            config_dirs, app_conf_path, exclude_patterns, profile
-        )
-        logger.debug(
-            f"Auto-loading {len(base_files)} base, {len(profile_files)} profile, {len(override_files)} override YAML files"
-        )
+        base_dir = app_conf_path.parent.resolve()
+        spec = pathspec.PathSpec.from_lines("gitignore", [str(p) for p in patterns])
 
-        for yaml_path in base_files:
-            config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
-        for yaml_path in profile_files:
-            config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
-        for yaml_path in override_files:
-            config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
-
-        return config, provenance
+        result: list[Path] = []
+        for yaml_path in sorted(base_dir.rglob("*.yaml")):
+            if yaml_path.resolve() == app_conf_path.resolve():
+                continue
+            rel = yaml_path.relative_to(base_dir)
+            if spec.match_file(str(rel)):
+                result.append(yaml_path)
+        return result
 
     @staticmethod
-    def _collect_yaml_files(
-        config_dirs: list[Path],
-        app_conf_path: Path,
-        exclude_patterns: list[str],
+    def _apply_profile_block(
+        config: DictConfig,
         profile: str,
-    ) -> tuple[list[Path], list[Path], list[Path]]:
-        """Collect YAML files to merge, partitioned into base / profile / overrides."""
-        base_files: list[Path] = []
-        profile_files: list[Path] = []
-        override_files: list[Path] = []
+        app_conf_path: Path,
+        provenance: dict[str, list[Path]],
+    ) -> tuple[DictConfig, dict[str, list[Path]]]:
+        """Apply the active profile's inline :profiles: block.
 
-        for config_dir in config_dirs:
-            if not config_dir.exists():
-                logger.warning(f"Config directory does not exist: {config_dir}")
-                continue
+        Load order within the profile block:
 
-            overrides_path = config_dir / "overrides.yaml"
-            profile_dir = config_dir / "profiles" / profile
+        1. Files matched by a nested ``:merge:`` key (if present).
+        2. Remaining inline keys deep-merged on top.
+        """
+        profile_block = OmegaConf.select(config, ":profiles", default=None)
+        if profile_block is None:
+            return config, provenance
 
-            for yaml_path in sorted(config_dir.rglob("*.yaml")):
-                # Skip app_conf.yaml
+        if not isinstance(profile_block, DictConfig):
+            logger.warning(":profiles: must be a dict keyed by profile name — ignored")
+            return config, provenance
+
+        profile_data = OmegaConf.select(profile_block, profile, default=None)
+        if profile_data is None:
+            available = list(profile_block.keys())
+            logger.warning(f"Profile '{profile}' not found in :profiles: block. Available: {available}")
+            return config, provenance
+
+        if not isinstance(profile_data, DictConfig):
+            logger.warning(f":profiles:{profile} must be a dict — ignored")
+            return config, provenance
+
+        # Handle nested :merge: within the profile block
+        profile_merge_raw = OmegaConf.select(profile_data, ":merge", default=None)
+        if profile_merge_raw is not None:
+            import pathspec
+
+            patterns = OmegaConf.to_container(profile_merge_raw, resolve=False)
+            if not isinstance(patterns, list):
+                patterns = [str(patterns)]
+            base_dir = app_conf_path.parent.resolve()
+            spec = pathspec.PathSpec.from_lines("gitignore", [str(p) for p in patterns])
+            for yaml_path in sorted(base_dir.rglob("*.yaml")):
                 if yaml_path.resolve() == app_conf_path.resolve():
                     continue
-                # Defer overrides.yaml to the end
-                if yaml_path.resolve() == overrides_path.resolve():
-                    continue
-                # Skip anything inside a profiles/ directory
-                try:
-                    yaml_path.relative_to(config_dir / "profiles")
-                    continue  # it's inside profiles/
-                except ValueError:
-                    pass
+                rel = yaml_path.relative_to(base_dir)
+                if spec.match_file(str(rel)):
+                    config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
 
-                rel_path = yaml_path.relative_to(config_dir)
-                if any(fnmatch.fnmatch(str(rel_path), pat) for pat in exclude_patterns):
-                    continue
+        # Build profile overlay without pseudo-keys
+        profile_dict = OmegaConf.to_container(profile_data, resolve=False)
+        if isinstance(profile_dict, dict):
+            profile_dict.pop(":merge", None)
 
-                base_files.append(yaml_path)
+        if profile_dict:
+            profile_overlay = OmegaConf.create(profile_dict)
+            OmegaConfig._process_env_variables(profile_overlay, parent_config=config)
+            profile_source = Path(f":profiles:{profile}")
+            for key in profile_overlay.keys():
+                key_str = str(key)
+                if not key_str.startswith(":"):
+                    provenance.setdefault(key_str, []).append(profile_source)
+            merged = OmegaConf.merge(config, profile_overlay)
+            if not isinstance(merged, DictConfig):
+                raise ConfigTypeError("profile_overlay_merged", expected_type="DictConfig", actual_type=type(merged))
+            config = merged
 
-            # Profile overlay
-            if profile_dir.exists():
-                for yaml_path in sorted(profile_dir.rglob("*.yaml")):
-                    profile_files.append(yaml_path)
-            else:
-                logger.warning(
-                    f"Profile '{profile}' directory not found: {profile_dir}\n"
-                    f"  Available profiles: {[p.name for p in (config_dir / 'profiles').iterdir() if p.is_dir()] if (config_dir / 'profiles').exists() else '(no profiles/ directory)'}"
-                )
-
-            if overrides_path.exists():
-                override_files.append(overrides_path)
-
-        return base_files, profile_files, override_files
+        return config, provenance
 
     @staticmethod
     def _merge_file(
@@ -310,8 +294,8 @@ class OmegaConfig(BaseModel):
 
         OmegaConfig._process_env_variables(new_conf, parent_config=config)
 
-        # Remove pseudo-keys
-        for key in [":merge", "merge", ":env"]:
+        # Remove pseudo-keys (merged files cannot carry :merge/:profiles)
+        for key in [":merge", ":profile", ":env"]:
             if key in new_conf:
                 del new_conf[key]
 
@@ -394,7 +378,7 @@ class OmegaConfig(BaseModel):
                 llm_entries = self.get("llm.registry", default=None)
             if llm_entries is None:
                 warnings.append(
-                    "No LLM providers found (llm.exceptions). Ensure provider YAML files are in config_dirs."
+                    "No LLM providers found (llm.exceptions). Ensure provider YAML files are listed in :merge: patterns."
                 )
             elif not isinstance(llm_entries, (list, ListConfig)):
                 errors.append(f"llm.exceptions should be a list, got {type(llm_entries).__name__}")
@@ -408,7 +392,7 @@ class OmegaConfig(BaseModel):
             emb_entries = self.get("embeddings.registry", default=None)
             if emb_entries is None:
                 warnings.append(
-                    "No embeddings providers found (embeddings.registry). Ensure provider YAML files are in config_dirs."
+                    "No embeddings providers found (embeddings.registry). Ensure provider YAML files are listed in :merge: patterns."
                 )
             elif not isinstance(emb_entries, (list, ListConfig)):
                 errors.append(f"embeddings.registry should be a list, got {type(emb_entries).__name__}")
@@ -508,7 +492,7 @@ class OmegaConfig(BaseModel):
         OmegaConfig._process_env_variables(new_conf, parent_config=self.root)
 
         # Remove pseudo-keys
-        for key in [":merge", "merge", ":env"]:
+        for key in [":merge", ":profile", ":env"]:
             if key in new_conf:
                 del new_conf[key]
 
@@ -781,11 +765,11 @@ class OmegaConfig(BaseModel):
                 keys_to_process = list(config_dict.keys())
         except Exception:
             # If conversion fails, try direct iteration
-            keys_to_process = [k for k in config.keys() if k not in [":env", ":merge", "merge"]]
+            keys_to_process = [k for k in config.keys() if k not in [":env", ":merge", ":profiles"]]
 
         # Recursively process :env in nested sections
         for key in keys_to_process:
-            if key in [":env", ":merge", "merge"]:
+            if key in [":env", ":merge", ":profiles"]:
                 continue
             try:
                 value = config.get(key)
@@ -847,96 +831,6 @@ class OmegaConfig(BaseModel):
         # Remove :env key after processing
         if ":env" in config:
             del config[":env"]
-
-    @staticmethod
-    def _process_merge_files(config: DictConfig, parent_config: DictConfig | None = None) -> DictConfig:
-        """Process :merge pseudo-key to merge additional configuration files.
-
-        Supports both old 'merge' key (with deprecation warning) and new ':merge' key.
-        Allows recursive merging when merged files also contain :merge keys.
-
-        Args:
-            config: Configuration dictionary to process
-            parent_config: Parent config for resolving interpolations in nested merges
-        Returns:
-            Merged configuration dictionary
-        """
-        # Check for deprecated 'merge' key
-        if "merge" in config:
-            logger.warning(
-                "Deprecated: 'merge' key has been renamed to ':merge'. "
-                "Please update your configuration file. Support for 'merge' will be removed in a future version."
-            )
-            merge_files_conf = config.get("merge", [])
-        else:
-            merge_files_conf = config.get(":merge", [])
-
-        if not merge_files_conf:
-            return config
-
-        # Convert to list without resolving to avoid premature interpolation errors
-        merge_files = OmegaConf.to_container(merge_files_conf, resolve=False)
-        if not isinstance(merge_files, list):
-            logger.warning(f":merge must be a list, got {type(merge_files)}")
-            return config
-
-        # Use parent_config or current config for interpolation resolution
-        resolution_config = OmegaConf.merge(parent_config, config) if parent_config else config
-
-        for file_path_raw in merge_files:
-            # Resolve the file path with proper context
-            if isinstance(file_path_raw, str) and "${" in file_path_raw:
-                try:
-                    temp_conf = OmegaConf.create({"_temp": file_path_raw})
-                    merged_for_resolution = OmegaConf.merge(resolution_config, temp_conf)
-                    if isinstance(merged_for_resolution, DictConfig):
-                        file_path = str(merged_for_resolution.get("_temp"))
-                    else:
-                        file_path = str(file_path_raw)
-                except Exception as e:
-                    raise ConfigInterpolationError(":merge file path", str(file_path_raw), original_error=e) from e
-            else:
-                file_path = str(file_path_raw)
-
-            merge_path = Path(file_path)
-            searched_paths = [str(merge_path)]
-            if not merge_path.exists():
-                merge_path = Path("config") / file_path
-                searched_paths.append(str(merge_path))
-
-            if not merge_path.exists():
-                raise ConfigFileNotFoundError(file_path, searched_paths)
-
-            try:
-                merge_config = OmegaConf.load(merge_path)
-            except Exception as e:
-                raise ConfigParseError(str(merge_path), original_error=e) from e
-
-            if not isinstance(merge_config, DictConfig):
-                raise ConfigTypeError(
-                    f"merge_file_{merge_path.name}", expected_type="DictConfig", actual_type=type(merge_config)
-                )
-
-            # Process :env variables in the merged file (pass resolution config for interpolation)
-            parent_resolution_config = resolution_config if isinstance(resolution_config, DictConfig) else None
-            OmegaConfig._process_env_variables(merge_config, parent_config=parent_resolution_config)
-
-            # Recursively process :merge in the merged file (pass resolution config)
-            merge_config = OmegaConfig._process_merge_files(merge_config, parent_config=parent_resolution_config)
-
-            # Clean up pseudo-keys before merging
-            if ":merge" in merge_config:
-                del merge_config[":merge"]
-            if "merge" in merge_config:
-                del merge_config["merge"]
-            # :env keys are already removed during processing
-
-            merged_config = OmegaConf.merge(config, merge_config)
-            if not isinstance(merged_config, DictConfig):
-                raise ConfigTypeError("merged_config", expected_type="DictConfig", actual_type=type(merged_config))
-            config = merged_config
-
-        return config
 
 
 def global_config(reload: bool = False) -> OmegaConfig:
