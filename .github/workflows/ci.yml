@@ -54,6 +54,9 @@ jobs:
         fi
       continue-on-error: true
       
+    - name: Install just
+      uses: taiki-e/install-action@just
+
     - name: Test installation
       run: just test-install
       
