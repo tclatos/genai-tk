@@ -108,8 +108,8 @@ class TestResolveStepRef:
 
 class TestWorkflowManifestPath:
     def test_returns_path_under_data_root(self, tmp_path) -> None:
-        with patch("genai_tk.utils.config_mngr.global_config") as mock_cfg:
-            mock_cfg.return_value.paths.data_root = str(tmp_path)
+        with patch("genai_tk.workflow.prefect.flow_factory.global_config") as mock_cfg:
+            mock_cfg.return_value.get_dir_path.return_value = tmp_path
             path = workflow_manifest_path("my_workflow")
 
         assert path.name == "manifest.json"
@@ -118,7 +118,7 @@ class TestWorkflowManifestPath:
 
     def test_fallback_to_home_cache_on_error(self) -> None:
         with patch(
-            "genai_tk.utils.config_mngr.global_config",
+            "genai_tk.workflow.prefect.flow_factory.global_config",
             side_effect=RuntimeError("no config"),
         ):
             path = workflow_manifest_path("wf")

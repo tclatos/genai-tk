@@ -47,11 +47,11 @@ uv run cli core --help
 Bootstrap a new genai-tk project in the current directory.
 
 ```bash
-# Full scaffold — config, Makefile, Python package with examples, Copilot files
+# Full scaffold — config, justfile, Python package with examples, Copilot files
 uv run cli init
 uv run cli init --name "My AI Project"   # explicit project name
 
-# Config + Makefile only (no example code)
+# Config + justfile only (no example code)
 uv run cli init --minimal
 
 # Also clone the Deer-flow backend
@@ -67,7 +67,7 @@ uv run cli init --force
 | Path | Description |
 |------|-------------|
 | `config/` | Default YAML config tree (app_conf, baseline, providers, agents) |
-| `Makefile` | `make webapp`, `make test`, `make example-*` targets |
+| `justfile` | `just webapp`, `just test`, task runner |
 | `<package>/` | Python package with CLI commands, LCEL chain, Streamlit page |
 | `AGENTS.md` | Copilot coding guidelines and skill index |
 | `.github/copilot-instructions.md` | Always-active Copilot hints |

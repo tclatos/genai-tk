@@ -36,8 +36,8 @@ description: Add or debug pytest unit, integration, and LLM evaluation tests for
 uv run pytest tests/unit_tests -q
 uv run pytest tests/integration_tests -q
 uv run pytest tests/eval_tests -q
-make test-unit
-make test-integration
+just test-unit
+just test
 ```
 
 ## Avoid

@@ -5,7 +5,7 @@ Provides a minimal web UI for testing agent demos:
 - 🤖 Deep Agent
 
 Run with:
-    make webapp
+    just webapp
 or:
     uv run streamlit run genai_tk/webapp/main/streamlit.py
 

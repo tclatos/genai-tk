@@ -1,8 +1,12 @@
 """Embedded Python client for Deer-flow agent system.
 
-Loads DeerFlow in-process via ``DEER_FLOW_PATH/backend`` — no LangGraph Server or
-Gateway API processes needed. A ``SqliteSaver`` checkpointer at
-``data/kv_store/deerflow_checkpoints.db`` keeps multi-turn state within a session.
+Loads DeerFlow in-process — no LangGraph Server or Gateway API processes needed.
+Install deerflow-harness as a proper uv dependency (see cli init --with-deer-flow):
+
+    uv add "deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdirectory=backend/packages/harness"
+
+A ``SqliteSaver`` checkpointer at ``data/kv_store/deerflow_checkpoints.db`` keeps
+multi-turn state within a session.
 
 Also defines the typed streaming event dataclasses (``TokenEvent``, ``NodeEvent``,
 ``ToolCallEvent``, ``ToolResultEvent``, ``ErrorEvent``) that the CLI consumes.
@@ -30,7 +34,6 @@ import builtins
 import os
 import queue
 import re
-import sys
 import threading
 import warnings
 from collections.abc import AsyncIterator
@@ -160,41 +163,14 @@ def _mode_flags(mode: str) -> dict[str, bool]:
 # ---------------------------------------------------------------------------
 
 
-def _ensure_deer_flow_on_path() -> Path:
-    """Add the DeerFlow package directory to :data:`sys.path` if absent.
+def _ensure_deer_flow_on_path() -> None:
+    """No-op: deerflow-harness is installed as a regular package via uv add.
 
-    Supports both the legacy layout (``DEER_FLOW_PATH/backend/src/``) and the
-    modern workspace layout (``DEER_FLOW_PATH/backend/packages/harness/``).
-
-    Returns:
-        Resolved backend directory path.
+    Kept for compatibility with any callers; remove if no callers remain.
     """
-    df_path = os.environ.get("DEER_FLOW_PATH", "")
-    if not df_path:
-        raise RuntimeError("DEER_FLOW_PATH is not set. Set it to the root of your deer-flow clone.")
-    backend_path = Path(df_path) / "backend"
-    if not backend_path.exists():
-        raise RuntimeError(f"DEER_FLOW_PATH/backend not found: {backend_path}")
-
-    # Modern layout: backend/packages/harness/deerflow/
-    harness_path = backend_path / "packages" / "harness"
-    if harness_path.exists():
-        pkg_str = str(harness_path)
-        if pkg_str not in sys.path:
-            sys.path.insert(0, pkg_str)
-            logger.debug(f"Added {pkg_str} to sys.path (modern layout)")
-    else:
-        # Legacy layout: backend/src/
-        backend_str = str(backend_path)
-        if backend_str not in sys.path:
-            sys.path.insert(0, backend_str)
-            logger.debug(f"Added {backend_str} to sys.path (legacy layout)")
-
     _patch_deer_flow_print()
     _suppress_deer_flow_logging()
     _patch_deer_flow_config_caching()
-    _check_deer_flow_compatibility()
-    return backend_path
 
 
 def _patch_deer_flow_config_caching() -> None:
@@ -209,10 +185,7 @@ def _patch_deer_flow_config_caching() -> None:
     This is a no-op if the upstream code is already fixed.
     """
     try:
-        try:
-            import deerflow.config.app_config as _cfg_mod  # type: ignore[import]
-        except ImportError:
-            import src.config as _cfg_mod  # type: ignore[import]
+        import deerflow.config.app_config as _cfg_mod  # type: ignore[import]
 
         _orig = getattr(_cfg_mod, "_load_and_cache_app_config", None)
         if _orig is None or getattr(_cfg_mod, "_genai_tk_patched", False):
@@ -298,81 +271,16 @@ def _get_checkpointer_db_path() -> Path:
 
 @once
 def _check_deer_flow_compatibility() -> None:
-    """Run once to detect common deer-flow compatibility issues and warn early.
-
-    Checks performed:
-    - Clone age (warn if git HEAD is older than 30 days)
-    - Module layout consistency (warn if legacy backend/src/ layout is detected)
-    - Config module prefix consistency (config_bridge vs. actual layout)
-
-    All issues are logged as warnings — nothing is fatal here.
-    """
-    df_path = os.environ.get("DEER_FLOW_PATH", "")
-    if not df_path:
-        return
-
-    issues: list[str] = []
-    root = Path(df_path)
-
-    # --- Clone freshness ---
+    """Run once to verify deerflow-harness is importable and warn on issues."""
     try:
-        import subprocess
-        import time
-
-        result = subprocess.run(
-            ["git", "log", "-1", "--format=%ct"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if result.returncode == 0:
-            age_days = (time.time() - int(result.stdout.strip())) / 86400
-            if age_days > 30:
-                issues.append(
-                    f"Deer-flow clone is {int(age_days)} days old. "
-                    "Run 'cli init --deer-flow --force' to pull the latest version."
-                )
-    except Exception:
-        pass
-
-    # --- Layout detection ---
-    harness_path = root / "backend" / "packages" / "harness"
-    legacy_src = root / "backend" / "src"
-    is_modern = harness_path.exists()
-    is_legacy = legacy_src.exists() and not is_modern
-
-    if is_legacy:
-        issues.append(
-            "Deer-flow clone uses the legacy backend/src/ layout. "
-            "The modern layout (backend/packages/harness/) adds middleware and "
-            "skill filtering support. Run 'cli init --deer-flow --force' to upgrade."
-        )
-
-    # --- Config module prefix consistency ---
-    try:
-        from genai_tk.agents.deer_flow.config_bridge import _deer_flow_module_prefix
-
-        pfx = _deer_flow_module_prefix()
-        if is_modern and pfx == "src":
-            issues.append(
-                "Module prefix mismatch: deer-flow uses the modern layout but config_bridge "
-                "resolved 'src' prefix. Generated config.yaml tool paths will be wrong."
-            )
-        elif is_legacy and pfx == "deerflow":
-            issues.append(
-                "Module prefix mismatch: deer-flow uses the legacy layout but config_bridge "
-                "resolved 'deerflow' prefix. Generated config.yaml tool paths will be wrong."
-            )
+        import deerflow  # type: ignore[import]  # noqa: F401
     except ImportError:
-        pass
-
-    if issues:
-        header = "Deer-flow compatibility check detected potential issues:"
-        details = "\n".join(f"  • {issue}" for issue in issues)
-        logger.warning(f"{header}\n{details}")
-    else:
-        logger.debug("Deer-flow compatibility check passed (no issues detected)")
+        logger.warning(
+            "deerflow-harness is not installed. "
+            "Install with: uv add 'deerflow-harness @ git+https://github.com/bytedance/deer-flow@main"
+            "#subdirectory=backend/packages/harness'  "
+            "or run: cli init --with-deer-flow"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -413,7 +321,10 @@ class EmbeddedDeerFlowClient:
             available_skills: Optional set of skill names to make available.
                 ``None`` means all discovered skills are available (default).
         """
-        _ensure_deer_flow_on_path()
+        _patch_deer_flow_print()
+        _suppress_deer_flow_logging()
+        _patch_deer_flow_config_caching()
+        _check_deer_flow_compatibility()
 
         try:
             import sqlite3
@@ -438,8 +349,13 @@ class EmbeddedDeerFlowClient:
 
         try:
             from deerflow.client import DeerFlowClient as _DeerFlowClient  # type: ignore[import]
-        except ImportError:
-            from src.client import DeerFlowClient as _DeerFlowClient  # type: ignore[import]
+        except ImportError as exc:
+            raise ImportError(
+                "deerflow-harness is not installed. "
+                "Install with: uv add 'deerflow-harness @ git+https://github.com/bytedance/deer-flow@main"
+                "#subdirectory=backend/packages/harness'  "
+                "or run: cli init --with-deer-flow"
+            ) from exc
 
         self._checkpointer = checkpointer
 

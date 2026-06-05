@@ -66,79 +66,28 @@ _NODE_LABELS: dict[str, str] = {
 
 
 # ---------------------------------------------------------------------------
-# DEER_FLOW_PATH early validation
+# deerflow-harness importability check
 # ---------------------------------------------------------------------------
 
 
-def _require_deer_flow_path() -> Path:
-    """Return DEER_FLOW_PATH as a Path, or exit with a helpful message.
+def _require_deer_flow_installed() -> None:
+    """Exit with a helpful message if deerflow-harness is not installed.
 
-    Checks both the explicit environment variable and the config default.
-    Validates that the path points to a real Deer-flow installation.
+    deerflow-harness is installed via uv add, not via a git clone.
+    There is no DEER_FLOW_PATH needed — it's a regular Python package.
     """
-    # First check explicit env var
-    df_path = os.environ.get("DEER_FLOW_PATH", "").strip()
-
-    # If not set explicitly, try to get it from config default
-    if not df_path:
-        try:
-            from genai_tk.utils.config_mngr import global_config
-
-            raw_config = global_config().root
-            df_path = raw_config.get("DEER_FLOW_PATH", "").strip() or ""
-        except Exception:
-            pass
-
-    # Still not found?
-    if not df_path:
+    try:
+        import deerflow  # type: ignore[import]  # noqa: F401
+    except ImportError:
         console.print(
-            "[red]DEER_FLOW_PATH is not set.[/red]\n\n"
-            "Deer-flow must be cloned and its backend installed before use.\n"
-            "Run one of:\n"
-            "  [bold cyan]cli init --deer-flow[/bold cyan]          "
-            "# clone to ~/deer-flow (default)\n"
-            "  [bold cyan]cli agents deerflow setup[/bold cyan]    "
-            "# same, with --path option\n\n"
-            "Then add to your .env:\n"
-            "  DEER_FLOW_PATH=~/deer-flow"
+            "[red]deerflow-harness is not installed.[/red]\n\n"
+            "Install it with:\n"
+            "  [bold cyan]cli init --with-deer-flow[/bold cyan]\n\n"
+            "Or manually:\n"
+            "  [bold cyan]uv add 'deerflow-harness @ git+https://github.com/bytedance/deer-flow@main"
+            "#subdirectory=backend/packages/harness'[/bold cyan]"
         )
         raise typer.Exit(1)
-
-    root = Path(df_path).expanduser().resolve()
-    backend = root / "backend"
-
-    # Check if directory exists
-    if not root.exists():
-        console.print(
-            f"[red]Deer-flow not found at:[/red] {root}\n\n"
-            "Deer-flow must be cloned first. Run one of:\n"
-            "  [bold cyan]cli init --deer-flow[/bold cyan]          "
-            "# clone to ~/deer-flow (default)\n"
-            "  [bold cyan]cli agents deerflow setup[/bold cyan]    "
-            "# clone with custom path\n"
-        )
-        raise typer.Exit(1)
-
-    # Check if backend exists
-    if not backend.exists():
-        console.print(
-            f"[red]Deer-flow backend not found:[/red] {backend}\n\n"
-            f"Your Deer-flow clone at {root} appears incomplete.\n"
-            "Try re-running: [bold cyan]cli init --deer-flow --force[/bold cyan]"
-        )
-        raise typer.Exit(1)
-
-    # Check for expected backend layout (modern: packages/harness, or legacy: src)
-    harness = backend / "packages" / "harness"
-    if not harness.exists() and not (backend / "src").exists():
-        console.print(
-            f"[red]Deer-flow backend layout not recognised:[/red] {backend}\n"
-            "Expected either backend/packages/harness/ (modern) or backend/src/ (legacy).\n"
-            "Try re-running [bold cyan]cli init --deer-flow --force[/bold cyan]."
-        )
-        raise typer.Exit(1)
-
-    return root
 
 
 # ---------------------------------------------------------------------------
@@ -315,10 +264,9 @@ async def _prepare_profile(
             format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan> - <level>{message}</level>",
         )
 
-    _require_deer_flow_path()
+    _require_deer_flow_installed()
 
-    config_dir = global_config().get_dir_path("paths.config")
-    config_path = str(config_dir / "agents" / "deerflow.yaml")
+    config_path = _resolve_deerflow_config_path()
 
     try:
         profiles = load_deer_flow_profiles(config_path)
@@ -567,11 +515,8 @@ async def _stream_message(
                 elif isinstance(event, TokenEvent):
                     if not full_text:  # first token — log how long the LLM thought
                         _log_llm_elapsed()
-                    # DeerFlow uses stream_mode="values" — each TokenEvent carries
-                    # the FULL text of one AIMessage, not individual tokens.
-                    # Multiple AIMessages may arrive (intermediate agent +
-                    # final reporter); only the *last* one is the real response.
-                    full_text = event.data
+                    # DeerFlow streams individual tokens; accumulate them.
+                    full_text += event.data
                     live.update(_text_panel(full_text))
                 elif isinstance(event, ErrorEvent):
                     live.update(Text(f"[red]Error: {event.message}[/red]"))
@@ -596,14 +541,29 @@ async def _stream_message(
 # ---------------------------------------------------------------------------
 
 
+def _resolve_deerflow_config_path() -> str:
+    """Return path to deerflow.yaml, with fallback to examples/agents/deerflow.yaml.
+
+    Looks in ``{paths.config}/agents/deerflow.yaml`` first (project-specific),
+    then falls back to ``{paths.config}/examples/agents/deerflow.yaml`` (bundled
+    with genai-tk for out-of-the-box usage).
+    """
+    from genai_tk.utils.config_mngr import global_config
+
+    config_dir = global_config().get_dir_path("paths.config")
+    primary = config_dir / "agents" / "deerflow.yaml"
+    if primary.exists():
+        return str(primary)
+    fallback = config_dir / "examples" / "agents" / "deerflow.yaml"
+    return str(fallback)
+
+
 def _get_default_profile_name() -> str | None:
     """Return the name of the first available profile, or None."""
     try:
         from genai_tk.agents.deer_flow.profile import load_deer_flow_profiles
-        from genai_tk.utils.config_mngr import global_config
 
-        config_dir = global_config().get_dir_path("paths.config")
-        config_path = str(config_dir / "agents" / "deerflow.yaml")
+        config_path = _resolve_deerflow_config_path()
         profiles = load_deer_flow_profiles(config_path)
         return profiles[0].name if profiles else None
     except Exception:
@@ -613,10 +573,8 @@ def _get_default_profile_name() -> str | None:
 def _list_profiles() -> None:
     """Print a Rich table of all profiles."""
     from genai_tk.agents.deer_flow.profile import load_deer_flow_profiles
-    from genai_tk.utils.config_mngr import global_config
 
-    config_dir = global_config().get_dir_path("paths.config")
-    config_path = str(config_dir / "agents" / "deerflow.yaml")
+    config_path = _resolve_deerflow_config_path()
 
     try:
         profiles = load_deer_flow_profiles(config_path)

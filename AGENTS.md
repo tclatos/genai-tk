@@ -3,13 +3,13 @@
 ## Build Commands
 
 ```bash
-make install-dev   # install with development dependencies
-make fmt           # format with ruff (includes import sorting)
-make lint          # lint with ruff
-make test          # run all tests (unit + integration)
-make test-unit     # unit tests only
-make test-integration  # integration tests only
-make check         # fmt + lint + test
+just install-dev   # install with development dependencies
+just fmt           # format with ruff (includes import sorting)
+just lint          # lint with ruff
+just test          # run all tests (unit + integration)
+just test-unit     # unit tests only
+just test-integration  # integration tests only
+just check         # fmt + lint + test
 ```
 
 Always use `uv` to run Python code, execute tests, and manage packages.

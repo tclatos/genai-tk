@@ -30,11 +30,22 @@ _FakeStreamEvent = type("StreamEvent", (), {})
 
 @pytest.fixture(autouse=True)
 def _fake_src_client_module():
-    """Ensure a fake ``src.client`` module with ``StreamEvent`` is always available.
+    """Ensure fake ``deerflow.client`` and ``src.client`` modules with ``StreamEvent``
+    are always available, so _translate_event resolves to _FakeStreamEvent.
 
-    This prevents tests from accidentally importing the real DeerFlow module
-    (which would require DEER_FLOW_PATH on sys.path) and keeps test isolation.
+    The code now imports from ``deerflow.client`` first (package-based install),
+    so we must inject _FakeStreamEvent there to make isinstance() checks pass.
     """
+    # --- deerflow.client (primary path after package-based refactoring) ---
+    fake_df = sys.modules.get("deerflow") or ModuleType("deerflow")
+    fake_df_client = ModuleType("deerflow.client")
+    fake_df_client.StreamEvent = _FakeStreamEvent  # type: ignore[attr-defined]
+    prev_df = sys.modules.get("deerflow")
+    prev_df_client = sys.modules.get("deerflow.client")
+    sys.modules["deerflow"] = fake_df
+    sys.modules["deerflow.client"] = fake_df_client
+
+    # --- src.client (legacy fallback path) ---
     fake_src = sys.modules.get("src") or ModuleType("src")
     fake_src_client = ModuleType("src.client")
     fake_src_client.StreamEvent = _FakeStreamEvent  # type: ignore[attr-defined]
@@ -53,6 +64,14 @@ def _fake_src_client_module():
 
     # Restore
     _ec._DFStreamEvent = old_cached
+    if prev_df_client is not None:
+        sys.modules["deerflow.client"] = prev_df_client
+    else:
+        sys.modules.pop("deerflow.client", None)
+    if prev_df is not None:
+        sys.modules["deerflow"] = prev_df
+    else:
+        sys.modules.pop("deerflow", None)
     if prev_client is not None:
         sys.modules["src.client"] = prev_client
     else:
@@ -542,10 +561,21 @@ def test_config_bridge_to_embedded_client_name_consistency() -> None:
 
 
 def test_full_init_chain_no_deer_flow_path(monkeypatch) -> None:
-    """EmbeddedDeerFlowClient raises RuntimeError when DEER_FLOW_PATH is unset."""
+    """EmbeddedDeerFlowClient no longer requires DEER_FLOW_PATH (package-based install).
+
+    After the refactoring to use deerflow-harness as a Python package,
+    DEER_FLOW_PATH is obsolete. Without deerflow installed, the client raises
+    ImportError pointing to the uv add installation command.
+    """
     monkeypatch.delenv("DEER_FLOW_PATH", raising=False)
+    # Remove the DeerFlowClient from the fake module so the ImportError path fires
+    import genai_tk.agents.deer_flow.embedded_client as _ec
+
+    fake_df_client = sys.modules.get("deerflow.client")
+    if fake_df_client is not None and hasattr(fake_df_client, "DeerFlowClient"):
+        del fake_df_client.DeerFlowClient
 
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
 
-    with pytest.raises(RuntimeError, match="DEER_FLOW_PATH"):
+    with pytest.raises(ImportError, match="deerflow-harness"):
         EmbeddedDeerFlowClient(config_path="/nonexistent/config.yaml")

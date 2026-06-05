@@ -3,6 +3,7 @@
 # Downstream projects import shared recipes via `tk.just`.
 
 set dotenv-load
+set dotenv-path := "~/.env"
 set shell := ["bash", "-euc"]
 set script-interpreter := ['uv', 'run', '--script']
 set positional-arguments

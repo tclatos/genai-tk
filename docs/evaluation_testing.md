@@ -20,7 +20,7 @@ All tests live in `tests/eval_tests/` and are marked with the `@pytest.mark.eval
 
 ```bash
 # Run the fast trajectory-matching evaluations
-make test-evals
+just test-evals
 # or equivalently:
 uv run pytest tests/eval_tests/ -m "evals and not real_models" -v
 ```
@@ -31,7 +31,7 @@ uv run pytest tests/eval_tests/ -m "evals and not real_models" -v
 
 ```bash
 # Run all tests, including LLM-judged evaluations (requires OpenRouter API key)
-make test-evals-full
+just test-evals --real
 # or equivalently:
 uv run pytest tests/eval_tests/ -m "evals" --include-real-models -v --timeout=120
 ```
@@ -279,7 +279,7 @@ To use a different judge for evaluations, edit this config or override at runtim
 
 ```bash
 # Override via CLI (requires environment variable export)
-OPENROUTER_API_KEY=... JUDGE_MODEL=gpt-4-mini@openai make test-evals-full
+OPENROUTER_API_KEY=... JUDGE_MODEL=gpt-4-mini@openai just test-evals --real
 ```
 
 ---
@@ -454,7 +454,7 @@ for i, msg in enumerate(trajectory):
 pytest tests/eval_tests/ --timeout=30
 
 # Or run deterministic tests only
-make test-evals  # Skips real_models
+just test-evals  # Skips real_models
 ```
 
 ### Evaluator returns wrong schema
@@ -485,7 +485,7 @@ def evaluator(*, outputs, **kwargs):
 ```bash
 # Set API key in environment
 export OPENROUTER_API_KEY=sk_...
-make test-evals-full
+just test-evals --real
 
 # Or set in .env file
 echo "OPENROUTER_API_KEY=sk_..." >> .env
@@ -528,7 +528,7 @@ print(result.get("comment"))  # Read the reasoning
 - [ ] Docstring explains what is being tested
 - [ ] Assertions have clear failure messages
 - [ ] Tools used are deterministic (`calculator`, `echo`, or custom mocks)
-- [ ] Test passes locally before pushing: `make test-evals` or `make test-evals-full`
+- [ ] Test passes locally before pushing: `just test-evals` or `just test-evals --real`
 
 ### Example PR
 

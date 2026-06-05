@@ -30,8 +30,8 @@ uv init
 # 1. Install genai-tk (pulls in streamlit, pillow, and all other deps)
 uv add git+https://github.com/tclatos/genai-tk@main
 
-# 2. Initialise config and a project Makefile
-uv run cli init                # copies default config/ tree + writes Makefile
+# 2. Initialise config and a project justfile
+uv run cli init                # copies default config/ tree + writes justfile
 uv run cli init --name "My Project"  # optionally set the app title
 
 # 3. (Optional) Also install the Deer-flow backend for the DeerFlow demo page

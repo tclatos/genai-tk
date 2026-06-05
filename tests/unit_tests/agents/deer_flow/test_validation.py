@@ -163,9 +163,9 @@ def test_validate_and_normalize_sandbox_docker():
 
 def test_validate_and_normalize_sandbox_invalid():
     """Test sandbox normalization rejects invalid values."""
-    from click.exceptions import Exit
+    import typer
 
-    with pytest.raises(Exit):
+    with pytest.raises((typer.Exit, SystemExit)):
         _validate_and_normalize_sandbox("podman")
 
 

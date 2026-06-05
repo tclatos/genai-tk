@@ -15,6 +15,8 @@ class SkillInfo(BaseModel):
     description: str = ""
     path: Path
     source: Literal["bundled", "custom", "git", "skillssh"] = "custom"
+    # dev = for developers building with genai-tk; agent = runtime capabilities
+    category: Literal["dev", "agent", "project"] = "project"
     tags: list[str] = Field(default_factory=list)
     version: str = ""
     author: str = ""

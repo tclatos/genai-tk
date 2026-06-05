@@ -169,11 +169,17 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             from opensandbox import Sandbox  # noqa: PLC0415
             from opensandbox.config import ConnectionConfig  # noqa: PLC0415
         except ImportError as exc:
-            raise RuntimeError("opensandbox is required: uv add opensandbox") from exc
+            raise RuntimeError(
+                "opensandbox is not installed — it is part of the aio-sandbox optional group.\n"
+                "Install with: cli init --with-sandbox  or  uv sync --group aio-sandbox"
+            ) from exc
         try:
             from agent_sandbox import AsyncSandbox  # noqa: PLC0415
         except ImportError as exc:
-            raise RuntimeError("agent-sandbox is required: uv add agent-sandbox") from exc
+            raise RuntimeError(
+                "agent-sandbox is not installed — it is part of the aio-sandbox optional group.\n"
+                "Install with: cli init --with-sandbox  or  uv sync --group aio-sandbox"
+            ) from exc
         import httpx  # noqa: PLC0415
 
         server_url = self.config.opensandbox_server_url

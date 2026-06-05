@@ -19,8 +19,11 @@ if TYPE_CHECKING:
 def _get_config_path() -> str:
     """Return the path to the langchain agents config (directory or file).
 
-    Checks for ``{paths.config}/agents/langchain/`` (directory) first,
-    then falls back to ``{paths.config}/agents/langchain.yaml``.
+    Search order:
+    1. ``{paths.config}/agents/langchain/`` (project directory, merged)
+    2. ``{paths.config}/agents/langchain.yaml`` (project single file)
+    3. ``{paths.config}/examples/agents/langchain/`` (bundled directory)
+    4. ``{paths.config}/examples/agents/langchain.yaml`` (bundled single file)
     """
     from genai_tk.utils.config_mngr import paths_config
 
@@ -28,6 +31,18 @@ def _get_config_path() -> str:
     dir_path = agents_dir / "langchain"
     if dir_path.is_dir():
         return str(dir_path)
+    yaml_path = agents_dir / "langchain.yaml"
+    if yaml_path.exists():
+        return str(yaml_path)
+    # Fallback to bundled examples (genai-tk repo or before cli init was run)
+    examples_agents_dir = paths_config().config / "examples" / "agents"
+    examples_dir_path = examples_agents_dir / "langchain"
+    if examples_dir_path.is_dir():
+        return str(examples_dir_path)
+    examples_yaml = examples_agents_dir / "langchain.yaml"
+    if examples_yaml.exists():
+        return str(examples_yaml)
+    # Return the expected project path (will produce a clear error message)
     return str(agents_dir / "langchain.yaml")
 
 

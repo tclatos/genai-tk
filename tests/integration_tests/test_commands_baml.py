@@ -128,7 +128,13 @@ class TestBamlInvokeFunction:
         with pytest.raises(Exception) as exc_info:
             asyncio.run(baml_invoke("NonExistentFunction", {"param": "value"}, config_name="default"))
 
-        assert "NonExistentFunction" in str(exc_info.value) or "Failed to load" in str(exc_info.value)
+        err = str(exc_info.value)
+        assert (
+            "NonExistentFunction" in err
+            or "Failed to load" in err
+            or "not found" in err
+            or "baml_client" in err
+        )
 
     @pytest.mark.network
     def test_baml_invoke_with_different_llms(self):

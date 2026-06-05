@@ -230,7 +230,7 @@ See [docs/cli.md](docs/cli.md) for the full command reference.
 Test agents interactively without code:
 
 ```bash
-make webapp           # launches Streamlit on http://localhost:8501
+just webapp          # launches Streamlit on http://localhost:8501
 ```
 
 Three built-in demo pages are included in an **Agents** section:
@@ -638,7 +638,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | Project scaffolding | `cli init --name` | `ProjectScaffolder` | [docs/scaffolding.md](docs/scaffolding.md) |
 | Copilot Agent support | `cli init` | — | [docs/copilot-agent-support.md](docs/copilot-agent-support.md) |
 | CLI extension | — | `CliTopCommand` | [docs/cli.md](docs/cli.md) |
-| Streamlit webapp | `make webapp` | `genai_tk.webapp` | [docs/webapp.md](docs/webapp.md) |
+| Streamlit webapp | `just webapp` | `genai_tk.webapp` | [docs/webapp.md](docs/webapp.md) |
 | Testing | `cli test` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
 | Browser automation | — | `browser_use` tools | [docs/browser_control.md](docs/browser_control.md) |
 
@@ -672,10 +672,10 @@ genai_tk/
 ## Development
 
 ```bash
-make fmt    # ruff format + isort
-make lint   # ruff lint
-make test   # unit + integration (no API keys needed)
-make check  # fmt + lint + test
+just fmt    # ruff format + isort
+just lint   # ruff lint
+just test   # unit + integration (no API keys needed)
+just check  # fmt + lint + test
 
 # Run tests that need real models
 uv run cli test full_integration

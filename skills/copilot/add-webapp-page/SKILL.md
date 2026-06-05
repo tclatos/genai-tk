@@ -75,7 +75,7 @@ ui:
 ## Step 3: Verify
 
 ```bash
-make webapp
+just webapp
 # Navigate to the new page in the sidebar
 ```
 

@@ -60,6 +60,10 @@ class SkillsCommands(CliTopCommand):
                 Optional[str],
                 typer.Option("--source", "-s", help="Filter by source: bundled, custom, git, skillssh"),
             ] = None,
+            category: Annotated[
+                Optional[str],
+                typer.Option("--category", "-c", help="Filter by category: dev, agent, project"),
+            ] = None,
         ) -> None:
             """List all discovered skills (bundled + custom + community)."""
             from genai_tk.main.skills_manager import discover_all_skills
@@ -69,26 +73,50 @@ class SkillsCommands(CliTopCommand):
 
             if source:
                 skills = [s for s in skills if s.source == source]
+            if category:
+                skills = [s for s in skills if s.category == category]
 
             if not skills:
                 console.print("[yellow]No skills found.[/yellow]")
-                if not source:
+                if not source and not category:
                     console.print("  Run [bold]cli skills add <name>[/bold] to install skills.")
                 return
 
-            table = Table(title=f"Skills ({len(skills)} found)", show_lines=False, border_style="dim")
-            table.add_column("Name", style="bold cyan", no_wrap=True)
-            table.add_column("Description")
-            table.add_column("Source", style="dim")
-            table.add_column("Tags", style="dim")
+            _CAT_LABELS = {
+                "dev": "Dev Skills  [dim](for building with genai-tk)[/dim]",
+                "agent": "Agent Skills  [dim](runtime capabilities for agents)[/dim]",
+                "project": "Project Skills  [dim](custom / community)[/dim]",
+            }
 
-            for s in sorted(skills, key=lambda x: (x.source, x.name)):
-                tags_str = ", ".join(s.tags) if s.tags else ""
-                table.add_row(s.name, s.description or "[dim]—[/dim]", s.display_source, tags_str)
+            from itertools import groupby
 
-            console.print(table)
+            sorted_skills = sorted(skills, key=lambda x: (x.category, x.name))
+            groups = {k: list(v) for k, v in groupby(sorted_skills, key=lambda x: x.category)}
+
+            total = len(skills)
+            console.print(f"\n[bold]Skills[/bold] [dim]({total} found)[/dim]\n")
+
+            for cat_key in ("dev", "agent", "project"):
+                group = groups.get(cat_key)
+                if not group:
+                    continue
+                label = _CAT_LABELS.get(cat_key, cat_key)
+                table = Table(title=label, show_lines=False, border_style="dim", title_justify="left")
+                table.add_column("Name", style="bold cyan", no_wrap=True)
+                table.add_column("Description")
+                table.add_column("Source", style="dim")
+                table.add_column("Tags", style="dim")
+                for s in group:
+                    tags_str = ", ".join(s.tags) if s.tags else ""
+                    table.add_row(s.name, s.description or "[dim]—[/dim]", s.display_source, tags_str)
+                console.print(table)
+                console.print()
+
             console.print(
-                "\n[dim]Add skills:[/dim]  cli skills add <name>  |  "
+                "[dim]Filter:[/dim]  cli skills list --category dev  |  --category agent  |  --category project"
+            )
+            console.print(
+                "[dim]Add:[/dim]    cli skills add <name>  |  "
                 "cli skills add --git <url>  |  cli skills add --skillssh <owner/repo>"
             )
 

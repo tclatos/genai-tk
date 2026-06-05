@@ -1,9 +1,8 @@
 # Project Scaffolding (`cli init`)
 
 `cli init` bootstraps a new genai-tk project in the current directory. It copies
-the default `config/` tree, scaffolds a Python package from a **template preset**,
-and generates `AGENTS.md`, a `justfile`, and multi-agent support files so AI coding
-assistants (Copilot, Cursor, Windsurf, Codex) work out of the box.
+the default `config/` tree, scaffolds a Python package with agent infrastructure,
+and generates `AGENTS.md` and a `justfile` — everything you need for AI-assisted coding.
 
 ---
 
@@ -14,159 +13,199 @@ mkdir my-project && cd my-project
 uv init
 uv add git+https://github.com/tclatos/genai-tk@main
 
-uv run cli init                             # interactive template picker (recommended)
-uv run cli init -t agent-app --name "My AI Project"
-uv run cli init --deer-flow                 # also clone the Deer-flow backend
+# Bootstrap the project (always scaffolds agent-app structure)
+uv run cli init --name "My AI Project"
 
+# Optional: add heavy components later
+uv run cli init --with-deer-flow   # install deerflow-harness + config
+uv run cli init --with-sandbox     # install aio-sandbox (Docker support)
+
+# Done!
 uv sync
-just run                                    # start the application
+just run                           # start the application
 ```
 
 ---
 
-## Templates
+## What `cli init` does
 
-Choose a template with `--template / -t`. When omitted, an interactive picker is shown.
+1. **Copies config/** — LLM/embedding providers, agent profiles, MCP server configs, webapp settings
+2. **Scaffolds package** — Python module with CLI commands, tools, skills, webapp pages
+3. **Generates docs** — `AGENTS.md` (architecture map), `EXTENDING.md` (how-to guide)
+4. **Configures IDE support** — `.github/copilot-instructions.md` (auto-loaded by Copilot)
+5. **Sets up workflows** — `justfile` for common tasks (lint, skills, run)
 
-| Template | What you get | Run command |
-|----------|-------------|-------------|
-| `agent-app` | Tools, agent profiles, skills, webapp page | `cli agents langchain --chat` |
-| `rag-app` | Document ingestion, vector store, retrieval | `cli rag query "…"` |
-| `workflow-app` | YAML-driven multi-step pipeline + Prefect | `cli workflow run example` |
-| `minimal` | Config + justfile only, no example code | `cli --help` |
+All scaffolding follows **agent-friendly defaults**: no IDE-specific files (Cursor/Windsurf rules are
+shown as post-init commands instead), modular structure for tools/skills/chains.
+
+---
+
+## Generated structure
+
+### Always generated (agent-app structure)
+
+```
+config/                           ← copied from genai-tk defaults
+  app_conf.yaml                   ← CLI command registry
+  agents/
+    langchain.yaml                ← agent profiles (default + research)
+  providers/
+    llm.yaml                      ← LLM model definitions
+    embeddings.yaml               ← embedding model definitions
+  *.yaml                          ← other configs (mcp, webapp, workflows, etc.)
+
+<my_project>/                     ← Python package
+  __init__.py
+  commands/
+    agent_commands.py             ← AgentCommands CLI group (auto-registered)
+  tools/
+    example_tool.py               ← example LangChain tool
+  utils/
+    __init__.py
+  webapp/
+    pages/demos/
+      hello_agent.py              ← demo: chat with ReAct agent
+  main/
+    streamlit.py                  ← Streamlit app entry point
+
+data/                             ← runtime data
+  kv_store/                       ← vector store, checkpoints, cache
+  models_dev.json                 ← downloaded model metadata
+
+docs/
+  EXTENDING.md                    ← how to add CLI commands, tools, chains, webapp pages
+  SKILLS.md                       ← skills reference (created by cli skills add)
+
+skills/
+  custom/                         ← your SKILL.md files (committed)
+  community/                      ← installed via cli skills add (gitignored)
+
+AGENTS.md                         ← architecture map for AI agents
+justfile                          ← task runner: just run / just lint / just skills
+README.md                         ← project overview
+pyproject.toml                    ← package config with genai-tk dependency
+
+.github/
+  copilot-instructions.md         ← Copilot agent instructions (points to AGENTS.md)
+
+.gitignore                        ← includes /skills/community, /data/*, etc.
+```
+
+### Optional (`--with-deer-flow`)
+
+```
+config/agents/
+  deerflow.yaml                   ← Deer-flow profiles (chat + research by default)
+
+# In your Python environment:
+# uv add "deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdirectory=backend/packages/harness"
+```
+
+### Optional (`--with-sandbox`)
+
+```
+# In your Python environment:
+# uv sync --group aio-sandbox
+# Installs: agent-sandbox, opensandbox, opensandbox-server
+```
+
+---
+
+## IDE setup
+
+After `cli init`, copy `AGENTS.md` to your IDE's rules location:
 
 ```bash
-# Interactive picker (uses questionary; falls back to text prompt)
-uv run cli init
+# Cursor
+cp AGENTS.md .cursor/rules/project.md
 
-# Explicit template
-uv run cli init -t agent-app
-uv run cli init -t rag-app     --name "My RAG App"
-uv run cli init -t workflow-app
-uv run cli init -t minimal
+# Windsurf
+cp AGENTS.md .windsurfrules
 
-# Overwrite existing files
-uv run cli init -t agent-app --force
+# Claude Code / OpenCode / Codex
+# Use the file as-is (they auto-discover AGENTS.md)
 ```
+
+Or ask your AI assistant directly to read `AGENTS.md` for context.
 
 ---
 
-## What gets generated
+## Optional heavy components
 
-### Common (all templates)
+By default, `cli init` keeps things lightweight. Install heavy components on demand:
 
-```
-config/               ← copied from genai-tk defaults
-AGENTS.md             ← architecture map for AI agents (Codex, Claude, OpenCode, …)
-justfile              ← task runner (just run / just lint / just skills)
-README.md             ← project overview
-pyproject.toml        ← package mode enabled, genai-tk dependency
-docs/
-├── SKILLS.md         ← skills guide: format, skills.sh, community sources
-└── EXTENDING.md      ← how to add CLI commands, tools, chains, webapp pages
-.github/
-└── copilot-instructions.md   ← lean pointer to AGENTS.md (auto-loaded by Copilot)
-.cursor/
-└── rules/genai-tk.mdc        ← Cursor rules
-.windsurfrules                ← Windsurf rules
-skills/
-├── custom/           ← your skills (committed to repo)
-├── community/        ← installed via `cli skills add` (gitignored)
-└── bundled/          ← copies of genai-tk bundled skills (optional)
+### DeerFlow (multi-agent reasoning with planning)
+
+```bash
+uv run cli init --with-deer-flow
 ```
 
-### `agent-app` additions
+Installs `deerflow-harness` package + config profiles. Then:
 
-```
-<package>/
-├── __init__.py
-├── commands/
-│   └── agent_commands.py     ← AgentCommands CLI group
-├── tools/
-│   └── example_tool.py       ← example LangChain tool
-├── webapp/pages/demos/
-│   └── hello_agent.py        ← Streamlit chat UI
-└── main/
-    └── streamlit.py          ← Streamlit entry point
-config/agents/
-└── langchain.yaml            ← default + research agent profiles
-skills/custom/
-└── getting-started/
-    └── SKILL.md              ← example skill with skills.sh format
+```bash
+uv run cli agents deerflow --chat -p "Research Assistant"
 ```
 
-### `rag-app` additions
+See [docs/deer-flow.md](deer-flow.md) for profiles and advanced usage.
 
-```
-<package>/
-├── __init__.py
-└── commands/
-    └── rag_commands.py       ← RagCommands CLI group (ingest + query)
-data/
-├── raw/                      ← drop source documents here
-└── processed/
+### AIO Sandbox (Docker-based code execution)
+
+```bash
+uv run cli init --with-sandbox
 ```
 
-### `workflow-app` additions
+Installs `agent-sandbox`, `opensandbox`, `opensandbox-server` packages. Then:
 
+```bash
+opensandbox-server start
+uv run cli agents langchain --sandbox docker "write and run code"
 ```
-<package>/
-├── __init__.py
-└── workflows/
-    └── steps/
-        └── example_step.py   ← Prefect flow step
-config/workflows/
-└── pipeline.yaml             ← workflow + profile YAML
-```
+
+See [docs/sandbox_support.md](sandbox_support.md) for setup and configuration.
 
 ---
 
 ## Skills system
 
-Every project gets a `skills/` tree and `docs/SKILLS.md` guide out of the box.
-Skills are `SKILL.md` files (YAML frontmatter + markdown) that give agents
-domain knowledge on demand — loaded progressively, not injected on every call.
+Every project gets a `skills/` directory for SKILL.md files — YAML+markdown documents
+that give agents domain knowledge on demand.
 
 ```bash
-# List all skills in the project
+# List skills in this project
 just skills
-cli skills list
 
 # Add a bundled skill (from genai-tk)
 cli skills add getting-started
 
-# Install from a GitHub repo (skills.sh format)
+# Install community skills
 cli skills add --skillssh langchain-ai/langchain-skills
 
-# Install from a git repo
-cli skills add --git https://github.com/your-org/my-skills --path my-skill
-
-# Create a new skill interactively
+# Create a new skill
 cli skills create my-domain-skill
-
-# Validate all skills
-cli skills validate --all
 ```
 
-See [docs/skills.md](../docs/skills.md) *(if present)* or the generated `docs/SKILLS.md`
-in your project for the complete reference, including skills.sh format and community sources.
+See [docs/skills.md](skills.md) for the complete guide.
 
 ---
 
 ## Config auto-patching
 
-`cli init` patches several config files automatically after rendering templates.
+`cli init` patches several config files automatically:
 
-### `config/app_conf.yaml` — CLI command registration
+### `config/app_conf.yaml` — CLI commands
+
+Your project's `AgentCommands` class is auto-registered:
 
 ```yaml
 cli:
   commands:
     - genai_tk.main.cli.register_commands
-    - my_project.commands.agent_commands.AgentCommands   # ← appended
+    - my_project.commands.agent_commands.AgentCommands   # ← added
 ```
 
-### `config/webapp.yaml` — Streamlit navigation (agent-app only)
+### `config/webapp.yaml` — Streamlit pages
+
+If you have a webapp, pages are registered automatically:
 
 ```yaml
 ui:
@@ -186,7 +225,7 @@ package = true
 include = ["my_project*"]
 ```
 
-All patches are idempotent — re-running `cli init` is safe.
+All patches are **idempotent** — re-running `cli init` is safe.
 
 ---
 
@@ -194,73 +233,50 @@ All patches are idempotent — re-running `cli init` is safe.
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--template / -t TEXT` | interactive | Template: `agent-app` \| `rag-app` \| `workflow-app` \| `minimal` |
 | `--name / -n TEXT` | cwd name | Human-readable project name |
-| `--deer-flow / -d` | false | Also clone the Deer-flow backend |
-| `--deer-flow-path TEXT` | `~/deer-flow` | Clone path for Deer-flow |
+| `--with-deer-flow` | false | Install deerflow-harness (heavy: multi-agent planning) |
+| `--with-sandbox` | false | Install aio-sandbox (heavy: Docker code execution) |
 | `--force / -f` | false | Overwrite files that already exist |
 
-`cli init` is **idempotent** — re-running skips files that already exist unless `--force` is passed.
-
----
-
-## Multi-agent support
-
-The generated files target four AI coding assistants:
-
-| File | Tool |
-|------|------|
-| `AGENTS.md` | Codex, Claude Code, OpenCode, Gemini CLI (primary source of truth) |
-| `.github/copilot-instructions.md` | GitHub Copilot (auto-injected, ≤25 lines, pointer to AGENTS.md) |
-| `.cursor/rules/genai-tk.mdc` | Cursor |
-| `.windsurfrules` | Windsurf |
-
-All files follow the **progressive disclosure** principle: agents get a concise
-map with pointers to skills and docs, not a full manual.
+`cli init` is **idempotent** — re-running skips files that exist unless `--force` is set.
 
 ---
 
 ## justfile tasks
 
 ```bash
-just          # list all tasks
-just run      # start the application
-just lint     # ruff format + check + cli skills validate --all
-just skills   # cli skills list
-just webapp   # uv run cli webapp  (agent-app template)
+just              # list all tasks
+just run          # start the webapp (uv run cli webapp)
+just lint         # ruff format + check + cli skills validate
+just skills       # cli skills list
+just test         # run unit tests
 ```
 
 ---
 
-## Webapp (agent-app)
+## Next steps
 
-After `uv sync`:
-
-```bash
-just webapp   # or: uv run cli webapp
-```
-
-The **Hello Agent** demo page shows a chat UI with LLM selector and a built-in
-`calculator` tool wired to a ReAct agent.
+1. **Run the app**: `uv sync && just run`
+2. **Try the agent**: Open http://localhost:8501 → "Hello Agent" demo
+3. **Extend**: Add tools, skills, profiles — see `docs/EXTENDING.md`
+4. **Deploy**: Check `docs/` for deployment guides
 
 ---
 
-## Extending the project
+## Troubleshooting
 
-See the generated `docs/EXTENDING.md` and `AGENTS.md` in your project for
-step-by-step guides on:
+**Q: How do I use a different LLM?**
 
-- Adding a CLI command group
-- Adding a LangChain tool
-- Adding an agent profile
-- Adding a webapp page
-- Adding a SKILL.md
-- Adding an MCP server
+Edit `config/profiles/local/providers/llm.yaml` (or your active profile) and change the `default` model.
 
-Or use the toolkit's own contributor skills:
+**Q: Can I have multiple agent profiles?**
 
-```bash
-cli skills add add-tool       # bundled skill: how to create a tool
-cli skills add add-skill      # bundled skill: how to create a skill
-cli skills add add-mcp-server # bundled skill: how to add an MCP server
-```
+Yes. Edit `config/agents/langchain.yaml` to add more profiles. Use `cli agents langchain -p <profile>` to select.
+
+**Q: How do I add my own tools?**
+
+Create a file in `<package>/tools/` and register it in an agent profile's `tools:` section. See `docs/EXTENDING.md`.
+
+**Q: I want to scaffold multiple projects in the same directory.**
+
+`cli init` is idempotent and skips existing files. To regenerate, use `--force`.

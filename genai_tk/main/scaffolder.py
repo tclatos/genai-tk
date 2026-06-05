@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 from importlib.resources import files as pkg_files
 from pathlib import Path
-from typing import Literal
 
 from rich.console import Console
 
@@ -18,53 +17,17 @@ console = Console()
 
 _TEMPLATES_PKG = "templates/project"
 
-Template = Literal["agent-app", "rag-app", "workflow-app", "minimal"]
-
-TEMPLATE_META: dict[str, dict] = {
-    "agent-app": {
-        "label": "Agent App",
-        "description": "AI agent application with tools, skills, and configurable profiles.",
-        "run_command": "cli agent chat",
-        "quickstart_run": "chat with default agent",
-        "structure_entries": [
-            "commands/         # CLI command groups",
-            "tools/            # LangChain tools",
-            "webapp/pages/     # Streamlit pages",
-        ],
-        "project_recipes": "# Launch agent chat\nrun:\n    uv run cli agent chat\n\n# Launch the webapp\nwebapp:\n    uv run cli webapp\n",
-    },
-    "rag-app": {
-        "label": "RAG Pipeline",
-        "description": "Retrieval-Augmented Generation pipeline with document ingestion and querying.",
-        "run_command": "cli rag query <question>",
-        "quickstart_run": "cli rag query 'your question'",
-        "structure_entries": [
-            "commands/         # CLI command groups",
-            "loaders/          # document loaders",
-            "data/             # raw / processed documents",
-        ],
-        "project_recipes": '# Ingest documents\ningest:\n    uv run cli rag ingest data/raw\n\n# Query\nquery question="What is this about?":\n    uv run cli rag query "{{question}}"\n',
-    },
-    "workflow-app": {
-        "label": "Workflow App",
-        "description": "Multi-step data pipeline orchestrated with YAML workflow definitions.",
-        "run_command": "cli workflow run example",
-        "quickstart_run": "cli workflow run example --dry-run",
-        "structure_entries": [
-            "commands/         # CLI command groups",
-            "workflows/steps/  # workflow step functions",
-            "config/workflows/ # workflow YAML definitions",
-        ],
-        "project_recipes": '# Dry-run a workflow\ndry-run workflow="example":\n    uv run cli workflow run {{workflow}} --dry-run\n\n# Run a workflow\nrun workflow="example":\n    uv run cli workflow run {{workflow}}\n',
-    },
-    "minimal": {
-        "label": "Minimal",
-        "description": "Config, justfile, and AGENTS.md only — no example code.",
-        "run_command": "cli --help",
-        "quickstart_run": "explore available commands",
-        "structure_entries": [],
-        "project_recipes": "# Launch agent chat\nrun:\n    uv run cli agents langchain --chat\n",
-    },
+_AGENT_APP_META: dict = {
+    "label": "Agent App",
+    "description": "AI agent application with tools, skills, and configurable profiles.",
+    "run_command": "cli agent chat",
+    "quickstart_run": "chat with default agent",
+    "structure_entries": [
+        "commands/         # CLI command groups",
+        "tools/            # LangChain tools",
+        "webapp/pages/     # Streamlit pages",
+    ],
+    "project_recipes": "# Launch agent chat\nrun:\n    uv run cli agent chat\n\n# Launch the webapp\nwebapp:\n    uv run cli webapp\n",
 }
 
 
@@ -84,7 +47,6 @@ class ProjectScaffolder:
     Args:
         project_dir: Root directory of the new project (usually cwd).
         project_name: Human-readable name (e.g. "My AI Project").
-        template: One of agent-app | rag-app | workflow-app | minimal.
         force: Overwrite existing files.
     """
 
@@ -93,13 +55,11 @@ class ProjectScaffolder:
         project_dir: Path,
         project_name: str,
         *,
-        template: Template = "agent-app",
         force: bool = False,
     ) -> None:
         self.project_dir = project_dir
         self.project_name = project_name
         self.package_name = _sanitize_package_name(project_name)
-        self.template = template
         self.force = force
         self._written = 0
         self._skipped = 0
@@ -114,7 +74,7 @@ class ProjectScaffolder:
 
         tpl_root = pkg_files("genai_tk") / _TEMPLATES_PKG
         tpl_path = Path(str(tpl_root))
-        meta = TEMPLATE_META[self.template]
+        meta = _AGENT_APP_META
 
         ctx = {
             "project_name": self.project_name,
@@ -129,7 +89,7 @@ class ProjectScaffolder:
 
         search_dirs = [
             str(tpl_path / "common"),
-            str(tpl_path / self.template),
+            str(tpl_path / "agent-app"),
         ]
         env = Environment(
             loader=FileSystemLoader(search_dirs),
@@ -146,8 +106,6 @@ class ProjectScaffolder:
             "AGENTS.md.j2": "AGENTS.md",
             "justfile.j2": "justfile",
             ".github/copilot-instructions.md.j2": ".github/copilot-instructions.md",
-            ".cursor/rules/genai-tk.mdc.j2": ".cursor/rules/genai-tk.mdc",
-            ".windsurfrules.j2": ".windsurfrules",
             "docs/SKILLS.md.j2": "docs/SKILLS.md",
             "docs/EXTENDING.md.j2": "docs/EXTENDING.md",
         }
@@ -175,9 +133,7 @@ class ProjectScaffolder:
             self._write_file(init_path, "")
 
         if self._written:
-            console.print(
-                f"[green]✓ Scaffolded {self._written} file(s)[/green] (template: [bold]{self.template}[/bold])"
-            )
+            console.print(f"[green]✓ Scaffolded {self._written} file(s)[/green]")
         if self._skipped:
             console.print(f"[yellow]  ({self._skipped} file(s) already exist — use --force to overwrite)[/yellow]")
 
@@ -194,40 +150,13 @@ class ProjectScaffolder:
 
     def _scaffold_template_files(self, env, ctx: dict) -> None:
         pkg = self.package_name
-
-        if self.template == "agent-app":
-            file_map = {
-                "commands/agent_commands.py.j2": f"{pkg}/commands/agent_commands.py",
-                "tools/example_tool.py.j2": f"{pkg}/tools/example_tool.py",
-                "config/langchain.yaml.j2": "config/agents/langchain.yaml",
-                "skills/custom/getting-started/SKILL.md.j2": "skills/custom/getting-started/SKILL.md",
-            }
-            self._render_hello_agent_page(ctx, pkg)
-
-        elif self.template == "rag-app":
-            file_map = {
-                "commands/rag_commands.py.j2": f"{pkg}/commands/rag_commands.py",
-            }
-            for sub in ("raw", "processed"):
-                d = self.project_dir / "data" / sub
-                d.mkdir(parents=True, exist_ok=True)
-                readme = d / "README.md"
-                if not readme.exists():
-                    readme.write_text(f"# {sub.title()} Data\n\nPlace your {sub} documents here.\n")
-                    self._written += 1
-
-        elif self.template == "workflow-app":
-            file_map = {
-                "workflows/steps/example_step.py.j2": f"{pkg}/workflows/steps/example_step.py",
-                "config/pipeline.yaml.j2": "config/workflows/pipeline.yaml",
-            }
-            for sub in ("workflows", "workflows/steps"):
-                init = self.project_dir / pkg / sub / "__init__.py"
-                self._write_file(init, "")
-
-        else:  # minimal
-            file_map = {}
-
+        file_map = {
+            "commands/agent_commands.py.j2": f"{pkg}/commands/agent_commands.py",
+            "tools/example_tool.py.j2": f"{pkg}/tools/example_tool.py",
+            "config/langchain.yaml.j2": "config/agents/langchain.yaml",
+            "skills/custom/getting-started/SKILL.md.j2": "skills/custom/getting-started/SKILL.md",
+        }
+        self._render_hello_agent_page(ctx, pkg)
         for tpl_name, out_rel in file_map.items():
             self._render_template(env, ctx, tpl_name, out_rel)
 
@@ -256,14 +185,7 @@ class ProjectScaffolder:
             pass
 
     def _get_package_subdirs(self) -> list[str]:
-        base = ["commands"]
-        if self.template == "agent-app":
-            return base + ["tools", "webapp", "webapp/pages", "webapp/pages/demos", "main"]
-        if self.template == "rag-app":
-            return base + ["loaders"]
-        if self.template == "workflow-app":
-            return base + ["workflows", "workflows/steps"]
-        return []
+        return ["commands", "tools", "webapp", "webapp/pages", "webapp/pages/demos", "main"]
 
     def _copy_genai_tk_skills(self) -> None:
         """Copy skills/genai-tk/ from the installed package into the project's skills/genai-tk/."""
@@ -312,15 +234,7 @@ class ProjectScaffolder:
             return
         content = app_conf.read_text(encoding="utf-8")
 
-        command_classes = {
-            "agent-app": f"{self.package_name}.commands.agent_commands.AgentCommands",
-            "rag-app": f"{self.package_name}.commands.rag_commands.RagCommands",
-            # workflow-app: genai_tk.workflow.commands.WorkflowCommands (already registered in app_conf)
-            # handles `cli workflow run` — no project-level WorkflowCommands needed.
-            "workflow-app": None,
-            "minimal": None,
-        }
-        entry_class = command_classes.get(self.template)
+        entry_class = f"{self.package_name}.commands.agent_commands.AgentCommands"
         if not entry_class:
             return
 
@@ -338,8 +252,6 @@ class ProjectScaffolder:
         console.print(f"[green]✓ Registered {entry_class.split('.')[-1]} in[/green] [bold]{app_conf.name}[/bold]")
 
     def _patch_webapp_yaml(self) -> None:
-        if self.template != "agent-app":
-            return
         webapp_yaml = self.project_dir / "config" / "webapp.yaml"
         if not webapp_yaml.exists():
             return

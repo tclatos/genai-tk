@@ -77,7 +77,7 @@ def test_baml_single_input_flow_updates_manifest(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(mod._process_single_input_task, "submit", fake_submit)
 
-    result, model_name = baml_single_input_flow.fn(
+    result, model_name, resolved_llm, relative_output_path = baml_single_input_flow.fn(
         input_text="Hello",
         function_name="ExtractDummy",
         config_name="default",

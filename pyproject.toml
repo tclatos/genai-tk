@@ -57,9 +57,6 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.0.3",                      # SQLite checkpoint persistence for LangGraph
     "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
-    "agent-sandbox>=0.0.24",                                   # AIO sandbox SDK client
-    "opensandbox>=0.1.5",
-    "opensandbox-server>=0.1.7",
     # ============================================
     # Vector Stores & Embeddings
     # ============================================
@@ -107,8 +104,10 @@ dependencies = [
     # ============================================
     # Web Interface (Streamlit)
     # ============================================
-    "streamlit>=1.49", # Interactive webapp framework
+    "streamlit>=1.49",  # Interactive webapp framework
     "pillow>=11.0",
+    "liteparse>=2.0.5",
+    "deerflow-harness",
 ]
 
 [project.urls]
@@ -153,20 +152,30 @@ postgres = [
 # ============================================
 browser-control = [
     "playwright>=1.51.0", # Browser automation via CDP
-    # agent-sandbox is already in core dependencies
 ]
 
 
 # ============================================
-# Deer-flow Agent Integration  
+# AIO Sandbox (Docker-backed agent execution)
 # ============================================
-# NOTE: Deer-flow must be installed manually after setting DEER_FLOW_PATH
-#   export DEER_FLOW_PATH=/path/to/deer-flow
-#   uv pip install -e $DEER_FLOW_PATH/backend
-# This is intentionally left empty since uv doesn't support ${VAR} in file:// URLs
+# Heavy optional component: Docker container lifecycle + HTTP agent SDK.
+# Install with: uv sync --group aio-sandbox
+# Or via cli init: cli init --with-sandbox
+aio-sandbox = [
+    "agent-sandbox>=0.0.24",     # AIO sandbox HTTP SDK client
+    "opensandbox>=0.1.5",        # Container lifecycle manager
+    "opensandbox-server>=0.1.7", # OpenSandbox REST server
+]
+
+
+# ============================================
+# Deer-flow Agent Integration
+# ============================================
+# Install via: cli init --with-deer-flow
+# Or manually: uv add 'deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdirectory=backend/packages/harness'
 deer-flow = [
+    # deerflow-harness is installed via uv add from git (see cli init --with-deer-flow)
     # readabilipy is in main dependencies (required by deer-flow's Jina AI web_fetch tool)
-    # agent-sandbox is in main dependencies
 ]
 
 # ============================================
@@ -198,6 +207,7 @@ default-groups = ["dev", "postgres", "browser-control", "evals"]
 package = true
 
 [tool.uv.sources]
+deerflow-harness = { git = "https://github.com/bytedance/deer-flow", subdirectory = "backend/packages/harness", rev = "main" }
 
 [tool.uv.workspace]
 members = ["prj1"]
@@ -212,6 +222,10 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["genai_tk"]
+# Exclude symlinks that point at paths already covered by force-include below.
+# Without this, Hatchling follows the symlinks during package traversal and then
+# collides with the force-include entries, producing "file added twice" errors.
+exclude = ["genai_tk/default_config", "genai_tk/skills/genai-tk"]
 
 [tool.hatch.build.targets.wheel.force-include]
 # Explicitly bundle config/ as package data under genai_tk/default_config/ in the wheel.

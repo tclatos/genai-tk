@@ -245,5 +245,5 @@ All 26 unit tests pass, covering:
 
 Run tests:
 ```bash
-make test-unit  # or: uv run pytest tests/unit_tests/core/test_llm_factory.py -xvs
+just test-unit  # or: uv run pytest tests/unit_tests/core/test_llm_factory.py -xvs
 ```

@@ -73,11 +73,13 @@ test-notebooks *args:
 [doc('Run pytest with custom args  e.g: just pytest -k my_test -v')]
 pytest *args:
     uv run pytest {{ args }}
-# ─── Web Interface ──────────────────────────────────────────────────────────────
 
-[doc('Launch Streamlit webapp (entry point resolved from genai-tk package)')]
-webapp:
-    entry=$(uv run python -c 'import pathlib, genai_tk; print(pathlib.Path(genai_tk.__file__).parent / "webapp/main/streamlit.py")') && uv run python -m streamlit run "$entry"
+# ─── Web Interface ──────────────────────────────────────────────────────────
+
+[doc('Launch Streamlit webapp (requires streamlit_entry and dev_pythonpath variables)')]
+@webapp:
+    PYTHONPATH="{{ dev_pythonpath }}" uv run streamlit run "{{ streamlit_entry }}"
+
 # ─── Maintenance ────────────────────────────────────────────────────────────
 
 [doc('Sync with remote, stash changes, rebase, upgrade genai-tk')]
