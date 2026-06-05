@@ -429,7 +429,6 @@ def _build_prefect_flow(
                     raise WorkflowExecutionError(
                         f"Step '{step.id}' foreach.from resolved to {type(collection).__name__}, expected list."
                     )
-                item_var = step.foreach.as_var
                 fan_futures = []
                 for item in collection:
                     item_inputs = _prepare_inputs(step.with_, results, item_var=item)

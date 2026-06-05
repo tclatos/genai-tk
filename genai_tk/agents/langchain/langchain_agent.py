@@ -277,7 +277,6 @@ class LangchainAgent(BaseModel):
 
     def _load_profile(self) -> AgentProfileConfig:
         """Load and merge a named profile from ``langchain.yaml``."""
-        from pathlib import Path
 
         from genai_tk.agents.langchain.commands import _get_config_path
         from genai_tk.agents.langchain.config import load_unified_config, resolve_profile

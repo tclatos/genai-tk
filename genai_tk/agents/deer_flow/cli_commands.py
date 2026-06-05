@@ -87,7 +87,7 @@ def _require_deer_flow_installed() -> None:
             "  [bold cyan]uv add 'deerflow-harness @ git+https://github.com/bytedance/deer-flow@main"
             "#subdirectory=backend/packages/harness'[/bold cyan]"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 # ---------------------------------------------------------------------------
@@ -254,7 +254,6 @@ async def _prepare_profile(
         validate_mode,
         validate_profile_name,
     )
-    from genai_tk.utils.config_mngr import global_config
 
     if verbose:
         logger.remove()
@@ -587,6 +586,8 @@ def _list_profiles() -> None:
         return
 
     try:
+        from genai_tk.utils.config_mngr import global_config
+
         default_name = global_config().get("deerflow.default_profile")
     except Exception:
         default_name = None

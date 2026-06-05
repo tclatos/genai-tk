@@ -315,7 +315,7 @@ class _FileToProcess:
 
 
 def _prepare_files(
-    files: Iterable[UPath],
+    files: Iterable[Path],
     cache: ManifestCache,
     force: bool,
 ) -> tuple[list[_FileToProcess], int]:

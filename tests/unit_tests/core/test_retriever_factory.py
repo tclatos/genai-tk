@@ -73,7 +73,7 @@ class TestConfigParsing:
         assert len(cfg.retrievers) == 2
 
     def test_unknown_type_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             _parse_retriever_config({"type": "unknown_type"})
 
 
@@ -322,7 +322,7 @@ class TestRetrieverFactory:
             }
             with patch("genai_tk.core.retrievers.vector.VectorRetriever.build") as mock_build:
                 mock_build.return_value = MagicMock(spec=ManagedRetriever)
-                managed = RetrieverFactory.create("my_vector")
+                RetrieverFactory.create("my_vector")
                 mock_build.assert_called_once()
 
     def test_build_bm25_retriever(self, tmp_path: Path) -> None:
@@ -352,7 +352,7 @@ class TestRetrieverFactory:
         with patch.object(RetrieverFactory, "create", side_effect=[children_a, children_b]):
             with patch("langchain_classic.retrievers.EnsembleRetriever") as mock_ensemble:
                 mock_ensemble.return_value = _EmptyRetriever()
-                managed = RetrieverFactory._build_ensemble(cfg, "ensemble_test")
+                RetrieverFactory._build_ensemble(cfg, "ensemble_test")
                 # weights should be normalised to [0.75, 0.25]
                 call_kwargs = mock_ensemble.call_args.kwargs
                 assert abs(call_kwargs["weights"][0] - 0.75) < 1e-6

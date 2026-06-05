@@ -347,8 +347,6 @@ class TestDeerFlowCLI:
         # Ensure deerflow is NOT in sys.modules and cannot be imported
         monkeypatch.delitem(sys.modules, "deerflow", raising=False)
 
-        original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else None  # type: ignore[union-attr]
-
         import builtins
 
         real_import = builtins.__import__

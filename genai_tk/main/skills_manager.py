@@ -176,7 +176,7 @@ def validate_skill(path: Path) -> list[str]:
     if not body:
         errors.append("SKILL.md body is empty (no content after frontmatter)")
 
-    headings = [l for l in body.splitlines() if l.startswith("#")]
+    headings = [line for line in body.splitlines() if line.startswith("#")]
     if not headings:
         errors.append("SKILL.md has no headings — add at least one `## Section`")
 

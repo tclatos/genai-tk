@@ -24,6 +24,7 @@ from rich.console import Console
 from rich.table import Table
 
 from genai_tk.cli.base import CliTopCommand
+from genai_tk.main.models_skills import SkillManifest
 
 console = Console()
 
@@ -241,7 +242,7 @@ class SkillsCommands(CliTopCommand):
                 )
             except FileExistsError as exc:
                 console.print(f"[red]{exc}[/red]  Use --force or choose a different name.")
-                raise typer.Exit(1)
+                raise typer.Exit(1) from exc
 
         @cli_app.command("validate")
         def validate_skills(
@@ -422,7 +423,7 @@ def _add_from_git(
             console.print(f"  [dim]pinned @ {skill.git_ref}[/dim]")
     except Exception as exc:
         console.print(f"[red]Install failed:[/red] {exc}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
 
 
 def _add_from_skillssh(owner_repo: str, project_dir: Path, manifest: SkillManifest) -> None:
@@ -444,6 +445,6 @@ def _add_from_skillssh(owner_repo: str, project_dir: Path, manifest: SkillManife
             f"  [bold]npx skills add {owner_repo}[/bold]\n"
             f"Then copy resulting .md files into [bold]skills/community/<skill-name>/SKILL.md[/bold]"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from exc
     except ValueError as exc:
         console.print(f"[yellow]Warning:[/yellow] {exc}")

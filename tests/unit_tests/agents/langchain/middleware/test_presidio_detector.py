@@ -40,7 +40,6 @@ class TestPresidioDetectorDetect:
         assert "EMAIL_ADDRESS" in types
 
     def test_phone_detected(self) -> None:
-        detector = _make_detector(enable_spacy=False)
         # Presidio phone detection without spaCy context is confidence-dependent;
         # use a score_threshold of 0 to capture any detection attempt, and
         # also include a US phone in standard format that Presidio recognizes.

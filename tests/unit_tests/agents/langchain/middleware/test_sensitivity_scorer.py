@@ -167,7 +167,6 @@ class TestScoreLevels:
 
 class TestEntityWeightCustomization:
     def test_custom_weights_affect_score(self) -> None:
-        scorer_default = _make_scorer()
         scorer_custom = DefaultSensitivityScorer(
             DefaultScorerConfig(
                 entity_weights={"EMAIL_ADDRESS": 0.01},  # Very low weight for email

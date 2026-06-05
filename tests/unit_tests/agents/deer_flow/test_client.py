@@ -569,7 +569,6 @@ def test_full_init_chain_no_deer_flow_path(monkeypatch) -> None:
     """
     monkeypatch.delenv("DEER_FLOW_PATH", raising=False)
     # Remove the DeerFlowClient from the fake module so the ImportError path fires
-    import genai_tk.agents.deer_flow.embedded_client as _ec
 
     fake_df_client = sys.modules.get("deerflow.client")
     if fake_df_client is not None and hasattr(fake_df_client, "DeerFlowClient"):

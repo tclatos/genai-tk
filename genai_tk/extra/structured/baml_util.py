@@ -182,7 +182,6 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
 
     try:
         llm_factory = LlmFactory(llm=llm_identifier, llm_params={"temperature": temperature})
-        resolved_llm_identifier = llm_factory.get_id()
         llm_info = llm_factory.info
         llm = llm_factory.get()
         llm_dict = llm.model_dump()
@@ -238,7 +237,7 @@ def load_and_validate_baml_function(
     try:
         baml_function, return_type = get_baml_function(baml_async_client, function_name)
     except AttributeError:
-        raise BamlFunctionNotFoundError(function_name, config_name)
+        raise BamlFunctionNotFoundError(function_name, config_name) from None
 
     # Validate return type if required
     if require_pydantic:

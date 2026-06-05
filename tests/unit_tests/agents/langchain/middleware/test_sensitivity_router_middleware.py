@@ -174,7 +174,7 @@ class TestSourceBasedRouting:
         middleware.wrap_tool_call(_make_tool_request("sticky-thread"), MagicMock(return_value=tool_msg))
 
         # Multiple subsequent calls should all be routed
-        for i in range(3):
+        for _ in range(3):
             req = _make_model_request("Follow-up question", thread_id="sticky-thread")
             middleware.wrap_model_call(req, MagicMock(return_value=MagicMock()))
             req.override.assert_called_once_with(model=middleware._safe_model)

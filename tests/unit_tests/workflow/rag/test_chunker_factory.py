@@ -155,6 +155,6 @@ class TestChunkerFactoryIntegration:
         # Create each type and verify they work
         for config_name in ["recursive", "markdown", "chonkie_recursive"]:
             splitter = ChunkerFactory.create(config_name)
-            docs = splitter.split_documents([Document(page_content=text)])
+            splitter.split_documents([Document(page_content=text)])
             # Just verify they don't crash
             assert splitter is not None
