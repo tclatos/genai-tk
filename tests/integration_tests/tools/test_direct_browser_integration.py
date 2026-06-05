@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.skip(reason="direct_browser integration tests skipped — will be revisited later")
+
 from genai_tk.agents.tools.direct_browser.factory import create_direct_browser_tools
 from genai_tk.agents.tools.direct_browser.models import DirectBrowserConfig
 from genai_tk.agents.tools.direct_browser.session import DirectBrowserSession

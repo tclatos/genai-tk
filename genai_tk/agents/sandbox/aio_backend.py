@@ -298,9 +298,12 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         survives the parent process exiting — important for ``--keep-sandbox``.
         A PID file is written so ``cli sandbox stop`` can find and terminate it.
         """
+        import os  # noqa: PLC0415
         import shutil  # noqa: PLC0415
         import subprocess  # noqa: PLC0415
         import sys  # noqa: PLC0415
+        import tempfile  # noqa: PLC0415
+        from urllib.parse import urlparse as _urlparse  # noqa: PLC0415
 
         import httpx  # noqa: PLC0415
 
@@ -321,12 +324,33 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             server_cmd = shutil.which("opensandbox-server") or "opensandbox-server"
 
         logger.info(f"opensandbox-server not reachable at {server_url} — starting it")
+
+        # Build a minimal server config with the correct port so multiple test
+        # instances (or non-default ports) don't collide with the default 8080.
+        _parsed_url = _urlparse(server_url)
+        _server_port = _parsed_url.port or 8080
+        _tmp_cfg = tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False)
+        try:
+            _tmp_cfg.write(
+                f'[server]\nhost = "127.0.0.1"\nport = {_server_port}\n\n'
+                '[runtime]\ntype = "docker"\nexecd_image = "opensandbox/execd:v1.0.16"\n'
+            )
+            _tmp_cfg.flush()
+            _tmp_cfg_path = _tmp_cfg.name
+        finally:
+            _tmp_cfg.close()
+
+        # OPENSANDBOX_INSECURE_SERVER=YES bypasses the interactive confirmation
+        # prompt that fires when api_key is empty (non-interactive safe path).
+        _server_env = {**os.environ, "OPENSANDBOX_INSECURE_SERVER": "YES", "SANDBOX_CONFIG_PATH": _tmp_cfg_path}
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 server_cmd,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,  # detach from parent so the server survives process exit
+                env=_server_env,
             )
         except (FileNotFoundError, PermissionError) as exc:
             raise RuntimeError(
@@ -348,7 +372,8 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
                 except Exception:
                     pass
                 if asyncio.get_event_loop().time() > deadline:
-                    proc.terminate()
+                    if proc.returncode is None:  # only terminate if process is still alive
+                        proc.terminate()
                     raise RuntimeError(
                         "opensandbox-server did not become healthy within 15s. "
                         "Check config: opensandbox-server init-config ~/.sandbox.toml --example docker"

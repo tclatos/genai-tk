@@ -97,8 +97,18 @@ test-install:
     uv run python -c "import genai_tk.core;  print('ok genai_tk.core')"
     uv run python -c "import genai_tk.extra; print('ok genai_tk.extra')"
     uv run python -c "import genai_tk.utils; print('ok genai_tk.utils')"
-    echo -e "\033[3m\033[36mExpected output: 'Human: Tell me a joke on bears'\033[0m"
-    echo bears | uv run cli core run joke -m parrot_local@fake
+    echo -e "\033[3m\033[36mExpected output: 'Human: Tell me a joke '\033[0m"
+    uv run cli core llm -i "tell me a joke" -m parrot_local@fake
+
+# ─── Skills ─────────────────────────────────────────────────────────────────
+
+[doc('List all available skills')]
+skills:
+    uv run cli skills list
+
+[doc('Validate all skills')]
+lint-skills:
+    uv run cli skills validate --all
 
 # ─── Web Interface ──────────────────────────────────────────────────────────
 

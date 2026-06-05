@@ -27,7 +27,7 @@ _AGENT_APP_META: dict = {
         "tools/            # LangChain tools",
         "webapp/pages/     # Streamlit pages",
     ],
-    "project_recipes": "# Launch agent chat\nrun:\n    uv run cli agent chat\n\n# Launch the webapp\nwebapp:\n    uv run cli webapp\n",
+    "project_recipes": "# Launch agent chat\nrun:\n    uv run cli agent chat\n",
 }
 
 
@@ -136,6 +136,15 @@ class ProjectScaffolder:
             console.print(f"[green]✓ Scaffolded {self._written} file(s)[/green]")
         if self._skipped:
             console.print(f"[yellow]  ({self._skipped} file(s) already exist — use --force to overwrite)[/yellow]")
+
+        # ── Remove uv-init stub files not needed in genai-tk projects ──
+        for stub in ("main.py", "hello.py"):
+            stub_path = self.project_dir / stub
+            if stub_path.exists() and stub_path.read_text(encoding="utf-8").strip().startswith(
+                ("def main()", "print(")
+            ):
+                stub_path.unlink()
+                console.print(f"[dim]✓ Removed uv-init stub: {stub}[/dim]")
 
         # ── Config patches ─────────────────────────────────────────────
         self._patch_app_conf()
@@ -307,9 +316,17 @@ class ProjectScaffolder:
             content = content.replace("[tool.uv]", "[tool.uv]\npackage = true")
             changed = True
 
-        discovery_marker = "[tool.setuptools.packages.find]"
-        if discovery_marker not in content:
-            content += f'\n{discovery_marker}\ninclude = ["{self.package_name}*"]\n'
+        if "[build-system]" not in content:
+            build_section = (
+                "\n[build-system]\n"
+                'requires = ["hatchling"]\n'
+                'build-backend = "hatchling.build"\n'
+                "\n[tool.hatch.build.targets.wheel]\n"
+                f'packages = ["{self.package_name}"]\n'
+            )
+            content += build_section
+            # Remove legacy setuptools block if present
+            content = content.replace(f'\n[tool.setuptools.packages.find]\ninclude = ["{self.package_name}*"]\n', "")
             changed = True
 
         if changed:

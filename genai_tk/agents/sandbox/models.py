@@ -15,7 +15,7 @@ Example:
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class VolumeMountConfig(BaseModel):
@@ -38,8 +38,24 @@ class DockerAioSettings(BaseModel):
     work_dir: str = "/home/user"
     env_vars: dict[str, str] = Field(default_factory=dict)
     opensandbox_server_url: str = "http://localhost:8080"
+    host_port: int | None = Field(
+        default=None,
+        description="Convenience shorthand: if set, overrides the port in opensandbox_server_url.",
+    )
     entrypoint: list[str] = Field(default_factory=lambda: ["/opt/gem/run.sh"])
     volumes: list[VolumeMountConfig] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _apply_host_port(self) -> DockerAioSettings:
+        if self.host_port is not None:
+            # Replace the port in opensandbox_server_url with the given host_port
+            from urllib.parse import urlparse, urlunparse  # noqa: PLC0415
+
+            parsed = urlparse(self.opensandbox_server_url)
+            self.opensandbox_server_url = urlunparse(
+                parsed._replace(netloc=f"{parsed.hostname}:{self.host_port}")
+            )
+        return self
 
 
 class DockerSmolSettings(BaseModel):

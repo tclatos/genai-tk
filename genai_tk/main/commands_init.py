@@ -35,10 +35,6 @@ _CONFIG_PKG_PATH = "default_config"  # inside genai_tk package (wheel-bundled)
 # ---------------------------------------------------------------------------
 
 
-def _copy_makefile(force: bool, app_name: str) -> None:
-    """No-op — projects now use justfile instead of Makefile."""
-
-
 def _patch_webapp_yaml(config_dir: Path, app_name: str) -> None:
     """Replace the placeholder app_name in the copied webapp.yaml."""
     webapp_yaml = config_dir / "webapp.yaml"
@@ -80,11 +76,16 @@ def _copy_default_config(dest: Path, force: bool) -> bool:
     return written > 0
 
 
+_SCAFFOLD_EXCLUDE = {".template"}  # file suffixes never copied to user projects
+
+
 def _copy_tree_counted(src_traversable, dest: Path, force: bool) -> tuple[int, int]:
     """Recursively copy a Traversable tree to dest, returns (written, skipped)."""
     written = skipped = 0
     dest.mkdir(parents=True, exist_ok=True)
     for item in src_traversable.iterdir():
+        if Path(item.name).suffix in _SCAFFOLD_EXCLUDE:
+            continue
         target = dest / item.name
         if item.is_dir():
             w, s = _copy_tree_counted(item, target, force=force)

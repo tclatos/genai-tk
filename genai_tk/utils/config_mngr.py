@@ -158,7 +158,7 @@ class OmegaConfig(BaseModel):
         # Load files matched by :merge: pathspec patterns
         if ":merge" in config:
             base_files = OmegaConfig._resolve_merge_files(config, app_conf_path)
-            logger.debug(f"Loading {len(base_files)} YAML files from :merge: patterns")
+            # logger.debug(f"Loading {len(base_files)} YAML files from :merge: patterns")
             for yaml_path in base_files:
                 config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
 

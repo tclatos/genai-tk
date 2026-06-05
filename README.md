@@ -54,13 +54,15 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Create a new project directory
 mkdir my-genai-project && cd my-genai-project
 
-# Initialize a Python project
+# Initialize a Python project (creates pyproject.toml and a stub main.py)
 uv init
 
 # Add genai-tk to your project
 uv add git+https://github.com/tclatos/genai-tk@main
 
 # Interactive template picker (recommended)
+# cli init scaffolds config/, skills/, justfile, sets hatchling as the build
+# backend, removes the uv-init stub (main.py), and runs `uv sync` automatically.
 uv run cli init
 
 # Or choose a template directly:
@@ -72,8 +74,6 @@ uv run cli init -t minimal                              # config + justfile only
 # (optional) also clone the Deer-flow backend
 uv run cli init --deer-flow
 
-# Install the generated package so CLI commands work
-uv sync
 just run                                                # start the application
 
 # After running cli init --deer-flow, add this to your .env:
@@ -90,12 +90,10 @@ uv add git+https://github.com/tclatos/genai-tk@main
 uv add "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
 
 # Initialize config in the current directory
+# (scaffolds config/, skills/, justfile, hatchling build backend, runs uv sync)
 uv run cli init                      # interactive template picker
 uv run cli init -t agent-app         # agent app with tools + skills
 uv run cli init --deer-flow          # also clone the Deer-flow backend
-
-# Install the generated package
-uv sync
 ```
 
 **Development (clone & edit):**
