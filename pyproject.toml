@@ -57,6 +57,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.0.3",                      # SQLite checkpoint persistence for LangGraph
     "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
     "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
+    "deerflow-harness",
     # ============================================
     # Vector Stores & Embeddings
     # ============================================
@@ -99,15 +100,15 @@ dependencies = [
     "prefect>=3.6.7",     # Modern workflow orchestration
     "jinaai>=0.2.10",     # Jina AI embeddings and reranking
     "readabilipy>=0.3.0", # Web article extraction and readability parsing
-    "edgeparse>=0.2.2",   # Structured data extraction from text
-    "jinja2>=3.1.0",      # Template engine for project scaffolding (cli init)
+    #  "edgeparse>=0.2.2",   # Structured data extraction from text
+    "jinja2>=3.1.0", # Template engine for project scaffolding (cli init)
     # ============================================
     # Web Interface (Streamlit)
     # ============================================
-    "streamlit>=1.49",  # Interactive webapp framework
-    "pillow>=11.0",
-    "liteparse>=2.0.5",
-    "deerflow-harness",
+    "streamlit>=1.49", # Interactive webapp framework
+    # "pillow>=11.0",    # Image processing 
+    # "liteparse>=2.0.5",
+
 ]
 
 [project.urls]

@@ -158,15 +158,14 @@ clean-history:
         && echo "Done. Run 'history -c; history -r' to reload." \
         || echo "No ~/.bash_history found"
 
+[doc('Demo script: prints a message via the sh library')]
 [script]
-hello:
-    print("Hello from Python!")
-
-[script]
-goodbye:
+hello *args:
     # /// script
     # requires-python = ">=3.11"
     # dependencies=["sh"]
     # ///
-    import sh
-    print(sh.echo("Goodbye from Python!"), end='')
+
+    import sys, sh
+    args = sys.argv[1:]
+    print(sh.echo(f"Hello from Python! {' '.join(args)}"), end='')

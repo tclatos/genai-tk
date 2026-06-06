@@ -323,15 +323,15 @@ def install_from_skillssh(owner_repo: str, dest_root: Path) -> list[SkillInfo]:
     community_dir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as tmp:
+        # Run without capturing output so interactive prompts (e.g. agent
+        # selection) reach the terminal and the user can respond normally.
         result = subprocess.run(
             ["npx", "--yes", "skills", "add", owner_repo],
-            capture_output=True,
-            text=True,
             cwd=tmp,
             env={**__import__("os").environ, "DISABLE_TELEMETRY": "1"},
         )
         if result.returncode != 0:
-            raise RuntimeError(f"npx skills add failed:\n{result.stderr.strip() or result.stdout.strip()}")
+            raise RuntimeError(f"npx skills add failed (exit {result.returncode})")
 
         # Find any markdown files that look like skill files (have YAML frontmatter)
         installed: list[SkillInfo] = []

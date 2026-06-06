@@ -1124,6 +1124,7 @@ class LlmFactory(BaseModel):
                 repo_id=self.info.model,
                 task="text-generation",
                 do_sample=False,
+                provider="auto",  # set your provider here hf.co/settings/inference-providers
             )  # type: ignore
             return ChatHuggingFace(llm=llm)
 
