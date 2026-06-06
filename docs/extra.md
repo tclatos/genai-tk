@@ -242,37 +242,57 @@ Low-level retriever implementations live under `genai_tk/workflow/retrievers/` a
 
 ## Utility Functions
 
-### Anonymization (`custom_presidio_anonymizer.py`)
+### Anonymization
 
-PII (Personally Identifiable Information) detection and anonymization.
+PII detection and replacement using [Presidio](https://microsoft.github.io/presidio/) + [Faker](https://faker.readthedocs.io/).
+Core logic lives in `genai_tk/workflow/anonymization/` and is shared by the Prefect ETL flow
+and the `AnonymizationMiddleware` agent middleware — identical behaviour in both contexts.
 
-**Features:**
-- Named entity recognition for PII
-- Multiple anonymization strategies
-- Custom entity patterns
-- Redaction reporting
+> **Requires:** `uv add presidio-analyzer presidio-anonymizer spacy`
 
-**Usage:**
-
-> **Requires:** `uv add presidio-analyzer presidio-anonymizer`
+**Standalone usage (batch / scripting):**
 
 ```python
-from genai_tk.extra.custom_presidio_anonymizer import (
-    PresidioAnonymizer,
-    AnonymizationStrategy
+from faker import Faker
+from genai_tk.workflow.anonymization.core import AnonymizationConfig, anonymize_text
+from genai_tk.workflow.anonymization.presidio_detector import (
+    CustomRecognizerConfig, PresidioDetector, PresidioDetectorConfig,
 )
 
-anonymizer = PresidioAnonymizer()
-
-# Detect PII
-pii_list = anonymizer.analyze("John Smith's email is john@example.com")
-
-# Anonymize
-result = anonymizer.anonymize(
-    "John Smith works at Acme Corp",
-    strategy=AnonymizationStrategy.REDACT  # or REPLACE, HASH
+config = PresidioDetectorConfig(
+    analyzed_fields=["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD"],
+    # Add domain-specific entities via regex recognizers:
+    custom_recognizers=[
+        CustomRecognizerConfig(
+            entity_name="COMPANY",
+            patterns=[r"(?i)\b(Acme Corp|Tech Solutions)\b"],
+            context=["company", "firm"],
+        ),
+        CustomRecognizerConfig(
+            entity_name="PRODUCT",
+            patterns=[r"(?i)\b(WidgetPro|CloudMaster)\b"],
+            context=["product", "service"],
+        ),
+    ],
 )
+detector = PresidioDetector(config=config)
+Faker.seed(42)
+faker = Faker(["en_US"])
+
+anonymized, mapping = anonymize_text(
+    "John Smith at Acme Corp: john@acme.com",
+    detector=detector,
+    faker=faker,
+)
+# mapping = {"John Smith": "Jane Doe", "Acme Corp": "Hoeger LLC", ...}
 ```
+
+**Supported entity types** (Presidio built-ins + custom via `CustomRecognizerConfig`):
+`PERSON`, `EMAIL_ADDRESS`, `PHONE_NUMBER`, `CREDIT_CARD`, `LOCATION`, `IBAN_CODE`,
+`US_SSN`, `IP_ADDRESS`, `URL`, `DATE_TIME`, `ORG` — and custom `COMPANY`, `PRODUCT`, `PROJECT`.
+
+For agent use, configure `AnonymizationMiddleware` — see [middleware-pii-and-routing.md](middleware-pii-and-routing.md).
+For ETL/batch use, configure the `anonymize` workflow — see [workflows.md](workflows.md).
 
 ### Image Analysis (`image_analysis.py`)
 
@@ -493,20 +513,43 @@ result = agent.invoke({"messages": [...]})
 
 ### Pattern 3: Privacy-Aware Data Processing
 
+The recommended approach is to configure `AnonymizationMiddleware` in the agent profile — it
+automatically anonymizes every human message before it reaches the LLM and restores PII in
+the response, with full thread isolation for concurrent conversations.
+
+```yaml
+# config/agents/langchain/simple.yaml
+langchain_agents:
+  privacy_agent:
+    name: "Privacy Agent"
+    type: react
+    llm: default
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
+        analyzed_fields: [PERSON, EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD]
+        faker_seed: 42
+        fuzzy_deanonymize: true
+```
+
+For programmatic use (e.g. pre-processing documents before ingestion):
+
 ```python
-from genai_tk.extra.custom_presidio_anonymizer import PresidioAnonymizer
+from faker import Faker
+from genai_tk.workflow.anonymization.core import anonymize_text
+from genai_tk.workflow.anonymization.presidio_detector import PresidioDetector, PresidioDetectorConfig
 
-# Step 1: Anonymize sensitive data
-anonymizer = PresidioAnonymizer()
-safe_text = anonymizer.anonymize(user_input)
+detector = PresidioDetector(config=PresidioDetectorConfig())
+Faker.seed(42)
+faker = Faker(["en_US"])
 
-# Step 2: Process safely
-result = await agent.ainvoke({
-    "messages": [{"role": "user", "content": safe_text}]
-})
+safe_text, mapping = anonymize_text(user_input, detector=detector, faker=faker)
 
-# Step 3: De-anonymize if needed
-final_result = anonymizer.deanonymize(result)
+result = await agent.ainvoke({"messages": [{"role": "user", "content": safe_text}]})
+
+# Restore PII in response
+final = result["messages"][-1].content
+for real, fake in mapping.items():
+    final = final.replace(fake, real)
 ```
 
 ## Performance Optimization

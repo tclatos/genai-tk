@@ -90,6 +90,11 @@ def make_fake_value(entity_type: str, faker: Any) -> str:
         "DATE_TIME": lambda: faker.date(),
         "NRP": faker.name,
         "ORG": lambda: faker.company(),
+        # Domain-specific business entities — use faker.company() / faker.bs() as
+        # placeholders; callers can override make_fake_value() for richer replacements.
+        "COMPANY": faker.company,
+        "PRODUCT": faker.bs,
+        "PROJECT": faker.bs,
     }
     gen = generators.get(entity_type)
     if gen:
