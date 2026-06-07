@@ -23,6 +23,7 @@ from genai_tk.agents.sandbox.models import (
     E2bSandboxSettings,
     SandboxConfig,
 )
+from genai_tk.utils.config_mngr import global_config
 
 _SANDBOX_YAML_KEY = "sandbox"
 _SANDBOX_YAML_FILE = "basic/sandbox.yaml"
@@ -39,16 +40,7 @@ def load_sandbox_config() -> SandboxConfig:
         Validated ``SandboxConfig`` instance.
     """
     try:
-        from omegaconf import OmegaConf
-
-        from genai_tk.utils.config_mngr import global_config
-
-        raw = global_config().get(_SANDBOX_YAML_KEY, {})
-        if not raw:
-            return SandboxConfig()
-        if hasattr(raw, "_metadata"):
-            raw = OmegaConf.to_container(raw, resolve=True)
-        return SandboxConfig.model_validate(raw)
+        return global_config().section(_SANDBOX_YAML_KEY, SandboxConfig)
     except Exception:
         return SandboxConfig()
 

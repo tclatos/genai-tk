@@ -1123,19 +1123,6 @@ wheels = [
 ]
 
 [[package]]
-name = "edgeparse"
-version = "0.2.5"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c3/18/8262b7121f18667879854b6d1bc623ff8b8cb8ca57c3750a3d44e12bebc9/edgeparse-0.2.5.tar.gz", hash = "sha256:46c4b84c5a8f5e85a1699614360037535bf2aba15c5b7a4db3aec37865038935", size = 7948863, upload-time = "2026-04-14T00:34:23.263Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7d/5e/1a99ea177c8f46f04b8611f55c3a02d30465424cc8c072081f7623bd04b0/edgeparse-0.2.5-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:ac6ea0081c75b9b83fb7c5f66b9070262de062e2ade66311dd422cf69a23ec25", size = 4361038, upload-time = "2026-04-14T00:34:06.064Z" },
-    { url = "https://files.pythonhosted.org/packages/85/26/0fcb829043ea9de9b5e4771294a027dca47fdf7b4cb7211f6035092d1082/edgeparse-0.2.5-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:82a6fdd81f2bfac4a3b8aedd06e055ae67ec8a2d1c879fb6327259caa13f5a69", size = 4055477, upload-time = "2026-04-14T00:34:07.73Z" },
-    { url = "https://files.pythonhosted.org/packages/f5/85/7cf8e092dfd721e3a08e322df46aa71ef01212f2e8269529dfd1fadbb3b6/edgeparse-0.2.5-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:d4aeb5c8fbfcc007a7029cc63f908070e43e58fea1c90af64a83b5456d521b92", size = 4168721, upload-time = "2026-04-14T00:34:09.332Z" },
-    { url = "https://files.pythonhosted.org/packages/93/28/ba43e51eb931435b338dfbf3444977ba72b4dfbb4e674b31c70879ca70c8/edgeparse-0.2.5-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:77c6e82556cccd02e84b96149a98416559dde7456b1cbe83ac92dc9429531e38", size = 4547130, upload-time = "2026-04-14T00:34:11.329Z" },
-    { url = "https://files.pythonhosted.org/packages/be/91/4bbe82607b6d0941345b14de6d14a740ec185153663bccbe6087fcd60d2c/edgeparse-0.2.5-cp312-cp312-win_amd64.whl", hash = "sha256:31baa98d1836b8c8475bac71c5b649f723c764b7dd59b18409f1487649e7bef6", size = 4576780, upload-time = "2026-04-14T00:34:13.065Z" },
-]
-
-[[package]]
 name = "en-core-web-lg"
 version = "3.8.0"
 source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" }
@@ -1414,7 +1401,6 @@ dependencies = [
     { name = "deepagents-cli" },
     { name = "deerflow-harness" },
     { name = "devtools" },
-    { name = "edgeparse" },
     { name = "en-core-web-lg" },
     { name = "en-core-web-sm" },
     { name = "fastembed" },
@@ -1450,10 +1436,10 @@ dependencies = [
     { name = "openai" },
     { name = "openpyxl" },
     { name = "pathspec" },
-    { name = "pillow" },
     { name = "prefect" },
     { name = "presidio-analyzer" },
     { name = "presidio-anonymizer" },
+    { name = "py-key-value-aio" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "questionary" },
@@ -1531,7 +1517,6 @@ requires-dist = [
     { name = "deepagents-cli", specifier = ">=0.0.26" },
     { name = "deerflow-harness", git = "https://github.com/bytedance/deer-flow?subdirectory=backend%2Fpackages%2Fharness&rev=main" },
     { name = "devtools", specifier = ">=0.12.2" },
-    { name = "edgeparse", specifier = ">=0.2.2" },
     { name = "en-core-web-lg", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" },
     { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "fastembed", specifier = ">=0.8.0" },
@@ -1569,13 +1554,13 @@ requires-dist = [
     { name = "openai", specifier = ">=1.80.0" },
     { name = "openpyxl", specifier = ">=3.1.5" },
     { name = "pathspec", specifier = ">=1.1.1" },
-    { name = "pillow", specifier = ">=11.0" },
     { name = "playwright", marker = "extra == 'extra'", specifier = ">=1.51.0" },
     { name = "prefect", specifier = ">=3.6.7" },
     { name = "presidio-analyzer", specifier = ">=2.2.362" },
     { name = "presidio-anonymizer", specifier = ">=2.2.362" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'extra'", specifier = ">=3.2.9" },
     { name = "psycopg2-binary", marker = "extra == 'extra'", specifier = ">=2.9.10" },
+    { name = "py-key-value-aio", specifier = ">=0.4.5" },
     { name = "pydantic", specifier = ">=2.7.0,<3" },
     { name = "python-dotenv", specifier = ">=1.1.1" },
     { name = "questionary", specifier = ">=2.0" },

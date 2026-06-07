@@ -11,7 +11,7 @@ The `agents` module provides agent implementations including LangChain-based age
 The LangChain agent module uses a **unified configuration system** supporting three agent types:
 
 - **ReAct** - Standard reasoning agent with tool use loops
-- **Deep** - Advanced reasoning with planning and subagents (requires `deepagents` package)
+- **Deep** - Advanced reasoning with planning and subagents (requires `deepagents` package; run via `cli agents langchain`)
 - **Custom** - Functional API-based custom agent from scratch
 
 All agent types are managed through a single configuration interface with sensible defaults and profile-based customization.
@@ -178,7 +178,7 @@ langchain_agents:
 - `aio_sandbox` - Docker sandbox (requires opensandbox running)
 - `class` - Custom backend class
 
-**Note:** Deep agents require the `deepagents` library. Install with extra dependencies.
+**Note:** Deep agents require the `deepagents` library (optional dependency). There is no separate `deepagent` CLI — use `cli agents langchain -p <profile>` where the profile has `type: deep`.
 
 #### Custom Agent
 
@@ -575,7 +575,6 @@ tests/integration_tests/agents/
 - [Configuration Guide](../config/README.md) - Detailed configuration
 - [MCP Servers](mcp-servers.md) - Model Context Protocol
 - [Sandbox Support](sandbox_support.md) - Sandboxed execution
-- [Deep Agents CLI](deepagents-cli_integration.md) - Deepagents integration
 - [Deer-flow Integration](deer-flow.md) - ByteDance agent framework
 - [Testing Guide](TESTING_GUIDE.md) - Testing patterns
 - [Evaluation Testing](evaluation_testing.md) - LLM quality evaluation with openevals

@@ -27,7 +27,7 @@ from typing import Annotated, Any, Optional, TypeVar, overload
 from dotenv import load_dotenv
 from loguru import logger
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pydantic import BaseModel, ConfigDict, DirectoryPath, Field, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, DirectoryPath, Field, StringConstraints, TypeAdapter, field_validator
 
 from genai_tk.utils.config_exceptions import (
     ConfigFileError,
@@ -689,6 +689,73 @@ class OmegaConfig(BaseModel):
                 raise ConfigValidationError(errors, config_name=key)
         return result  # pyright: ignore[reportReturnType]
 
+    # ------------------------------------------------------------------
+    # Typed section accessors (Pydantic)
+    # ------------------------------------------------------------------
+
+    def section(self, key: str, model: type[M], *, default: M | None = None) -> M:
+        """Load a top-level config section as a validated Pydantic model.
+
+        Args:
+            key: Configuration key in dot notation (e.g. ``"prefect"``).
+            model: Pydantic model class to validate against.
+            default: Returned when the section is missing or empty.
+                When ``None`` the model is instantiated with no arguments
+                (requires all fields to have defaults).
+
+        Returns:
+            Validated Pydantic model instance.
+        """
+        raw = self.get(key, default=None)
+        if raw is None:
+            if default is not None:
+                return default
+            return model.model_validate({})
+        if isinstance(raw, (DictConfig, ListConfig)):
+            raw = OmegaConf.to_container(raw, resolve=True)
+        return model.model_validate(raw)
+
+    def section_dict(self, key: str, model: type[M] | Any, *, inject_name: bool = True) -> dict[str, M]:
+        """Load a top-level config section as a dict of named Pydantic models.
+
+        Each sub-key becomes a dict entry validated against *model*.
+        *model* can be a Pydantic ``BaseModel`` subclass or an ``Annotated``
+        discriminated-union type (validated via ``TypeAdapter``).
+
+        When *inject_name* is ``True`` (default), the dict key is injected
+        as the ``name`` field if the model accepts it and the value is a dict
+        without an explicit ``name``.
+
+        Args:
+            key: Configuration key in dot notation (e.g. ``"kv_store"``).
+            model: Pydantic model class or Annotated union type for each entry.
+            inject_name: Inject the dict key as ``name`` field.
+
+        Returns:
+            Dict of validated Pydantic model instances keyed by config name.
+        """
+        raw = self.get(key, default=None)
+        if raw is None:
+            return {}
+        if isinstance(raw, (DictConfig, ListConfig)):
+            raw = OmegaConf.to_container(raw, resolve=True)
+        if not isinstance(raw, dict):
+            raise ConfigTypeError(key, expected_type=dict, actual_type=type(raw), actual_value=raw)
+
+        # Use TypeAdapter for Annotated union types, model_validate for BaseModel
+        use_adapter = not (isinstance(model, type) and issubclass(model, BaseModel))
+        adapter = TypeAdapter(model) if use_adapter else None
+
+        result: dict[str, M] = {}
+        for k, v in raw.items():
+            if isinstance(v, dict) and inject_name and "name" not in v:
+                v = {**v, "name": k}
+            if adapter is not None:
+                result[k] = adapter.validate_python(v)
+            else:
+                result[k] = model.model_validate(v)
+        return result
+
     def get_dir_path(self, key: str, create_if_not_exists: bool = False) -> Path:
         """Get a directory path.
 
@@ -1003,11 +1070,10 @@ def load_yaml_configs(
         # Single file
         profiles = load_yaml_configs(Path("config/agents/deerflow.yaml"), "deerflow_agents")
 
-        # Directory (all *.yaml files merged, profiles lists concatenated)
+        # Directory (all *.yaml files merged)
         cfg = load_yaml_configs(
-            Path("config/agents/deepagent"),
-            "deepagent",
-            list_merge_keys=["profiles"],
+            Path("config/agents/langchain"),
+            "langchain_agents",
         )
         ```
     """

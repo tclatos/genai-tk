@@ -347,32 +347,46 @@ print(report.citations)
 
 Registry for key-value stores used in caching and persistence.
 
-**Supported Stores:**
-- SQLite
-- Redis
-- In-Memory (dict)
-- File-based
+**Supported backends** (selected by `type` field):
+
+| `type` | Class | Notes |
+|---|---|---|
+| `LocalFileStore` | `LocalFileStoreConfig` | Files on disk — default for dev/prod |
+| `SQLStore` | `SQLStoreConfig` | Any SQLAlchemy DSN (sqlite, postgresql) |
+| `memory` | `MemoryStoreConfig` | Ephemeral temp dir — use for tests |
 
 **Configuration:**
 ```yaml
 kv_store:
-  default: sqlite
-  sqlite:
-    path: ./data/cache.db
-  redis:
-    url: redis://localhost:6379
+  default:
+    type: LocalFileStore
+    path: ${paths.data_root}/kv_store
+  sql_cache:
+    type: SQLStore
+    path: postgresql://${oc.env:POSTGRES_USER}:${oc.env:POSTGRES_PASSWORD}@localhost:5432/cache
+  # Tests / pytest profile:
+  default:
+    type: memory
 ```
 
 **Usage:**
 ```python
-from genai_tk.extra.kv_store_registry import KvStoreRegistry
+from genai_tk.extra.kv_store_registry import get_kv_store
 
-registry = KvStoreRegistry()
-store = registry.get_store("sqlite")
+store = get_kv_store()                      # uses "default" entry
+store = get_kv_store("sql_cache", namespace="llm_cache")
 
-# Set and get values
-store.put("key", "value")
-value = store.get("key")
+# ByteStore interface (LangChain compatible)
+store.mset([("key", b"value")])
+values = store.mget(["key"])
+```
+
+**Typed config access (Case 2):**
+```python
+from genai_tk.utils.config_mngr import global_config
+from genai_tk.extra.kv_store_registry import KvStoreConfig
+
+all_stores = global_config().section_dict("kv_store", KvStoreConfig, inject_name=False)
 ```
 
 ### PostgreSQL / PgVector (`core.vector_backends.pgvector`)

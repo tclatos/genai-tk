@@ -81,7 +81,8 @@ paths:
         test: ada-002@openai
       cache: data/hf_models
     kv_store:
-      engine: memory
+      default:
+        type: memory
     llm_cache:
       method: memory
     logging:

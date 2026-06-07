@@ -22,20 +22,36 @@ import subprocess
 import time
 import webbrowser
 from pathlib import Path
-from typing import Any
 
 import httpx
 from loguru import logger
+from pydantic import BaseModel
 
 from genai_tk.utils.singleton import once
 
+# ---------------------------------------------------------------------------
+# Pydantic config model
+# ---------------------------------------------------------------------------
+
+
+class PrefectConfig(BaseModel):
+    """Typed configuration for the ``prefect:`` YAML section."""
+
+    host: str = "127.0.0.1"
+    port: int = 4200
+    api_url: str | None = None
+    pid_file: str | None = None
+    auto_start: bool = True
+
+    @property
+    def resolved_api_url(self) -> str:
+        if self.api_url:
+            return self.api_url
+        return f"http://{self.host}:{self.port}/api"
+
 
 def _ensure_no_proxy(host: str, env: dict[str, str] | None = None) -> None:
-    """Add *host* to NO_PROXY so it bypasses any configured HTTP proxy.
-
-    When *env* is None the current process environment is updated in-place.
-    When *env* is provided (e.g. a subprocess env dict) it is updated instead.
-    """
+    """Add *host* to NO_PROXY so it bypasses any configured HTTP proxy."""
     target = env if env is not None else os.environ
     for key in ("NO_PROXY", "no_proxy"):
         existing = target.get(key, "")
@@ -46,20 +62,14 @@ def _ensure_no_proxy(host: str, env: dict[str, str] | None = None) -> None:
         target[key] = ",".join(entries)
 
 
-def _get_prefect_config() -> dict[str, Any]:
-    """Return the ``prefect:`` config section from global config, or an empty dict."""
+def _load_prefect_config() -> PrefectConfig:
+    """Load the ``prefect:`` section as a typed :class:`PrefectConfig`."""
     try:
-        from omegaconf import OmegaConf
+        from genai_tk.utils.config_mngr import global_config
 
-        from genai_tk.utils.config_mngr import get_raw_config
-
-        cfg = get_raw_config()
-        raw = OmegaConf.select(cfg, "prefect", default=None)
-        if raw is None:
-            return {}
-        return dict(OmegaConf.to_container(raw, resolve=True))  # type: ignore[arg-type]
+        return global_config().section("prefect", PrefectConfig)
     except Exception:
-        return {}
+        return PrefectConfig()
 
 
 class PrefectServer:
@@ -72,7 +82,7 @@ class PrefectServer:
     """
 
     def __init__(self) -> None:
-        self._config = _get_prefect_config()
+        self._config = _load_prefect_config()
 
     # ------------------------------------------------------------------
     # Properties
@@ -80,18 +90,15 @@ class PrefectServer:
 
     @property
     def host(self) -> str:
-        return str(self._config.get("host", "127.0.0.1"))
+        return self._config.host
 
     @property
     def port(self) -> int:
-        return int(self._config.get("port", 4200))
+        return self._config.port
 
     @property
     def api_url(self) -> str:
-        configured = self._config.get("api_url")
-        if configured:
-            return str(configured)
-        return f"http://{self.host}:{self.port}/api"
+        return self._config.resolved_api_url
 
     @property
     def ui_url(self) -> str:
@@ -99,9 +106,8 @@ class PrefectServer:
 
     @property
     def _pid_file(self) -> Path:
-        configured = self._config.get("pid_file")
-        if configured:
-            pid_path = Path(str(configured))
+        if self._config.pid_file:
+            pid_path = Path(self._config.pid_file)
             pid_path.parent.mkdir(parents=True, exist_ok=True)
             return pid_path
         # Fallback: data_root/.prefect/prefect.pid
@@ -228,7 +234,7 @@ class PrefectServer:
         Called automatically by :func:`~genai_tk.workflow.executor.execute_workflow`
         when ``prefect.auto_start: true`` (the default).
         """
-        auto_start = bool(self._config.get("auto_start", True))
+        auto_start = self._config.auto_start
         if not auto_start:
             return
         if not self.is_running():

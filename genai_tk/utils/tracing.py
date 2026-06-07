@@ -20,8 +20,7 @@ class MonitoringConfig(BaseModel):
 def monitoring_config() -> MonitoringConfig:
     """Return typed monitoring settings from config."""
     try:
-        raw = global_config().get_dict("monitoring")
-        return MonitoringConfig.model_validate(raw)
+        return global_config().section("monitoring", MonitoringConfig)
     except Exception:
         return MonitoringConfig()
 

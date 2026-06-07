@@ -25,6 +25,13 @@ from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.utils.pydantic_utils.common import validate_pydantic_model
 
+
+class StructuredConfig(BaseModel):
+    """Typed configuration for a single ``structured`` YAML entry."""
+
+    baml_client: str
+
+
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 
 _DEFAULT_BAML_HTTP_OPTIONS = {
@@ -67,15 +74,13 @@ def load_baml_client(config_name: str = "default") -> tuple[Any, Any]:
         ValueError: If BAML client package not found in config
         ImportError: If BAML client modules cannot be imported
     """
-    config_key = f"structured.{config_name}.baml_client"
-
-    baml_client_package = global_config().get(config_key, default=None)
-
-    if not baml_client_package:
+    configs = global_config().section_dict("structured", StructuredConfig, inject_name=False)
+    if config_name not in configs:
         raise ValueError(
-            f"BAML client package not found in config at '{config_key}'. "
+            f"BAML client package not found in config at 'structured.{config_name}'. "
             f"Please configure it in YAML config file (overrides.yaml or else)"
         )
+    baml_client_package = configs[config_name].baml_client
 
     logger.debug("Loading BAML client from package: {}", baml_client_package)
 
@@ -322,11 +327,10 @@ def prompt_fingerprint(function_name: str, config_name: str = "default", **kwarg
     logger.debug("Found return type '{}' for function '{}'", return_type_name, function_name)
 
     # Get BAML source files path from config
-    config_key = f"structured.{config_name}.baml_client"
-
-    baml_client_package = global_config().get(config_key, default=None)
-    if not baml_client_package:
-        raise ValueError(f"BAML client package not found in config at '{config_key}'")
+    configs = global_config().section_dict("structured", StructuredConfig, inject_name=False)
+    if config_name not in configs:
+        raise ValueError(f"BAML client package not found in config at 'structured.{config_name}'")
+    baml_client_package = configs[config_name].baml_client
 
     # Determine BAML source directory (typically baml_src alongside the generated client)
     baml_src_dir = baml_client_package.replace(".", "/").replace("/baml_client", "/baml_src")

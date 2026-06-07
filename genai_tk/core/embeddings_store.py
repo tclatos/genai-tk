@@ -62,12 +62,12 @@ from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.import_utils import ImportResolver
 
 # ---------------------------------------------------------------------------
-# Internal config model (parsed from YAML)
+# Config model (parsed from YAML)
 # ---------------------------------------------------------------------------
 
 
-class _EmbeddingsStoreConfig(BaseModel):
-    """Parsed configuration for an EmbeddingsStore YAML entry."""
+class EmbeddingsStoreConfig(BaseModel):
+    """Typed configuration for a single ``embeddings_store`` YAML entry."""
 
     backend: str = Field(validation_alias=AliasChoices("backend", "id"))
     embeddings: str | None = None
@@ -97,7 +97,7 @@ class _EmbeddingsStoreConfig(BaseModel):
         return migrated
 
     @model_validator(mode="after")
-    def _validate(self) -> "_EmbeddingsStoreConfig":
+    def _validate(self) -> "EmbeddingsStoreConfig":
         if self.embeddings and self.embeddings_id:
             raise ValueError("Cannot specify both 'embeddings_id' and 'embeddings' in embeddings_store config")
         return self
@@ -187,7 +187,10 @@ class EmbeddingsStore(BaseModel):
             Configured EmbeddingsStore instance.
         """
         try:
-            cfg = _EmbeddingsStoreConfig.model_validate(global_config().get_dict(f"embeddings_store.{config_tag}"))
+            stores = global_config().section_dict("embeddings_store", EmbeddingsStoreConfig, inject_name=False)
+            if config_tag not in stores:
+                raise KeyError(config_tag)
+            cfg = stores[config_tag]
         except (ValueError, KeyError) as exc:
             raise ValueError(
                 f"embeddings_store configuration '{config_tag}' not found. Available: {cls.list_available_configs()}"
@@ -283,8 +286,8 @@ class EmbeddingsStore(BaseModel):
     def list_available_configs(cls) -> list[str]:
         """List all config tags available in the ``embeddings_store`` YAML section."""
         try:
-            cfg = global_config().get("embeddings_store", {})
-            return list(cfg.keys()) if hasattr(cfg, "keys") else []
+            stores = global_config().section_dict("embeddings_store", EmbeddingsStoreConfig, inject_name=False)
+            return list(stores.keys())
         except Exception:
             return []
 

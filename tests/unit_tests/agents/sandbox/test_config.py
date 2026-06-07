@@ -11,13 +11,26 @@ from genai_tk.agents.sandbox.config import (
 )
 from genai_tk.agents.sandbox.models import DockerAioSettings, SandboxConfig
 
-_PATCH_TARGET = "genai_tk.utils.config_mngr.global_config"
+_PATCH_TARGET = "genai_tk.agents.sandbox.config.global_config"
 
 
 def _mock_global_config(data: dict):
-    """Return a mock global_config() whose .get() returns *data*."""
+    """Return a mock global_config() whose .section() validates data via the model."""
+    from omegaconf import DictConfig, OmegaConf
+
     mock_cfg = MagicMock()
+    # Support both old .get() and new .section() patterns
     mock_cfg.get.return_value = data
+
+    def _section(key, model, **kwargs):
+        raw = data
+        if isinstance(raw, DictConfig):
+            raw = OmegaConf.to_container(raw, resolve=True)
+        if not raw:
+            return model.model_validate({})
+        return model.model_validate(raw)
+
+    mock_cfg.section.side_effect = _section
     return mock_cfg
 
 

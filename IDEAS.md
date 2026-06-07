@@ -1,3 +1,75 @@
+# Enforce Config typing 
+
+Most configuration entries are mapped to a Pydantic modeL  Howerver, it's not enforced in the code.
+We have a load_yaml_configs methods, but it's not always used (for example in PrefectServer, MCpServer,Sandox), and can return too many types.
+We need to refactor. 
+I see 3 cases : 
+1 -  The YAML file defines a Pydantic onject
+2 - The YAML file defines a dict of Pydantic objects
+3 - The YAML define defines something else
+
+We should try : 
+1 - have maximum of 1 et 2
+2 - Realy leverage the strong typing and validation . Avoid "get' on dict from the YAML
+
+So: 
+- Look at each top entries in the different YAML files we have in config (look also in project genai_graph)
+- See it can match to 1 or 2.
+- Update code.  Create a Pydanc model  is needed, refactor config manager  with better method to load config as Pydantic or dict of Pydantic, try to delete config_loader.py and similar functions (like in genai_tk/workflow/resolver.py, but there are more)  .
+We should have a more systemic approach, more orthogonal. Number of line should be reduced.
+
+YAML files can me modified if that can simplify code and design.
+
+Prepare a plan, suggest improvement, ask questions...
+
+
+
+
+    raw = get_raw_config()
+    servers_node = raw.get("mcpServers", {})
+
+
+
+# Tracing
+
+Improve monitoring and tracing support in the Tk.  Today, only Langsmith is supported (impliclt - through Langchain).
+We want the uset to be able to select its tracing infra, with at least 2 framework possible: 
+- Langsmith
+- LangFuse
+and possibly with support of 
+- OpenTelemetry (but might be done with langfuse ? )
+- Most other telemetries platforms  (have provision for it)
+
+Also, we would like that all (or most) tools we use able to send traces in Langchain or Langfuse: 
+- Lanchain 
+- Deer flow
+- SmollAgents
+- BAML
+- LiteLLM 
+
+Last but not least, we would like our own basic logging, in local JSONL files, with date, session, prompts (wrapped), number of tokens, cost.. (whenever possible)  . It should run in parallel of the more sophisticated one. 
+
+AFAIK, 
+  - Langchain supports Langsmith nativelly, LangFuse (https://docs.langchain.com/oss/python/integrations/providers/langfuse), OpenTelemetry (https://docs.langchain.com/langsmith/trace-with-opentelemetry, https://www.langchain.com/blog/end-to-end-opentelemetry-langsmith)
+
+  - Deer flow supports LangSmith  and LangFuse (https://github.com/bytedance/deer-flow/blob/d133b1119a955564c80b83b8bbe25aef351629f8/backend/README.md?plain=1#L330 ) 
+
+  - BAML seems a more comlicatec case . There are https://docs.boundaryml.com/guide/baml-advanced/collector-track-tokens that can be used for our basic local logging, and be extandes later to LanGuse, ..
+
+  - SmolaAgantes support OpenTelemetry (https://huggingface.co/docs/smolagents/tutorials/inspect_runs). LangFuse can be used, too (https://langfuse.com/integrations/frameworks/smolagents)
+
+- LiteLLM supports LangFuse (https://langfuse.com/integrations/frameworks/litellm-sdk ) , LangSmith (https://docs.litellm.ai/docs/observability/langsmith_integration), OPenTelemety (https://docs.litellm.ai/docs/observability/opentelemetry_v2), ...
+
+Follow the usual pattern
+ - YAML file to define monotorigns configurations 
+ - Selection of a given config through a variable 
+ - cli commands for common operations : start the server (in case of Langfuse local one in docker), open UI, ...   (use  langfuse Python API), print nicely last events in local file, ...  
+
+
+
+
+
+
 # scafolding
 - suggest after init to install BAML : uv run baml-cli init --dest <PATH>   
 - Improve import - make agent-sandbox + deerflow-harness optional
@@ -11,12 +83,24 @@
 
 
 # use key-value store factory  
-use py-key-value-aio
-https://strawgate.com/py-key-value/adapters/#basemodeladapter
-https://strawgate.com/py-key-value/adapters/#pydanticadapter
-refactor genai_tk/utils/pydantic_utils/kv_store.py 
-Delete  genai_tk/extra/kv_store_registry.py
-all async
+For Key-Value storage, we want to replace LangChain ByteStore by the more advanced py-key-value-aio/
+
+Replace genai_tk/utils/pydantic_utils/kv_store.py  and delete genai_tk/extra/kv_store_registry.py  by a py-key-value-aio approach.  Update all calls to asynchronus. 
+
+Update kv_store key in YAML files : replace the  hard-coded type ('memory', 'LocalFileStore' , ...) by the AsyncKeyValue compatible class (like "key_value.aio.stores.disk.DiskStore")  and constructor options  ("directory")
+
+Use usual pattern : 
+- YAML file to define AsyncKeyValue compatible stores with  a name (like 'diskstore_local'), the class (like "key_value.aio.stores.disk.DiskStore"), and constructor options  ("directory")
+- Update  'kv_store' key in existing YAML files
+
+- Use https://strawgate.com/py-key-value/adapters/#basemodeladapter to replace pydantic_utils/kv_store.py
+We can use, as today, the name of the Pydantic class as name of the collection. 
+
+Compatibility with current stores is not required. You can delete them.
+
+Study, plan something, ask question, propose alternative. Tell me if you a a problem.  KISS. 
+
+
 
 
  

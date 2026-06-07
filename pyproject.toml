@@ -106,9 +106,9 @@ dependencies = [
     # Web Interface (Streamlit)
     # ============================================
     "streamlit>=1.49", # Interactive webapp framework
-    # "pillow>=11.0",    # Image processing 
+    # "pillow>=11.0",    # Image processing
     # "liteparse>=2.0.5",
-
+    "py-key-value-aio>=0.4.5",
 ]
 
 [project.urls]

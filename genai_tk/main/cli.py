@@ -108,6 +108,7 @@ import sys
 import typer
 from dotenv import load_dotenv
 from loguru import logger
+from pydantic import BaseModel, Field
 
 from genai_tk.cli.base import CliTopCommand
 from genai_tk.main.commands_init import InitCommands
@@ -121,11 +122,22 @@ from genai_tk.utils.config_exceptions import (
     ConfigTypeError,
     ConfigValidationError,
 )
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.config_mngr import QualifiedCallable, global_config
 from genai_tk.utils.import_utils import ImportResolver
 from genai_tk.utils.logger_factory import setup_logging
 
 load_dotenv(verbose=True)
+
+
+# ---------------------------------------------------------------------------
+# Pydantic config model
+# ---------------------------------------------------------------------------
+
+
+class CliConfig(BaseModel):
+    """Typed configuration for the ``cli:`` YAML section."""
+
+    commands: list[QualifiedCallable] = Field(default_factory=list)
 
 
 PRETTY_EXCEPTION = (
@@ -148,7 +160,8 @@ def load_and_register_commands(cli_app: typer.Typer) -> None:
         cli_app: The Typer app instance to register commands to
     """
     try:
-        modules = global_config().get_list("cli.commands", value_type=str)
+        cli_cfg = global_config().section("cli", CliConfig)
+        modules = cli_cfg.commands
     except ConfigFileNotFoundError:
         raise  # Let main() handle this — bootstrap commands still run
     except ConfigKeyNotFoundError as e:

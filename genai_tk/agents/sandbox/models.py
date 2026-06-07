@@ -52,9 +52,7 @@ class DockerAioSettings(BaseModel):
             from urllib.parse import urlparse, urlunparse  # noqa: PLC0415
 
             parsed = urlparse(self.opensandbox_server_url)
-            self.opensandbox_server_url = urlunparse(
-                parsed._replace(netloc=f"{parsed.hostname}:{self.host_port}")
-            )
+            self.opensandbox_server_url = urlunparse(parsed._replace(netloc=f"{parsed.hostname}:{self.host_port}"))
         return self
 
 

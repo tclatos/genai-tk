@@ -25,11 +25,6 @@ config/
 │   │   ├── deep.yaml
 │   │   ├── browser.yaml
 │   │   └── text2sql.yaml
-│   ├── deepagent/              # Deep agents (dict-based)
-│   │   ├── global.yaml
-│   │   ├── coder.yaml
-│   │   ├── fast.yaml
-│   │   └── researcher.yaml
 │   └── deerflow.yaml           # Deer-flow agent profiles
 ├── providers/
 │   ├── llm.yaml                # LLM model declarations
@@ -262,28 +257,7 @@ cli agents langchain -p research --chat  # Use 'research' profile (by KEY)
 
 ### Deep agents
 
-Files: `config/agents/deepagent/global.yaml`, `coder.yaml`, `researcher.yaml`, `fast.yaml`
-
-```yaml
-deepagent:
-  default_profile: null        # No default profile
-  
-  coder:                       # ← Profile KEY
-    name: coder               # Display name
-    llm: gpt_4@openai
-    enable_planning: true
-    
-  researcher:                  # ← Another key
-    name: researcher
-    llm: claude-opus@openrouter
-```
-
-**CLI usage:**
-```bash
-cli agents deepagent --list              # List all profiles
-cli agents deepagent --profile coder     # Use 'coder' profile (by KEY)
-cli agents deepagent task --profile researcher "Analyze this..."
-```
+Deep agents use the `deepagents` library (an optional dependency). There is **no separate deepagent CLI** — all agent interaction goes through `cli agents langchain`.
 
 ## Workflow configuration
 
@@ -302,6 +276,48 @@ Contains embeddings stores, chunkers, retrievers, and RAG pipeline configuration
 See [rag.md](rag.md) for complete RAG documentation.
 
 ## Accessing config in Python
+
+### Typed section access (recommended)
+
+Every top-level YAML key has a corresponding Pydantic model. Use `section()` (Case 1 — single object) or `section_dict()` (Case 2 — dict of objects) to get a fully-validated, typed view:
+
+```python
+from genai_tk.utils.config_mngr import global_config
+
+# Case 1 — single Pydantic model
+from genai_tk.utils.prefect_server import PrefectConfig
+prefect = global_config().section("prefect", PrefectConfig)
+print(prefect.host, prefect.port)          # typed attributes, not .get("host")
+
+# Case 2 — dict of Pydantic models
+from genai_tk.core.embeddings_store import EmbeddingsStoreConfig
+stores = global_config().section_dict("embeddings_store", EmbeddingsStoreConfig)
+store_cfg = stores["default"]              # EmbeddingsStoreConfig instance
+
+# Discriminated union (each entry has a `type` field)
+from genai_tk.extra.kv_store_registry import KvStoreConfig
+kv_stores = global_config().section_dict("kv_store", KvStoreConfig, inject_name=False)
+```
+
+Both methods return an empty model / empty dict when the key is absent — they never raise `ConfigKeyNotFoundError`.
+
+### Key models and their YAML sections
+
+| YAML key | Model class | Location |
+|---|---|---|
+| `prefect` | `PrefectConfig` | `genai_tk.utils.prefect_server` |
+| `cli` | `CliConfig` | `genai_tk.main.cli` |
+| `sandbox` | `SandboxConfig` | `genai_tk.agents.sandbox.models` |
+| `monitoring` | `MonitoringConfig` | `genai_tk.utils.tracing` |
+| `auth` | `AuthConfig` | `genai_tk.utils.basic_auth` |
+| `kv_store` (dict) | `KvStoreConfig` (union) | `genai_tk.extra.kv_store_registry` |
+| `embeddings_store` (dict) | `EmbeddingsStoreConfig` | `genai_tk.core.embeddings_store` |
+| `structured` (dict) | `StructuredConfig` | `genai_tk.extra.structured.baml_util` |
+| `llm` | `LlmSection` | `genai_tk.core.factories.llm_factory` |
+| `embeddings` | `EmbeddingsSection` | `genai_tk.core.factories.embeddings_factory` |
+| `paths` | `PathsConfig` | `genai_tk.utils.config_mngr` |
+
+### Untyped access (for ad-hoc values)
 
 ```python
 from genai_tk.utils.config_mngr import global_config, switch_profile, use_active_context

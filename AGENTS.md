@@ -95,6 +95,58 @@ def get_llm(llm: str | None = None) -> BaseChatModel:
 - Singleton pattern for global config access (`global_config()`)
 - Config auto-discovered by searching parent directories — works from any CWD
 
+### Two canonical patterns for reading config
+
+**Case 1 — single Pydantic model** (`section`):
+```python
+from genai_tk.utils.config_mngr import global_config
+from genai_tk.utils.prefect_server import PrefectConfig
+
+cfg = global_config().section("prefect", PrefectConfig)
+print(cfg.host, cfg.port)          # typed, validated, with defaults
+```
+
+**Case 2 — dict of Pydantic models** (`section_dict`):
+```python
+from genai_tk.core.embeddings_store import EmbeddingsStoreConfig
+
+stores = global_config().section_dict("embeddings_store", EmbeddingsStoreConfig)
+default = stores["default"]        # EmbeddingsStoreConfig, validated at load time
+```
+
+`section_dict` also supports Pydantic **discriminated unions** (pass an `Annotated` type):
+```python
+from genai_tk.extra.kv_store_registry import KvStoreConfig
+
+kv = global_config().section_dict("kv_store", KvStoreConfig, inject_name=False)
+```
+
+Both methods return empty model / empty dict when the key is absent — they never raise.
+
+### When to add a new config section
+
+| Scenario | Action |
+|---|---|
+| New top-level YAML key with fixed fields | Create a Pydantic model, add `section()` accessor |
+| New top-level YAML key with named entries | Create a Pydantic model, add `section_dict()` accessor |
+| Named entries with `type` discriminator | Create a discriminated union, use `section_dict()` with `inject_name=False` |
+
+### Key models reference
+
+| YAML key | Model | Location |
+|---|---|---|
+| `prefect` | `PrefectConfig` | `genai_tk.utils.prefect_server` |
+| `cli` | `CliConfig` | `genai_tk.main.cli` |
+| `sandbox` | `SandboxConfig` | `genai_tk.agents.sandbox.models` |
+| `monitoring` | `MonitoringConfig` | `genai_tk.utils.tracing` |
+| `auth` | `AuthConfig` | `genai_tk.utils.basic_auth` |
+| `kv_store` (dict) | `KvStoreConfig` (union) | `genai_tk.extra.kv_store_registry` |
+| `embeddings_store` (dict) | `EmbeddingsStoreConfig` | `genai_tk.core.embeddings_store` |
+| `structured` (dict) | `StructuredConfig` | `genai_tk.extra.structured.baml_util` |
+| `llm` | `LlmSection` | `genai_tk.core.factories.llm_factory` |
+| `embeddings` | `EmbeddingsSection` | `genai_tk.core.factories.embeddings_factory` |
+| `paths` | `PathsConfig` | `genai_tk.utils.config_mngr` |
+
 ## Testing
 
 - pytest with asyncio support (`pytest-asyncio`)
@@ -151,11 +203,10 @@ Current docs index:
 | `docs/extra.md` | Non-pipeline tooling: agent graphs, anonymization, BAML, image analysis, KV store, PgVector |
 | `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, all retriever types, CLI, Prefect flow, agent tools |
 | `docs/prefect.md` | Prefect flows in `workflow/prefect/flows/` — markdownize, ppt2pdf, rag, baml |
-| `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, all retriever types, CLI, Prefect flow, agent tools |
 | `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |
 | `docs/workflows.md` | YAML-driven task orchestration — defining workflows, profiles, CLI integration, multi-step pipelines |
 | `docs/prefect.md` | Prefect flows — ephemeral vs. server mode, available flows, writing new flows, workflow engine integration |
-| `docs/agents.md` | LangChain / SmolAgents / DeerFlow / DeepAgents profiles and config |
+| `docs/agents.md` | LangChain / SmolAgents / DeerFlow agent profiles and config |
 | `docs/mcp-servers.md` | MCP server configuration, CLI, and standalone scripts |
 | `docs/browser_control.md` | Browser automation (sandbox vs. direct Playwright) |
 | `docs/sandbox_support.md` | OpenSandbox Docker container setup and integration |

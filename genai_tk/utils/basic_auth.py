@@ -9,7 +9,7 @@ Provides functionality for:
 import hashlib
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from genai_tk.utils.config_mngr import global_config
 
@@ -25,7 +25,9 @@ class AuthConfig(BaseModel):
     """Authentication configuration."""
 
     enabled: bool = False
+    config_file: str | None = None
     users: list[User] = []
+    model_config = ConfigDict(extra="ignore")
 
 
 def hash_password(password: str) -> str:
@@ -59,24 +61,28 @@ def load_auth_config() -> AuthConfig:
     Returns:
         The authentication configuration
     """
-    enabled = global_config().get_bool("auth.enabled")
-    config_path = global_config().get_file_path("auth.config_file", check_if_exists=True)
+    try:
+        auth = global_config().section("auth", AuthConfig)
+    except Exception:
+        return AuthConfig()
 
+    if not auth.enabled or not auth.config_file:
+        return auth
+
+    from pathlib import Path
+
+    config_path = Path(auth.config_file)
     if not config_path.exists():
         return AuthConfig(enabled=False, users=[])
 
     try:
         with open(config_path, "r") as f:
             config_data = yaml.safe_load(f)
-
         if not config_data:
             return AuthConfig(enabled=False, users=[])
-
-        config_data["enabled"] = enabled  # Default to enabled if not specified
-
-        return AuthConfig(**config_data)
+        config_data["enabled"] = auth.enabled
+        return AuthConfig.model_validate(config_data)
     except Exception:
-        # If there's an error loading the config, return a default config
         return AuthConfig(enabled=False, users=[])
 
 
