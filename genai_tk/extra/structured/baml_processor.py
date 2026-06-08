@@ -14,7 +14,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 LLM_ID = None
-KV_STORE_ID = "file"
+KV_STORE_ID = "default"
 
 
 T = TypeVar("T", bound=BaseModel)
@@ -49,7 +49,7 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
 
     async def abatch_analyze_documents(self, document_ids: list[str], markdown_contents: list[str]) -> list[T]:
         """Process multiple documents asynchronously with caching using BAML."""
-        from genai_tk.utils.pydantic_utils.kv_store import PydanticStore, save_object_to_kvstore
+        from genai_tk.utils.pydantic_utils.kv_store import PydanticStore
 
         analyzed_docs: list[T] = []
         remaining_ids: list[str] = []
@@ -59,7 +59,7 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
         # Only if model_cls is already known
         if self.kvstore_id and not self.force and self.model_cls is not None:
             for doc_id, content in zip(document_ids, markdown_contents, strict=True):
-                cached_doc = PydanticStore(kvstore_id=self.kvstore_id, model=self.model_cls).load_object(doc_id)
+                cached_doc = await PydanticStore(kvstore_id=self.kvstore_id, model=self.model_cls).load_object(doc_id)
 
                 if cached_doc:
                     analyzed_docs.append(cached_doc)
@@ -120,7 +120,9 @@ class BamlStructuredProcessor(BaseModel, Generic[T]):
 
                 # Save to KV store
                 if self.kvstore_id:
-                    save_object_to_kvstore(doc_id, result_with_id, kv_store_id=self.kvstore_id)
+                    await PydanticStore(kvstore_id=self.kvstore_id, model=self.model_cls).save_obj(
+                        doc_id, result_with_id
+                    )
                     logger.debug("Saved to KV store: {}", doc_id)
 
             except Exception as e:

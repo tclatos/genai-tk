@@ -142,83 +142,33 @@ class InfoCommands(CliTopCommand):
             console.print(keys_table)
 
             # KV Store info
-            from genai_tk.extra.kv_store_registry import KvStoreRegistry
+            from genai_tk.extra.kv_store_factory import KvStoreConfig, get_async_kv_store, get_available_stores
 
-            kv_registry = KvStoreRegistry()
             try:
-                available_stores = kv_registry.get_available_stores()
+                available_stores = get_available_stores()
+                stores_config: dict[str, KvStoreConfig] = global_config().section_dict(
+                    "kv_store", KvStoreConfig, inject_name=False
+                )
 
                 kv_stores_table = Table(title="🗄️  Available KV Stores", show_header=True, header_style="bold magenta")
                 kv_stores_table.add_column("Store ID", style="cyan", width=15)
-                kv_stores_table.add_column("Type", style="green", width=20)
-                kv_stores_table.add_column("Configuration", style="blue", width=30)
+                kv_stores_table.add_column("Type", style="green", width=25)
+                kv_stores_table.add_column("Args", style="blue", width=30)
                 kv_stores_table.add_column("Status", style="yellow", width=15)
 
                 for store_id in available_stores:
+                    cfg = stores_config.get(store_id)
+                    store_type = cfg.type.split(".")[-1] if cfg else "Unknown"
+                    args_display = ", ".join(f"{k}={v}" for k, v in (cfg.args.items() if cfg else []))
+                    if len(args_display) > 28:
+                        args_display = args_display[:25] + "..."
                     try:
-                        # Try to get configuration details for each store
-                        config_info = global_config().get(f"kv_store.{store_id}", {})
-
-                        # Handle different configuration formats
-                        if hasattr(config_info, "get") and "type" in config_info:
-                            # New format with explicit type
-                            store_type = str(config_info["type"])
-                            path_info = config_info.get("path", "N/A")
-                            # Truncate long paths for display
-                            if isinstance(path_info, str) and len(path_info) > 25:
-                                path_info = f"...{path_info[-22:]}"
-                            config_display = f"path: {path_info}"
-                        elif hasattr(config_info, "get") and "path" in config_info:
-                            # Legacy format - infer type
-                            path_info = str(config_info["path"])
-                            if store_id == "sql" or ("postgresql://" in path_info or "sqlite://" in path_info):
-                                store_type = "SQLStore"
-                            else:
-                                store_type = "LocalFileStore"
-                            # Truncate long paths for display
-                            if len(path_info) > 25:
-                                path_info = f"...{path_info[-22:]}"
-                            config_display = f"path: {path_info}"
-                        else:
-                            # Handle special cases like OmegaConf objects
-                            config_str = str(config_info)
-                            if "LocalFileStore" in config_str:
-                                store_type = "LocalFileStore"
-                            elif "SQLStore" in config_str:
-                                store_type = "SQLStore"
-                            else:
-                                store_type = "Unknown"
-
-                            # Try to extract path from string representation
-                            if "path" in config_str:
-                                import re
-
-                                path_match = re.search(r"'path':\s*'([^']+)'", config_str)
-                                if path_match:
-                                    path_info = path_match.group(1)
-                                    if len(path_info) > 25:
-                                        path_info = f"...{path_info[-22:]}"
-                                    config_display = f"path: {path_info}"
-                                else:
-                                    config_display = config_str[:30] + ("..." if len(config_str) > 30 else "")
-                            else:
-                                config_display = config_str[:30] + ("..." if len(config_str) > 30 else "")
-
-                        # Test if store can be created (indicates proper configuration)
-                        try:
-                            kv_registry.get(store_id)
-                            status = "[green]✓ available[/green]"
-                        except Exception as e:
-                            error_msg = str(e)
-                            if len(error_msg) > 20:
-                                error_msg = f"{error_msg[:17]}..."
-                            status = "[red]✗ error[/red]"
-
-                        kv_stores_table.add_row(store_id, store_type, config_display, status)
-
+                        get_async_kv_store(store_id)
+                        status = "[green]✓ available[/green]"
                     except Exception as e:
-                        # Handle individual store errors
-                        kv_stores_table.add_row(store_id, "Error", str(e)[:25], "[red]✗ error[/red]")
+                        err = str(e)[:17]
+                        status = f"[red]✗ {err}[/red]"
+                    kv_stores_table.add_row(store_id, store_type, args_display, status)
 
                 if not available_stores:
                     kv_stores_table.add_row(

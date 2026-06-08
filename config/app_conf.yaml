@@ -48,11 +48,13 @@ paths:
         url: postgresql+asyncpg://${oc.env:POSTGRES_USER,postgres}:${oc.env:POSTGRES_PASSWORD,password}@localhost:5432/genai
     kv_store:
       default:
-        type: LocalFileStore
-        path: ${paths.data_root}/kv_store
+        type: key_value.aio.stores.filetree.FileTreeStore
+        args:
+          directory: ${paths.data_root}/kv_store
       postgres:
-        type: SQLStore
-        path: postgresql://${oc.env:POSTGRES_USER,unknown_user}:${oc.env:POSTGRES_PASSWORD,password}@localhost:5432/ekg
+        type: key_value.aio.stores.postgresql.PostgreSQLStore
+        args:
+          url: postgresql://${oc.env:POSTGRES_USER,unknown_user}:${oc.env:POSTGRES_PASSWORD,password}@localhost:5432/ekg
     llm_cache:
       method: memory
     chains:
@@ -82,7 +84,8 @@ paths:
       cache: data/hf_models
     kv_store:
       default:
-        type: memory
+        type: key_value.aio.stores.memory.MemoryStore
+        args: {}
     llm_cache:
       method: memory
     logging:

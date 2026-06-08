@@ -1,32 +1,4 @@
-# Enforce Config typing 
-
-Most configuration entries are mapped to a Pydantic modeL  Howerver, it's not enforced in the code.
-We have a load_yaml_configs methods, but it's not always used (for example in PrefectServer, MCpServer,Sandox), and can return too many types.
-We need to refactor. 
-I see 3 cases : 
-1 -  The YAML file defines a Pydantic onject
-2 - The YAML file defines a dict of Pydantic objects
-3 - The YAML define defines something else
-
-We should try : 
-1 - have maximum of 1 et 2
-2 - Realy leverage the strong typing and validation . Avoid "get' on dict from the YAML
-
-So: 
-- Look at each top entries in the different YAML files we have in config (look also in project genai_graph)
-- See it can match to 1 or 2.
-- Update code.  Create a Pydanc model  is needed, refactor config manager  with better method to load config as Pydantic or dict of Pydantic, try to delete config_loader.py and similar functions (like in genai_tk/workflow/resolver.py, but there are more)  .
-We should have a more systemic approach, more orthogonal. Number of line should be reduced.
-
-YAML files can me modified if that can simplify code and design.
-
-Prepare a plan, suggest improvement, ask questions...
-
-
-
-
-    raw = get_raw_config()
-    servers_node = raw.get("mcpServers", {})
+# Refactor config/examples/mcp/servers.yaml 
 
 
 

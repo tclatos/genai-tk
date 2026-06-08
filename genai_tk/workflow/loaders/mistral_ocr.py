@@ -24,7 +24,7 @@ from mistralai.client import Mistral
 from mistralai.client.models import OCRResponse
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from genai_tk.utils.pydantic_utils.kv_store import load_object_from_kvstore, save_object_to_kvstore
+from genai_tk.utils.pydantic_utils.kv_store import PydanticStore
 
 
 def _encode_to_base64(path: Path) -> str:
@@ -55,7 +55,7 @@ def mistral_ocr(path: Path, use_cache: bool = True) -> OCRResponse:
     client = Mistral(api_key=api_key)
 
     if use_cache:
-        cached_ocr = load_object_from_kvstore(model_class=OCRResponse, key=str(path))
+        cached_ocr = asyncio.run(PydanticStore(kvstore_id="default", model=OCRResponse).load_object(str(path)))
         if cached_ocr:
             logger.info(f"use cached OCR for: '{str(path)}'")
             return cached_ocr
@@ -88,7 +88,7 @@ def mistral_ocr(path: Path, use_cache: bool = True) -> OCRResponse:
         document={"type": "document_url", "document_url": document_url},
     )
     if use_cache:
-        save_object_to_kvstore(key=str(path), obj=ocr_response)
+        asyncio.run(PydanticStore(kvstore_id="default", model=OCRResponse).save_obj(str(path), ocr_response))
     return ocr_response
 
 
@@ -178,7 +178,7 @@ async def process_pdf_batch(pdf_paths: list[Path], output_dir: Path, use_cache: 
                 progress.update(
                     task, description=f"[cyan]Checking cache for {pdf_path.name} ({i + 1}/{len(pdf_paths)})"
                 )
-                cached_ocr = load_object_from_kvstore(model_class=OCRResponse, key=str(pdf_path))
+                cached_ocr = await PydanticStore(kvstore_id="default", model=OCRResponse).load_object(str(pdf_path))
                 if cached_ocr:
                     logger.info(f"Using cached OCR for: '{str(pdf_path)}'")
                     # Save to output directory with sanitized filename
@@ -282,7 +282,7 @@ async def process_pdf_batch(pdf_paths: list[Path], output_dir: Path, use_cache: 
 
                 # Cache the result
                 if use_cache:
-                    save_object_to_kvstore(key=str(pdf_path), obj=ocr_response)
+                    await PydanticStore(kvstore_id="default", model=OCRResponse).save_obj(str(pdf_path), ocr_response)
 
                 # Save to output directory with sanitized filename
                 safe_filename = sanitize_filename(f"{pdf_path.stem}.md")

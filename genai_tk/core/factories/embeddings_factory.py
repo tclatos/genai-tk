@@ -42,7 +42,7 @@ from loguru import logger
 from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
-from genai_tk.extra.kv_store_registry import KvStoreRegistry
+from genai_tk.extra.kv_store_factory import AsyncKeyValueByteStoreAdapter, get_async_kv_store
 from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.utils.singleton import once
@@ -534,14 +534,12 @@ class EmbeddingsFactory(BaseModel):
             Cached embeddings model with persistent storage
         """
 
-        registry = KvStoreRegistry()
-        kv_store = registry.get(
-            store_id="default", namespace="cache_embeddings"
-        )  # TODO : support SQL  (need async KvStore)
+        kv_store = get_async_kv_store("default")
+        byte_store = AsyncKeyValueByteStoreAdapter(kv_store, collection="cache_embeddings")
         prefix = f"{self.short_name()}-"
         cached_embedder = CacheBackedEmbeddings.from_bytes_store(
             underlying_embeddings=underlying_embeddings,
-            document_embedding_cache=kv_store,
+            document_embedding_cache=byte_store,
             key_encoder=lambda text: prefix + buffer_digest(text.encode()),
             query_embedding_cache=True,
         )
