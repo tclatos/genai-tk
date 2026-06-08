@@ -8,18 +8,18 @@ only a YAML configuration file — no extra Python code required.
 
 | Term | Meaning |
 |---|---|
-| **Server definition** | One entry in `config/mcp/servers.yaml`; maps to a single MCP server process |
+| **Server definition** | One entry in `config/examples/tk_servers.yaml`; maps to a single MCP server process |
 | **Tool** | A LangChain tool factory resolved at startup and registered as an MCP tool |
 | **Agent tool** | An optional ReAct / DeepAgent wrapper that bundles all resolved tools into a single `run_<name>` MCP tool |
 
 ## Configuration
 
-Definitions live in `config/mcp/servers.yaml` under the key `mcp_expose_servers`.
+Definitions live in `config/examples/tk_servers.yaml` under the key `mcp_expose_servers`.
 
 ```yaml
 mcp_expose_servers:
 
-  - name: "search"
+  search:
     description: "Web search tools exposed as MCP"
     tools:
       - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
@@ -81,7 +81,7 @@ Use `agent.profile` to delegate to a full DeepAgent profile defined in
 
 ## Adding a New Server
 
-1. Add an entry to `config/mcp/servers.yaml`.
+1. Add an entry to `config/examples/tk_servers.yaml`.
 2. Run `uv run cli mcp list` to verify it appears.
 3. Run `uv run cli mcp serve --name <name>` to start it.
 

@@ -31,7 +31,7 @@ MODELS_DEV_URL = "https://models.dev/api.json"
 def _default_cache_path() -> Path:
     """Resolve the default models cache path via config, fallback to CWD/data/."""
     try:
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         return global_config().get_dir_path("paths.data") / "models_dev.json"
     except Exception:

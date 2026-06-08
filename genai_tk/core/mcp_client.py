@@ -42,7 +42,7 @@ from mcpadapt.core import MCPAdapt
 from mcpadapt.langchain_adapter import LangChainAdapter
 from pydantic import BaseModel, ConfigDict, Field
 
-from genai_tk.utils.config_mngr import get_raw_config, paths_config
+from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 
 load_dotenv()
 
@@ -90,7 +90,7 @@ def update_server_parameters(server_config: dict) -> dict:
     # {'command': 'uv', 'args': ['tool', 'run', 'pubmedmcp@0.1.3'], 'transport': 'stdio', 'env': {'PATH': ...}}
     ```
     """
-    from genai_tk.utils.config_exceptions import yaml_config_validation
+    from genai_tk.config_mgmt.config_exceptions import yaml_config_validation
 
     with yaml_config_validation(context="MCP server config"):
         cfg = McpServerConfig.model_validate(server_config)
@@ -164,7 +164,7 @@ def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
     Combines servers from two config sections:
     - ``mcpServers``: external MCP servers (npm, uvx, …)
     - ``mcpProjectServers``: project-defined servers exposed via
-      ``cli mcpserver start --name <name>`` (declared in ``config/mcp/servers.yaml``).
+      ``cli mcpserver start --name <name>`` (declared in ``config/examples/tk_servers.yaml``).
 
     Processes each entry, handling command aliases and environment variables,
     then validates server parameters.

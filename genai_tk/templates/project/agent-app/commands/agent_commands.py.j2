@@ -32,7 +32,7 @@ class AgentCommands(CliTopCommand):
             from langchain_core.messages import HumanMessage
             from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
             from genai_tk.agents.langchain.factory import create_langchain_agent
-            from genai_tk.utils.config_mngr import global_config
+            from genai_tk.config_mgmt.config_mngr import global_config
 
             cfg = global_config()
 

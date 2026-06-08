@@ -5,7 +5,7 @@ providing better error reporting and handling capabilities across the applicatio
 
 Example:
     ```python
-    from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError
+    from genai_tk.config_mgmt.config_exceptions import ConfigKeyNotFoundError
 
     try:
         value = global_config().get("nonexistent.key")
@@ -308,7 +308,7 @@ def pydantic_error_to_config_error(
     Example:
         ```python
         from pydantic import ValidationError
-        from genai_tk.utils.config_exceptions import pydantic_error_to_config_error
+        from genai_tk.config_mgmt.config_exceptions import pydantic_error_to_config_error
 
         try:
             MyModel.model_validate(data)
@@ -362,7 +362,7 @@ def yaml_config_validation(
 
     Example:
         ```python
-        from genai_tk.utils.config_exceptions import yaml_config_validation
+        from genai_tk.config_mgmt.config_exceptions import yaml_config_validation
 
         with yaml_config_validation(file_path="langchain.yaml", context="profile 'simple'"):
             profile = AgentProfileConfig.model_validate(data)

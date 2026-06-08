@@ -29,8 +29,8 @@ from pathlib import Path
 from langchain_text_splitters import TextSplitter
 from loguru import logger
 
-from genai_tk.utils.config_mngr import global_config
-from genai_tk.utils.import_utils import ImportResolver
+from genai_tk.config_mgmt.config_mngr import global_config
+from genai_tk.config_mgmt.import_utils import ImportResolver
 
 
 class ChunkerFactory:

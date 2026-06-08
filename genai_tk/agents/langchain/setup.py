@@ -8,9 +8,9 @@ from langchain_core.globals import set_debug, set_verbose
 from rich.console import Console
 from rich.panel import Panel
 
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.core.cache import CacheMethod, LlmCache
 from genai_tk.core.factories.llm_factory import LlmFactory
-from genai_tk.utils.config_mngr import global_config
 
 
 def setup_langchain(

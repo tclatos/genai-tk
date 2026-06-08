@@ -161,7 +161,7 @@ def validate_mcp_servers(server_names: list[str]) -> list[str]:
     if not server_names:
         return []
 
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.config_mgmt.config_mngr import global_config
 
     try:
         mcp_config = global_config().get("mcp", {})
@@ -200,7 +200,7 @@ def load_deer_flow_profiles(config_path: str | None = None) -> list[DeerFlowProf
     Returns:
         List of ``DeerFlowProfile`` instances.
     """
-    from genai_tk.utils.config_mngr import load_yaml_configs, paths_config
+    from genai_tk.config_mgmt.config_mngr import load_yaml_configs, paths_config
 
     if config_path is None:
         agents_dir = paths_config().config / "agents"

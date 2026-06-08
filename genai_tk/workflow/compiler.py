@@ -240,7 +240,7 @@ def _resolve_omegaconf_string(val: str) -> Any:
     """Resolve a string that may contain OmegaConf interpolations against global config."""
     from omegaconf import OmegaConf
 
-    from genai_tk.utils.config_mngr import get_raw_config
+    from genai_tk.config_mgmt.config_mngr import get_raw_config
 
     cfg = get_raw_config()
     try:

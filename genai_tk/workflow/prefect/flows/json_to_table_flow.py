@@ -29,8 +29,8 @@ from typing import Any
 from loguru import logger
 from prefect import flow, task
 
-from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
-from genai_tk.utils.import_utils import import_model
+from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_files
+from genai_tk.config_mgmt.import_utils import import_model
 
 # ---------------------------------------------------------------------------
 # helpers

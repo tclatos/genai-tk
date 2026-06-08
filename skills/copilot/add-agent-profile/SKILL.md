@@ -120,7 +120,7 @@ langchain_agents:
     mcp_servers: [my-server]
 ```
 
-Use `config/mcp/servers.yaml` only when exposing genai-tk assets as project MCP servers served by `uv run cli mcp serve`.
+Use `config/examples/tk_servers.yaml` only when exposing genai-tk assets as project MCP servers served by `uv run cli mcp serve`.
 
 ## DeerFlow Agents
 

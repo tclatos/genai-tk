@@ -103,7 +103,7 @@ def test_validate_mcp_servers_success(monkeypatch):
     mock_global_config = MockConfig()
 
     # Patch at the right location
-    import genai_tk.utils.config_mngr as config_mngr
+    import genai_tk.config_mgmt.config_mngr as config_mngr
 
     monkeypatch.setattr(config_mngr, "global_config", lambda: mock_global_config)
 
@@ -125,7 +125,7 @@ def test_validate_mcp_servers_invalid(monkeypatch):
     mock_global_config = MockConfig()
 
     # Patch at the right location
-    import genai_tk.utils.config_mngr as config_mngr
+    import genai_tk.config_mgmt.config_mngr as config_mngr
 
     monkeypatch.setattr(config_mngr, "global_config", lambda: mock_global_config)
 
@@ -268,7 +268,7 @@ class TestResolveMiddlewares:
 
     def test_empty_list_returns_empty(self):
         """Empty list of qualified names returns empty list."""
-        from genai_tk.utils.import_utils import instantiate_from_qualified_names
+        from genai_tk.config_mgmt.import_utils import instantiate_from_qualified_names
 
         assert instantiate_from_qualified_names([]) == []
 
@@ -287,7 +287,7 @@ class TestResolveMiddlewares:
         sys.modules["_test_mw_mod"] = mod
         monkeypatch.setitem(sys.modules, "_test_mw_mod", mod)
 
-        from genai_tk.utils.import_utils import instantiate_from_qualified_names
+        from genai_tk.config_mgmt.import_utils import instantiate_from_qualified_names
 
         result = instantiate_from_qualified_names(["_test_mw_mod._MW"])
         assert len(result) == 1
@@ -295,7 +295,7 @@ class TestResolveMiddlewares:
 
     def test_raises_on_missing_module(self):
         """ImportError raised when module path does not exist."""
-        from genai_tk.utils.import_utils import instantiate_from_qualified_names
+        from genai_tk.config_mgmt.import_utils import instantiate_from_qualified_names
 
         with pytest.raises(ImportError, match="Cannot load class"):
             instantiate_from_qualified_names(["nonexistent_module_xyz.MyClass"])
@@ -309,14 +309,14 @@ class TestResolveMiddlewares:
         sys.modules["_test_mw_mod2"] = mod
         monkeypatch.setitem(sys.modules, "_test_mw_mod2", mod)
 
-        from genai_tk.utils.import_utils import instantiate_from_qualified_names
+        from genai_tk.config_mgmt.import_utils import instantiate_from_qualified_names
 
         with pytest.raises(ImportError, match="Cannot load class"):
             instantiate_from_qualified_names(["_test_mw_mod2.NonExistentClass"])
 
     def test_raises_on_unqualified_name(self):
         """ValueError raised when name has no module separator."""
-        from genai_tk.utils.import_utils import instantiate_from_qualified_names
+        from genai_tk.config_mgmt.import_utils import instantiate_from_qualified_names
 
         with pytest.raises(ValueError, match="fully-qualified"):
             instantiate_from_qualified_names(["JustAClassName"])
@@ -342,7 +342,7 @@ class TestResolveMiddlewares:
         sys.modules["_test_mw_multi"] = mod
         monkeypatch.setitem(sys.modules, "_test_mw_multi", mod)
 
-        from genai_tk.utils.import_utils import instantiate_from_qualified_names
+        from genai_tk.config_mgmt.import_utils import instantiate_from_qualified_names
 
         result = instantiate_from_qualified_names(["_test_mw_multi._MW1", "_test_mw_multi._MW2"])
         assert len(result) == 2

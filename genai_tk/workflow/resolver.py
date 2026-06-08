@@ -29,7 +29,7 @@ from typing import Any
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import InterpolationKeyError
 
-from genai_tk.utils.config_mngr import OmegaConfig, global_config
+from genai_tk.config_mgmt.config_mngr import OmegaConfig, global_config
 from genai_tk.workflow.compiled_models import ArtifactSpec, ExecutionSpec, InvokeSpec, StepKind
 from genai_tk.workflow.models import PipelineStep, ResolvedWorkflowInvocation, StepSpec, WorkflowDefV2, WorkflowSpec
 from genai_tk.workflow.registry import WorkflowRegistry
@@ -93,7 +93,7 @@ def resolve_workflow_invocation(
 
     _validate_required_params(wf, values, name_or_preset)
 
-    workflow_spec = _v2_to_workflow_spec(wf, all_workflows, reg, extra_values=values)
+    workflow_spec = _to_workflow_spec(wf, all_workflows, reg, extra_values=values)
 
     return ResolvedWorkflowInvocation(
         requested_name=name_or_preset,
@@ -287,7 +287,7 @@ def _parse_name(name_or_preset: str) -> tuple[str, str | None]:
 # ---------------------------------------------------------------------------
 
 
-def _v2_to_workflow_spec(
+def _to_workflow_spec(
     wf: WorkflowDefV2,
     all_workflows: dict[str, WorkflowDefV2],
     reg: WorkflowRegistry,

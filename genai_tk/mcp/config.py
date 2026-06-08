@@ -1,12 +1,12 @@
 """Pydantic configuration models for genai-tk MCP server exposure.
 
-Defines the schema for ``config/mcp/servers.yaml`` files that describe
+Defines the schema for ``config/examples/tk_servers.yaml`` files that describe
 which tools and agents should be exposed as MCP servers.
 
 Example YAML:
     ```yaml
     mcp_expose_servers:
-      - name: "search"
+      search:
         description: "Web search tools exposed as MCP"
         tools:
           - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
@@ -28,7 +28,7 @@ from loguru import logger
 from omegaconf import OmegaConf
 from pydantic import BaseModel
 
-from genai_tk.utils.config_mngr import get_raw_config, global_config
+from genai_tk.config_mgmt.config_mngr import get_raw_config, global_config
 
 
 class MCPToolConfig(BaseModel):
@@ -86,10 +86,17 @@ def load_mcp_server_definitions(config_path: Path | str | None = None) -> list[M
     """Load MCP server definitions from a YAML configuration file.
 
     Supports OmegaConf variable interpolation (e.g., ``${paths.project}``).
+    The ``mcp_expose_servers`` key must be a **dict** whose keys are server names::
+
+        mcp_expose_servers:
+          search:
+            description: "Web search tools"
+            tools:
+              - factory: mod.create_search_function
 
     Args:
-        config_path: Path to the YAML file. Defaults to ``config/mcp/servers.yaml``
-            relative to the project root.
+        config_path: Path to the YAML file. Defaults to
+            ``config/examples/tk_servers.yaml`` relative to the project root.
 
     Returns:
         List of MCPServerDefinition instances.
@@ -103,40 +110,51 @@ def load_mcp_server_definitions(config_path: Path | str | None = None) -> list[M
     """
     if config_path is None:
         project_root = global_config().get_dir_path("paths.project")
-        config_path = project_root / "config" / "mcp" / "servers.yaml"
+        config_path = project_root / "config" / "examples" / "tk_servers.yaml"
 
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(
-            f"MCP expose config not found at {path}. Create config/mcp/servers.yaml or pass an explicit path."
+            f"MCP expose config not found at {path}. Create config/examples/tk_servers.yaml or pass an explicit path."
         )
 
     # Use OmegaConf for variable interpolation
     raw_cfg = OmegaConf.load(path)
 
-    # Merge with global config so ${paths.project} etc. resolve
+    # Merge with global config so ${paths.project} etc. resolve, but keep
+    # mcp_expose_servers ONLY from the explicitly-loaded file so callers
+    # don't accidentally pick up entries from the global config.
+    entries_node = OmegaConf.select(raw_cfg, "mcp_expose_servers", default=OmegaConf.create({}))
     try:
-        merged = OmegaConf.merge(get_raw_config(), raw_cfg)
+        merged_for_resolve = OmegaConf.merge(get_raw_config(), raw_cfg)
+        # Replace the merged mcp_expose_servers with just the file's version
+        OmegaConf.update(merged_for_resolve, "mcp_expose_servers", entries_node, merge=False)
     except Exception as e:
         logger.warning("Could not merge with global config for interpolation: {}", e)
-        merged = raw_cfg
+        merged_for_resolve = raw_cfg
 
-    # Resolve only the relevant section to avoid spurious failures from
-    # ${profile.*} placeholders in other config sections (e.g. workflows).
-    if "mcp_expose_servers" in merged:
-        resolved_section = OmegaConf.to_container(merged["mcp_expose_servers"], resolve=True)
+    if "mcp_expose_servers" in merged_for_resolve:
+        resolved_section = OmegaConf.to_container(merged_for_resolve["mcp_expose_servers"], resolve=True)
         raw_dict = {"mcp_expose_servers": resolved_section}
     else:
         raw_dict = {}
 
-    entries = raw_dict.get("mcp_expose_servers", [])
+    entries = raw_dict.get("mcp_expose_servers", {})
+
+    # Support dict format (name is the key) — the canonical format.
+    if isinstance(entries, dict):
+        items = [(name, body) for name, body in entries.items()]
+    else:
+        # Legacy list format: [{"name": "search", ...}, ...]
+        items = [(entry["name"], entry) for entry in entries]
+
     definitions = []
-    for entry in entries:
+    for name, entry in items:
         tools_raw = entry.get("tools", [])
         agent_raw = entry.get("agent")
         definitions.append(
             MCPServerDefinition(
-                name=entry["name"],
+                name=name,
                 description=entry.get("description", ""),
                 tools=[MCPToolConfig(**t) for t in tools_raw],
                 agent=MCPAgentConfig(**agent_raw) if agent_raw else None,

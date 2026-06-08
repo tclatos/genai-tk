@@ -1,11 +1,10 @@
-# MCP Server Exposure Configuration
+# MCP Server Exposure Configuration  (genai-tk built-in servers)
 #
-# Each entry under ``mcp_expose_servers`` describes an MCP server that
-# genai-tk can build and serve.
+# ``mcp_expose_servers`` is a dict of server definitions keyed by server name.
+# The key is used with ``uv run cli mcp serve --name <key>``.
 #
-# Key fields
-# ----------
-# name        : Unique identifier used with ``uv run cli mcp serve --name <name>``
+# Per-entry fields
+# ----------------
 # description : Human-readable description shown in ``mcp list`` and server instructions
 # tools       : List of LangChain tool factory entries (same syntax as langchain.yaml)
 #   factory   : "module.path.factory_function"
@@ -36,7 +35,7 @@ mcp_expose_servers:
   # Exposes the best available search function (Tavily → Serper → DuckDuckGo)
   # + an optional ReAct agent that wraps it.
   # ──────────────────────────────────────────────────────────────────────────
-  - name: "search"
+  search:
     description: "Web search tools exposed as MCP"
     tools:
       - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
@@ -53,7 +52,7 @@ mcp_expose_servers:
   # Exposes an NL→SQL tool over the bundled Chinook SQLite database.
   # No agent wrapper – raw tool only.
   # ──────────────────────────────────────────────────────────────────────────
-  - name: "chinook"
+  chinook:
     description: "Natural-language SQL queries over the Chinook music datastore database"
     tools:
       - factory: genai_tk.agents.tools.langchain.sql_tool_factory.create_sql_tool_from_config
@@ -73,9 +72,9 @@ mcp_expose_servers:
   # Research deep-agent server
   # Exposes the Research DeepAgent profile directly as an MCP tool.
   # The agent handles planning, file-system access and web search internally.
-  # !!!!UNTESTED !!!!!  
+  # !!!!UNTESTED !!!!!
   # ──────────────────────────────────────────────────────────────────────────
-  - name: "research-agent"
+  research-agent:
     description: "Research deep-agent exposed as a single MCP tool"
     tools: []   # tools come from the DeepAgent profile
     agent:

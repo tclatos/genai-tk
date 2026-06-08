@@ -39,7 +39,7 @@ class McpCommands(CliTopCommand):
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
         @cli_app.command()
         def start(
-            name: Annotated[str, typer.Option("--name", "-n", help="Server name from config/mcp/servers.yaml")],
+            name: Annotated[str, typer.Option("--name", "-n", help="Server name from config/examples/tk_servers.yaml")],
             config: Annotated[
                 Optional[Path],
                 typer.Option("--config", "-c", help="Path to servers.yaml override"),
@@ -51,7 +51,7 @@ class McpCommands(CliTopCommand):
         ) -> None:
             """Start an MCP server over stdio (or sse/streamable-http).
 
-            The server is registered in config/mcp/servers.yaml.
+            The server is registered in config/examples/tk_servers.yaml.
             It exposes LangChain tools and, optionally, an agent-as-a-tool.
 
             Examples:

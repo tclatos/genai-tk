@@ -184,7 +184,7 @@ GENAITK_PROFILE=pytest python myapp.py
 
 In Python:
 ```python
-from genai_tk.utils.config_mngr import switch_profile
+from genai_tk.config_mgmt.config_mngr import switch_profile
 switch_profile("prod")    # reloads all config with profile=prod
 ```
 
@@ -282,7 +282,7 @@ See [rag.md](rag.md) for complete RAG documentation.
 Every top-level YAML key has a corresponding Pydantic model. Use `section()` (Case 1 — single object) or `section_dict()` (Case 2 — dict of objects) to get a fully-validated, typed view:
 
 ```python
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 
 # Case 1 — single Pydantic model
 from genai_tk.utils.prefect_server import PrefectConfig
@@ -315,12 +315,12 @@ Both methods return an empty model / empty dict when the key is absent — they 
 | `structured` (dict) | `StructuredConfig` | `genai_tk.extra.structured.baml_util` |
 | `llm` | `LlmSection` | `genai_tk.core.factories.llm_factory` |
 | `embeddings` | `EmbeddingsSection` | `genai_tk.core.factories.embeddings_factory` |
-| `paths` | `PathsConfig` | `genai_tk.utils.config_mngr` |
+| `paths` | `PathsConfig` | `genai_tk.config_mgmt.config_mngr` |
 
 ### Untyped access (for ad-hoc values)
 
 ```python
-from genai_tk.utils.config_mngr import global_config, switch_profile, use_active_context
+from genai_tk.config_mgmt.config_mngr import global_config, switch_profile, use_active_context
 
 config = global_config()                        # singleton, auto-discovered
 value = config.get("llm.models.default")        # dot-separated key path
@@ -359,7 +359,7 @@ cli info config-keys llm.models      # Go deeper
 ### View merged config
 
 ```bash
-python -c "from genai_tk.utils.config_mngr import global_config; import yaml; print(yaml.dump(dict(global_config())))" > /tmp/merged_config.yaml
+python -c "from genai_tk.config_mgmt.config_mngr import global_config; import yaml; print(yaml.dump(dict(global_config())))" > /tmp/merged_config.yaml
 ```
 
 ## Environment variables (`.env`)

@@ -17,7 +17,7 @@ This is a **genai-tk** based AI application project.
 from genai_tk.core.factories import get_llm              # Create LLM instances
 from genai_tk.core.prompts import def_prompt            # Build prompts
 from genai_tk.cli.base import CliTopCommand             # CLI command groups
-from genai_tk.utils.config_mngr import global_config    # Access configuration
+from genai_tk.config_mgmt.config_mngr import global_config    # Access configuration
 from genai_tk.agents.langchain.config import resolve_profile  # Load agent profile by key
 ```
 
@@ -34,7 +34,7 @@ Every top-level YAML key should be read via a Pydantic model, not raw `.get()`:
 
 **Case 1 — `section()` (single object):**
 ```python
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.utils.prefect_server import PrefectConfig
 
 cfg = global_config().section("prefect", PrefectConfig)
@@ -65,7 +65,7 @@ Both return empty model / empty dict when the key is absent — they never raise
 | `structured` (dict) | `StructuredConfig` | `genai_tk.extra.structured.baml_util` |
 | `llm` | `LlmSection` | `genai_tk.core.factories.llm_factory` |
 | `embeddings` | `EmbeddingsSection` | `genai_tk.core.factories.embeddings_factory` |
-| `paths` | `PathsConfig` | `genai_tk.utils.config_mngr` |
+| `paths` | `PathsConfig` | `genai_tk.config_mgmt.config_mngr` |
 
 ### Adding a New Config Section
 

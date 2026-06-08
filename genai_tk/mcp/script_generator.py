@@ -44,7 +44,7 @@ def generate_server_script(
 
     Example:
         ```python
-        code = generate_server_script("chinook", config_path="/project/config/mcp/servers.yaml")
+        code = generate_server_script("chinook", config_path="/project/config/examples/tk_servers.yaml")
         Path("server_chinook.py").write_text(code)
         ```
     """

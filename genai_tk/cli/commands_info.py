@@ -20,7 +20,7 @@ import typer
 from typer import Option
 
 from genai_tk.cli.base import CliTopCommand
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 
 
 class InfoCommands(CliTopCommand):
@@ -708,7 +708,7 @@ class InfoCommands(CliTopCommand):
             from rich.console import Console
             from rich.table import Table
 
-            from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
+            from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_files
 
             console = Console()
 
@@ -831,7 +831,7 @@ class InfoCommands(CliTopCommand):
             from rich.syntax import Syntax
             from rich.table import Table
 
-            from genai_tk.utils.config_mngr import get_raw_config
+            from genai_tk.config_mgmt.config_mngr import get_raw_config
 
             console = Console()
             cfg = global_config()

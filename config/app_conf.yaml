@@ -50,7 +50,7 @@ paths:
       default:
         type: key_value.aio.stores.filetree.FileTreeStore
         args:
-          directory: ${paths.data_root}/kv_store
+          data_directory: ${paths.data_root}/kv_store
       postgres:
         type: key_value.aio.stores.postgresql.PostgreSQLStore
         args:

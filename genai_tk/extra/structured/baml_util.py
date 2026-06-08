@@ -16,12 +16,12 @@ from baml_py import ClientRegistry
 from loguru import logger
 from pydantic import BaseModel
 
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.extra.structured.exceptions import (
     BamlClientLoadError,
     BamlFunctionNotFoundError,
     BamlVersionMismatchError,
 )
-from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.utils.pydantic_utils.common import validate_pydantic_model
 

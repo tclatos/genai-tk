@@ -383,7 +383,7 @@ values = store.mget(["key"])
 
 **Typed config access (Case 2):**
 ```python
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.extra.kv_store_registry import KvStoreConfig
 
 all_stores = global_config().section_dict("kv_store", KvStoreConfig, inject_name=False)

@@ -255,7 +255,7 @@ def _patch_deer_flow_print() -> None:
 def _get_checkpointer_db_path() -> Path:
     """Resolve the SQLite checkpointer path using genai-tk's config paths."""
     try:
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         kv_dir = global_config().get_dir_path("paths.data") / "kv_store"
     except Exception:

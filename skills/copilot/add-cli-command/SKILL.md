@@ -74,5 +74,5 @@ uv run cli mygroup subcommand-one "test"
 - Use `Annotated[type, typer.Option(...)]` for flags/options
 - Import heavy dependencies inside the function body (lazy loading)
 - Use `rich.console.Console` for formatted output
-- If you need config access: `from genai_tk.utils.config_mngr import global_config`
+- If you need config access: `from genai_tk.config_mgmt.config_mngr import global_config`
 - If you need LLM access: `from genai_tk.core.factories.llm_factory import get_llm`

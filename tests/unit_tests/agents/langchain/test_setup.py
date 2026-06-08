@@ -44,7 +44,7 @@ class TestSetupLangchain:
             mock_cache.assert_not_called()
 
     def test_updates_global_config_with_valid_llm(self) -> None:
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         setup_langchain(llm="parrot_local@fake")
         default = global_config().get_str("llm.models.default")

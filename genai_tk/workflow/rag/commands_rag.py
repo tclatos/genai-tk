@@ -441,7 +441,7 @@ class RagCommands(CliTopCommand):
 
 
 def _get_retriever_raw_config(name: str) -> dict:
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.config_mgmt.config_mngr import global_config
 
     return global_config().get_dict(f"retrievers.{name}")
 

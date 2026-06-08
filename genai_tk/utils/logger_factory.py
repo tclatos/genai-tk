@@ -12,7 +12,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Literal
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 
 
 class LoggingConfig(BaseModel):

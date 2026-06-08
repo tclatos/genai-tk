@@ -12,13 +12,13 @@ description: Expose genai-tk tools and agents as MCP servers, generate standalon
 - `genai_tk/mcp/server_builder.py`
 - `genai_tk/mcp/tool_adapter.py`
 - `genai_tk/mcp/script_generator.py`
-- `config/mcp/servers.yaml`
+- `config/examples/tk_servers.yaml`
 
 ## Concepts
 
 | Concept | Implementation |
 |---|---|
-| Server definition | `config/mcp/servers.yaml` under `mcp_expose_servers` |
+| Server definition | `config/examples/tk_servers.yaml` under `mcp_expose_servers` |
 | External server registry | `config/mcp_servers.yaml` under `mcpServers` |
 | Tool factory loading | `genai_tk/mcp/config.py`, `genai_tk/mcp/tool_adapter.py` |
 | Runtime server | `genai_tk/mcp/server_builder.py` |
@@ -27,7 +27,7 @@ description: Expose genai-tk tools and agents as MCP servers, generate standalon
 
 ## Change Workflow
 
-1. Add `config/mcp/servers.yaml` config first when exposing existing genai-tk assets.
+1. Add `config/examples/tk_servers.yaml` config first when exposing existing genai-tk assets.
 2. Use the same tool factory syntax as agent profile YAML.
 3. Only add Python when adapting a new kind of callable/tool or changing server generation.
 4. Verify `list`, `serve`, and `generate` paths if CLI behavior changes.

@@ -13,7 +13,7 @@ Use `skills/genai-tk/repo-map` first when you need orientation. Domain skills mi
 | `genai-tk-rag-systems` | `docs/rag.md` | `genai_tk/core/retrievers/`, `genai_tk/workflow/rag/`, `config/rag.yaml` |
 | `genai-tk-workflow-engine` | `docs/workflows.md`, `docs/prefect.md` | `genai_tk/workflow/`, `config/workflows.yaml` |
 | `genai-tk-browser-and-sandbox` | `docs/browser_control.md`, `docs/sandbox_support.md` | `genai_tk/agents/tools/*browser/`, `genai_tk/agents/sandbox/`, `config/sandbox.yaml` |
-| `genai-tk-mcp-servers` | `docs/mcp-servers.md` | `genai_tk/mcp/`, `config/mcp/servers.yaml` |
+| `genai-tk-mcp-servers` | `docs/mcp-servers.md` | `genai_tk/mcp/`, `config/examples/tk_servers.yaml` |
 | `genai-tk-cli-and-scaffolding` | `docs/cli.md`, `docs/scaffolding.md`, `docs/copilot-agent-support.md` | `genai_tk/cli/`, `genai_tk/main/` |
 | `genai-tk-webapp` | `docs/webapp.md` | `genai_tk/webapp/`, `config/webapp.yaml` |
 | `genai-tk-evaluation-testing` | `docs/TESTING_GUIDE.md`, `docs/evaluation_testing.md` | `tests/`, `pyproject.toml` eval group |

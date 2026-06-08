@@ -19,7 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from genai_tk.utils.config_mngr import QualifiedClassName, QualifiedFunctionName
+from genai_tk.config_mgmt.config_mngr import QualifiedClassName, QualifiedFunctionName
 
 
 class ClassToolSpec(BaseModel):

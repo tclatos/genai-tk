@@ -5,14 +5,14 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase
 
-from genai_tk.utils.config_exceptions import (
+from genai_tk.config_mgmt.config_exceptions import (
     ConfigFileNotFoundError,
     ConfigKeyNotFoundError,
     ConfigParseError,
     ConfigTypeError,
     ConfigValidationError,
 )
-from genai_tk.utils.config_mngr import OmegaConfig, global_config, global_config_reload, switch_profile
+from genai_tk.config_mgmt.config_mngr import OmegaConfig, global_config, global_config_reload, switch_profile
 
 
 class TestOmegaConfig(TestCase):

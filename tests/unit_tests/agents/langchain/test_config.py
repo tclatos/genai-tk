@@ -135,13 +135,13 @@ class TestLoadUnifiedConfig:
         assert cfg.default_profile == "simple"
 
     def test_file_not_found(self, tmp_path: Path) -> None:
-        from genai_tk.utils.config_exceptions import ConfigFileError
+        from genai_tk.config_mgmt.config_exceptions import ConfigFileError
 
         with pytest.raises(ConfigFileError, match="file not found"):
             load_unified_config(str(tmp_path / "nonexistent.yaml"))
 
     def test_missing_section_raises(self, tmp_path: Path) -> None:
-        from genai_tk.utils.config_exceptions import ConfigKeyNotFoundError
+        from genai_tk.config_mgmt.config_exceptions import ConfigKeyNotFoundError
 
         bad_yaml = {"other_section": {}}
         cfg_file = _write_yaml(tmp_path, bad_yaml)

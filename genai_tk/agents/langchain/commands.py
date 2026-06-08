@@ -25,7 +25,7 @@ def _get_config_path() -> str:
     3. ``{paths.config}/examples/agents/langchain/`` (bundled directory)
     4. ``{paths.config}/examples/agents/langchain.yaml`` (bundled single file)
     """
-    from genai_tk.utils.config_mngr import paths_config
+    from genai_tk.config_mgmt.config_mngr import paths_config
 
     agents_dir = paths_config().config / "agents"
     dir_path = agents_dir / "langchain"
@@ -87,7 +87,7 @@ def _display_config_error(console: "Console", error: Exception) -> None:
     from rich.panel import Panel
     from rich.text import Text
 
-    from genai_tk.utils.config_exceptions import ConfigError, ConfigValidationError
+    from genai_tk.config_mgmt.config_exceptions import ConfigError, ConfigValidationError
 
     if isinstance(error, ConfigValidationError):
         n = len(error.errors)

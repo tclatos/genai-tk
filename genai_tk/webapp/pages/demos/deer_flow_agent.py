@@ -294,7 +294,7 @@ def _profile_by_name(profiles: list[DeerFlowProfile], name: str) -> DeerFlowProf
 
 def _selected_llm_override() -> str | None:
     try:
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         return global_config().get_str("llm.models.default") or None
     except Exception:
@@ -322,7 +322,7 @@ def _ensure_runtime(profile_name: str) -> tuple[EmbeddedDeerFlowClient, DeerFlow
             verbose=False,
         )
     )
-    from genai_tk.utils.import_utils import ImportResolver
+    from genai_tk.config_mgmt.import_utils import ImportResolver
 
     middlewares = ImportResolver.instantiate_from_qualified_names(prepared_profile.middlewares)
     available_skills = set(prepared_profile.available_skills) if prepared_profile.available_skills is not None else None

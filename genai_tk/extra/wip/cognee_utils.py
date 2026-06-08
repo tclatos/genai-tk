@@ -10,9 +10,9 @@ from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
 from loguru import logger
 
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
 from genai_tk.core.providers import get_provider_api_key
-from genai_tk.utils.config_mngr import global_config
 
 load_dotenv()
 

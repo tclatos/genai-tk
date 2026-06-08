@@ -65,7 +65,7 @@ def _ensure_no_proxy(host: str, env: dict[str, str] | None = None) -> None:
 def _load_prefect_config() -> PrefectConfig:
     """Load the ``prefect:`` section as a typed :class:`PrefectConfig`."""
     try:
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         return global_config().section("prefect", PrefectConfig)
     except Exception:
@@ -112,7 +112,7 @@ class PrefectServer:
             return pid_path
         # Fallback: data_root/.prefect/prefect.pid
         try:
-            from genai_tk.utils.config_mngr import global_config
+            from genai_tk.config_mgmt.config_mngr import global_config
 
             data_root = Path(str(global_config().paths.data_root))
         except Exception:

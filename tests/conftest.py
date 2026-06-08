@@ -10,9 +10,9 @@ from typing import Generator
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 
+from genai_tk.config_mgmt.config_mngr import switch_profile
 from genai_tk.core.factories.embeddings_factory import get_embeddings
 from genai_tk.core.factories.llm_factory import get_llm
-from genai_tk.utils.config_mngr import switch_profile
 
 # Constants for fake models
 FAKE_LLM_ID = "parrot_local@fake"

@@ -42,7 +42,7 @@ def _resolve_test_path(key: str) -> Path:
     console = Console(stderr=True)
 
     try:
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         cfg_path = global_config().get_str(f"test.{key}", default=None)
     except Exception:  # noqa: BLE001 — config unavailable during bootstrap

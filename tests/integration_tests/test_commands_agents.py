@@ -204,7 +204,7 @@ class TestDisplayConfigError:
 
         from rich.console import Console
 
-        from genai_tk.utils.config_exceptions import ConfigError
+        from genai_tk.config_mgmt.config_exceptions import ConfigError
 
         output = StringIO()
         console = Console(file=output, force_terminal=False)
@@ -218,7 +218,7 @@ class TestDisplayConfigError:
 
         from rich.console import Console
 
-        from genai_tk.utils.config_exceptions import ConfigValidationError
+        from genai_tk.config_mgmt.config_exceptions import ConfigValidationError
 
         output = StringIO()
         console = Console(file=output, force_terminal=False)

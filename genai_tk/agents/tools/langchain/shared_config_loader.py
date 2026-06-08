@@ -12,7 +12,7 @@ from langchain_core.tools import BaseTool
 from loguru import logger
 
 from genai_tk.agents.tools.tool_specs import ClassToolSpec, FactoryToolSpec, FunctionToolSpec, ToolSpec
-from genai_tk.utils.import_utils import ImportResolver
+from genai_tk.config_mgmt.import_utils import ImportResolver
 
 import_from_qualified = ImportResolver.import_from_qualified
 

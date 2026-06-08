@@ -35,7 +35,7 @@ from pathlib import Path
 
 from loguru import logger
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 
 
 class SpaCyModelManager:

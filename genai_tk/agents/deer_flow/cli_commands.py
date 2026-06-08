@@ -547,7 +547,7 @@ def _resolve_deerflow_config_path() -> str:
     then falls back to ``{paths.config}/examples/agents/deerflow.yaml`` (bundled
     with genai-tk for out-of-the-box usage).
     """
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.config_mgmt.config_mngr import global_config
 
     config_dir = global_config().get_dir_path("paths.config")
     primary = config_dir / "agents" / "deerflow.yaml"
@@ -586,7 +586,7 @@ def _list_profiles() -> None:
         return
 
     try:
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         default_name = global_config().get("deerflow.default_profile")
     except Exception:
@@ -715,7 +715,7 @@ def _build_cli_middlewares(profile_middlewares: list[str]) -> list:
     tracing automatically, regardless of what the profile config lists.
     """
     from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
-    from genai_tk.utils.import_utils import ImportResolver
+    from genai_tk.config_mgmt.import_utils import ImportResolver
 
     user_mws = ImportResolver.instantiate_from_qualified_names(profile_middlewares, logger=logger)
     # Avoid duplicates if the profile already lists RichToolCallMiddleware.
@@ -918,7 +918,7 @@ async def _run_chat_mode(
             try:
                 from omegaconf import OmegaConf as _OC
 
-                from genai_tk.utils.config_mngr import get_raw_config, paths_config
+                from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 
                 _raw = get_raw_config()
                 _dirs = _OC.select(_raw, "deerflow.skills.directories")
@@ -1216,7 +1216,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
 
             if not profile:
                 try:
-                    from genai_tk.utils.config_mngr import global_config
+                    from genai_tk.config_mgmt.config_mngr import global_config
 
                     profile = global_config().get("deerflow.default_profile")
                 except Exception:

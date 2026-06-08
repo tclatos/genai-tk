@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
+from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_files
 
 
 class TestResolveConfigPath:
@@ -13,7 +13,7 @@ class TestResolveConfigPath:
         assert result == "/some/plain/path"
 
     def test_resolves_config_variable(self) -> None:
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         try:
             expected = global_config().get_str("paths.project")

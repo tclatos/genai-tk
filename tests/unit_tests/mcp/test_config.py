@@ -95,7 +95,7 @@ class TestMCPServerDefinition:
 _SAMPLE_YAML = textwrap.dedent(
     """
     mcp_expose_servers:
-      - name: "alpha"
+      alpha:
         description: "Alpha server"
         tools:
           - factory: "mod_a:create_tool"
@@ -105,7 +105,7 @@ _SAMPLE_YAML = textwrap.dedent(
           name: run_alpha
           description: "Alpha agent"
 
-      - name: "beta"
+      beta:
         description: "Beta server – tools only"
         tools:
           - factory: "mod_b:make_tool"

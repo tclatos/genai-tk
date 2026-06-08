@@ -91,7 +91,7 @@ def run(label: str, fn, *args, **kwargs):
 
 
 # ── bootstrap config ─────────────────────────────────────────────────────────
-from genai_tk.utils.config_mngr import switch_profile  # noqa: E402
+from genai_tk.config_mgmt.config_mngr import switch_profile  # noqa: E402
 
 switch_profile("pytest")
 

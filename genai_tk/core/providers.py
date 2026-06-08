@@ -12,8 +12,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, SecretStr
 
-from genai_tk.utils.config_mngr import QualifiedClassName
-from genai_tk.utils.import_utils import ImportResolver
+from genai_tk.config_mgmt.config_mngr import QualifiedClassName
+from genai_tk.config_mgmt.import_utils import ImportResolver
 from genai_tk.utils.singleton import once
 
 DEEPSEEK_API_BASE = "https://api.deepseek.com"

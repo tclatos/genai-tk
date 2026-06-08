@@ -24,7 +24,7 @@ from loguru import logger
 from prefect import flow
 from pydantic import BaseModel, Field
 
-from genai_tk.utils.file_patterns import resolve_config_path
+from genai_tk.config_mgmt.file_patterns import resolve_config_path
 
 # ---------------------------------------------------------------------------
 # Extension priority for sorting (lower = appears first)

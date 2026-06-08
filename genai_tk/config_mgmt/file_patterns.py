@@ -25,7 +25,7 @@ def resolve_config_path(path_str: str) -> str:
     Returns:
         Resolved path string; unresolvable references are kept as-is.
     """
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.config_mgmt.config_mngr import global_config
 
     _pat = re.compile(r"\$\{([^}]+)\}")
 

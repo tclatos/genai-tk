@@ -10,9 +10,9 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.core.factories.llm_factory import LlmFactory
 from genai_tk.core.providers import get_provider_api_key
-from genai_tk.utils.config_mngr import global_config
 
 try:
     from gpt_researcher import GPTResearcher

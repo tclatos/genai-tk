@@ -63,7 +63,7 @@ from langchain_core.retrievers import BaseRetriever
 from loguru import logger
 from pydantic import BaseModel, Field
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 
 # ---------------------------------------------------------------------------
 # Config models (Pydantic v2, discriminated union)
@@ -559,7 +559,7 @@ class RetrieverFactory:
         Returns:
             Configured ``ManagedRetriever`` ready for use.
         """
-        from genai_tk.utils.import_utils import ImportResolver
+        from genai_tk.config_mgmt.import_utils import ImportResolver
 
         try:
             raw = global_config().get_dict(f"retrievers.{config_tag}")

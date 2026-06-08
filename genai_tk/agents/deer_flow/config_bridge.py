@@ -29,9 +29,9 @@ import yaml
 from loguru import logger
 from omegaconf import OmegaConf
 
+from genai_tk.config_mgmt.import_utils import ImportResolver
 from genai_tk.core.factories.llm_factory import LlmFactory
 from genai_tk.core.providers import PROVIDER_INFO
-from genai_tk.utils.import_utils import ImportResolver
 
 
 @dataclass
@@ -125,7 +125,7 @@ def load_skills_from_directories(
     Returns:
         List of skill identifiers, e.g. ``["public/deep-research", "custom/my-skill"]``.
     """
-    from genai_tk.utils.config_mngr import get_raw_config, paths_config
+    from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 
     config = get_raw_config()
     skills = []
@@ -352,7 +352,7 @@ def write_deer_flow_config(
     Returns:
         Path to the written config.yaml.
     """
-    from genai_tk.utils.config_mngr import get_raw_config, paths_config
+    from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 
     if warnings is None:
         warnings = ConfigSetupWarnings()
@@ -579,7 +579,7 @@ def setup_deer_flow_config(
     Returns:
         Tuple of (config.yaml path in backend, extensions_config.json path, warnings).
     """
-    from genai_tk.utils.config_mngr import get_raw_config
+    from genai_tk.config_mgmt.config_mngr import get_raw_config
 
     if warnings is None:
         warnings = ConfigSetupWarnings()
@@ -607,7 +607,7 @@ def setup_deer_flow_config(
     resolved_skills_path: str | None = None
     effective_skill_dirs = skill_directories or []
     if not effective_skill_dirs:
-        from genai_tk.utils.config_mngr import get_raw_config as _get_raw
+        from genai_tk.config_mgmt.config_mngr import get_raw_config as _get_raw
 
         _cfg = _get_raw()
         _default_dirs = OmegaConf.select(_cfg, "deerflow.skills.directories")
@@ -616,7 +616,7 @@ def setup_deer_flow_config(
     if effective_skill_dirs:
         _first = effective_skill_dirs[0]
         if "${paths.project}" in _first:
-            from genai_tk.utils.config_mngr import paths_config as _paths
+            from genai_tk.config_mgmt.config_mngr import paths_config as _paths
 
             _first = _first.replace("${paths.project}", str(_paths().project))
         candidate = Path(_first).expanduser().resolve()

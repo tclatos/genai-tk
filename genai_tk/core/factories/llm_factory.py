@@ -51,6 +51,7 @@ from loguru import logger
 from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, computed_field, field_validator
 
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.core.cache import CacheMethod, LlmCache
 from genai_tk.core.models_db import ModelEntry, get_models_db
 from genai_tk.core.providers import (
@@ -60,7 +61,6 @@ from genai_tk.core.providers import (
     get_provider_api_key,
     get_provider_info,
 )
-from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.singleton import once
 
 SEED = 42  # Arbitrary value....
@@ -430,7 +430,7 @@ def _llm_section() -> LlmSection:
         all_tags = _llm_section().models.all_tags()
         ```
     """
-    from genai_tk.utils.config_exceptions import yaml_config_validation
+    from genai_tk.config_mgmt.config_exceptions import yaml_config_validation
 
     with yaml_config_validation(context="llm"):
         raw = global_config().get_dict("llm")

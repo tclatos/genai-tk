@@ -164,7 +164,7 @@ def test_with_custom_data():
 ```python
 def test_config_setting():
     """Test configuration changes."""
-    from genai_tk.utils.config_mngr import global_config
+    from genai_tk.config_mgmt.config_mngr import global_config
     
     # Get current value
     original = global_config().get("llm.models.default")

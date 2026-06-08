@@ -99,7 +99,7 @@ def get_llm(llm: str | None = None) -> BaseChatModel:
 
 **Case 1 — single Pydantic model** (`section`):
 ```python
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.utils.prefect_server import PrefectConfig
 
 cfg = global_config().section("prefect", PrefectConfig)
@@ -145,7 +145,7 @@ Both methods return empty model / empty dict when the key is absent — they nev
 | `structured` (dict) | `StructuredConfig` | `genai_tk.extra.structured.baml_util` |
 | `llm` | `LlmSection` | `genai_tk.core.factories.llm_factory` |
 | `embeddings` | `EmbeddingsSection` | `genai_tk.core.factories.embeddings_factory` |
-| `paths` | `PathsConfig` | `genai_tk.utils.config_mngr` |
+| `paths` | `PathsConfig` | `genai_tk.config_mgmt.config_mngr` |
 
 ## Testing
 

@@ -20,7 +20,7 @@ Read the closest doc first, then inspect the matching implementation paths. Do n
 | Agent middleware | `docs/middleware-pii-and-routing.md` | `genai_tk/agents/langchain/middleware/`, `tests/unit_tests/agents/langchain/middleware/` |
 | RAG | `docs/rag.md` | `genai_tk/core/retrievers/`, `genai_tk/workflow/rag/`, `config/rag.yaml`, `tests/unit_tests/core/test_retriever_factory.py` |
 | Workflows and Prefect | `docs/workflows.md`, `docs/prefect.md` | `genai_tk/workflow/`, `genai_tk/workflow/prefect/`, `config/workflows.yaml` |
-| MCP exposure | `docs/mcp-servers.md` | `genai_tk/mcp/`, `config/mcp/servers.yaml`, `tests/unit_tests/mcp/` |
+| MCP exposure | `docs/mcp-servers.md` | `genai_tk/mcp/`, `config/examples/tk_servers.yaml`, `tests/unit_tests/mcp/` |
 | Browser automation | `docs/browser_control.md`, `docs/sandbox_support.md` | `genai_tk/agents/tools/sandbox_browser/`, `genai_tk/agents/tools/direct_browser/`, `genai_tk/agents/sandbox/` |
 | Webapp | `docs/webapp.md` | `genai_tk/webapp/`, `config/webapp.yaml` |
 | BAML | `docs/baml.md` | `genai_tk/extra/structured/`, `genai_tk/workflow/prefect/flows/baml_flow.py` |

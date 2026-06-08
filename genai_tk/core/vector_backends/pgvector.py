@@ -45,7 +45,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import ProgrammingError
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 
 # ---------------------------------------------------------------------------
 # PostgreSQL connection management

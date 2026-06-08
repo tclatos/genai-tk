@@ -1,6 +1,6 @@
 ---
 name: genai-tk-configuration
-description: Work on genai-tk OmegaConf configuration, profiles, overrides, env substitution, and config discovery. Use when editing config/*.yaml or genai_tk.utils.config_mngr.
+description: Work on genai-tk OmegaConf configuration, profiles, overrides, env substitution, and config discovery. Use when editing config/*.yaml or genai_tk.config_mgmt.config_mngr.
 ---
 
 # GenAI Toolkit Configuration

@@ -17,8 +17,8 @@ class SampleModel(BaseModel):
 
 def _configure_memory_store(store_id: str = "test") -> None:
     """Set up an in-memory store in global config for the given ID and reset cache."""
+    from genai_tk.config_mgmt.config_mngr import global_config
     from genai_tk.extra.kv_store_factory import clear_store_cache
-    from genai_tk.utils.config_mngr import global_config
 
     global_config().set(f"kv_store.{store_id}.type", "key_value.aio.stores.memory.MemoryStore")
     global_config().set(f"kv_store.{store_id}.args", {})

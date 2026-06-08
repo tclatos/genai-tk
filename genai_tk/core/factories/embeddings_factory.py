@@ -43,7 +43,7 @@ from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from genai_tk.extra.kv_store_factory import AsyncKeyValueByteStoreAdapter, get_async_kv_store
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.utils.singleton import once
 from genai_tk.core.providers import (
@@ -167,7 +167,7 @@ def embeddings_config() -> EmbeddingsSection:
         hf_cache = embeddings_config().cache
         ```
     """
-    from genai_tk.utils.config_exceptions import yaml_config_validation
+    from genai_tk.config_mgmt.config_exceptions import yaml_config_validation
 
     with yaml_config_validation(context="embeddings"):
         raw = global_config().get_dict("embeddings")

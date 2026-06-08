@@ -327,7 +327,7 @@ class TestRAGCommandsWithCustomConfig:
 
         import langchain_community.embeddings.fastembed as fastembed_module
 
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         monkeypatch.setattr(fastembed_module, "FastEmbedEmbeddings", FakeFastEmbedEmbeddings)
 

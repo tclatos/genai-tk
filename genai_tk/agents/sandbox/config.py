@@ -23,7 +23,7 @@ from genai_tk.agents.sandbox.models import (
     E2bSandboxSettings,
     SandboxConfig,
 )
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 
 _SANDBOX_YAML_KEY = "sandbox"
 _SANDBOX_YAML_FILE = "basic/sandbox.yaml"

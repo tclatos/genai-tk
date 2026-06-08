@@ -304,7 +304,7 @@ class SensitivityRouterMiddleware(AgentMiddleware):
             return DefaultSensitivityScorer()
 
         try:
-            from genai_tk.utils.import_utils import ImportResolver
+            from genai_tk.config_mgmt.import_utils import ImportResolver
 
             cls = ImportResolver.import_from_qualified(self._config.scorer_class)
             return cls(**self._config.scorer_kwargs)

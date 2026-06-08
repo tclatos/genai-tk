@@ -27,7 +27,7 @@ from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ThreadPoolTaskRunner  # type: ignore[attr-defined]
 
-from genai_tk.utils.file_patterns import resolve_files
+from genai_tk.config_mgmt.file_patterns import resolve_files
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.workflow.anonymization.core import (
     AnonymizationConfig,

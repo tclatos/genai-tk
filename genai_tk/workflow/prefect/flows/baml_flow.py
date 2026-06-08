@@ -23,9 +23,9 @@ from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
 from pydantic import BaseModel, Field
 
+from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_files
 from genai_tk.core.factories.llm_factory import LlmFactory
 from genai_tk.extra.structured.baml_util import baml_invoke, prompt_fingerprint
-from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
@@ -471,7 +471,7 @@ def baml_single_input_flow(
     # Resolve output directory if provided
     resolved_output_dir: str | None = None
     if output_dir:
-        from genai_tk.utils.file_patterns import resolve_config_path
+        from genai_tk.config_mgmt.file_patterns import resolve_config_path
 
         resolved_output_dir = resolve_config_path(output_dir)
 

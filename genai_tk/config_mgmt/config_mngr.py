@@ -29,7 +29,7 @@ from loguru import logger
 from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import BaseModel, ConfigDict, DirectoryPath, Field, StringConstraints, TypeAdapter, field_validator
 
-from genai_tk.utils.config_exceptions import (
+from genai_tk.config_mgmt.config_exceptions import (
     ConfigFileError,
     ConfigFileNotFoundError,
     ConfigInterpolationError,
@@ -39,7 +39,7 @@ from genai_tk.utils.config_exceptions import (
     ConfigValidationError,
     yaml_config_validation,
 )
-from genai_tk.utils.import_utils import ImportResolver
+from genai_tk.config_mgmt.import_utils import ImportResolver
 from genai_tk.utils.singleton import once
 
 # Sentinel used to distinguish "no default provided" from "default=None".
@@ -778,7 +778,7 @@ class OmegaConfig(BaseModel):
             else:
                 raise ConfigFileNotFoundError(str(path))
         if not path.is_dir():
-            from genai_tk.utils.config_exceptions import ConfigValueError
+            from genai_tk.config_mgmt.config_exceptions import ConfigValueError
 
             raise ConfigValueError(key, value=str(path), reason="Path exists but is not a directory")
         return path
@@ -951,13 +951,13 @@ def paths_config() -> PathsConfig:
 
     Example:
         ```python
-        from genai_tk.utils.config_mngr import paths_config
+        from genai_tk.config_mgmt.config_mngr import paths_config
 
         project_dir = paths_config().project
         config_dir = paths_config().config
         ```
     """
-    from genai_tk.utils.config_exceptions import ConfigValidationError
+    from genai_tk.config_mgmt.config_exceptions import ConfigValidationError
 
     try:
         raw = global_config().get_dict("paths")
@@ -986,7 +986,7 @@ def get_raw_config() -> DictConfig:
 
 # ---------------------------------------------------------------------------
 # Re-exported from import_utils for backward compatibility
-# Import directly from genai_tk.utils.import_utils for new code.
+# Import directly from genai_tk.config_mgmt.import_utils for new code.
 # ---------------------------------------------------------------------------
 __all__ = [
     "ImportResolver",
@@ -1064,7 +1064,7 @@ def load_yaml_configs(
 
     Example:
         ```python
-        from genai_tk.utils.config_mngr import load_yaml_configs
+        from genai_tk.config_mgmt.config_mngr import load_yaml_configs
         from pathlib import Path
 
         # Single file

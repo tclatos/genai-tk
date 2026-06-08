@@ -189,7 +189,7 @@ async def test_docker_sandbox_uses_shared_config_image() -> None:
     with (
         patch("genai_tk.agents.sandbox.aio_backend.AioSandboxBackend", FakeBackend),
         patch("genai_tk.agents.langchain.factory.create_langchain_agent", side_effect=fake_create),
-        patch("genai_tk.utils.config_mngr.global_config", return_value=MagicMock(**{"get.return_value": {}})),
+        patch("genai_tk.config_mgmt.config_mngr.global_config", return_value=MagicMock(**{"get.return_value": {}})),
     ):
         agent = LangchainAgent(llm="parrot_local@fake", sandbox="docker")
         await agent._ensure_initialized()

@@ -57,9 +57,9 @@ from pydantic import (
     model_validator,
 )
 
+from genai_tk.config_mgmt.config_mngr import global_config
+from genai_tk.config_mgmt.import_utils import ImportResolver
 from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
-from genai_tk.utils.config_mngr import global_config
-from genai_tk.utils.import_utils import ImportResolver
 
 # ---------------------------------------------------------------------------
 # Config model (parsed from YAML)

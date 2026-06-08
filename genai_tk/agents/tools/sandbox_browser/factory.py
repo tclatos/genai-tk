@@ -30,7 +30,7 @@ def _load_browser_config() -> SandboxBrowserConfig:
     try:
         from omegaconf import OmegaConf  # noqa: PLC0415
 
-        from genai_tk.utils.config_mngr import global_config  # noqa: PLC0415
+        from genai_tk.config_mgmt.config_mngr import global_config  # noqa: PLC0415
 
         raw = global_config().get("sandbox_browser", {})
         if not raw:

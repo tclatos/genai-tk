@@ -56,8 +56,8 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.agents.tools.tool_specs import ToolSpec
-from genai_tk.utils.config_mngr import QualifiedClassName, load_yaml_configs, paths_config
-from genai_tk.utils.import_utils import ImportResolver
+from genai_tk.config_mgmt.config_mngr import QualifiedClassName, load_yaml_configs, paths_config
+from genai_tk.config_mgmt.import_utils import ImportResolver
 
 import_from_qualified = ImportResolver.import_from_qualified
 
@@ -523,7 +523,7 @@ def _resolve_interpolation(value: str) -> str:
         return value
     from omegaconf import OmegaConf
 
-    from genai_tk.utils.config_mngr import get_raw_config
+    from genai_tk.config_mgmt.config_mngr import get_raw_config
 
     cfg = OmegaConf.create({"_v": value})
     merged = OmegaConf.merge(get_raw_config(), cfg)

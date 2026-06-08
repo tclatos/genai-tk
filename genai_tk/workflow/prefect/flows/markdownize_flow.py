@@ -26,7 +26,7 @@ from prefect import flow, task
 from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defined]
 from pydantic import BaseModel, Field
 
-from genai_tk.utils.file_patterns import resolve_config_path, resolve_files
+from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_files
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
 

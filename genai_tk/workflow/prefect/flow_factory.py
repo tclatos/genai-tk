@@ -53,7 +53,7 @@ from typing import TYPE_CHECKING, Any
 from loguru import logger
 from pydantic import BaseModel
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.workflow.compiled_models import CompiledStep, CompiledWorkflow
 
 if TYPE_CHECKING:
@@ -257,7 +257,7 @@ def flow_from_yaml(
     from genai_tk.workflow.resolver import (
         WorkflowResolutionError,
         _merge_dicts,  # noqa: PLC2701
-        _v2_to_workflow_spec,  # noqa: PLC2701
+        _to_workflow_spec,  # noqa: PLC2701
         parse_workflows_from_dict,
     )
 
@@ -298,7 +298,7 @@ def flow_from_yaml(
     from genai_tk.workflow.registry import registry as _reg
 
     all_workflows = candidates
-    workflow_spec = _v2_to_workflow_spec(wf, all_workflows, _reg, extra_values=resolved_values)
+    workflow_spec = _to_workflow_spec(wf, all_workflows, _reg, extra_values=resolved_values)
     compiled = WorkflowCompiler().compile(workflow_spec, resolved_values)
     factory = PrefectFlowFactory(compiled=compiled, max_workers=max_workers)
     return factory.get()

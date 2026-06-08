@@ -11,7 +11,7 @@ import hashlib
 import yaml
 from pydantic import BaseModel, ConfigDict
 
-from genai_tk.utils.config_mngr import global_config
+from genai_tk.config_mgmt.config_mngr import global_config
 
 
 class User(BaseModel):

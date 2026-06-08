@@ -22,7 +22,7 @@ class ChromaBackend:
     ) -> VectorStore:
         from langchain_chroma import Chroma
 
-        from genai_tk.utils.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import global_config
 
         storage = config.get("storage", "::memory::")
         persist_directory: str | None

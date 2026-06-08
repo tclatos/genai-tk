@@ -23,8 +23,8 @@ import streamlit as st
 from dotenv import load_dotenv
 from loguru import logger
 
+from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.utils.basic_auth import authenticate, load_auth_config
-from genai_tk.utils.config_mngr import global_config
 from genai_tk.utils.logger_factory import setup_logging
 
 load_dotenv()
