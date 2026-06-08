@@ -167,7 +167,7 @@ def embeddings_config() -> EmbeddingsSection:
         hf_cache = embeddings_config().cache
         ```
     """
-    from genai_tk.utils.config_exceptions import yaml_config_validation
+    from genai_tk.config_mgmt.config_exceptions import yaml_config_validation
 
     with yaml_config_validation(context="embeddings"):
         raw = global_config().get_dict("embeddings")

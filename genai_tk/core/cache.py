@@ -38,7 +38,7 @@ class _LlmCacheSection(BaseModel):
 
 def _llm_cache_section() -> _LlmCacheSection:
     """Return typed cache settings from the ``llm`` config section."""
-    from genai_tk.utils.config_exceptions import ConfigValidationError
+    from genai_tk.config_mgmt.config_exceptions import ConfigValidationError
 
     try:
         raw = global_config().get_dict("llm")

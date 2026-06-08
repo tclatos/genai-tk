@@ -430,7 +430,7 @@ def _llm_section() -> LlmSection:
         all_tags = _llm_section().models.all_tags()
         ```
     """
-    from genai_tk.utils.config_exceptions import yaml_config_validation
+    from genai_tk.config_mgmt.config_exceptions import yaml_config_validation
 
     with yaml_config_validation(context="llm"):
         raw = global_config().get_dict("llm")

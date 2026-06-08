@@ -8,7 +8,6 @@ is used as the collection (namespace) within the store.
 
 from __future__ import annotations
 
-import hashlib
 import json
 from typing import TypeVar
 
@@ -17,6 +16,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from genai_tk.extra.kv_store_factory import get_async_kv_store
+from genai_tk.utils.hashing import buffer_digest
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -77,5 +77,5 @@ def _make_key(key: str | dict) -> str:
     if isinstance(key, str):
         return key
     if isinstance(key, dict):
-        return hashlib.md5(json.dumps(key, sort_keys=True).encode()).hexdigest()
+        return buffer_digest(json.dumps(key, sort_keys=True).encode())
     raise ValueError("key must be str or dict")

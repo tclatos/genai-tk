@@ -90,7 +90,7 @@ def update_server_parameters(server_config: dict) -> dict:
     # {'command': 'uv', 'args': ['tool', 'run', 'pubmedmcp@0.1.3'], 'transport': 'stdio', 'env': {'PATH': ...}}
     ```
     """
-    from genai_tk.utils.config_exceptions import yaml_config_validation
+    from genai_tk.config_mgmt.config_exceptions import yaml_config_validation
 
     with yaml_config_validation(context="MCP server config"):
         cfg = McpServerConfig.model_validate(server_config)
