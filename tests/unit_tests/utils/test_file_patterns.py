@@ -1,4 +1,4 @@
-"""Unit tests for genai_tk.utils.file_patterns."""
+"""Unit tests for genai_tk.config_mgmt.file_patterns."""
 
 from pathlib import Path
 

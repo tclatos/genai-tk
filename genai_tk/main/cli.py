@@ -111,9 +111,12 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from genai_tk.cli.base import CliTopCommand
+from genai_tk.config_mgmt.config_mngr import QualifiedCallable, global_config
+from genai_tk.config_mgmt.import_utils import ImportResolver
+from genai_tk.main.commands_init import InitCommands
 
 # Import modules where runnables are registered
-from genai_tk.config_mgmt.config_exceptions import (
+from genai_tk.utils.config_exceptions import (
     ConfigError,
     ConfigFileNotFoundError,
     ConfigKeyNotFoundError,
@@ -121,9 +124,6 @@ from genai_tk.config_mgmt.config_exceptions import (
     ConfigTypeError,
     ConfigValidationError,
 )
-from genai_tk.config_mgmt.config_mngr import QualifiedCallable, global_config
-from genai_tk.config_mgmt.import_utils import ImportResolver
-from genai_tk.main.commands_init import InitCommands
 from genai_tk.utils.logger_factory import setup_logging
 
 load_dotenv(verbose=True)

@@ -53,7 +53,7 @@ class DeerFlowProfile(BaseModel):
     # Custom middlewares to inject: list of Python qualified class names,
     # e.g. ``["mypackage.middleware.LoggingMiddleware"]``.
     # Each class is imported and instantiated (no constructor arguments) at
-    # runtime via :func:`genai_tk.utils.import_utils.instantiate_from_qualified_names`.
+    # runtime via :func:`genai_tk.config_mgmt.import_utils.instantiate_from_qualified_names`.
     middlewares: list[str] = Field(default_factory=list)
 
 

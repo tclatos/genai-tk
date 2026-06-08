@@ -87,7 +87,7 @@ def _display_config_error(console: "Console", error: Exception) -> None:
     from rich.panel import Panel
     from rich.text import Text
 
-    from genai_tk.config_mgmt.config_exceptions import ConfigError, ConfigValidationError
+    from genai_tk.utils.config_exceptions import ConfigError, ConfigValidationError
 
     if isinstance(error, ConfigValidationError):
         n = len(error.errors)
