@@ -70,8 +70,10 @@ class LlmCache:
         Returns:
             Configured cache instance or None for no caching
         """
-        from langchain_community.cache import InMemoryCache, SQLiteCache
+        from langchain_core.caches import InMemoryCache
         from loguru import logger
+
+        from genai_tk.utils.langchain_community_repl.sqlite_cache import SQLiteCache
 
         if value is None:
             value = "default"

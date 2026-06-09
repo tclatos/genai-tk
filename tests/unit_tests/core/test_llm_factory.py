@@ -102,9 +102,12 @@ def test_llm_factory_get_smolagent_model() -> None:
     factory = LlmFactory(llm=FAKE_LLM_ID)
     mock_model = MagicMock()
     mock_litellm_cls = MagicMock(return_value=mock_model)
+    mock_smolagents = MagicMock()
+    mock_smolagents.LiteLLMModel = mock_litellm_cls
+    mock_smolagents.AzureOpenAIServerModel = MagicMock()
 
     with (
-        patch("smolagents.LiteLLMModel", mock_litellm_cls),
+        patch.dict("sys.modules", {"smolagents": mock_smolagents}),
         patch.object(LlmFactory, "get_litellm_model_name", return_value="fake/parrot"),
     ):
         model = factory.get_smolagent_model()
@@ -277,7 +280,7 @@ def test_llm_factory_model_validation() -> None:
 def test_field_validator_cache() -> None:
     """Test cache field validator."""
     # Valid cache value
-    from langchain_community.cache import SQLiteCache
+    from genai_tk.utils.langchain_community_repl.sqlite_cache import SQLiteCache
 
     llm = LlmFactory(llm=LLM_ID_FOR_TEST, cache="sqlite").get()
     assert isinstance(llm.cache, SQLiteCache)

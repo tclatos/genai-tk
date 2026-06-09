@@ -112,7 +112,7 @@ providers:
     # Note: Ollama runs locally; requires special proxy handling in code
 
   local:
-    use: langchain_community.embeddings.fastembed.FastEmbedEmbeddings
+    use: genai_tk.utils.langchain_community_repl.fastembed_embeddings.FastEmbedEmbeddings
     api_key_env_var: ""
     openai_compatible: false
     # FastEmbed local ONNX models for embeddings; no API key required

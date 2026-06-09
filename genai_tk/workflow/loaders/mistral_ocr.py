@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 from typing import Iterator
 
-from langchain_community.document_loaders.base import BaseLoader
+from langchain_core.document_loaders import BaseLoader
 from langchain_core.documents import Document
 from loguru import logger
 from mistralai.client import Mistral

@@ -11,13 +11,18 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from genai_tk.workflow.prefect.flows.baml_flow import (
-    BamlExtractionManifest,
-    BamlExtractionManifestEntry,
-    _find_existing_manifest,
-    _iter_supported_files,
-    _save_manifest,
-)
+import pytest
+
+try:
+    from genai_tk.workflow.prefect.flows.baml_flow import (
+        BamlExtractionManifest,
+        BamlExtractionManifestEntry,
+        _find_existing_manifest,
+        _iter_supported_files,
+        _save_manifest,
+    )
+except ImportError as e:
+    pytest.skip(f"BAML feature not installed: {e}", allow_module_level=True)
 
 # ---------------------------------------------------------------------------
 # _iter_supported_files

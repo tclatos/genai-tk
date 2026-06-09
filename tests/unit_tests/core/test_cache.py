@@ -35,11 +35,11 @@ class TestLlmCache:
         """Test from_value with memory cache."""
         result = LlmCache.from_value("memory")
         assert result is not None
-        assert str(type(result)) == "<class 'langchain_community.cache.InMemoryCache'>"
+        assert "InMemoryCache" in str(type(result))
 
     @patch("genai_tk.core.cache.global_config")
     @patch("pathlib.Path.mkdir")
-    @patch("langchain_community.cache.SQLiteCache")
+    @patch("genai_tk.utils.langchain_community_repl.sqlite_cache.SQLiteCache")
     def test_from_value_sqlite(
         self, mock_sqlite_cache: MagicMock, mock_mkdir: MagicMock, mock_config: MagicMock
     ) -> None:

@@ -20,9 +20,11 @@ class ChromaBackend:
         config: dict[str, Any],
         collection_metadata: dict[str, str] | None = None,
     ) -> VectorStore:
-        from langchain_chroma import Chroma
-
         from genai_tk.config_mgmt.config_mngr import global_config
+        from genai_tk.config_mgmt.features import require_feature
+
+        require_feature("chromadb", context="ChromaBackend.create")
+        from langchain_chroma import Chroma  # noqa: PLC0415
 
         storage = config.get("storage", "::memory::")
         persist_directory: str | None

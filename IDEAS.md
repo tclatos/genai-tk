@@ -1,6 +1,3 @@
-# Refactor config/examples/mcp/servers.yaml 
-
-
 
 # Tracing
 
@@ -37,40 +34,6 @@ Follow the usual pattern
  - Selection of a given config through a variable 
  - cli commands for common operations : start the server (in case of Langfuse local one in docker), open UI, ...   (use  langfuse Python API), print nicely last events in local file, ...  
 
-
-
-
-
-
-# scafolding
-- suggest after init to install BAML : uv run baml-cli init --dest <PATH>   
-- Improve import - make agent-sandbox + deerflow-harness optional
--  playwright optionel
-- langchain-postgres, psycopg2-binary, pgembed
-- litellm ? 
-- chromadb  ? 
-- 
-# uv tree --package volcengine-python-sdk --invert
-# clean-up 'extra'
-
-
-# use key-value store factory  
-For Key-Value storage, we want to replace LangChain ByteStore by the more advanced py-key-value-aio/
-
-Replace genai_tk/utils/pydantic_utils/kv_store.py  and delete genai_tk/extra/kv_store_registry.py  by a py-key-value-aio approach.  Update all calls to asynchronus. 
-
-Update kv_store key in YAML files : replace the  hard-coded type ('memory', 'LocalFileStore' , ...) by the AsyncKeyValue compatible class (like "key_value.aio.stores.disk.DiskStore")  and constructor options  ("directory")
-
-Use usual pattern : 
-- YAML file to define AsyncKeyValue compatible stores with  a name (like 'diskstore_local'), the class (like "key_value.aio.stores.disk.DiskStore"), and constructor options  ("directory")
-- Update  'kv_store' key in existing YAML files
-
-- Use https://strawgate.com/py-key-value/adapters/#basemodeladapter to replace pydantic_utils/kv_store.py
-We can use, as today, the name of the Pydantic class as name of the collection. 
-
-Compatibility with current stores is not required. You can delete them.
-
-Study, plan something, ask question, propose alternative. Tell me if you a a problem.  KISS. 
 
 
 

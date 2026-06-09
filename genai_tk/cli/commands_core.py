@@ -301,9 +301,17 @@ class CoreCommands(CliTopCommand):
             Example:
                 uv run cli core similarity "This is a test" "This is another test" "Completely different"
             """
-            from langchain_community.utils.math import cosine_similarity
-
             from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory, get_embeddings
+
+            def cosine_similarity(a: list, b: list) -> list:
+                import numpy as np
+
+                a_arr = np.array(a)
+                b_arr = np.array(b)
+                norms_a = np.linalg.norm(a_arr, axis=1, keepdims=True)
+                norms_b = np.linalg.norm(b_arr, axis=1, keepdims=True)
+                result = (a_arr / norms_a) @ (b_arr / norms_b).T
+                return result.tolist()
 
             if len(sentences) < 2:
                 print("Error: At least 2 sentences are required")

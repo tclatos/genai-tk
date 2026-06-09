@@ -31,7 +31,6 @@ dependencies = [
     "langchain-community>=0.4",       # Community-contributed integrations
     "langchain-experimental>=0.0.42", # Experimental features and patterns
     "langgraph>=1.0",                 # Graph-based workflows and agent orchestration
-    "langserve>=0.3",                 # Deploy LangChain apps as REST APIs
     "langchainhub>=0.1",              # Share and discover prompts/chains
     # ============================================
     # Provider Integrations
@@ -49,34 +48,17 @@ dependencies = [
     "mistralai>=1.7.0",              # Official Mistral AI client
     "fastembed>=0.8.0",              # Fast embedding generation with support for many models
     # ============================================
-    # Agent Frameworks
+    # Agent Frameworks (core only — harnessing extras are optional)
     # ============================================
-    "smolagents[toolkit, mcp, openai, litellm, docker]>=1.17", # Lightweight agentic framework
-    "deepagents>=0.4",                                         # Deep agents with planning, subagents, skills
-    "deepagents-cli>=0.0.26",                                  # CLI for deepagents
-    "langgraph-checkpoint-sqlite>=3.0.3",                      # SQLite checkpoint persistence for LangGraph
-    "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
-    "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
-    "deerflow-harness",
+    "langgraph-checkpoint-sqlite>=3.0.3", # SQLite checkpoint persistence for LangGraph
+    "langchain-mcp-adapters>=0.1",        # Model Context Protocol adapters
+    "mcp[cli]>=1.4.1",                    # Model Context Protocol core
     # ============================================
-    # Vector Stores & Embeddings
+    # NLP & Text Processing (spaCy + models are optional — see [nlp] extra)
     # ============================================
-    "chromadb>=1.0",         # Vector database for embeddings
-    "langchain-chroma>=1.0", # LangChain integration for ChromaDB
-    # ============================================
-    # Knowledge Graphs & Structured Data
-    # ============================================
-    "baml-cli>=0.1.0",  # BAML CLI for structured data extraction
-    "baml-lib>=0.42.0", # BAML library for LLM-powered parsing
-    # ============================================
-    # NLP & Text Processing
-    # ============================================
-    "tokenizers>=0.21.0",                                                                                                                     # Hugging Face fast tokenizers
-    "spacy>=3.8.0",                                                                                                                           # Industrial-strength NLP library
-    "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", # Small English model
-    "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl", # Large English model with word vectors
-    "abbreviations>=0.2.5",                                                                                                                   # Abbreviation detection and expansion
-    "unidecode>=1.3.8",                                                                                                                       # ASCII transliteration of Unicode text
+    "tokenizers>=0.21.0",   # Hugging Face fast tokenizers
+    "abbreviations>=0.2.5", # Abbreviation detection and expansion
+    "unidecode>=1.3.8",     # ASCII transliteration of Unicode text
     # ============================================
     # Search & Retrieval
     # ============================================
@@ -103,11 +85,11 @@ dependencies = [
     #  "edgeparse>=0.2.2",   # Structured data extraction from text
     "jinja2>=3.1.0", # Template engine for project scaffolding (cli init)
     # ============================================
-    # Web Interface (Streamlit)
+    # Vector Stores & Embeddings (chromadb is optional — see [chromadb] extra)
     # ============================================
-    "streamlit>=1.49", # Interactive webapp framework
-    # "pillow>=11.0",    # Image processing
-    # "liteparse>=2.0.5",
+    # ============================================
+    # Web Interface (Streamlit is optional — see [streamlit] extra)
+    # ============================================
     "py-key-value-aio[disk,filetree,memory]>=0.4.5",
 ]
 
@@ -120,64 +102,58 @@ Repository = "https://github.com/tclatos/genai-tk"
 # uv add "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
 # ============================================
 [project.optional-dependencies]
-# Commonly needed extras: PostgreSQL vector store, browser control, HuggingFace models
-extra = [
-    "langchain-postgres>=0.0.15", # LangChain PostgreSQL integration for vector storage
-    "psycopg[binary]>=3.2.9",     # Modern PostgreSQL adapter (v3)
-    "psycopg2-binary>=2.9.10",    # Legacy PostgreSQL adapter (v2)
-    "playwright>=1.51.0",         # Browser automation via CDP
-
-    #   "accelerate>=1.4.0",            # PyTorch model acceleration utilities
-    #   "langchain-huggingface>=0.1.2", # LangChain integration for Hugging Face models
-]
-# All optional extras combined
-all = ["genai-tk[extra]"]
-
-[dependency-groups]
-# Optional dependency groups for specific use cases
-# Install with: uv sync --group <group-name>
-
+# User-facing extras — published to PyPI.
+# Install a feature:  uv add "genai-tk[<extra>]"
+# Install everything: uv add "genai-tk[all]"
 # ============================================
-# Database Backends
-# ============================================
-postgres = [
-    "langchain-postgres>=0.0.15", # LangChain PostgreSQL integration for vector storage
-    "psycopg[binary]>=3.2.9",     # Modern PostgreSQL adapter (v3)
-    "psycopg2-binary>=2.9.10",    # Legacy PostgreSQL adapter (v2)
-    "pgembed>=0.2.0",             # Embeddings storage and search in PostgreSQL with pgvector  
 
+# Agentic harness: sandbox, DeerFlow, DeepAgents, SmolAgents
+harnessing = [
+    "smolagents[toolkit, mcp, openai, litellm, docker]>=1.17", # Lightweight agentic framework
+    "deepagents>=0.4",                                         # Deep agents with planning, sub-agents, skills
+    "deepagents-cli>=0.0.26",                                  # CLI for deepagents
+    "agent-sandbox>=0.0.24",                                   # AIO sandbox HTTP SDK client
+    "opensandbox>=0.1.5",                                      # Container lifecycle manager
+    "opensandbox-server>=0.1.7",                               # OpenSandbox REST server
+    "deerflow-harness",                                        # DeerFlow harness (installed from git)
 ]
 
-# ============================================
-# Browser Automation (sandbox browser tools)
-# ============================================
-browser-control = [
+# Browser automation
+browser = [
     "playwright>=1.51.0", # Browser automation via CDP
 ]
 
-
-# ============================================
-# AIO Sandbox (Docker-backed agent execution)
-# ============================================
-# Heavy optional component: Docker container lifecycle + HTTP agent SDK.
-# Install with: uv sync --group aio-sandbox
-# Or via cli init: cli init --with-sandbox
-aio-sandbox = [
-    "agent-sandbox>=0.0.24",     # AIO sandbox HTTP SDK client
-    "opensandbox>=0.1.5",        # Container lifecycle manager
-    "opensandbox-server>=0.1.7", # OpenSandbox REST server
+# NLP: spaCy + English language models (~500 MB)
+nlp = [
+    "spacy>=3.8.0",
+    "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
+    "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
+    "langchain-huggingface>=0.1",                                                                                                             # HuggingFace cross-encoder reranker support
 ]
 
-
-# ============================================
-# Deer-flow Agent Integration
-# ============================================
-# Install via: cli init --with-deer-flow
-# Or manually: uv add 'deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdirectory=backend/packages/harness'
-deer-flow = [
-    # deerflow-harness is installed via uv add from git (see cli init --with-deer-flow)
-    # readabilipy is in main dependencies (required by deer-flow's Jina AI web_fetch tool)
+# PostgreSQL vector store
+postgres = [
+    "langchain-postgres>=0.0.15",
+    "psycopg[binary]>=3.2.9",
+    "psycopg2-binary>=2.9.10",
 ]
+
+# Streamlit web interface
+streamlit = ["streamlit>=1.49"]
+
+# BAML structured extraction
+baml = ["baml-cli>=0.1.0", "baml-lib>=0.42.0"]
+
+# ChromaDB vector database
+chromadb = ["chromadb>=1.0", "langchain-chroma>=1.0"]
+
+# Everything (for full installs / CI images)
+all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb]"]
+
+[dependency-groups]
+# Developer-only groups (NOT published to PyPI).
+# Install with: uv sync --group <group-name>
+# These are not user extras — they are for contributors and CI only.
 
 # ============================================
 # Development Tools
@@ -197,13 +173,13 @@ dev = [
 # Agent Evaluation
 # ============================================
 evals = [
-    "openevals>=0.1.3",    # General LLM output evaluators (correctness, conciseness, trajectory judge)
-    "agentevals>=0.0.9",   # Agent trajectory evaluators (match, graph trajectory, LLM-as-judge)
-    "pytest-timeout>=2.3", # Per-test wall-clock timeout to prevent hanging LLM calls
+    "openevals>=0.1.3",    # General LLM output evaluators
+    "agentevals>=0.0.9",   # Agent trajectory evaluators
+    "pytest-timeout>=2.3", # Per-test wall-clock timeout
 ]
 
 [tool.uv]
-default-groups = ["dev", "postgres", "browser-control", "evals"]
+default-groups = ["dev", "evals"]
 
 package = true
 
@@ -347,7 +323,8 @@ markers = [
     "fake_models: marks tests that use fake/mock models only",
     "real_models: marks tests that call real AI models (opt-in via --include-real-models)",
     "evals: marks eval tests (trajectory match, LLM-judged, multi-turn simulation)",
-    "deerflow: marks tests that require DEER_FLOW_PATH and a running deer-flow backend",
+    "deerflow: marks tests that require a running deer-flow backend (embedded via deerflow-harness)",
+    "docker: marks tests that require Docker and a running sandbox server (opt-in via --include-docker)",
 ]
 
 

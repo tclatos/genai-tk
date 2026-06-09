@@ -73,14 +73,12 @@ class SandboxBrowserSession:
         if self._connected:
             return
 
-        try:
-            from agent_sandbox import Sandbox  # noqa: PLC0415
-        except ImportError as exc:
-            raise RuntimeError("agent-sandbox is required: uv add agent-sandbox") from exc
-        try:
-            from playwright.async_api import async_playwright  # noqa: PLC0415
-        except ImportError as exc:
-            raise RuntimeError("playwright is required: uv add playwright") from exc
+        from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
+
+        require_feature("harnessing", context="sandbox browser session")
+        require_feature("browser", context="sandbox browser session")
+        from agent_sandbox import Sandbox  # noqa: PLC0415
+        from playwright.async_api import async_playwright  # noqa: PLC0415
 
         if self.config.launch_mode == "fresh":
             await self._connect_fresh(Sandbox, async_playwright)

@@ -479,6 +479,11 @@ class TestCreateBackend:
 
     @pytest.mark.asyncio
     async def test_aio_sandbox_instantiates_and_starts(self) -> None:
+        from genai_tk.config_mgmt.features import is_available
+
+        if not is_available("harnessing"):
+            pytest.skip("Optional feature 'harnessing' not installed — run: uv sync --extra harnessing")
+
         from unittest.mock import AsyncMock, patch
 
         cfg = BackendConfig(type="aio_sandbox", opensandbox_server_url="http://myserver:8080")  # type: ignore[call-arg]
@@ -498,6 +503,11 @@ class TestCreateBackend:
 
     @pytest.mark.asyncio
     async def test_aio_sandbox_default_config(self) -> None:
+        from genai_tk.config_mgmt.features import is_available
+
+        if not is_available("harnessing"):
+            pytest.skip("Optional feature 'harnessing' not installed — run: uv sync --extra harnessing")
+
         from unittest.mock import AsyncMock, patch
 
         cfg = BackendConfig(type="aio_sandbox")

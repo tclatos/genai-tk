@@ -137,5 +137,6 @@ class TestProjectScaffolder:
         pyproject = (project_dir / "pyproject.toml").read_text()
         assert "package = true" in pyproject
         # Must scope package discovery to avoid picking up config/
-        assert "[tool.setuptools.packages.find]" in pyproject
-        assert 'include = ["test_project*"]' in pyproject
+        # Template uses hatchling: [tool.hatch.build.targets.wheel] with packages = ["<pkg>"]
+        assert "[tool.hatch.build.targets.wheel]" in pyproject
+        assert 'packages = ["test_project"]' in pyproject

@@ -26,7 +26,7 @@ await call_react_agent("What's the weather in Toulouse?", mcp_server_filter=["we
 import os
 from contextlib import AsyncExitStack
 from itertools import chain
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
@@ -36,11 +36,10 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mcpadapt.core import MCPAdapt
-from mcpadapt.langchain_adapter import LangChainAdapter
 from pydantic import BaseModel, ConfigDict, Field
+
+if TYPE_CHECKING:
+    pass
 
 from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 
@@ -108,6 +107,8 @@ def update_server_parameters(server_config: dict) -> dict:
         "transport": cfg.transport,
         "env": {"PATH": os.environ.get("PATH", "")} | cfg.env,
     }
+    from mcp import StdioServerParameters  # noqa: PLC0415
+
     _ = StdioServerParameters(**desc)  # validate against MCP library schema
     return desc
 
@@ -129,6 +130,9 @@ def update_server_parameters(server_config: dict) -> dict:
 
 async def get_mcp_tools_info(filter: list[str] | None = None) -> dict:
     """Get all tools from MCP servers with their names and descriptions."""
+    from mcp import ClientSession, StdioServerParameters  # noqa: PLC0415
+    from mcp.client.stdio import stdio_client  # noqa: PLC0415
+
     servers = get_mcp_servers_dict(filter)
     tools_info = {}
     for server_name, param_desc in servers.items():
@@ -145,6 +149,9 @@ async def get_mcp_tools_info(filter: list[str] | None = None) -> dict:
 
 async def get_mcp_prompts(filter: list[str] | None = None) -> dict:
     """Get all prompts  from MCP servers with their names and descriptions."""
+    from mcp import ClientSession, StdioServerParameters  # noqa: PLC0415
+    from mcp.client.stdio import stdio_client  # noqa: PLC0415
+
     servers = get_mcp_servers_dict(filter)
     prompts_info = {}
     for server_name, param_desc in servers.items():
@@ -248,7 +255,7 @@ def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
     return result_dict
 
 
-def dict_to_stdio_server_list(param_list: dict) -> list[StdioServerParameters]:
+def dict_to_stdio_server_list(param_list: dict) -> list:
     """Convert a dictionary of server parameters to StdioServerParameters objects.
 
     Args:
@@ -265,11 +272,13 @@ def dict_to_stdio_server_list(param_list: dict) -> list[StdioServerParameters]:
     # [StdioServerParameters(command='uv', args=['tool', 'run', 'weathermcp'], ...)]
     ```
     """
+    from mcp import StdioServerParameters  # noqa: PLC0415
+
     return [StdioServerParameters(**desc) for name, desc in param_list.items()]
 
 
 async def mcp_agent_runner(
-    model: BaseChatModel, servers: list[StdioServerParameters], prompt: str, config: RunnableConfig | None = None
+    model: BaseChatModel, servers: list, prompt: str, config: RunnableConfig | None = None
 ) -> LanguageModelOutput | None:
     """Execute a query using MCP tools with a ReAct agent.
 
@@ -298,6 +307,9 @@ async def mcp_agent_runner(
     if config is None:
         config = {}
     async with AsyncExitStack() as stack:
+        from mcpadapt.core import MCPAdapt  # noqa: PLC0415
+        from mcpadapt.langchain_adapter import LangChainAdapter  # noqa: PLC0415
+
         tools_list = []
         for server in servers:
             mcp_adapt = MCPAdapt(server, LangChainAdapter())

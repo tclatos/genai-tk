@@ -57,12 +57,10 @@ class DirectBrowserSession:
         if self._connected:
             return
 
-        try:
-            from playwright.async_api import async_playwright  # noqa: PLC0415
-        except ImportError as exc:
-            raise RuntimeError(
-                "playwright is required: uv add playwright && uv run playwright install chromium"
-            ) from exc
+        from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
+
+        require_feature("browser", context="direct browser session")
+        from playwright.async_api import async_playwright  # noqa: PLC0415
 
         pw = await async_playwright().start()
         self._playwright = pw

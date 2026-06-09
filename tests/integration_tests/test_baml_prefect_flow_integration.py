@@ -5,12 +5,15 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
-import genai_tk.workflow.prefect.flows.baml_flow as mod
-from genai_tk.workflow.prefect.flows.baml_flow import (
-    BamlExtractionManifest,
-    baml_single_input_flow,
-    baml_structured_extraction_flow,
-)
+try:
+    import genai_tk.workflow.prefect.flows.baml_flow as mod
+    from genai_tk.workflow.prefect.flows.baml_flow import (
+        BamlExtractionManifest,
+        baml_single_input_flow,
+        baml_structured_extraction_flow,
+    )
+except ImportError as e:
+    pytest.skip(f"BAML feature not installed: {e}", allow_module_level=True)
 
 
 class _FakeFuture:

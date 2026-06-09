@@ -9,10 +9,8 @@ language models with a graph-based workflow.
 
 from datetime import datetime
 from pathlib import Path
-from typing import TypedDict
+from typing import Any, TypedDict
 
-from langchain_community.tools.sql_database.tool import QuerySQLDatabaseTool
-from langchain_community.utilities import SQLDatabase
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.runnables.config import RunnableConfig
 from langgraph.graph import START, StateGraph
@@ -24,7 +22,7 @@ from genai_tk.core.prompts import dedent_ws, def_prompt
 
 
 def create_sql_querying_graph(
-    llm: BaseChatModel, db: SQLDatabase, examples: list[dict[str, str]] = [], top_k: int = 10
+    llm: BaseChatModel, db: Any, examples: list[dict[str, str]] = [], top_k: int = 10
 ) -> Pregel:
     """Create a graph for generating and executing SQL queries.
 
@@ -96,6 +94,8 @@ def create_sql_querying_graph(
 
     def execute_query(state: State) -> State:
         """Execute SQL query."""
+        from langchain_community.tools.sql_database.tool import QuerySQLDatabaseTool  # noqa: PLC0415
+
         execute_query_tool = QuerySQLDatabaseTool(db=db)
         return {"result": execute_query_tool.invoke(state["query"])}
 
@@ -119,6 +119,8 @@ def create_sql_querying_graph(
 
 # Test taken from LangChain doc
 if __name__ == "__main__":
+    from langchain_community.utilities.sql_database import SQLDatabase  # noqa: PLC0415
+
     DB_FILE = "use_case_data/other/Chinook.db"
     assert (Path(DB_FILE)).exists()
     db = SQLDatabase.from_uri(f"sqlite:///{DB_FILE}")

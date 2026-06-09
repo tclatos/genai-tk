@@ -104,30 +104,34 @@ def _copy_tree(src_traversable, dest: Path, force: bool, written_ref) -> None:
     """Noop — only _copy_tree_counted is used."""
 
 
-def _install_deer_flow_package() -> bool:
-    """Install deerflow-harness from GitHub as a proper uv dependency."""
-    spec = "deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdirectory=backend/packages/harness"
-    console.print("[cyan]Installing deerflow-harness via uv ...[/cyan]")
-    result = subprocess.run(["uv", "add", spec], capture_output=False, text=True)
-    if result.returncode != 0:
-        console.print("[red]Failed to install deerflow-harness.[/red]")
+# Features that can be installed at init time via `--extra`.
+# Keys must match [project.optional-dependencies] extras in pyproject.toml.
+_INSTALLABLE_EXTRAS: dict[str, str] = {
+    "harnessing": "Agent sandbox, DeerFlow harness, DeepAgents CLI, SmolAgents",
+    "browser": "Browser automation (Playwright)",
+    "nlp": "NLP with spaCy and English language models (~500 MB)",
+    "postgres": "PostgreSQL vector store",
+    "streamlit": "Streamlit web interface",
+    "baml": "BAML structured extraction",
+    "chromadb": "ChromaDB vector database",
+}
+
+
+def _install_extra(extra: str) -> bool:
+    """Install a [project.optional-dependencies] extra via uv."""
+    if extra not in _INSTALLABLE_EXTRAS:
+        console.print(f"[red]Unknown extra '{extra}'. Valid: {', '.join(_INSTALLABLE_EXTRAS)}[/red]")
         return False
-    console.print("[green]✓ deerflow-harness installed.[/green]")
+    console.print(f"[cyan]Installing extra '{extra}' via uv ...[/cyan]")
+    result = subprocess.run(["uv", "sync", "--extra", extra], capture_output=False, text=True)
+    if result.returncode != 0:
+        console.print(f"[red]Failed to install extra '{extra}'.[/red]")
+        return False
+    console.print(f"[green]✓ Extra '{extra}' installed.[/green]")
     return True
 
 
-def _install_sandbox_packages() -> bool:
-    """Install aio-sandbox optional dependency group (agent-sandbox + opensandbox)."""
-    console.print("[cyan]Installing aio-sandbox packages via uv ...[/cyan]")
-    result = subprocess.run(["uv", "sync", "--group", "aio-sandbox"], capture_output=False, text=True)
-    if result.returncode != 0:
-        console.print("[red]Failed to install aio-sandbox packages.[/red]")
-        return False
-    console.print("[green]\u2713 aio-sandbox installed (agent-sandbox + opensandbox + opensandbox-server).[/green]")
-    return True
-
-
-def _print_next_steps(app_name: str, deer_flow: bool, sandbox: bool) -> None:
+def _print_next_steps(app_name: str, installed_extras: list[str]) -> None:
     """Print the post-init 'next steps' banner."""
     from genai_tk.main.scaffolder import _sanitize_package_name
 
@@ -142,6 +146,18 @@ def _print_next_steps(app_name: str, deer_flow: bool, sandbox: bool) -> None:
     console.print("  [dim]uv run cli agent chat[/dim]      start agent chat")
     console.print("  [dim]just skills[/dim]               list available skills")
 
+    console.print("\n[bold]Optional features[/bold] (install later with [dim]uv sync --extra <name>[/dim]):")
+    from genai_tk.config_mgmt.features import FEATURES
+
+    for name, info in FEATURES.items():
+        status = "[green]✓[/green]" if name in installed_extras else "  "
+        console.print(f"  {status} [cyan]{name:<14}[/cyan] {info.description}")
+
+    console.print("\n[bold]BAML structured extraction:[/bold]")
+    console.print("  After installing, initialise your project's BAML config:")
+    console.print("  [dim]uv sync --extra baml[/dim]")
+    console.print("  [dim]uv run baml-cli init --dest baml_src[/dim]")
+
     console.print("\n[bold]IDE setup[/bold] [dim](copy the command for your IDE):[/dim]")
     console.print("  VS Code + Copilot : already configured via .github/copilot-instructions.md")
     console.print("  Cursor            : [dim]cp AGENTS.md .cursor/rules/project.md[/dim]")
@@ -152,12 +168,9 @@ def _print_next_steps(app_name: str, deer_flow: bool, sandbox: bool) -> None:
     console.print("  [cyan]cli skills add --skillssh langchain-ai/langchain-skills[/cyan]  [dim](LangChain)[/dim]")
     console.print("  [dim]Browse: https://www.skills.sh · npx skills add <owner/repo>[/dim]")
 
-    if deer_flow:
-        console.print("\n[bold]Deer-flow:[/bold] installed as [cyan]deerflow-harness[/cyan] in your venv.")
-        console.print("  To update: [dim]uv add deerflow-harness @ git+...@main#subdirectory=...[/dim]")
-    if sandbox:
-        console.print("\n[bold]AIO Sandbox:[/bold] installed ([cyan]agent-sandbox + opensandbox[/cyan]).")
-        console.print("  Start server: [dim]opensandbox-server start[/dim]")
+    if "harnessing" in installed_extras:
+        console.print("\n[bold]Harnessing (DeerFlow / Sandbox):[/bold] installed.")
+        console.print("  Start sandbox server: [dim]opensandbox-server start[/dim]")
         console.print("  Then set sandbox: [dim]type: aio_sandbox[/dim] in your agent profile YAML.")
     console.print("\n[dim]Docs: AGENTS.md · docs/SKILLS.md · docs/EXTENDING.md[/dim]\n")
 
@@ -208,24 +221,28 @@ class InitCommands(CliTopCommand):
                 Optional[str],
                 typer.Option("--name", "-n", help="Project name (default: current directory name)."),
             ] = None,
-            with_deer_flow: Annotated[
-                bool,
-                typer.Option("--with-deer-flow", help="Install deerflow-harness (heavy optional component)."),
-            ] = False,
-            with_sandbox: Annotated[
-                bool,
-                typer.Option("--with-sandbox", help="Install aio-sandbox packages (agent-sandbox + opensandbox)."),
-            ] = False,
+            extras: Annotated[
+                Optional[list[str]],
+                typer.Option(
+                    "--extra",
+                    "-e",
+                    help=(
+                        "Optional feature extra to install (repeatable). "
+                        f"Choices: {', '.join(_INSTALLABLE_EXTRAS)}. "
+                        "Example: --extra harnessing --extra browser"
+                    ),
+                ),
+            ] = None,
         ) -> None:
             """Initialize a new genai-tk project.
 
             \\b
             Examples:
-                cli init                           # scaffold project in current directory
-                cli init --name "My Project"        # set project name
-                cli init --force                   # overwrite existing files
-                cli init --with-deer-flow          # also install Deer-flow
-                cli init --with-sandbox            # also install aio-sandbox
+                cli init                                # scaffold in current directory
+                cli init --name "My Project"             # set project name
+                cli init --force                        # overwrite existing files
+                cli init --extra harnessing             # also install harnessing feature
+                cli init --extra harnessing --extra browser  # install multiple features
             """
             if ctx.invoked_subcommand is not None:
                 return
@@ -241,11 +258,11 @@ class InitCommands(CliTopCommand):
             # ── Scaffold ────────────────────────────────────────────────
             _scaffold_project(Path.cwd(), app_name, force=force)
 
-            # ── Deer-flow (optional add-on) ──────────────────────────
-            if with_deer_flow:
-                _install_deer_flow_package()
-            if with_sandbox:
-                _install_sandbox_packages()
+            # ── Optional extras ──────────────────────────────────────
+            installed_extras: list[str] = []
+            for extra in extras or []:
+                if _install_extra(extra):
+                    installed_extras.append(extra)
 
             # ── Post-init banner ─────────────────────────────────────
-            _print_next_steps(app_name, deer_flow=with_deer_flow, sandbox=with_sandbox)
+            _print_next_steps(app_name, installed_extras=installed_extras)

@@ -210,25 +210,22 @@ class TestDiscoverAllSkillsBundled:
 
 class TestInitCommandDeerFlow:
     def test_with_deer_flow_flag_calls_install(self, tmp_path: Path, monkeypatch):
-        """--with-deer-flow triggers _install_deer_flow_package, not the old clone path."""
+        """--extra harnessing triggers _install_extra('harnessing')."""
         from genai_tk.main import commands_init
 
         calls = []
-
-        monkeypatch.setattr(commands_init, "_install_deer_flow_package", lambda: calls.append(True) or True)
+        monkeypatch.setattr(commands_init, "_install_extra", lambda extra: calls.append(extra) or True)
         monkeypatch.setattr(commands_init, "_copy_default_config", lambda dest, force: True)
         monkeypatch.setattr(commands_init, "_patch_webapp_yaml", lambda dest, name: None)
         monkeypatch.setattr(commands_init, "_scaffold_project", lambda *a, **kw: None)
         monkeypatch.setattr(commands_init, "_print_next_steps", lambda *a, **kw: None)
         monkeypatch.chdir(tmp_path)
 
-        # Call the install function directly (simulating --with-deer-flow)
-        commands_init._install_deer_flow_package()
-        # The function was patched to just record the call
-        assert len(calls) == 1
+        commands_init._install_extra("harnessing")
+        assert "harnessing" in calls
 
-    def test_install_deer_flow_package_uses_uv_add(self, monkeypatch):
-        """_install_deer_flow_package runs 'uv add <spec>' — no git clone."""
+    def test_install_extra_harnessing_uses_uv_sync(self, monkeypatch):
+        """_install_extra('harnessing') runs 'uv sync --extra harnessing'."""
         import subprocess
 
         from genai_tk.main import commands_init
@@ -244,24 +241,18 @@ class TestInitCommandDeerFlow:
             return FakeResult()
 
         monkeypatch.setattr(subprocess, "run", fake_run)
-        commands_init._install_deer_flow_package()
+        commands_init._install_extra("harnessing")
 
-        assert captured["cmd"][0] == "uv"
-        assert captured["cmd"][1] == "add"
-        spec = captured["cmd"][2]
-        assert "git+" in spec
-        assert "deer-flow" in spec
-        assert "subdirectory=backend/packages/harness" in spec
+        assert captured["cmd"] == ["uv", "sync", "--extra", "harnessing"]
 
     def test_no_deer_flow_path_env_var_needed(self, monkeypatch):
-        """After refactor, DEER_FLOW_PATH is not required."""
+        """After refactor, DEER_FLOW_PATH is not referenced in install logic."""
         monkeypatch.delenv("DEER_FLOW_PATH", raising=False)
-        # _install_deer_flow_package should not reference DEER_FLOW_PATH at all
         import inspect
 
         from genai_tk.main import commands_init
 
-        src = inspect.getsource(commands_init._install_deer_flow_package)
+        src = inspect.getsource(commands_init._install_extra)
         assert "DEER_FLOW_PATH" not in src
 
 
@@ -319,44 +310,24 @@ class TestScaffolderNoIdeFiles:
 
 class TestDeerFlowCLI:
     def test_require_deerflow_installed_succeeds_when_importable(self, monkeypatch):
-        """No exit when deerflow is importable."""
-        import types
-
+        """No exit when harnessing feature reports as available."""
         from genai_tk.agents.deer_flow import cli_commands
+        from genai_tk.config_mgmt import features
 
-        # Inject a fake deerflow module
-        fake_deerflow = types.ModuleType("deerflow")
-        monkeypatch.setitem(
-            __import__.__builtins__ if hasattr(__import__, "__builtins__") else {}, "deerflow", fake_deerflow
-        )  # type: ignore[index]
-        import sys
-
-        monkeypatch.setitem(sys.modules, "deerflow", fake_deerflow)
+        monkeypatch.setattr(features, "is_available", lambda name: True)
 
         # Should not raise
         cli_commands._require_deer_flow_installed()
 
     def test_require_deerflow_installed_exits_when_not_installed(self, monkeypatch):
-        """Exits with typer.Exit(1) when deerflow is not installed."""
-        import sys
-
+        """Exits with typer.Exit(1) when harnessing feature is not available."""
         import typer
 
         from genai_tk.agents.deer_flow import cli_commands
+        from genai_tk.config_mgmt import features
 
-        # Ensure deerflow is NOT in sys.modules and cannot be imported
-        monkeypatch.delitem(sys.modules, "deerflow", raising=False)
-
-        import builtins
-
-        real_import = builtins.__import__
-
-        def mock_import(name, *args, **kwargs):
-            if name == "deerflow":
-                raise ImportError("No module named 'deerflow'")
-            return real_import(name, *args, **kwargs)
-
-        monkeypatch.setattr(builtins, "__import__", mock_import)
+        # Patch is_available so it reports harnessing as missing
+        monkeypatch.setattr(features, "is_available", lambda name: False)
 
         with pytest.raises(typer.Exit):
             cli_commands._require_deer_flow_installed()
@@ -391,8 +362,8 @@ class TestDeerFlowCLI:
 
 
 class TestSandboxInit:
-    def test_install_sandbox_packages_uses_uv_sync(self, monkeypatch):
-        """_install_sandbox_packages runs 'uv sync --group aio-sandbox'."""
+    def test_install_extra_harnessing_uses_uv_sync(self, monkeypatch):
+        """_install_extra('harnessing') runs 'uv sync --extra harnessing'."""
         import subprocess
 
         from genai_tk.main import commands_init
@@ -408,18 +379,18 @@ class TestSandboxInit:
             return FakeResult()
 
         monkeypatch.setattr(subprocess, "run", fake_run)
-        commands_init._install_sandbox_packages()
+        commands_init._install_extra("harnessing")
 
-        assert captured["cmd"] == ["uv", "sync", "--group", "aio-sandbox"]
+        assert captured["cmd"] == ["uv", "sync", "--extra", "harnessing"]
 
-    def test_with_sandbox_flag_calls_install(self, monkeypatch):
-        """--with-sandbox triggers _install_sandbox_packages."""
+    def test_with_extra_flag_calls_install(self, monkeypatch):
+        """--extra harnessing triggers _install_extra."""
         from genai_tk.main import commands_init
 
         calls = []
-        monkeypatch.setattr(commands_init, "_install_sandbox_packages", lambda: calls.append(True) or True)
-        commands_init._install_sandbox_packages()
-        assert len(calls) == 1
+        monkeypatch.setattr(commands_init, "_install_extra", lambda extra: calls.append(extra) or True)
+        commands_init._install_extra("harnessing")
+        assert "harnessing" in calls
 
     def test_aio_sandbox_not_in_core_deps(self):
         """agent-sandbox / opensandbox must NOT appear in [project.dependencies]."""
@@ -434,5 +405,5 @@ class TestSandboxInit:
         for dep in core_deps:
             for pkg in forbidden:
                 assert not dep.lower().startswith(pkg), (
-                    f"{pkg!r} must not be in [project.dependencies] — it belongs in the 'aio-sandbox' optional group"
+                    f"{pkg!r} must not be in [project.dependencies] — it belongs in the 'harnessing' optional extra"
                 )

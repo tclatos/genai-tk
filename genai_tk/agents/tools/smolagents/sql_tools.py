@@ -5,10 +5,9 @@ allowing agents to execute SQL queries on configured database connections.
 Refactored to leverage LangChain's SQLDatabase utility for better interoperability.
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pandas as pd
-from langchain_community.utilities import SQLDatabase
 from pydantic import BaseModel
 from smolagents import Tool
 from sqlalchemy import create_engine, text
@@ -16,6 +15,9 @@ from sqlalchemy.engine import Engine
 
 from genai_tk.core.prompts import dedent_ws
 from genai_tk.utils.sql_utils import check_dsn_update_driver
+
+if TYPE_CHECKING:
+    from langchain_community.utilities.sql_database import SQLDatabase
 
 
 class TableConfig(BaseModel):
@@ -40,7 +42,7 @@ class SQLTool(Tool):
     dsn: str
     tables: list[TableConfig]
     engine: Engine | None = None
-    db: SQLDatabase | None = None
+    db: Any = None  # langchain_community.utilities.SQLDatabase, loaded lazily
 
     def __init__(self, name: str, dsn: str, description: str, tables: dict[str, Any] | list[str] | None = None) -> None:
         """Initialize SQL tool with database connection and table configuration.
@@ -120,6 +122,8 @@ class SQLTool(Tool):
             self.engine = create_engine(dsn)
 
             # Initialize LangChain SQLDatabase with the engine
+            from langchain_community.utilities import SQLDatabase  # noqa: PLC0415
+
             self.db = SQLDatabase(engine=self.engine)
 
             # Test connection

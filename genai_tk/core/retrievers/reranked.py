@@ -58,10 +58,10 @@ def _build_compressor(cfg: RerankedRetrieverConfig) -> Any:
     if cfg.reranker == "cross_encoder":
         try:
             from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
-            from langchain_community.cross_encoders import HuggingFaceCrossEncoder
+            from langchain_huggingface.cross_encoders import HuggingFaceCrossEncoder
         except ImportError as exc:
             raise ImportError(
-                "langchain-community required for cross-encoder. Install: uv add langchain-community"
+                "langchain-huggingface required for cross-encoder. Install: uv add langchain-huggingface"
             ) from exc
         model = HuggingFaceCrossEncoder(model_name=cfg.reranker_model or "cross-encoder/ms-marco-MiniLM-L-6-v2")
         return CrossEncoderReranker(model=model, top_n=cfg.top_k)

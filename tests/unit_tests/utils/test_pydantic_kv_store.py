@@ -35,9 +35,10 @@ class TestMakeKey(unittest.TestCase):
         # Raw keys are passed through as-is
         self.assertEqual(_make_key("some/path/file.json"), "some/path/file.json")
 
-    def test_dict_key_is_md5_hex(self):
+    def test_dict_key_is_hex(self):
         key = _make_key({"user_id": 123})
-        self.assertRegex(key, r"^[0-9a-f]{32}$")
+        # buffer_digest uses xxh3_64 by default (16 hex chars), not MD5 (32)
+        self.assertRegex(key, r"^[0-9a-f]+$")
 
     def test_dict_key_deterministic(self):
         key1 = _make_key({"a": 1, "b": 2})

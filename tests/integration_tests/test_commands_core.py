@@ -116,7 +116,7 @@ class TestEmbeddCommand:
             def embed_query(self, text: str) -> list[float]:
                 return [0.0] * 384
 
-        import langchain_community.embeddings.fastembed as fastembed_module
+        import genai_tk.utils.langchain_community_repl.fastembed_embeddings as fastembed_module
 
         monkeypatch.setattr(fastembed_module, "FastEmbedEmbeddings", FakeFastEmbedEmbeddings)
 

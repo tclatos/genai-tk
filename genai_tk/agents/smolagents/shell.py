@@ -10,11 +10,16 @@ from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-from smolagents import CodeAgent, LiteLLMModel, MCPClient
 
-from genai_tk.core.factories.llm_factory import get_llm
-from genai_tk.core.mcp_client import get_mcp_servers_dict
-from genai_tk.utils.tracing import monitoring_config
+from genai_tk.config_mgmt.features import require_feature
+
+require_feature("harnessing", context="cli agents smolagents")
+
+from smolagents import CodeAgent, LiteLLMModel, MCPClient  # noqa: E402
+
+from genai_tk.core.factories.llm_factory import get_llm  # noqa: E402
+from genai_tk.core.mcp_client import get_mcp_servers_dict  # noqa: E402
+from genai_tk.utils.tracing import monitoring_config  # noqa: E402
 
 
 async def run_smolagent_shell(llm_id: str | None, tools: list[BaseTool] = [], mcp_servers: list[str] = []) -> None:

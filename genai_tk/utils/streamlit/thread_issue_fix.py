@@ -3,7 +3,7 @@
 import inspect
 from typing import Callable, TypeVar
 
-from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
+from langchain_classic.callbacks.streamlit import StreamlitCallbackHandler
 from langchain_core.callbacks.base import BaseCallbackHandler
 
 from streamlit.delta_generator import DeltaGenerator

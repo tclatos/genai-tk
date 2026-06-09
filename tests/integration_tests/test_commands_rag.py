@@ -325,8 +325,7 @@ class TestRAGCommandsWithCustomConfig:
             def embed_query(self, text: str) -> list[float]:
                 return self._vector_for_text(text)
 
-        import langchain_community.embeddings.fastembed as fastembed_module
-
+        import genai_tk.utils.langchain_community_repl.fastembed_embeddings as fastembed_module
         from genai_tk.config_mgmt.config_mngr import global_config
 
         monkeypatch.setattr(fastembed_module, "FastEmbedEmbeddings", FakeFastEmbedEmbeddings)

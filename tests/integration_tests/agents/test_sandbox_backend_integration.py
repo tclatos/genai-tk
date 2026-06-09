@@ -10,7 +10,15 @@ Run with:
 
 import pytest
 import pytest_asyncio
-from deepagents.backends.protocol import (
+
+from genai_tk.config_mgmt.features import is_available
+
+if not is_available("harnessing"):
+    pytest.skip(
+        "Optional feature 'harnessing' not installed — run: uv sync --extra harnessing", allow_module_level=True
+    )
+
+from deepagents.backends.protocol import (  # noqa: E402
     EditResult,
     ExecuteResponse,
     FileDownloadResponse,
@@ -21,7 +29,8 @@ from deepagents.backends.protocol import (
 
 from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend, AioSandboxBackendConfig
 
-# Use a non-standard port to avoid conflicting with other services
+# All tests in this module require a running opensandbox server — gate behind --include-docker
+pytestmark = pytest.mark.docker
 TEST_PORT = 18091
 
 

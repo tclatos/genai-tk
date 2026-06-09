@@ -5,13 +5,15 @@ with LangChain agents. The factory creates tools that combine SQL querying
 capabilities with language model-based natural language processing.
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph
-from langchain_community.utilities.sql_database import SQLDatabase
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from langchain_community.utilities.sql_database import SQLDatabase
 
 
 def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | str = "default") -> list[BaseTool]:
@@ -46,6 +48,8 @@ def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | str = "defa
             from genai_tk.core.factories.llm_factory import LlmFactory
 
             llm = LlmFactory(llm=llm).get()
+
+    from langchain_community.utilities.sql_database import SQLDatabase  # noqa: PLC0415
 
     db = SQLDatabase.from_uri(database_uri, sample_rows_in_table_info=3)
     toolkit = SQLDatabaseToolkit(db=db, llm=llm)

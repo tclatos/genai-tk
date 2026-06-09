@@ -24,7 +24,11 @@ import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from deepagents.backends.protocol import (
+from genai_tk.config_mgmt.features import require_feature
+
+require_feature("harnessing", context="genai_tk.agents.sandbox.aio_backend")
+
+from deepagents.backends.protocol import (  # noqa: E402
     EditResult,
     ExecuteResponse,
     FileDownloadResponse,
@@ -38,10 +42,10 @@ from deepagents.backends.protocol import (
     SandboxBackendProtocol,
     WriteResult,
 )
-from loguru import logger
-from pydantic import BaseModel, Field, PrivateAttr
+from loguru import logger  # noqa: E402
+from pydantic import BaseModel, Field, PrivateAttr  # noqa: E402
 
-from genai_tk.agents.sandbox.models import DockerAioSettings
+from genai_tk.agents.sandbox.models import DockerAioSettings  # noqa: E402
 
 if TYPE_CHECKING:
     from agent_sandbox import AsyncSandbox
@@ -169,17 +173,17 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             from opensandbox import Sandbox  # noqa: PLC0415
             from opensandbox.config import ConnectionConfig  # noqa: PLC0415
         except ImportError as exc:
-            raise RuntimeError(
-                "opensandbox is not installed — it is part of the aio-sandbox optional group.\n"
-                "Install with: cli init --with-sandbox  or  uv sync --group aio-sandbox"
-            ) from exc
+            from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
+
+            require_feature("harnessing", context="AioSandboxBackend.start")
+            raise RuntimeError("unexpected") from exc  # require_feature already raised
         try:
             from agent_sandbox import AsyncSandbox  # noqa: PLC0415
         except ImportError as exc:
-            raise RuntimeError(
-                "agent-sandbox is not installed — it is part of the aio-sandbox optional group.\n"
-                "Install with: cli init --with-sandbox  or  uv sync --group aio-sandbox"
-            ) from exc
+            from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
+
+            require_feature("harnessing", context="AioSandboxBackend.start")
+            raise RuntimeError("unexpected") from exc  # require_feature already raised
         import httpx  # noqa: PLC0415
 
         server_url = self.config.opensandbox_server_url

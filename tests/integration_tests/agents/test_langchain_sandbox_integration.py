@@ -161,6 +161,11 @@ async def test_no_sandbox_preserves_profile() -> None:
 @pytest.mark.asyncio
 async def test_docker_sandbox_uses_shared_config_image() -> None:
     """The AioSandboxBackend started for 'docker' sandbox uses the image from sandbox.yaml."""
+    from genai_tk.config_mgmt.features import is_available
+
+    if not is_available("harnessing"):
+        pytest.skip("Optional feature 'harnessing' not installed — run: uv sync --extra harnessing")
+
     from genai_tk.agents.sandbox.models import DockerAioSettings
 
     started_config: dict[str, Any] = {}

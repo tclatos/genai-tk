@@ -92,6 +92,9 @@ paths:
       level: INFO
     vector_store:
       postgres_url: null
+    structured:
+      default:
+        baml_client: tests.baml_client
 
   test_unit:
     test_env:

@@ -19,7 +19,6 @@ config_path, ext_path, warnings = setup_deer_flow_config(
 
 import json
 import os
-import shutil
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -29,6 +28,7 @@ import yaml
 from loguru import logger
 from omegaconf import OmegaConf
 
+from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 from genai_tk.config_mgmt.import_utils import ImportResolver
 from genai_tk.core.factories.llm_factory import LlmFactory
 from genai_tk.core.providers import PROVIDER_INFO
@@ -61,13 +61,10 @@ def _to_colon_notation(qualified_name: str) -> str:
 def _deer_flow_module_prefix() -> str:
     """Return the Python module prefix for deer-flow tool/sandbox imports.
 
-    Modern deer-flow (post-harness refactor) uses ``deerflow.`` while the
-    legacy layout uses ``src.``.
+    Always returns ``deerflow`` — the deerflow-harness package is the only
+    supported installation method (``uv sync --extra harnessing``).
     """
-    df_path = os.environ.get("DEER_FLOW_PATH", "")
-    if df_path and (Path(df_path) / "backend" / "packages" / "harness").exists():
-        return "deerflow"
-    return "src"
+    return "deerflow"
 
 
 def _check_external_symlinks(skills_path: Path, sandbox: str, warnings: ConfigSetupWarnings | None = None) -> None:
@@ -125,7 +122,6 @@ def load_skills_from_directories(
     Returns:
         List of skill identifiers, e.g. ``["public/deep-research", "custom/my-skill"]``.
     """
-    from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 
     config = get_raw_config()
     skills = []
@@ -352,7 +348,6 @@ def write_deer_flow_config(
     Returns:
         Path to the written config.yaml.
     """
-    from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 
     if warnings is None:
         warnings = ConfigSetupWarnings()
@@ -502,9 +497,10 @@ def write_deer_flow_config(
     general = OmegaConf.select(config, "deerflow.general")
     if general:
         general_dict = OmegaConf.to_container(general, resolve=True)
-        for key in ("title", "summarization", "memory"):
-            if key in general_dict:
-                cfg[key] = general_dict[key]
+        if isinstance(general_dict, dict):
+            for key in ("title", "summarization", "memory"):
+                if key in general_dict:
+                    cfg[key] = general_dict[key]
     else:
         # Sensible fallbacks when general section is absent
         cfg["title"] = {"enabled": True, "max_words": 6, "max_chars": 60, "model_name": None}
@@ -562,44 +558,27 @@ def setup_deer_flow_config(
 ) -> tuple[Path, Path, ConfigSetupWarnings]:
     """Generate both Deer-flow config files in one call.
 
-    Call this **before** starting the server so it reads the generated files on
-    launch.  ``config.yaml`` is written to both ``<deer_flow_path>`` (root) and
-    ``<deer_flow_path>/backend``; ``extensions_config.json`` is written to
-    ``<deer_flow_path>/backend`` only.
+    Call this before starting the embedded client so it can load the generated files.
+    Both ``config.yaml`` and ``extensions_config.json`` are written to the same directory.
 
     Args:
         mcp_server_names: MCP servers to enable (None → all enabled).
         enabled_skills: Explicit list of skills in ``category/name`` format.
         skill_directories: Directories to auto-discover skills from recursively.
-        config_dir: Override output directory. Defaults to ``$DEER_FLOW_PATH/backend``.
+        config_dir: Override output directory. Defaults to a temporary directory.
         sandbox: Sandbox provider: ``"local"`` or ``"docker"``.
         selected_llm: Resolved GenAI-tk model ID; when set only that model is written.
         warnings: Optional ConfigSetupWarnings object to collect warnings into.
 
     Returns:
-        Tuple of (config.yaml path in backend, extensions_config.json path, warnings).
+        Tuple of (config.yaml path, extensions_config.json path, warnings).
     """
-    from genai_tk.config_mgmt.config_mngr import get_raw_config
 
     if warnings is None:
         warnings = ConfigSetupWarnings()
 
-    # Resolve DEER_FLOW_PATH unconditionally — used both for output dir and skills fallback.
-    deer_flow_root: Path | None = None
-    _deer_flow_env = os.environ.get("DEER_FLOW_PATH", "").strip()
-    if _deer_flow_env:
-        deer_flow_root = Path(_deer_flow_env).expanduser().resolve()
-
     if config_dir is None:
-        if deer_flow_root is not None:
-            config_dir = str(deer_flow_root / "backend")
-        else:
-            config_dir = tempfile.mkdtemp(prefix="deer_flow_")
-            logger.warning(
-                "DEER_FLOW_PATH not set — writing Deer-flow config to temp dir: %s. "
-                "Set DEER_FLOW_PATH so configs persist across restarts.",
-                config_dir,
-            )
+        config_dir = tempfile.mkdtemp(prefix="deer_flow_")
 
     # Resolve the first skills directory so write_deer_flow_config can use it as the
     # Docker volume mount path.  agents/deerflow.yaml is NOT merged into get_raw_config(),
@@ -607,34 +586,15 @@ def setup_deer_flow_config(
     resolved_skills_path: str | None = None
     effective_skill_dirs = skill_directories or []
     if not effective_skill_dirs:
-        from genai_tk.config_mgmt.config_mngr import get_raw_config as _get_raw
-
-        _cfg = _get_raw()
+        _cfg = get_raw_config()
         _default_dirs = OmegaConf.select(_cfg, "deerflow.skills.directories")
         if _default_dirs:
             effective_skill_dirs = list(_default_dirs)
     if effective_skill_dirs:
-        _first = effective_skill_dirs[0]
+        _first: str = effective_skill_dirs[0]
         if "${paths.project}" in _first:
-            from genai_tk.config_mgmt.config_mngr import paths_config as _paths
-
-            _first = _first.replace("${paths.project}", str(_paths().project))
-        candidate = Path(_first).expanduser().resolve()
-        if not candidate.exists() and deer_flow_root is not None:
-            # Config default points to ${paths.project}/ext/deer-flow/skills which only
-            # exists inside the genai-tk repo itself.  When running from any other
-            # directory fall back to $DEER_FLOW_PATH/skills (the skills bundled with
-            # the user's deer-flow clone).
-            deer_flow_skills = deer_flow_root / "skills"
-            if deer_flow_skills.exists():
-                logger.debug(
-                    f"Configured skills dir '{candidate}' not found, "
-                    f"falling back to DEER_FLOW_PATH/skills: {deer_flow_skills}"
-                )
-                # Replace the first entry with the fallback so skill discovery also uses it.
-                effective_skill_dirs = [str(deer_flow_skills)] + list(effective_skill_dirs[1:])
-                candidate = deer_flow_skills
-        resolved_skills_path = str(candidate)
+            _first = _first.replace("${paths.project}", str(paths_config().project))
+        resolved_skills_path = str(Path(_first).expanduser().resolve())
 
     config_path = write_deer_flow_config(
         config_dir=config_dir,
@@ -644,16 +604,9 @@ def setup_deer_flow_config(
         warnings=warnings,
     )
 
-    # Also copy config.yaml to the deer-flow root directory (required by deer-flow docs)
-    if deer_flow_root is not None:
-        root_config_path = deer_flow_root / "config.yaml"
-        shutil.copy2(config_path, root_config_path)
-        logger.debug(f"Copied config.yaml to deer-flow root: {root_config_path}")
-
     extensions_config = generate_extensions_config(mcp_server_names)
 
-    # Determine skills to enable — always use the resolved effective_skill_dirs
-    # (which may have been redirected to $DEER_FLOW_PATH/skills above).
+    # Determine skills to enable from the resolved effective_skill_dirs.
     skills_to_enable = enabled_skills or []
     if not enabled_skills:
         if effective_skill_dirs:

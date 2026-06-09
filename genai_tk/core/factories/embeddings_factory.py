@@ -471,7 +471,7 @@ class EmbeddingsFactory(BaseModel):
                 cache_folder=cache,
             )
         elif self.info.provider == "local":
-            from langchain_community.embeddings.fastembed import FastEmbedEmbeddings
+            from genai_tk.utils.langchain_community_repl.fastembed_embeddings import FastEmbedEmbeddings
 
             cache = embeddings_config().cache
             kwargs: dict[str, Any] = {"model_name": self.info.model}
@@ -506,10 +506,12 @@ class EmbeddingsFactory(BaseModel):
 
             emb = OllamaEmbeddings(model=self.info.model)
         elif self.info.provider == "deepinfra":
-            from langchain_community.embeddings import DeepInfraEmbeddings
+            from langchain_openai import OpenAIEmbeddings
 
-            emb = DeepInfraEmbeddings(
-                model_id=self.info.model, deepinfra_api_token=api_key.get_secret_value() if api_key else None
+            emb = OpenAIEmbeddings(
+                model=self.info.model,
+                api_key=api_key.get_secret_value() if api_key else None,
+                base_url="https://api.deepinfra.com/v1/openai",
             )
         elif self.info.provider == "openrouter":
             from langchain_openai import OpenAIEmbeddings
@@ -520,7 +522,7 @@ class EmbeddingsFactory(BaseModel):
                 base_url=self.info.get_api_base(),
             )
         elif self.info.provider == "fake":
-            from langchain_community.embeddings import DeterministicFakeEmbedding
+            from langchain_core.embeddings.fake import DeterministicFakeEmbedding
 
             emb = DeterministicFakeEmbedding(size=768)  # Default size matching common embedding dimensions
         else:

@@ -3,7 +3,15 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from deepagents.backends.protocol import (
+
+from genai_tk.config_mgmt.features import is_available
+
+if not is_available("harnessing"):
+    pytest.skip(
+        "Optional feature 'harnessing' not installed — run: uv sync --extra harnessing", allow_module_level=True
+    )
+
+from deepagents.backends.protocol import (  # noqa: E402
     EditResult,
     ExecuteResponse,
     FileDownloadResponse,

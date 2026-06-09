@@ -9,7 +9,10 @@ import asyncio
 import pytest
 from pydantic import BaseModel
 
-from genai_tk.extra.structured.baml_util import baml_invoke
+try:
+    from genai_tk.extra.structured.baml_util import baml_invoke
+except ImportError as e:
+    pytest.skip(f"BAML feature not installed: {e}", allow_module_level=True)
 
 
 def _run_baml_invoke(function_name: str, params: dict, *, config_name: str, llm: str | None = None):

@@ -11,19 +11,23 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any, Type, get_args, get_origin
 
-import baml_lib
-from baml_py import ClientRegistry
-from loguru import logger
-from pydantic import BaseModel
+from genai_tk.config_mgmt.features import require_feature
 
-from genai_tk.config_mgmt.config_mngr import global_config
-from genai_tk.extra.structured.exceptions import (
+require_feature("baml", context="genai_tk.extra.structured.baml_util")
+
+import baml_lib  # noqa: E402
+from baml_py import ClientRegistry  # noqa: E402
+from loguru import logger  # noqa: E402
+from pydantic import BaseModel  # noqa: E402
+
+from genai_tk.config_mgmt.config_mngr import global_config  # noqa: E402
+from genai_tk.extra.structured.exceptions import (  # noqa: E402
     BamlClientLoadError,
     BamlFunctionNotFoundError,
     BamlVersionMismatchError,
 )
-from genai_tk.utils.hashing import buffer_digest
-from genai_tk.utils.pydantic_utils.common import validate_pydantic_model
+from genai_tk.utils.hashing import buffer_digest  # noqa: E402
+from genai_tk.utils.pydantic_utils.common import validate_pydantic_model  # noqa: E402
 
 
 class StructuredConfig(BaseModel):

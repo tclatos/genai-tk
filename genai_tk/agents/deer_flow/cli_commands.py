@@ -1,6 +1,7 @@
 """CLI commands for Deer-flow agents (embedded client mode).
 
-Loads DeerFlow in-process via DEER_FLOW_PATH/backend — no HTTP servers needed.
+Loads DeerFlow in-process via the deerflow-harness package — no HTTP servers needed.
+Install with: uv sync --extra harnessing
 
 Usage examples:
     cli deerflow --list
@@ -24,6 +25,7 @@ from typing import TYPE_CHECKING, Annotated, Optional, cast
 
 import typer
 from loguru import logger
+from omegaconf import OmegaConf as _OC
 from pydantic import BaseModel
 from rich.console import Console
 from rich.live import Live
@@ -34,6 +36,7 @@ from rich.table import Table
 from rich.text import Text
 
 from genai_tk.cli.base import CliTopCommand
+from genai_tk.config_mgmt.config_mngr import get_raw_config, global_config, paths_config
 
 if TYPE_CHECKING:
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
@@ -76,16 +79,15 @@ def _require_deer_flow_installed() -> None:
     deerflow-harness is installed via uv add, not via a git clone.
     There is no DEER_FLOW_PATH needed — it's a regular Python package.
     """
-    try:
-        import deerflow  # type: ignore[import]  # noqa: F401
-    except ImportError:
+    from genai_tk.config_mgmt.features import is_available
+
+    if not is_available("harnessing"):
         console.print(
-            "[red]deerflow-harness is not installed.[/red]\n\n"
+            "[red]Feature 'harnessing' is not installed.[/red]\n\n"
             "Install it with:\n"
-            "  [bold cyan]cli init --with-deer-flow[/bold cyan]\n\n"
-            "Or manually:\n"
-            "  [bold cyan]uv add 'deerflow-harness @ git+https://github.com/bytedance/deer-flow@main"
-            "#subdirectory=backend/packages/harness'[/bold cyan]"
+            "  [bold cyan]uv sync --extra harnessing[/bold cyan]\n\n"
+            "Or add to your project:\n"
+            '  [bold cyan]uv add "genai-tk[harnessing]"[/bold cyan]'
         )
         raise typer.Exit(1) from None
 
@@ -547,7 +549,6 @@ def _resolve_deerflow_config_path() -> str:
     then falls back to ``{paths.config}/examples/agents/deerflow.yaml`` (bundled
     with genai-tk for out-of-the-box usage).
     """
-    from genai_tk.config_mgmt.config_mngr import global_config
 
     config_dir = global_config().get_dir_path("paths.config")
     primary = config_dir / "agents" / "deerflow.yaml"
@@ -586,8 +587,6 @@ def _list_profiles() -> None:
         return
 
     try:
-        from genai_tk.config_mgmt.config_mngr import global_config
-
         default_name = global_config().get("deerflow.default_profile")
     except Exception:
         default_name = None
@@ -916,10 +915,6 @@ async def _run_chat_mode(
             available_skills = [s.get("name", "?") for s in client.list_skills()]
             # Resolve the skills mount path for diagnostics
             try:
-                from omegaconf import OmegaConf as _OC
-
-                from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
-
                 _raw = get_raw_config()
                 _dirs = _OC.select(_raw, "deerflow.skills.directories")
                 if _dirs:
@@ -1078,31 +1073,12 @@ def _generate_config_and_print_instructions(
             profile_name, llm_override, extra_mcp, mode_override, verbose
         )
         ext_config_path = config_path.parent / "extensions_config.json"
-        df_path = os.environ.get("DEER_FLOW_PATH", "")
 
-        console.print("\n[green]✓ Config files generated:[/green]")
-        console.print(f"  config.yaml          → [cyan]{config_path}[/cyan]")
+        console.print("[green]✓ Config files generated:[/green]")
+        console.print(f"  config.yaml            → [cyan]{config_path}[/cyan]")
         console.print(f"  extensions_config.json → [cyan]{ext_config_path}[/cyan]")
         console.print()
-        console.print("[bold]To launch the native DeerFlow stack:[/bold]")
-        console.print()
-        if df_path:
-            console.print("[bold cyan]Backend (terminal 1):[/bold cyan]")
-            console.print(f"  cd {df_path}/backend")
-            console.print("  langgraph dev")
-            console.print()
-            console.print("[bold cyan]Frontend (terminal 2):[/bold cyan]")
-            console.print(f"  cd {df_path}/frontend")
-            console.print("  pnpm dev")
-            console.print()
-            console.print("[dim]Then open http://localhost:3000 in your browser.[/dim]")
-        else:
-            console.print(
-                "[yellow]DEER_FLOW_PATH is not set.[/yellow] "
-                "Set it to your deer-flow clone, then run:\n"
-                "  cd $DEER_FLOW_PATH/backend && langgraph dev\n"
-                "  cd $DEER_FLOW_PATH/frontend && pnpm dev"
-            )
+        console.print("[dim]These files are used by the embedded client automatically.[/dim]")
 
     _aio.run(_run())
 
@@ -1194,7 +1170,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
         ) -> None:
             """Run Deer-flow agents in-process (embedded mode).
 
-            DeerFlow is loaded directly via DEER_FLOW_PATH/backend. No server processes
+            DeerFlow is loaded via the deerflow-harness package. No server processes
             are required for terminal usage.
 
             Use --generate-config to write the native DeerFlow config files and get
@@ -1216,8 +1192,6 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
 
             if not profile:
                 try:
-                    from genai_tk.config_mgmt.config_mngr import global_config
-
                     profile = global_config().get("deerflow.default_profile")
                 except Exception:
                     profile = None
@@ -1303,52 +1277,23 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
                 raise typer.Exit(1) from e
 
         @cli_app.command("setup")
-        def setup(
-            path: Annotated[
-                Optional[str],
-                typer.Option("--path", "-p", help="Directory to clone deer-flow into (default: ~/deer-flow)"),
-            ] = None,
-        ) -> None:
-            """Clone the Deer-flow repo and install its backend.
+        def setup() -> None:
+            """Install the deerflow-harness feature (harnessing extra).
 
-            This is the equivalent of `make deer-flow-install` and works whether you
-            installed genai-tk from git or cloned the source.
-
-            After running this command, add the printed DEER_FLOW_PATH line to your .env.
+            Runs ``uv sync --extra harnessing`` to install the deerflow-harness
+            package and all harnessing dependencies (deepagents, smolagents,
+            opensandbox, etc.).
 
             Examples:
                 cli agents deerflow setup
-                cli agents deerflow setup --path ~/projects/deer-flow
             """
-            deer_flow_repo = "https://github.com/bytedance/deer-flow.git"
-            target = Path(path).expanduser().resolve() if path else Path.home() / "deer-flow"
+            from genai_tk.main.commands_init import _install_extra
 
-            # Clone or update
-            if target.exists():
-                console.print(f"[cyan]Updating Deer-flow at {target} ...[/cyan]")
-                result = subprocess.run(["git", "-C", str(target), "pull", "--rebase"], capture_output=True, text=True)
+            console.print("[cyan]Installing harnessing extra (deerflow-harness + deepagents + smolagents)...[/cyan]")
+            if _install_extra("harnessing"):
+                console.print("\n[green]✓ Harnessing feature installed successfully.[/green]")
+                console.print("\nVerify with:")
+                console.print("  [bold cyan]cli agents deerflow --list[/bold cyan]")
             else:
-                console.print(f"[cyan]Cloning Deer-flow into {target} ...[/cyan]")
-                target.parent.mkdir(parents=True, exist_ok=True)
-                result = subprocess.run(
-                    ["git", "clone", "--depth", "1", deer_flow_repo, str(target)], capture_output=True, text=True
-                )
-            if result.returncode != 0:
-                console.print(f"[red]git failed:[/red] {result.stderr.strip()}")
+                console.print("[red]Installation failed.[/red]")
                 raise typer.Exit(1)
-
-            # Install the backend
-            backend = target / "backend"
-            if not backend.exists():
-                console.print(f"[red]Backend directory not found:[/red] {backend}")
-                raise typer.Exit(1)
-
-            console.print("[cyan]Installing Deer-flow backend dependencies ...[/cyan]")
-            from genai_tk.main.commands_init import _install_deer_flow_backend
-
-            if not _install_deer_flow_backend(backend):
-                raise typer.Exit(1)
-
-            console.print("\n[green]✓ Deer-flow installed successfully.[/green]\n")
-            console.print("Add the following to your [bold].env[/bold] file:\n")
-            console.print(f"  [bold cyan]DEER_FLOW_PATH={target}[/bold cyan]\n")

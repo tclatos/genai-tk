@@ -8,11 +8,15 @@ import pytest
 from langchain_core.documents import Document
 
 from genai_tk.config_mgmt.config_mngr import global_config
+from genai_tk.config_mgmt.features import is_available
 from genai_tk.core.embeddings_store import EmbeddingsStore
 from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
 
 # Fake model constants
 FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
+
+_chromadb_available = is_available("chromadb")
+skip_no_chromadb = pytest.mark.skipif(not _chromadb_available, reason="chromadb extra not installed")
 
 
 @pytest.fixture
@@ -39,6 +43,7 @@ def fresh_embeddings_store():
 
 
 @pytest.mark.parametrize("config_name", ["default"])  # Use existing config
+@skip_no_chromadb
 def test_vector_store_creation_and_search(sample_documents, config_name) -> None:
     """Test vector store creation, document addition, and similarity search.
 
@@ -68,6 +73,7 @@ def test_vector_store_creation_and_search(sample_documents, config_name) -> None
     assert all(isinstance(content, str) for content in result_contents)
 
 
+@skip_no_chromadb
 def test_vector_store_with_fake_embeddings(sample_documents) -> None:
     """Test vector store specifically with fake embeddings."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
@@ -84,6 +90,7 @@ def test_vector_store_with_fake_embeddings(sample_documents) -> None:
         assert all(isinstance(doc, Document) for doc in results)
 
 
+@skip_no_chromadb
 def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
     """Test max marginal relevance search functionality."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
@@ -107,6 +114,7 @@ def test_direct_instantiation_blocked() -> None:
         )
 
 
+@skip_no_chromadb
 def test_vector_store_similarity_search_by_vector(sample_documents) -> None:
     """Test similarity search using vector input."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
@@ -154,6 +162,7 @@ def test_vector_store_large_k_parameter(sample_documents, fresh_embeddings_store
 
 
 @pytest.mark.performance_tests
+@skip_no_chromadb
 def test_vector_store_performance(sample_documents, performance_threshold) -> None:
     """Test vector store performance with fake embeddings."""
     import time
@@ -178,6 +187,7 @@ def test_vector_store_performance(sample_documents, performance_threshold) -> No
     assert len(results) == 2
 
 
+@skip_no_chromadb
 def test_chroma_memory_storage(sample_documents) -> None:
     """Test Chroma with in-memory storage using new storage field."""
     embeddings_store = EmbeddingsStore.create_from_config("in_memory_chroma")

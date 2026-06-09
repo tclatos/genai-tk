@@ -30,7 +30,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Self
 
+from omegaconf import OmegaConf
 from pydantic import BaseModel
+
+from genai_tk.config_mgmt.config_mngr import get_raw_config
 
 
 class ConfigModel(BaseModel):
@@ -155,14 +158,10 @@ def _parse_source(source: str | Path | dict[str, Any], *, resolve: bool = True) 
         return source
 
     if isinstance(source, Path):
-        from omegaconf import OmegaConf
-
         cfg = OmegaConf.load(source)
 
         if resolve:
             try:
-                from genai_tk.config_mgmt.config_mngr import get_raw_config
-
                 merged = OmegaConf.merge(get_raw_config(), cfg)
             except Exception:
                 merged = cfg
@@ -178,10 +177,6 @@ def _parse_source(source: str | Path | dict[str, Any], *, resolve: bool = True) 
 
         if resolve and parsed and isinstance(parsed, dict):
             try:
-                from omegaconf import OmegaConf
-
-                from genai_tk.config_mgmt.config_mngr import get_raw_config
-
                 omega_node = OmegaConf.create(parsed)
                 merged = OmegaConf.merge(get_raw_config(), omega_node)
                 return OmegaConf.to_container(merged, resolve=True)  # type: ignore[return-value]

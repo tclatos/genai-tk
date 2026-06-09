@@ -3,14 +3,19 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from mcp import StdioServerParameters
+import pytest
 
-from genai_tk.core.mcp_client import (
-    dict_to_stdio_server_list,
-    get_mcp_servers_dict,
-    get_mcp_tools_info,
-    update_server_parameters,
-)
+try:
+    from mcp import StdioServerParameters
+
+    from genai_tk.core.mcp_client import (
+        dict_to_stdio_server_list,
+        get_mcp_servers_dict,
+        get_mcp_tools_info,
+        update_server_parameters,
+    )
+except ImportError as e:
+    pytest.skip(f"MCP feature not installed: {e}", allow_module_level=True)
 
 
 class TestUpdateServerParameters(unittest.TestCase):
@@ -210,8 +215,8 @@ class TestGetMcpServersDict(unittest.TestCase):
 class TestMcpClientAsyncFunctions(unittest.IsolatedAsyncioTestCase):
     """Test cases for async functions in MCP client."""
 
-    @patch("genai_tk.core.mcp_client.stdio_client")
-    @patch("genai_tk.core.mcp_client.ClientSession")
+    @patch("mcp.client.stdio.stdio_client")
+    @patch("mcp.ClientSession")
     async def test_get_mcp_tools_info(self, mock_client_session, mock_stdio_client):
         """Test retrieval of tools information from MCP servers."""
         # Mock the client session and tools

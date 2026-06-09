@@ -1,9 +1,8 @@
 """Integration tests for EmbeddedDeerFlowClient with real LLM.
 
 These tests require:
-- DEER_FLOW_PATH set to a valid deer-flow clone
+- The harnessing feature installed: ``uv sync --extra harnessing``
 - A configured LLM available (uses the default profile)
-- The deerflow optional dependencies installed (uv sync --group deerflow)
 
 Run with:
     uv run pytest tests/integration_tests/agents/deer_flow/ -v -m deerflow
@@ -11,13 +10,9 @@ Run with:
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import pytest
-
-DEER_FLOW_PATH = os.environ.get("DEER_FLOW_PATH")
-SKIP_REASON = "DEER_FLOW_PATH is not set — skipping DeerFlow integration tests"
 
 pytestmark = pytest.mark.deerflow
 
@@ -39,17 +34,11 @@ pytestmark = pytest.mark.deerflow
 
 @pytest.fixture(scope="module")
 def deer_flow_config(tmp_path_factory):
-    """Generate a minimal deer-flow config.yaml for tests.
-
-    Skips with SKIP_REASON when DEER_FLOW_PATH is not set.
-    """
-    if not DEER_FLOW_PATH:
-        pytest.skip(SKIP_REASON)
-
+    """Generate a minimal deer-flow config.yaml for tests."""
     from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
 
     try:
-        config_path, _ = setup_deer_flow_config(sandbox="local", selected_llm=None)
+        config_path, _, _ = setup_deer_flow_config(sandbox="local", selected_llm=None)
         return config_path
     except Exception as exc:
         pytest.skip(f"Could not generate deer-flow config: {exc}")

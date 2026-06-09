@@ -59,19 +59,19 @@ check: fmt lint test
 
 [doc('Run unit tests only')]
 test-unit *args:
-    uv run pytest tests/unit_tests/ {{ args }}
+    uv run pytest tests/unit_tests/ -v {{ args }}
 
 [doc('Run unit + integration tests (no LLM/API keys required)')]
 test *args:
-    uv run pytest tests/unit_tests/ tests/integration_tests/ {{ args }}
+    uv run pytest tests/unit_tests/ tests/integration_tests/ -v {{ args }}
 
 [doc('Run integration tests with real LLM API calls')]
 test-full *args:
-    uv run pytest tests/integration_tests/ --include-real-models {{ args }}
+    uv run pytest tests/integration_tests/ --include-real-models -v {{ args }}
 
 [doc('Run all tests including real LLM calls')]
 test-all *args:
-    uv run pytest tests/unit_tests/ tests/integration_tests/ --include-real-models -m 'not slow' {{ args }}
+    uv run pytest tests/unit_tests/ tests/integration_tests/ --include-real-models -m 'not slow' -v {{ args }}
 
 # Delegated to cli test — these need config-path resolution, marker logic, or notebook execution:
 
@@ -118,17 +118,12 @@ webapp:
 
 # ─── Deer-flow ──────────────────────────────────────────────────────────────
 
-[doc('Clone/update Deer-flow and install backend + Python deps')]
+[doc('Install DeerFlow harness and harnessing extras')]
 deer-flow-install:
-    [ -d "{{ deer_flow_dir }}" ] \
-        && (echo "Updating Deer-flow..." && cd {{ deer_flow_dir }} && git pull --rebase) \
-        || (echo "Cloning Deer-flow..." && mkdir -p ext && git clone --depth 1 {{ deer_flow_repo }} {{ deer_flow_dir }})
-    echo "Installing Deer-flow backend..."
-    uv run python scripts/install_deer_flow_backend.py
-    uv sync --group deer-flow
+    uv sync --extra harnessing
     @echo ""
-    @echo "✓ Deer-flow installed."
-    @echo "  Add to your .env:  DEER_FLOW_PATH=$(pwd)/{{ deer_flow_dir }}"
+    @echo "✓ DeerFlow (deerflow-harness) installed via harnessing extra."
+    @echo "  Verify with: cli agents deerflow --list"
 
 # ─── Maintenance ────────────────────────────────────────────────────────────
 

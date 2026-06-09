@@ -81,7 +81,7 @@ class TestReactAgent:
 
     @pytest.mark.timeout(120)
     @pytest.mark.asyncio
-    async def test_fibonacci_code_generation(self) -> None:
+    async def async_code_generation(self) -> None:
         """Agent generates a valid Python Fibonacci function when asked."""
         agent = LangchainAgent(llm=LLM, agent_type="react")
         result = await _run(
@@ -157,6 +157,7 @@ class TestReactAgent:
 
 
 @pytest.mark.real_models
+@pytest.mark.requires_feature("harnessing")
 class TestDeepAgentLocal:
     """Deep agents running entirely on the host machine (no Docker container).
 
@@ -325,6 +326,7 @@ class TestNamedProfiles:
         assert "42" in result, f"Expected '42' — got: {result!r}"
 
     @pytest.mark.real_models
+    @pytest.mark.requires_feature("harnessing")
     @pytest.mark.timeout(180)
     @pytest.mark.asyncio
     async def test_coding_profile_generates_code(self) -> None:
@@ -400,6 +402,7 @@ class TestSkillsLoading:
         assert str(tmp_path) in result[0] or Path(result[0]).parent == tmp_path
 
     @pytest.mark.real_models
+    @pytest.mark.requires_feature("harnessing")
     @pytest.mark.timeout(120)
     @pytest.mark.asyncio
     async def test_agent_initializes_with_skill_directories(self, tmp_path: Path) -> None:
@@ -435,6 +438,7 @@ class TestSkillsLoading:
             await backend_obj.stop()  # type: ignore[attr-defined]
 
     @pytest.mark.real_models
+    @pytest.mark.requires_feature("harnessing")
     @pytest.mark.timeout(240)
     @pytest.mark.asyncio
     async def test_skill_content_accessible_to_agent(self, tmp_path: Path) -> None:
@@ -503,6 +507,7 @@ class TestSkillsLoading:
 
 @pytest.mark.real_models
 @pytest.mark.docker
+@pytest.mark.requires_feature("harnessing")
 class TestDockerSandbox:
     """Deep agent tests inside a real Docker sandbox container.
 

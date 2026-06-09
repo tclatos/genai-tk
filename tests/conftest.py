@@ -11,6 +11,7 @@ import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 
 from genai_tk.config_mgmt.config_mngr import switch_profile
+from genai_tk.config_mgmt.features import is_available
 from genai_tk.core.factories.embeddings_factory import get_embeddings
 from genai_tk.core.factories.llm_factory import get_llm
 
@@ -18,6 +19,43 @@ from genai_tk.core.factories.llm_factory import get_llm
 FAKE_LLM_ID = "parrot_local@fake"
 FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
 PYTEST_PROFILE = "pytest"
+
+
+# ---------------------------------------------------------------------------
+# Optional-feature marker: @pytest.mark.requires_feature("<name>")
+# Tests with this marker are automatically skipped when the feature is absent.
+# ---------------------------------------------------------------------------
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "requires_feature(name): skip test when the named optional feature is not installed",
+    )
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    include_real_models = config.getoption("--include-real-models", default=False)
+    include_docker = config.getoption("--include-docker", default=False)
+
+    for item in items:
+        # Skip real-model tests unless opted in
+        if not include_real_models and item.get_closest_marker("real_models"):
+            item.add_marker(pytest.mark.skip(reason="Skipping real model tests (use --include-real-models to run)"))
+
+        # Skip docker tests unless opted in
+        if not include_docker and item.get_closest_marker("docker"):
+            item.add_marker(pytest.mark.skip(reason="Skipping Docker tests (use --include-docker to run)"))
+
+        # Skip tests for missing optional features
+        for marker in item.iter_markers("requires_feature"):
+            feature: str = marker.args[0]
+            if not is_available(feature):
+                item.add_marker(
+                    pytest.mark.skip(
+                        reason=f"Optional feature '{feature}' not installed — run: uv sync --extra {feature}"
+                    )
+                )
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -230,33 +268,6 @@ def invalid_embeddings_id():
         str: Invalid embeddings ID that should raise an error
     """
     return "nonexistent_embeddings_model"
-
-
-# Markers for different test types
-def pytest_configure(config):
-    """Configure custom pytest markers."""
-    config.addinivalue_line("markers", "unit: mark test as a unit test")
-    config.addinivalue_line("markers", "integration: mark test as an integration test")
-    config.addinivalue_line("markers", "slow: mark test as slow running")
-    config.addinivalue_line("markers", "network: mark test as requiring network access")
-    config.addinivalue_line("markers", "fake_models: mark test as using fake models only")
-    config.addinivalue_line("markers", "docker: mark test as requiring Docker (use --include-docker to run)")
-
-
-# Skip tests that require real models unless explicitly requested
-def pytest_collection_modifyitems(config, items):
-    """Modify test collection to skip real model tests by default."""
-    if not config.getoption("--include-real-models"):
-        skip_real_models = pytest.mark.skip(reason="Test requires real models. Use --include-real-models to run.")
-        for item in items:
-            if "real_models" in item.keywords:
-                item.add_marker(skip_real_models)
-
-    if not config.getoption("--include-docker"):
-        skip_docker = pytest.mark.skip(reason="Test requires Docker. Use --include-docker to run.")
-        for item in items:
-            if "docker" in item.keywords:
-                item.add_marker(skip_docker)
 
 
 def pytest_addoption(parser):
