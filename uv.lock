@@ -1461,6 +1461,7 @@ dependencies = [
     { name = "rapidfuzz" },
     { name = "readabilipy" },
     { name = "rich", extra = ["jupyter"] },
+    { name = "smolagents", extra = ["docker", "litellm", "mcp", "openai", "toolkit"] },
     { name = "tavily-python" },
     { name = "tokenizers" },
     { name = "typer" },
@@ -1489,7 +1490,6 @@ all = [
     { name = "playwright" },
     { name = "psycopg", extra = ["binary"] },
     { name = "psycopg2-binary" },
-    { name = "smolagents", extra = ["docker", "litellm", "mcp", "openai", "toolkit"] },
     { name = "spacy" },
     { name = "streamlit" },
 ]
@@ -1511,7 +1511,6 @@ harnessing = [
     { name = "deerflow-harness" },
     { name = "opensandbox" },
     { name = "opensandbox-server" },
-    { name = "smolagents", extra = ["docker", "litellm", "mcp", "openai", "toolkit"] },
 ]
 nlp = [
     { name = "en-core-web-lg" },
@@ -1612,7 +1611,7 @@ requires-dist = [
     { name = "rapidfuzz", specifier = ">=3.14.5" },
     { name = "readabilipy", specifier = ">=0.3.0" },
     { name = "rich", extras = ["jupyter"], specifier = ">=13.9.4" },
-    { name = "smolagents", extras = ["toolkit", "mcp", "openai", "litellm", "docker"], marker = "extra == 'harnessing'", specifier = ">=1.17" },
+    { name = "smolagents", extras = ["toolkit", "mcp", "openai", "litellm", "docker"], specifier = ">=1.17" },
     { name = "spacy", marker = "extra == 'nlp'", specifier = ">=3.8.0" },
     { name = "streamlit", marker = "extra == 'streamlit'", specifier = ">=1.49" },
     { name = "tavily-python", specifier = ">=0.7.12" },

@@ -26,7 +26,7 @@ await call_react_agent("What's the weather in Toulouse?", mcp_server_filter=["we
 import os
 from contextlib import AsyncExitStack
 from itertools import chain
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
@@ -37,9 +37,6 @@ from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel, ConfigDict, Field
-
-if TYPE_CHECKING:
-    pass
 
 from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 

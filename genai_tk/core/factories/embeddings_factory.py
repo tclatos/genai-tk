@@ -437,6 +437,10 @@ class EmbeddingsFactory(BaseModel):
         if env_var is None or (env_var != "" and env_var not in os.environ):
             raise EnvironmentError(f"No known API key for : {self.info.id}")
         embeddings = self.model_factory()
+        # Some OpenAI-compatible endpoints only accept raw strings, not pre-tokenized
+        # arrays. Disable tiktoken-based token encoding when the flag is available.
+        if hasattr(embeddings, "check_embedding_ctx_length"):
+            embeddings.check_embedding_ctx_length = False  # type: ignore
         if self.cache_embeddings:
             embeddings = self.get_cached_embedder(embeddings)
         return embeddings

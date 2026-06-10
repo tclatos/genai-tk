@@ -10,11 +10,6 @@ from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
-
-from genai_tk.config_mgmt.features import require_feature
-
-require_feature("harnessing", context="cli agents smolagents")
-
 from smolagents import CodeAgent, LiteLLMModel, MCPClient  # noqa: E402
 
 from genai_tk.core.factories.llm_factory import get_llm  # noqa: E402

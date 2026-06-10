@@ -54,8 +54,11 @@ Implement a "jsonify" version with liteparse v2
 # Artifect
 https://docs.prefect.io/v3/concepts/artifacts 
 
+# SQL
+Find/code a replacement fot langchain_community.utilities.sql_database
 
-
+# Caching
+Replace by one  based on aio-  delete sqlite-cache
 
 # tokenization 
 use https://github.com/chonkie-inc/tokie 

@@ -170,6 +170,8 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         from urllib.parse import urlparse  # noqa: PLC0415
 
         try:
+            import httpx  # noqa: PLC0415
+            from agent_sandbox import AsyncSandbox  # noqa: PLC0415
             from opensandbox import Sandbox  # noqa: PLC0415
             from opensandbox.config import ConnectionConfig  # noqa: PLC0415
         except ImportError as exc:
@@ -177,14 +179,6 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
 
             require_feature("harnessing", context="AioSandboxBackend.start")
             raise RuntimeError("unexpected") from exc  # require_feature already raised
-        try:
-            from agent_sandbox import AsyncSandbox  # noqa: PLC0415
-        except ImportError as exc:
-            from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
-
-            require_feature("harnessing", context="AioSandboxBackend.start")
-            raise RuntimeError("unexpected") from exc  # require_feature already raised
-        import httpx  # noqa: PLC0415
 
         server_url = self.config.opensandbox_server_url
         self._server_proc = await self._ensure_server(server_url)
