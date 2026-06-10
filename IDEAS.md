@@ -2,12 +2,12 @@
 # Tracing
 
 Improve monitoring and tracing support in the Tk.  Today, only Langsmith is supported (impliclt - through Langchain).
-We want the uset to be able to select its tracing infra, with at least 2 framework possible: 
+We want the user to be able to select its tracing infra, with at least 2 framework possible: 
 - Langsmith
 - LangFuse
 and possibly with support of 
 - OpenTelemetry (but might be done with langfuse ? )
-- Most other telemetries platforms  (have provision for it)
+- Other telemetries platforms  (have provision for it)
 
 Also, we would like that all (or most) tools we use able to send traces in Langchain or Langfuse: 
 - Lanchain 
@@ -30,7 +30,7 @@ AFAIK,
 - LiteLLM supports LangFuse (https://langfuse.com/integrations/frameworks/litellm-sdk ) , LangSmith (https://docs.litellm.ai/docs/observability/langsmith_integration), OPenTelemety (https://docs.litellm.ai/docs/observability/opentelemetry_v2), ...
 
 Follow the usual pattern
- - YAML file to define monotorigns configurations 
+ - YAML file to define monitoring  configurations 
  - Selection of a given config through a variable 
  - cli commands for common operations : start the server (in case of Langfuse local one in docker), open UI, ...   (use  langfuse Python API), print nicely last events in local file, ...  
 
@@ -55,9 +55,19 @@ Implement a "jsonify" version with liteparse v2
 https://docs.prefect.io/v3/concepts/artifacts 
 
 # SQL
-Find/code a replacement fot langchain_community.utilities.sql_database
+Find/code a replacement for langchain_community.utilities.sql_database
 
 # Caching
+langchain_community.cache.SQLiteCache is being discontinued. 
+But we can replace it by key_value.aio.stores, already used elsewhere
+    kv_store:
+      default:
+        type: key_value.aio.stores.filetree.FileTreeStore
+
+
+genai_tk/core/cache.py
+
+
 Replace by one  based on aio-  delete sqlite-cache
 
 # tokenization 

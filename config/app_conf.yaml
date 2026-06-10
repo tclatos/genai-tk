@@ -65,8 +65,28 @@ paths:
       default:
         baml_client: tests.baml_client
     monitoring:
-      langsmith: true
+      # ── LangFuse aliases ──────────────────────────────────────────────────
+      # Switch between backends by changing which alias is merged under langfuse:
+      #
+      #   langfuse: *langfuse_cloud   → send traces to cloud.langfuse.com
+      #   langfuse: *langfuse_local   → send traces to localhost:3000 (docker-compose)
+      #
+      _langfuse_cloud: &langfuse_cloud
+        host: https://cloud.langfuse.com
+        public_key: ${oc.env:LANGFUSE_PUBLIC_KEY,""}
+        secret_key: ${oc.env:LANGFUSE_SECRET_KEY,""}
+
+      _langfuse_local: &langfuse_local
+        host: ${oc.env:LANGFUSE_HOST,http://localhost:3000}
+        public_key: ${oc.env:LANGFUSE_PUBLIC_KEY,""}
+        secret_key: ${oc.env:LANGFUSE_SECRET_KEY,""}
+
+      backends: [langfuse, langsmith, local]
       project: GenAI_demo
+      langfuse: *langfuse_cloud
+      local_log:
+        path: ${paths.data_root}/traces/llm_calls.jsonl
+        include_prompts: true
 
   pytest:
     llm:
@@ -168,4 +188,5 @@ cli:
     - genai_tk.mcp.cli_commands.McpCommands
     - genai_tk.cli.commands_skills.SkillsCommands
     - genai_tk.main.cli.register_commands
+    - genai_tk.cli.commands_monitoring.MonitoringCommands
 

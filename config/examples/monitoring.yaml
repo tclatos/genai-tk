@@ -1,0 +1,130 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Monitoring configuration examples
+#
+# Copy the relevant section into your config/app_conf.yaml under the active
+# :profiles: block (e.g. under `:profiles: local:`).
+#
+# Select which backends are active with the `backends` list.
+# Multiple backends can run simultaneously: [langfuse, local]
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+# ── Option 1: LangSmith only (original behaviour) ────────────────────────────
+# monitoring:
+#   backends: [langsmith]
+#   project: MyProject
+#   langsmith:
+#     endpoint: ${oc.env:LANGSMITH_ENDPOINT,https://api.smith.langchain.com}
+#
+# Required env vars:
+#   LANGSMITH_API_KEY=lsv2_...
+#
+# Legacy shorthand (still supported):
+#   monitoring:
+#     langsmith: true
+#     project: MyProject
+
+
+# ── Option 2: LangFuse Cloud ──────────────────────────────────────────────────
+# monitoring:
+#   backends: [langfuse, local]
+#   project: MyProject
+#   langfuse:
+#     host: ${oc.env:LANGFUSE_HOST,https://cloud.langfuse.com}   # or https://us.cloud.langfuse.com
+#     public_key: ${oc.env:LANGFUSE_PUBLIC_KEY,}
+#     secret_key: ${oc.env:LANGFUSE_SECRET_KEY,}
+#   local_log:
+#     path: ${paths.data_root}/traces/llm_calls.jsonl
+#     include_prompts: true
+#
+# Required env vars:
+#   LANGFUSE_PUBLIC_KEY=pk-lf-...
+#   LANGFUSE_SECRET_KEY=sk-lf-...
+#
+# Optional (for EU region, set host to https://cloud.langfuse.com):
+#   LANGFUSE_HOST=https://cloud.langfuse.com
+
+
+# ── Option 3: LangFuse self-hosted (Docker) ───────────────────────────────────
+# monitoring:
+#   backends: [langfuse, local]
+#   project: MyProject
+#   langfuse:
+#     host: ${oc.env:LANGFUSE_HOST,http://localhost:3000}
+#     public_key: ${oc.env:LANGFUSE_PUBLIC_KEY,}
+#     secret_key: ${oc.env:LANGFUSE_SECRET_KEY,}
+#   local_log:
+#     path: ${paths.data_root}/traces/llm_calls.jsonl
+#
+# Start the self-hosted instance:
+#   just monitoring-start langfuse      # → docker compose up
+#   just monitoring-open langfuse       # → opens http://localhost:3000
+#
+# Required env vars (also used by docker-compose.langfuse.yaml):
+#   LANGFUSE_PUBLIC_KEY=pk-lf-...
+#   LANGFUSE_SECRET_KEY=sk-lf-...
+#   LANGFUSE_SALT=<random 32 chars>
+#   NEXTAUTH_SECRET=<random 32 chars>
+
+
+# ── Option 4: Standalone OpenTelemetry (Grafana Tempo, Jaeger, …) ─────────────
+# monitoring:
+#   backends: [otel, local]
+#   project: MyProject
+#   otel:
+#     endpoint: ${oc.env:OTEL_EXPORTER_OTLP_ENDPOINT,http://localhost:4318}
+#     service_name: my-genai-app
+#     headers:
+#       Authorization: Bearer ${oc.env:OTEL_AUTH_TOKEN,}
+#   local_log:
+#     path: ${paths.data_root}/traces/llm_calls.jsonl
+
+
+# ── Option 5: Local JSONL only (no remote tracing) ────────────────────────────
+# monitoring:
+#   backends: [local]
+#   project: MyProject
+#   local_log:
+#     path: ${paths.data_root}/traces/llm_calls.jsonl
+#     include_prompts: true
+#     max_prompt_chars: 2000
+
+
+# ── Option 6: LangSmith + LangFuse + local (all three) ───────────────────────
+# monitoring:
+#   backends: [langsmith, langfuse, local]
+#   project: MyProject
+#   langsmith:
+#     endpoint: https://api.smith.langchain.com
+#   langfuse:
+#     host: http://localhost:3000
+#     public_key: ${oc.env:LANGFUSE_PUBLIC_KEY,}
+#     secret_key: ${oc.env:LANGFUSE_SECRET_KEY,}
+#   local_log:
+#     path: ${paths.data_root}/traces/llm_calls.jsonl
+
+
+# ── Full field reference ──────────────────────────────────────────────────────
+monitoring:
+  backends: [langsmith, local]          # active backends (combine freely)
+  project: GenAI_demo                   # default project / service name
+
+  langsmith:
+    endpoint: ${oc.env:LANGSMITH_ENDPOINT,https://api.smith.langchain.com}
+
+  langfuse:
+    host: ${oc.env:LANGFUSE_HOST,http://localhost:3000}
+    otel_host: ${oc.env:LANGFUSE_OTEL_HOST,""}   # override OTEL endpoint; derived from host if empty
+    public_key: ${oc.env:LANGFUSE_PUBLIC_KEY,""}
+    secret_key: ${oc.env:LANGFUSE_SECRET_KEY,""}
+
+  otel:
+    endpoint: ${oc.env:OTEL_EXPORTER_OTLP_ENDPOINT,http://localhost:4318}
+    service_name: genai-tk
+    headers: {}                         # extra OTEL headers (e.g. auth token)
+
+  local_log:
+    enabled: true
+    path: ${paths.data_root}/traces/llm_calls.jsonl
+    include_prompts: true               # set false to omit prompt/response text
+    max_prompt_chars: 2000              # truncate long prompts to this length

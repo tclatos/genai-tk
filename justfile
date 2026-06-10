@@ -116,6 +116,32 @@ lint-skills:
 webapp:
     uv run python -m streamlit run "{{ streamlit_entry }}"
 
+# ─── Monitoring ─────────────────────────────────────────────────────────────
+
+[doc('Show monitoring backend status (active backends, keys, log file)')]
+monitoring-status:
+    uv run cli monitoring status
+
+[doc('Start LangFuse self-hosted via Docker Compose  (monitoring-start langfuse)')]
+monitoring-start backend="langfuse":
+    uv run cli monitoring start {{ backend }}
+
+[doc('Stop LangFuse Docker Compose  (monitoring-stop langfuse)')]
+monitoring-stop backend="langfuse":
+    uv run cli monitoring stop {{ backend }}
+
+[doc('Open monitoring backend UI in browser  (monitoring-open langfuse|langsmith)')]
+monitoring-open backend="langfuse":
+    uv run cli monitoring open {{ backend }}
+
+[doc('Tail the last 30 entries from the local JSONL trace log')]
+monitoring-tail n="30":
+    uv run cli monitoring tail --n {{ n }}
+
+[doc('Clear the local JSONL trace log (with confirmation)')]
+monitoring-clear:
+    uv run cli monitoring clear
+
 # ─── Deer-flow ──────────────────────────────────────────────────────────────
 
 [doc('Install DeerFlow harness and harnessing extras')]

@@ -124,13 +124,17 @@ class CoreCommands(CliTopCommand):
                         result = llm_model.invoke(input)
                         pprint(result)
                 else:
+                    from genai_tk.utils.tracing import get_monitoring_callbacks
+
+                    callbacks = get_monitoring_callbacks()
                     chain = llm_model | StrOutputParser()
+                    invoke_cfg = {"callbacks": callbacks} if callbacks else {}
                     if stream:
-                        for s in chain.stream(input):
+                        for s in chain.stream(input, config=invoke_cfg):
                             print(s, end="", flush=True)
                         print("\n")
                     else:
-                        result = chain.invoke(input)
+                        result = chain.invoke(input, config=invoke_cfg)
                         pprint(result)
             except Exception as e:
                 from rich.console import Console

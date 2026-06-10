@@ -50,9 +50,9 @@ dependencies = [
     # ============================================
     # Agent Frameworks (core only — harnessing extras are optional)
     # ============================================
-    "langgraph-checkpoint-sqlite>=3.0.3", # SQLite checkpoint persistence for LangGraph
-    "langchain-mcp-adapters>=0.1",        # Model Context Protocol adapters
-    "mcp[cli]>=1.4.1",                    # Model Context Protocol core
+    "langgraph-checkpoint-sqlite>=3.0.3",                      # SQLite checkpoint persistence for LangGraph
+    "langchain-mcp-adapters>=0.1",                             # Model Context Protocol adapters
+    "mcp[cli]>=1.4.1",                                         # Model Context Protocol core
     "smolagents[toolkit, mcp, openai, litellm, docker]>=1.17", # Lightweight agentic framework
     # ============================================
     # NLP & Text Processing (spaCy + models are optional — see [nlp] extra)
@@ -111,12 +111,12 @@ Repository = "https://github.com/tclatos/genai-tk"
 # Agentic harness: sandbox, DeerFlow, DeepAgents, SmolAgents
 harnessing = [
 
-    "deepagents>=0.4",                                         # Deep agents with planning, sub-agents, skills
-    "deepagents-cli>=0.0.26",                                  # CLI for deepagents
-    "agent-sandbox>=0.0.24",                                   # AIO sandbox HTTP SDK client
-    "opensandbox>=0.1.5",                                      # Container lifecycle manager
-    "opensandbox-server>=0.1.7",                               # OpenSandbox REST server
-    "deerflow-harness",                                        # DeerFlow harness (installed from git)
+    "deepagents>=0.4",           # Deep agents with planning, sub-agents, skills
+    "deepagents-cli>=0.0.26",    # CLI for deepagents
+    "agent-sandbox>=0.0.24",     # AIO sandbox HTTP SDK client
+    "opensandbox>=0.1.5",        # Container lifecycle manager
+    "opensandbox-server>=0.1.7", # OpenSandbox REST server
+    "deerflow-harness",          # DeerFlow harness (installed from git)
 ]
 
 # Browser automation
@@ -147,6 +147,15 @@ baml = ["baml-cli>=0.1.0", "baml-lib>=0.42.0"]
 
 # ChromaDB vector database
 chromadb = ["chromadb>=1.0", "langchain-chroma>=1.0"]
+
+# Monitoring extras: LangFuse + OpenTelemetry + OpenInference instrumentors
+monitoring = [
+    "langfuse>=3.0",
+    "opentelemetry-sdk>=1.25",
+    "opentelemetry-exporter-otlp>=1.25",
+    "openinference-instrumentation-langchain>=0.1",
+    "openinference-instrumentation-smolagents>=0.1",
+]
 
 # Everything (for full installs / CI images)
 all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb]"]

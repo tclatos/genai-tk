@@ -257,7 +257,53 @@ custom pages, and running from a new project via `cli init --name "My Project"`.
 
 ---
 
+## Monitoring and Observability
+
+Track LLM calls, agent steps, and pipeline execution across **LangSmith**, **LangFuse**, **OpenTelemetry**, and **local JSONL logs**.
+
+```bash
+# Check monitoring status
+uv run cli monitoring status
+
+# View local trace log (most recent first)
+uv run cli monitoring tail                    # last 20 entries
+uv run cli monitoring tail --n 50 --json      # raw JSON for piping
+
+# Start self-hosted LangFuse
+uv run cli monitoring start langfuse
+uv run cli monitoring open langfuse
+```
+
+**Configuration** — YAML aliases make it easy to switch between cloud and self-hosted:
+
+```yaml
+monitoring:
+  _langfuse_cloud: &langfuse_cloud
+    host: https://cloud.langfuse.com
+    public_key: ${oc.env:LANGFUSE_PUBLIC_KEY,""}
+    secret_key: ${oc.env:LANGFUSE_SECRET_KEY,""}
+
+  backends: [langfuse, local]      # Multiple backends active in parallel
+  project: MyProject
+  langfuse: *langfuse_cloud        # Change to *langfuse_local for docker-compose
+  local_log:
+    path: ${paths.data_root}/traces/llm_calls.jsonl
+    include_prompts: true
+```
+
+Set API keys in `~/.env`:
+```bash
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGSMITH_API_KEY=...
+```
+
+See [docs/monitoring.md](docs/monitoring.md) for configuration, self-hosted setup, and troubleshooting.
+
+---
+
 ## Python API Examples
+
 
 See **[Quick Start by Domain](#quick-start-by-domain)** above for domain-specific examples with explanations.
 

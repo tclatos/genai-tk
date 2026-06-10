@@ -104,6 +104,7 @@ cli:
 """
 
 import sys
+from pathlib import Path as _Path
 
 import typer
 from dotenv import load_dotenv
@@ -127,6 +128,11 @@ from genai_tk.main.commands_init import InitCommands
 from genai_tk.utils.logger_factory import setup_logging
 
 load_dotenv(verbose=True)
+# Also load ~/.env so API keys are available when running `uv run cli` directly
+# (the justfile uses `set dotenv-path := "~/.env"` but that only applies via `just`)
+_home_env = _Path.home() / ".env"
+if _home_env.exists():
+    load_dotenv(_home_env, verbose=True, override=False)
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +241,14 @@ def main() -> None:
     try:
         setup_logging(level)
         load_and_register_commands(cli_app)
+        # Initialise monitoring backends (idempotent — sets env vars, registers
+        # the local JSONL callback, activates OTEL instrumentors if configured).
+        try:
+            from genai_tk.utils.tracing import setup_monitoring
+
+            setup_monitoring()
+        except Exception as _mon_exc:
+            logger.debug(f"Monitoring setup skipped: {_mon_exc}")
     except ConfigFileNotFoundError:
         # No config in cwd — still let bootstrap commands (init, etc.) run.
         logger.warning(

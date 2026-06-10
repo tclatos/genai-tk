@@ -14,7 +14,6 @@ from smolagents import CodeAgent, LiteLLMModel, MCPClient  # noqa: E402
 
 from genai_tk.core.factories.llm_factory import get_llm  # noqa: E402
 from genai_tk.core.mcp_client import get_mcp_servers_dict  # noqa: E402
-from genai_tk.utils.tracing import monitoring_config  # noqa: E402
 
 
 async def run_smolagent_shell(llm_id: str | None, tools: list[BaseTool] = [], mcp_servers: list[str] = []) -> None:
@@ -94,16 +93,8 @@ async def run_smolagent_shell(llm_id: str | None, tools: list[BaseTool] = [], mc
 
             # Process the response
             with console.status("[bold green]Agent is working...\n[/bold green]"):
-                if monitoring_config().langsmith:
-                    from langchain_core.callbacks import tracing_v2_enabled
-
-                    with tracing_v2_enabled() as cb:
-                        response = agent.run(user_input)
-                        console.print(response)
-                        last_trace_url = cb.get_run_url()
-                else:
-                    response = agent.run(user_input)
-                    console.print(response)
+                response = agent.run(user_input)
+                console.print(response)
 
             console.print()  # Add spacing between interactions
 

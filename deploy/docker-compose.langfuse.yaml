@@ -1,0 +1,62 @@
+# LangFuse self-hosted — Docker Compose
+# https://langfuse.com/self-hosting/docker-compose
+#
+# Usage:
+#   just monitoring-start langfuse   →  cli monitoring start langfuse
+#   just monitoring-stop langfuse    →  cli monitoring stop langfuse
+#   just monitoring-open langfuse    →  cli monitoring open langfuse
+#
+# Required env vars (set in ~/.env or shell):
+#   LANGFUSE_SECRET_KEY   — random secret (generate with: openssl rand -hex 32)
+#   LANGFUSE_PUBLIC_KEY   — random public key (generate with: openssl rand -hex 16)
+#   LANGFUSE_SALT         — random salt (generate with: openssl rand -hex 32)
+#   NEXTAUTH_SECRET       — random secret (generate with: openssl rand -hex 32)
+#
+# Data is persisted in the Docker volume "langfuse_postgres_data".
+
+services:
+  langfuse-db:
+    image: postgres:17-alpine
+    container_name: langfuse_db
+    restart: unless-stopped
+    volumes:
+      - langfuse_postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: langfuse
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:-langfuse_password}
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U langfuse" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  langfuse-server:
+    image: langfuse/langfuse:3
+    container_name: langfuse_server
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://langfuse:${LANGFUSE_DB_PASSWORD:-langfuse_password}@langfuse-db:5432/langfuse
+      NEXTAUTH_URL: http://localhost:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-changeme_nextauth_secret_min_32_chars}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-changeme_langfuse_secret_key}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-changeme_langfuse_public_key}
+      SALT: ${LANGFUSE_SALT:-changeme_langfuse_salt_min_32_chars}
+      # OTEL ingestion (used by litellm, smolagents, langchain via openinference)
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      TELEMETRY_ENABLED: "false" # disable LangFuse's own telemetry
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost:3000/api/public/health || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  langfuse_postgres_data:
+    name: langfuse_postgres_data

@@ -278,6 +278,14 @@ async def _prepare_profile(
 
     os.environ["LANGSMITH_PROJECT"] = f"DeerFlow-tk-{profile.name}"
 
+    # Initialise all active monitoring backends (idempotent).
+    # This sets the LANGSMITH_PROJECT env var used above and activates LangFuse / OTEL / local log.
+    from genai_tk.utils.tracing import setup_monitoring
+
+    _mon = setup_monitoring()
+    # Override the project name for this DeerFlow run (so traces are grouped per-profile)
+    os.environ["LANGSMITH_PROJECT"] = f"DeerFlow-tk-{profile.name}"
+
     try:
         if mode_override:
             profile.mode = validate_mode(mode_override)
