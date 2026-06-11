@@ -154,8 +154,8 @@ def _print_next_steps(app_name: str, installed_extras: list[str]) -> None:
         console.print(f"  {status} [cyan]{name:<14}[/cyan] {info.description}")
 
     console.print("\n[bold]BAML structured extraction:[/bold]")
-    console.print("  After installing, initialise your project's BAML config:")
-    console.print("  [dim]uv add genai-tk[baml][/dim]            (install via genai-tk extra)")
+    console.print("  baml-cli is a native binary — it must be a direct dep to be exposed:")
+    console.print("  [dim]uv add baml-py[/dim]                                (exposes baml-cli in your venv)")
     console.print(f"  [dim]uv run baml-cli init --dest {pkg}/baml_src[/dim]  (scaffold BAML under your package)")
 
     console.print("\n[bold]IDE setup[/bold] [dim](copy the command for your IDE):[/dim]")

@@ -338,7 +338,7 @@ class ProjectScaffolder:
                 'nlp        = ["genai-tk[nlp]"]\n'
                 'postgres   = ["genai-tk[postgres]"]\n'
                 'streamlit  = ["genai-tk[streamlit]"]\n'
-                'baml       = ["genai-tk[baml]"]\n'
+                'baml       = ["genai-tk[baml]", "baml-py"]  # baml-py must be direct to expose baml-cli binary\n'
                 'chromadb   = ["genai-tk[chromadb]"]\n'
             )
             # Insert before [build-system] if present, otherwise append

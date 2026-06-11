@@ -14,7 +14,7 @@ browser    = ["genai-tk[browser]"]
 nlp        = ["genai-tk[nlp]"]
 postgres   = ["genai-tk[postgres]"]
 streamlit  = ["genai-tk[streamlit]"]
-baml       = ["genai-tk[baml]"]
+baml       = ["genai-tk[baml]", "baml-py"]  # baml-py must be direct to expose baml-cli binary
 chromadb   = ["genai-tk[chromadb]"]
 
 [dependency-groups]
