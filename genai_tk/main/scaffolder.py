@@ -329,6 +329,25 @@ class ProjectScaffolder:
             content = content.replace(f'\n[tool.setuptools.packages.find]\ninclude = ["{self.package_name}*"]\n', "")
             changed = True
 
+        if "[project.optional-dependencies]" not in content:
+            optional_deps = (
+                "\n# Forward genai-tk optional extras — install with: uv sync --extra <name>\n"
+                "[project.optional-dependencies]\n"
+                'harnessing = ["genai-tk[harnessing]"]\n'
+                'browser    = ["genai-tk[browser]"]\n'
+                'nlp        = ["genai-tk[nlp]"]\n'
+                'postgres   = ["genai-tk[postgres]"]\n'
+                'streamlit  = ["genai-tk[streamlit]"]\n'
+                'baml       = ["genai-tk[baml]"]\n'
+                'chromadb   = ["genai-tk[chromadb]"]\n'
+            )
+            # Insert before [build-system] if present, otherwise append
+            if "[build-system]" in content:
+                content = content.replace("[build-system]", optional_deps + "\n[build-system]", 1)
+            else:
+                content += optional_deps
+            changed = True
+
         if changed:
             pyproject.write_text(content, encoding="utf-8")
             console.print("[green]✓ Enabled package mode in pyproject.toml[/green]")
