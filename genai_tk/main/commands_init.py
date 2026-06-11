@@ -118,7 +118,7 @@ _INSTALLABLE_EXTRAS: dict[str, str] = {
 
 
 def _install_extra(extra: str) -> bool:
-    """Install a [project.optional-dependencies] extra via uv."""
+    """Install a genai-tk optional extra via uv in the scaffolded project."""
     if extra not in _INSTALLABLE_EXTRAS:
         console.print(f"[red]Unknown extra '{extra}'. Valid: {', '.join(_INSTALLABLE_EXTRAS)}[/red]")
         return False
@@ -155,9 +155,8 @@ def _print_next_steps(app_name: str, installed_extras: list[str]) -> None:
 
     console.print("\n[bold]BAML structured extraction:[/bold]")
     console.print("  After installing, initialise your project's BAML config:")
-    console.print("  [dim]uv add baml-py[/dim]                    (standalone install)")
-    console.print("  [dim]uv sync --extra baml[/dim]              (via genai-tk extra)")
-    console.print("  [dim]uv run baml-cli init[/dim]              (creates baml_src/ directory)")
+    console.print("  [dim]uv add genai-tk[baml][/dim]            (install via genai-tk extra)")
+    console.print(f"  [dim]uv run baml-cli init --dest {pkg}/baml_src[/dim]  (scaffold BAML under your package)")
 
     console.print("\n[bold]IDE setup[/bold] [dim](copy the command for your IDE):[/dim]")
     console.print("  VS Code + Copilot : already configured via .github/copilot-instructions.md")

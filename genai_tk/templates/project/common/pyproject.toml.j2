@@ -7,6 +7,16 @@ dependencies = [
     "genai-tk",
 ]
 
+# Forward genai-tk optional extras — install with: uv sync --extra <name>
+[project.optional-dependencies]
+harnessing = ["genai-tk[harnessing]"]
+browser    = ["genai-tk[browser]"]
+nlp        = ["genai-tk[nlp]"]
+postgres   = ["genai-tk[postgres]"]
+streamlit  = ["genai-tk[streamlit]"]
+baml       = ["genai-tk[baml]"]
+chromadb   = ["genai-tk[chromadb]"]
+
 [dependency-groups]
 dev = [
     "ruff>=0.11",
