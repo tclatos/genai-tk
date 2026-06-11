@@ -63,8 +63,8 @@ FEATURES: dict[str, FeatureInfo] = {
         install_cmd='uv sync --extra browser  # or: uv add "genai-tk[browser]"',
     ),
     "nlp": FeatureInfo(
-        description="NLP with spaCy and English language models",
-        packages=["spacy", "en-core-web-sm", "en-core-web-lg"],
+        description="NLP with spaCy, English language models, and Presidio PII detection",
+        packages=["spacy", "en-core-web-sm", "en-core-web-lg", "presidio-analyzer", "presidio-anonymizer"],
         check_modules=["spacy"],
         install_cmd='uv sync --extra nlp  # or: uv add "genai-tk[nlp]"',
     ),
@@ -82,7 +82,7 @@ FEATURES: dict[str, FeatureInfo] = {
     ),
     "baml": FeatureInfo(
         description="BAML structured data extraction",
-        packages=["baml-cli", "baml-lib"],
+        packages=["baml-py"],
         check_modules=["baml_lib"],
         install_cmd='uv sync --extra baml  # or: uv add "genai-tk[baml]"',
     ),

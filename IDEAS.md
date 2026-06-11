@@ -1,41 +1,15 @@
 
 # Tracing
+- Have a command to staop  / stop monitoring. 
+I suggest that you move  current 'cli  monitoring start' and ' cli monitoring  stop" as just targets (as just langfuse-server start) .
+cli  monitoring start could write a locel file (ex: .genai_tk) 
+and have a local file to store stat
 
-Improve monitoring and tracing support in the Tk.  Today, only Langsmith is supported (impliclt - through Langchain).
-We want the user to be able to select its tracing infra, with at least 2 framework possible: 
-- Langsmith
-- LangFuse
-and possibly with support of 
-- OpenTelemetry (but might be done with langfuse ? )
-- Other telemetries platforms  (have provision for it)
-
-Also, we would like that all (or most) tools we use able to send traces in Langchain or Langfuse: 
-- Lanchain 
-- Deer flow
-- SmollAgents
-- BAML
-- LiteLLM 
-
-Last but not least, we would like our own basic logging, in local JSONL files, with date, session, prompts (wrapped), number of tokens, cost.. (whenever possible)  . It should run in parallel of the more sophisticated one. 
-
-AFAIK, 
-  - Langchain supports Langsmith nativelly, LangFuse (https://docs.langchain.com/oss/python/integrations/providers/langfuse), OpenTelemetry (https://docs.langchain.com/langsmith/trace-with-opentelemetry, https://www.langchain.com/blog/end-to-end-opentelemetry-langsmith)
-
-  - Deer flow supports LangSmith  and LangFuse (https://github.com/bytedance/deer-flow/blob/d133b1119a955564c80b83b8bbe25aef351629f8/backend/README.md?plain=1#L330 ) 
-
-  - BAML seems a more comlicatec case . There are https://docs.boundaryml.com/guide/baml-advanced/collector-track-tokens that can be used for our basic local logging, and be extandes later to LanGuse, ..
-
-  - SmolaAgantes support OpenTelemetry (https://huggingface.co/docs/smolagents/tutorials/inspect_runs). LangFuse can be used, too (https://langfuse.com/integrations/frameworks/smolagents)
-
-- LiteLLM supports LangFuse (https://langfuse.com/integrations/frameworks/litellm-sdk ) , LangSmith (https://docs.litellm.ai/docs/observability/langsmith_integration), OPenTelemety (https://docs.litellm.ai/docs/observability/opentelemetry_v2), ...
-
-Follow the usual pattern
- - YAML file to define monitoring  configurations 
- - Selection of a given config through a variable 
- - cli commands for common operations : start the server (in case of Langfuse local one in docker), open UI, ...   (use  langfuse Python API), print nicely last events in local file, ...  
-
-
-
+# Misc
+We have changed recently scalfolding and package management. Some improvement are needed: 
+1 -     "presidio-analyze and presidio-anonymizer need spacy. Put them as optional with "nlp" optional dependency , and check  that dependecy is loaded
+2 - BAML need to be  installed with 'uv add baml-py', to have the baml-cli command properly installed. So correct te topml file and the 'cli init' command (with correct dstination for uv run baml-cli init )
+3 
 
 
  

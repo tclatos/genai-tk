@@ -39,6 +39,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
+from genai_tk.config_mgmt.features import require_feature
 from genai_tk.utils.singleton import once
 
 
@@ -193,6 +194,8 @@ def _get_nlp_engine(language: str, model_name: str) -> Any | None:
 def _get_analyzer(config_json: str) -> Any:
     """Return a Presidio ``AnalyzerEngine`` built from *config_json*, cached per unique config."""
     import logging
+
+    require_feature("nlp", context="genai_tk.workflow.anonymization.presidio_detector")
 
     from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
 

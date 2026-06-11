@@ -155,8 +155,9 @@ def _print_next_steps(app_name: str, installed_extras: list[str]) -> None:
 
     console.print("\n[bold]BAML structured extraction:[/bold]")
     console.print("  After installing, initialise your project's BAML config:")
-    console.print("  [dim]uv sync --extra baml[/dim]")
-    console.print("  [dim]uv run baml-cli init --dest baml_src[/dim]")
+    console.print("  [dim]uv add baml-py[/dim]                    (standalone install)")
+    console.print("  [dim]uv sync --extra baml[/dim]              (via genai-tk extra)")
+    console.print("  [dim]uv run baml-cli init[/dim]              (creates baml_src/ directory)")
 
     console.print("\n[bold]IDE setup[/bold] [dim](copy the command for your IDE):[/dim]")
     console.print("  VS Code + Copilot : already configured via .github/copilot-instructions.md")
