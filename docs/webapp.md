@@ -9,6 +9,7 @@ of the box:
 | 🦌 **DeerFlow Agent** | Agents | Full 2-panel UI — execution trace + chat, streaming, artifact viewer |
 | 🤖 **ReAct Agent** | Agents | Two-panel chat + trace, tool-call display, MCP support, slash commands |
 | 🤖 **SmolAgents** | Agents | SmolAgents step-by-step display |
+| ⚙️ **Prefect Workflow Demo** | Workflow | Live Prefect flow execution trace with real-time task progress polling |
 
 Downstream projects (e.g. genai-blueprint) can embed these pages alongside
 their own pages using the `genai_tk://` reference prefix described below,
@@ -187,6 +188,8 @@ genai_tk/webapp/
 genai_tk/utils/streamlit/
     ├── auto_scroll.py
     ├── capturing_callback_handler.py
+    ├── prefect_progress.py       ← Prefect REST API polling helpers
+    ├── workflow_runner.py        ← stateful workflow execution + progress UI
     └── thread_issue_fix.py
 ```
 
@@ -214,3 +217,105 @@ uv add streamlit-monaco
 ```
 
 Without it the Edit Config button shows the raw YAML as read-only text.
+
+---
+
+## Live Workflow Execution in Streamlit (`WorkflowRunner`)
+
+The `WorkflowRunner` component executes Prefect workflows in a background thread and displays live progress in a Streamlit `st.status` container.  Use it in custom pages to add workflow execution UI without writing polling/threading boilerplate.
+
+### Basic Usage
+
+```python
+from genai_tk.utils.streamlit.workflow_runner import WorkflowRunner
+import streamlit as st
+
+runner = WorkflowRunner(key="my_runner")
+
+# Always sync at page top before rendering widgets that read runner state
+runner.sync()
+
+with st.sidebar:
+    if runner.running:
+        st.info("Workflow is running…")
+    elif runner.completed:
+        if st.button("Run again"):
+            runner.reset()
+            st.rerun()
+
+    if runner.flow_run_id:
+        st.markdown(f"[Prefect UI](.../{runner.flow_run_id})")
+
+if st.button("Launch"):
+    runner.start("workflow_name")
+    st.rerun()
+
+# Renders live progress: flow name, task status, auto-updates every 2s
+runner.render_progress()
+
+if runner.completed:
+    st.success(f"Results: {runner.results}")
+```
+
+### Two Ways to Run Workflows
+
+**1. YAML workflow via `start()`:**
+```python
+runner.start(
+    "markdownize_and_merge",  # workflow name from config/workflows/
+    values={"source_dir": "/path/to/docs"}  # override defaults
+)
+```
+
+**2. Prefect `@flow` function via `start_flow()`:**
+```python
+from prefect import flow, task
+import time
+
+@task
+def fetch_data():
+    time.sleep(3)
+    return "data"
+
+@flow
+def my_flow():
+    return fetch_data()
+
+runner.start_flow(my_flow)  # no YAML config needed
+```
+
+### Progress Display
+
+The `render_progress()` method shows:
+- **Flow run link** — clickable `[name]` to Prefect UI
+- **Task trace** — accumulated list of tasks with icons:
+  - `🔄` Running
+  - `✅` Completed
+  - `❌` Failed  
+  - etc.
+- **Deduplication** — fan-out tasks (`process_item-0`, `process_item-1`, …) appear as a single `process_item` line
+
+The component automatically:
+- Polls Prefect REST API every 2 seconds (configurable: `rerun_interval=`)
+- Calls `st.rerun()` to refresh the display
+- Syncs background-thread state into `session_state` before each poll
+
+### Configuration
+
+The `WorkflowRunner` reads the `prefect:` section of your config for server details:
+
+```yaml
+prefect:
+  host: "127.0.0.1"
+  port: 4200
+  api_url: null  # auto-resolved as http://{host}:{port}/api when null
+  auto_start: true
+```
+
+All defaults are sensible for local development; override in your `config/app_conf.yaml` or environment.
+
+### See Also
+
+- [workflows.md](workflows.md) — YAML-driven workflow definitions
+- [prefect.md](prefect.md) — `@flow` and `@task` authoring
+- `genai_tk/utils/streamlit/prefect_progress.py` — low-level REST API poller (if you need fine-grained polling control)
