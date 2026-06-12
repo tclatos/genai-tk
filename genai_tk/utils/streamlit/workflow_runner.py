@@ -25,6 +25,7 @@ Usage in any Streamlit page::
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from typing import Any
@@ -33,6 +34,16 @@ from loguru import logger
 
 import streamlit as st
 from genai_tk.utils.streamlit.prefect_progress import FlowRunInfo, PrefectPoller, TaskRunInfo
+
+# ---------------------------------------------------------------------------
+# Module-level thread-safe store
+# ---------------------------------------------------------------------------
+# The background thread NEVER writes to st.session_state (no ScriptRunContext
+# in non-main threads).  Instead it writes to this plain dict.  The main
+# Streamlit thread calls _sync_from_thread_store() on every rerun to pull the
+# latest data into session_state before rendering.
+# ---------------------------------------------------------------------------
+_thread_store: dict[str, dict[str, Any]] = {}
 
 # State machine states
 _IDLE = "idle"
@@ -60,7 +71,9 @@ class WorkflowRunner:
     """Stateful Streamlit component that runs a genai-tk workflow with live progress.
 
     State is stored in ``st.session_state`` under a namespaced key so multiple
-    instances can coexist on the same page.
+    instances can coexist on the same page.  The background thread writes to a
+    module-level ``_thread_store`` (never to ``session_state`` directly) to
+    avoid the Streamlit ``ScriptRunContext`` thread safety warning.
 
     Args:
         key: Unique string key scoped to this runner instance.
@@ -73,7 +86,7 @@ class WorkflowRunner:
         self._ensure_state()
 
     # ------------------------------------------------------------------
-    # State accessors
+    # State accessors (read from session_state — always on the main thread)
     # ------------------------------------------------------------------
 
     @property
@@ -128,7 +141,7 @@ class WorkflowRunner:
         values: dict[str, Any] | None = None,
         max_workers: int = 4,
     ) -> None:
-        """Launch the workflow in a background thread.
+        """Launch a named YAML workflow in a background thread.
 
         Args:
             workflow_or_profile: Workflow name or ``workflow/profile`` string.
@@ -140,6 +153,8 @@ class WorkflowRunner:
             return
 
         self._reset(status=_RUNNING)
+        _thread_store[self._key] = {"status": _RUNNING}
+
         thread = threading.Thread(
             target=self._run_in_thread,
             args=(workflow_or_profile,),
@@ -150,8 +165,34 @@ class WorkflowRunner:
         self._state["thread"] = thread
         thread.start()
 
+    def start_flow(self, flow_fn: "Any") -> None:
+        """Launch a pre-built Prefect ``@flow`` function in a background thread.
+
+        Use this when you have a Prefect flow object directly (e.g. a demo or
+        test flow) and don't need to go through the YAML workflow engine.
+
+        Args:
+            flow_fn: A Prefect ``@flow``-decorated callable.
+        """
+        if not self.idle and not self.failed:
+            logger.warning("WorkflowRunner[{}]: already running, ignoring start_flow()", self._key)
+            return
+
+        self._reset(status=_RUNNING)
+        _thread_store[self._key] = {"status": _RUNNING}
+
+        thread = threading.Thread(
+            target=self._run_flow_in_thread,
+            args=(flow_fn,),
+            daemon=True,
+            name=f"wf-runner-{self._key}",
+        )
+        self._state["thread"] = thread
+        thread.start()
+
     def reset(self) -> None:
         """Reset to idle state so a new workflow can be started."""
+        _thread_store.pop(self._key, None)
         self._reset(status=_IDLE)
 
     # ------------------------------------------------------------------
@@ -161,13 +202,17 @@ class WorkflowRunner:
     def render_progress(self, *, auto_rerun: bool = True, rerun_interval: float = _POLL_INTERVAL) -> None:
         """Render live progress widgets.
 
-        When the workflow is running, displays a ``st.status`` container with
-        per-task progress and schedules a page rerun every *rerun_interval* seconds.
+        Syncs from the thread store first, then renders ``st.status`` with
+        per-task progress.  When running, polls Prefect and schedules a page
+        rerun every *rerun_interval* seconds so the display stays live.
 
         Args:
             auto_rerun: If True, calls ``st.rerun()`` while the workflow runs.
             rerun_interval: Seconds to wait between page reruns during execution.
         """
+        # Always pull the latest data written by the background thread
+        self._sync_from_thread_store()
+
         if self.idle:
             return
 
@@ -191,12 +236,52 @@ class WorkflowRunner:
 
         with st.status(label, expanded=expanded, state=state_arg):  # type: ignore[arg-type]
             if flow_info:
-                st.caption(f"Flow run: `{flow_info.name}` — {flow_info.state_name}")
+                try:
+                    from genai_tk.utils.prefect_server import prefect_server
 
-            if task_runs:
-                for task in sorted(task_runs, key=lambda t: (t.start_time or "", t.name)):
-                    icon = _STATE_ICONS.get(task.state_name, _DEFAULT_ICON)
-                    st.write(f"{icon} **{task.name}** — {task.state_name}")
+                    ui_base = prefect_server().ui_url
+                except Exception:
+                    ui_base = "http://127.0.0.1:4200"
+                run_link = f"[{flow_info.name}]({ui_base}/runs/flow-run/{flow_info.id})"
+                st.caption(f"Flow run: {run_link} — {flow_info.state_name}")
+            elif status == _RUNNING:
+                st.caption("Starting flow run…")
+
+            # Accumulated task trace.
+            # Deduplicate by logical task name (strip the trailing Prefect hash suffix
+            # e.g. "fetch-data-4e4" -> "fetch-data") so fan-out tasks show as one row.
+            # Show the worst state seen for that logical name.
+            started = [t for t in task_runs if t.state_name not in ("Pending", "Scheduled")]
+            started.sort(key=lambda t: (t.start_time or "", t.name))
+
+            # Merge by logical name: keep most informative state (Running > Failed > Completed)
+            _STATE_PRIORITY = {
+                "Running": 0,
+                "Failed": 1,
+                "Crashed": 1,
+                "Cancelled": 1,
+                "Completed": 2,
+                "Cached": 2,
+                "Skipped": 3,
+            }
+            merged: dict[str, str] = {}  # logical_name -> state_name (best)
+            seen_order: list[str] = []
+            for t in started:
+                # Strip trailing Prefect hash suffix: "fetch-data-4e4" -> "fetch-data"
+                logical = re.sub(r"-[0-9a-f]{3,6}$", "", t.name)
+                if logical not in merged:
+                    merged[logical] = t.state_name
+                    seen_order.append(logical)
+                else:
+                    # Keep the more interesting state
+                    current_prio = _STATE_PRIORITY.get(merged[logical], 9)
+                    new_prio = _STATE_PRIORITY.get(t.state_name, 9)
+                    if new_prio < current_prio:
+                        merged[logical] = t.state_name
+
+            if merged:
+                lines = "  \n".join(f"{_STATE_ICONS.get(merged[name], _DEFAULT_ICON)} `{name}`" for name in seen_order)
+                st.markdown(lines)
             elif status == _RUNNING:
                 st.write("Waiting for tasks to start…")
 
@@ -229,10 +314,33 @@ class WorkflowRunner:
             "thread": None,
         }
 
+    def sync(self) -> None:
+        """Sync background-thread state into session_state.
+
+        Call this **once at the top of the page** (before any widget renders)
+        so that all subsequent ``runner.running`` / ``runner.completed`` checks
+        reflect the latest state written by the background thread.
+        """
+        store = _thread_store.get(self._key)
+        if not store:
+            return
+        state = st.session_state.get(self._key)
+        if state is None:
+            return
+        for field in ("status", "results", "error", "flow_run_id"):
+            if field in store:
+                state[field] = store[field]
+
+    # Alias kept for internal callers
+    _sync_from_thread_store = sync
+
     def _run_in_thread(self, workflow_or_profile: str, *, values: dict[str, Any], max_workers: int) -> None:
-        """Target function executed in the background thread."""
+        """Target function executed in the background thread.
+
+        All state updates go to ``_thread_store`` — never to ``st.session_state``.
+        """
+        store = _thread_store.setdefault(self._key, {})
         try:
-            # Import here to avoid circular imports at module level
             from genai_tk.utils.prefect_server import prefect_server
             from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory
 
@@ -242,52 +350,61 @@ class WorkflowRunner:
 
             factory = PrefectFlowFactory.from_profile(workflow_or_profile, values=values, max_workers=max_workers)
 
-            # Intercept the flow run ID by patching the Prefect context
-            flow_run_id: str | None = None
-
-            def _capture_flow_run_id(flow_run_id_: str) -> None:
-                nonlocal flow_run_id
-                flow_run_id = flow_run_id_
-                if self._key in st.session_state:
-                    st.session_state[self._key]["flow_run_id"] = flow_run_id_
-
-            # Attach a Prefect event hook (Prefect fires this after the run is created)
-            flow_fn = factory.get()
-
-            # Monkey-patch: after creating the flow run, Prefect stores run context.
-            # We use a wrapper to capture the flow run id from FlowRunContext.
-            original_call = flow_fn.__call__  # type: ignore[attr-defined]
-
-            def _patched_call(*args: Any, **kwargs: Any) -> Any:
-                result = original_call(*args, **kwargs)
-                # Try to read the last flow run from context
+            # Capture the flow run ID via Prefect's on_running hook.
+            # This hook fires INSIDE the flow context so flow_run.id is available.
+            def _on_running(flow: Any, flow_run: Any, state: Any) -> None:  # noqa: ANN401
                 try:
-                    from prefect.context import FlowRunContext
+                    store["flow_run_id"] = str(flow_run.id)
+                    logger.debug("WorkflowRunner[{}] captured flow_run_id={}", self._key, flow_run.id)
+                except Exception as exc:
+                    logger.debug("WorkflowRunner[{}] on_running hook error: {}", self._key, exc)
 
-                    ctx = FlowRunContext.get()
-                    if ctx and ctx.flow_run:
-                        _capture_flow_run_id(str(ctx.flow_run.id))
-                except Exception:
-                    pass
-                return result
+            flow_fn = factory.get().with_options(on_running=[_on_running])
+            results = flow_fn()
 
-            results = _patched_call()
+            store["status"] = _COMPLETED
+            store["results"] = results
 
-            # Success
-            if self._key in st.session_state:
-                st.session_state[self._key]["status"] = _COMPLETED
-                st.session_state[self._key]["results"] = results
         except Exception as exc:
             logger.exception("WorkflowRunner[{}] failed: {}", self._key, exc)
-            if self._key in st.session_state:
-                st.session_state[self._key]["status"] = _FAILED
-                st.session_state[self._key]["error"] = str(exc)
+            store["status"] = _FAILED
+            store["error"] = str(exc)
+
+    def _run_flow_in_thread(self, flow_fn: "Any") -> None:
+        """Target for start_flow() — runs a bare Prefect @flow function.
+
+        All state updates go to ``_thread_store``.
+        """
+        store = _thread_store.setdefault(self._key, {})
+        try:
+            from genai_tk.utils.prefect_server import prefect_server
+
+            server = prefect_server()
+            server.ensure_running()
+            server.configure_api_url()
+
+            def _on_running(flow: Any, flow_run: Any, state: Any) -> None:  # noqa: ANN401
+                try:
+                    store["flow_run_id"] = str(flow_run.id)
+                    logger.debug("WorkflowRunner[{}] captured flow_run_id={}", self._key, flow_run.id)
+                except Exception as exc:
+                    logger.debug("WorkflowRunner[{}] on_running hook error: {}", self._key, exc)
+
+            patched = flow_fn.with_options(on_running=[_on_running])
+            results = patched()
+
+            store["status"] = _COMPLETED
+            store["results"] = results if isinstance(results, dict) else {"result": results}
+
+        except Exception as exc:
+            logger.exception("WorkflowRunner[{}] failed: {}", self._key, exc)
+            store["status"] = _FAILED
+            store["error"] = str(exc)
 
     def _poll_prefect(self) -> None:
-        """Query Prefect REST API and update session state with latest task states."""
+        """Query Prefect REST API and update session_state with latest task states."""
         flow_run_id = self.flow_run_id
         if not flow_run_id:
-            # Thread may not have written the ID yet
             return
 
         try:
@@ -295,9 +412,13 @@ class WorkflowRunner:
             flow_info = poller.get_flow_run(flow_run_id)
             task_runs = poller.get_task_runs(flow_run_id)
 
-            if self._key in st.session_state:
+            state = st.session_state.get(self._key)
+            if state is not None:
                 if flow_info:
-                    st.session_state[self._key]["flow_info"] = flow_info
-                st.session_state[self._key]["task_runs"] = task_runs
+                    state["flow_info"] = flow_info
+                state["task_runs"] = task_runs
         except Exception as exc:
             logger.debug("WorkflowRunner[{}] poll error: {}", self._key, exc)
+
+
+# _prefect_ui_url is no longer used directly — callers now use prefect_server().ui_url

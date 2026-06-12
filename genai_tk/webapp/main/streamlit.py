@@ -103,6 +103,7 @@ if _nav_config and _pages_dir_str:
             "deer_flow_agent": "🦌 DeerFlow Agent",
             "reAct_agent": "🤖 ReAct Agent",
             "smolagents_streamlit": "🤖 SmolAgents",
+            "prefect_workflow_demo": "⚙️ Prefect Workflow Demo",
         }
         try:
             name_only = file_name.split("/")[-1].rsplit(".", 1)[0]
@@ -165,7 +166,10 @@ else:
         "Agent Demos": [
             st.Page(page=_demos_dir / "deer_flow_agent.py", title="🦌 DeerFlow Agent"),
             st.Page(page=_demos_dir / "reAct_agent.py", title="🤖 ReAct Agent"),
-        ]
+        ],
+        "Workflow": [
+            st.Page(page=_demos_dir / "prefect_workflow_demo.py", title="⚙️ Prefect Workflow Demo"),
+        ],
     }
 
     pg = st.navigation(pages, position="top")

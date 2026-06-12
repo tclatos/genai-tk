@@ -102,14 +102,19 @@ class PrefectPoller:
             return None
 
     def get_task_runs(self, flow_run_id: str) -> list[TaskRunInfo]:
-        """Fetch all task runs belonging to *flow_run_id*.
+        """Fetch task runs belonging to *flow_run_id*.
 
         Returns an empty list on any error so callers can safely iterate.
+        Only returns direct task runs of the given flow run (not sub-flow tasks).
         """
         try:
+            # Prefect REST API filter: "flow_runs" key (not "flow_run_filter")
             resp = self._client.post(
                 f"{self.api_url}/task_runs/filter",
-                json={"flow_run_filter": {"id": {"any_": [flow_run_id]}}},
+                json={
+                    "flow_runs": {"id": {"any_": [flow_run_id]}},
+                    "limit": 200,
+                },
                 timeout=10,
             )
             resp.raise_for_status()
@@ -160,28 +165,25 @@ class PrefectPoller:
 
     @staticmethod
     def _resolve_api_url() -> str:
+        """Delegate to the PrefectServer singleton so config is read once."""
         try:
-            from genai_tk.config_mgmt.config_mngr import global_config
-            from genai_tk.utils.prefect_server import PrefectConfig
+            from genai_tk.utils.prefect_server import prefect_server
 
-            cfg: PrefectConfig = global_config().section("prefect", PrefectConfig)
-            return cfg.resolved_api_url
+            return prefect_server().api_url
         except Exception:
             return "http://127.0.0.1:4200/api"
 
     @staticmethod
     def _build_client() -> httpx.Client:
-        """Build an httpx client that bypasses HTTP proxies for localhost."""
-        import os
+        """Build an httpx client; rely on PrefectServer.configure_api_url() for proxy bypass."""
+        # configure_api_url() sets PREFECT_API_URL and patches NO_PROXY; call it
+        # opportunistically so the client inherits the correct proxy settings.
+        try:
+            from genai_tk.utils.prefect_server import prefect_server
 
-        # Ensure localhost is in NO_PROXY
-        for key in ("NO_PROXY", "no_proxy"):
-            existing = os.environ.get(key, "")
-            entries = [e.strip() for e in existing.split(",") if e.strip()]
-            for bypass in ("localhost", "127.0.0.1"):
-                if bypass not in entries:
-                    entries.append(bypass)
-            os.environ[key] = ",".join(entries)
+            prefect_server().configure_api_url()
+        except Exception:
+            pass
 
         return httpx.Client(
             headers={"Content-Type": "application/json"},
