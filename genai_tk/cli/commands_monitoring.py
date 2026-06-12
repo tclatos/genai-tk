@@ -2,19 +2,22 @@
 
 Provides ``cli monitoring`` sub-commands for:
 - Inspecting which backends are active and whether keys are set
-- Starting / stopping a self-hosted LangFuse Docker instance
-- Opening the LangFuse or LangSmith UI in the browser
+- Enabling / disabling monitoring via a local ``.genai_tk`` state file
+- Opening the LangFuse or LangSmith UI (or latest trace) in the browser
 - Tailing / clearing the local JSONL trace log
+
+Docker service management (starting/stopping LangFuse itself) is handled by
+``just langfuse-server-start`` / ``just langfuse-server-stop``.
 """
 
 from __future__ import annotations
 
 import json
 import os
-import subprocess
 import webbrowser
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.console import Console
@@ -22,21 +25,102 @@ from rich.table import Table
 
 from genai_tk.cli.base import CliTopCommand
 
+if TYPE_CHECKING:
+    from genai_tk.utils.tracing import MonitoringConfig
 
-def _compose_file() -> Path:
-    """Resolve path to the bundled LangFuse docker-compose file."""
+# ── State file helpers ─────────────────────────────────────────────────────────
+
+_STATE_KEY = "monitoring"
+
+
+def _state_file() -> Path:
+    """Return path to the project-level ``.genai_tk`` state file."""
     try:
-        from genai_tk.config_mgmt.config_mngr import global_config
+        from genai_tk.config_mgmt.config_mngr import paths_config
 
-        project = global_config().get("paths.project", "")
-        if project:
-            p = Path(project) / "deploy" / "docker-compose.langfuse.yaml"
-            if p.exists():
-                return p
+        return paths_config().project / ".genai_tk"
     except Exception:
-        pass
-    # Fallback: relative to this source file's package root
-    return Path(__file__).parent.parent.parent / "deploy" / "docker-compose.langfuse.yaml"
+        return Path.cwd() / ".genai_tk"
+
+
+def _read_state() -> dict:
+    """Read the ``.genai_tk`` state file, returning an empty dict on error."""
+    sf = _state_file()
+    if not sf.exists():
+        return {}
+    try:
+        return json.loads(sf.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _write_state(data: dict) -> None:
+    """Merge *data* into the ``.genai_tk`` state file and persist it."""
+    current = _read_state()
+    current.update(data)
+    _state_file().write_text(json.dumps(current, indent=2, default=str), encoding="utf-8")
+
+
+def read_monitoring_state() -> dict:
+    """Return the ``monitoring`` section of the ``.genai_tk`` state file (may be empty)."""
+    return _read_state().get(_STATE_KEY, {})
+
+
+# ── Trace URL helpers ──────────────────────────────────────────────────────────
+
+
+def _get_latest_langfuse_trace_url(cfg: "MonitoringConfig", host: str, console: Console) -> str | None:
+    """Fetch the URL of the most recent LangFuse trace via the SDK."""
+    try:
+        from langfuse import Langfuse
+
+        pk = cfg.langfuse.public_key or os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+        sk = cfg.langfuse.secret_key or os.environ.get("LANGFUSE_SECRET_KEY", "")
+        if not (pk and sk):
+            console.print("[yellow]LangFuse keys not set — cannot fetch latest trace.[/yellow]")
+            return None
+        lf = Langfuse(public_key=pk, secret_key=sk, host=host)
+        # SDK v2/v3: list traces, take the first (most recent)
+        response = lf.api.trace.list(limit=1)
+        items = getattr(response, "data", None) or []
+        if items:
+            trace_id = items[0].id
+            url = f"{host}/trace/{trace_id}"
+            console.print(f"[dim]Latest trace: {trace_id}[/dim]")
+            return url
+        console.print("[yellow]No traces found in LangFuse.[/yellow]")
+        return None
+    except ImportError:
+        console.print("[yellow]langfuse package not installed.[/yellow]")
+        return None
+    except Exception as exc:
+        console.print(f"[yellow]Could not fetch latest LangFuse trace: {exc}[/yellow]")
+        return None
+
+
+def _get_latest_langsmith_trace_url(project: str, console: Console) -> str | None:
+    """Fetch the URL of the most recent LangSmith run via the SDK."""
+    try:
+        from langsmith import Client
+
+        client = Client()
+        runs = list(client.list_runs(project_name=project, is_root=True, limit=1, execution_order=1))
+        if runs:
+            run = runs[0]
+            # Prefer the run.url attribute if present; otherwise build it manually
+            url = getattr(run, "url", None)
+            if not url:
+                url = f"https://smith.langchain.com/public/{run.id}/r"
+            console.print(f"[dim]Latest trace run: {run.id}[/dim]")
+            return url
+        console.print("[yellow]No runs found in LangSmith project '{project}'.[/yellow]")
+        return None
+    except ImportError:
+        console.print("[yellow]langsmith package not installed.[/yellow]")
+        return None
+    except Exception as exc:
+        console.print(f"[yellow]Could not fetch latest LangSmith trace: {exc}[/yellow]")
+        return None
 
 
 class MonitoringCommands(CliTopCommand):
@@ -113,88 +197,128 @@ class MonitoringCommands(CliTopCommand):
 
             console.print(table)
             if cfg.backends:
-                console.print(f"[dim]Active backends: {', '.join(cfg.backends)}[/dim]")
+                console.print(f"[dim]Active backends (config): {', '.join(cfg.backends)}[/dim]")
             else:
                 console.print("[yellow]No backends configured. Add to monitoring.backends in config.[/yellow]")
 
+            # Show .genai_tk state file info
+            ms = read_monitoring_state()
+            if ms:
+                sf = _state_file()
+                state_active = ms.get("active_backends", [])
+                started_at = ms.get("started_at", "")
+                console.print(
+                    f"\n[bold]Local state[/bold] ([dim]{sf}[/dim])\n"
+                    f"  backends : {', '.join(state_active) if state_active else '—'}\n"
+                    f"  started  : {started_at}"
+                )
+
         @cli_app.command("start")
         def start(
-            backend: Annotated[
-                str, typer.Argument(help="Backend service to start. Currently supported: langfuse")
-            ] = "langfuse",
+            backends: Annotated[
+                str,
+                typer.Argument(
+                    help="Comma-separated backends to record as active (e.g. langfuse,local). "
+                    "Writes to .genai_tk state file."
+                ),
+            ] = "",
         ) -> None:
-            """Start a monitoring backend service via Docker Compose."""
+            """Enable monitoring and record active backends in the local .genai_tk state file.
+
+            This does NOT start Docker services — use ``just langfuse-server-start`` for that.
+            """
             console = Console()
-            if backend != "langfuse":
-                console.print(f"[red]Unknown backend '{backend}'. Only 'langfuse' is currently supported.[/red]")
-                raise typer.Exit(1)
-
-            compose = _compose_file()
-            if not compose.exists():
-                console.print(
-                    f"[red]Docker Compose file not found: {compose}[/red]\n"
-                    "[dim]Run: just monitoring-start  to auto-download the compose file.[/dim]"
-                )
-                raise typer.Exit(1)
-
-            console.print("[bold]Starting LangFuse via Docker Compose …[/bold]")
-            try:
-                subprocess.run(["docker", "compose", "-f", str(compose), "up", "-d"], check=True)
-            except subprocess.CalledProcessError as exc:
-                console.print(f"[red]docker compose failed: {exc}[/red]")
-                raise typer.Exit(1) from exc
-
             from genai_tk.utils.tracing import monitoring_config
 
-            host = monitoring_config().langfuse.host or "http://localhost:3000"
-            console.print(f"[green]LangFuse started → {host}[/green]")
-            console.print("[dim]Run: cli monitoring open langfuse  to open the UI[/dim]")
+            cfg = monitoring_config()
+            active = [b.strip() for b in backends.split(",") if b.strip()] if backends else list(cfg.backends)
+            if not active:
+                active = ["langfuse"]
+
+            lf_host = cfg.langfuse.host or "http://localhost:3000"
+            state: dict = {
+                "active_backends": active,
+                "project": cfg.project,
+                "started_at": datetime.now(tz=timezone.utc).isoformat(),
+                "langfuse_host": lf_host,
+            }
+            _write_state({_STATE_KEY: state})
+            sf = _state_file()
+            console.print(f"[green]Monitoring enabled[/green] → backends: {', '.join(active)}")
+            console.print(f"[dim]State written to {sf}[/dim]")
+            if "langfuse" in active:
+                console.print(f"[dim]LangFuse UI: {lf_host}[/dim]")
 
         @cli_app.command("stop")
-        def stop(
-            backend: Annotated[
-                str, typer.Argument(help="Backend service to stop. Currently supported: langfuse")
-            ] = "langfuse",
-        ) -> None:
-            """Stop a monitoring backend service via Docker Compose."""
+        def stop() -> None:
+            """Disable monitoring by clearing the .genai_tk state file entry.
+
+            This does NOT stop Docker services — use ``just langfuse-server-stop`` for that.
+            """
             console = Console()
-            if backend != "langfuse":
-                console.print(f"[red]Unknown backend '{backend}'.[/red]")
-                raise typer.Exit(1)
-
-            compose = _compose_file()
-            if not compose.exists():
-                console.print(f"[red]Docker Compose file not found: {compose}[/red]")
-                raise typer.Exit(1)
-
-            console.print("[bold]Stopping LangFuse …[/bold]")
-            try:
-                subprocess.run(["docker", "compose", "-f", str(compose), "down"], check=True)
-            except subprocess.CalledProcessError as exc:
-                console.print(f"[red]docker compose failed: {exc}[/red]")
-                raise typer.Exit(1) from exc
-            console.print("[green]LangFuse stopped.[/green]")
+            data = _read_state()
+            if _STATE_KEY not in data:
+                console.print("[yellow]Monitoring was not enabled in .genai_tk — nothing to do.[/yellow]")
+                return
+            data.pop(_STATE_KEY)
+            _state_file().write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+            console.print(f"[green]Monitoring disabled.[/green] State file: {_state_file()}")
 
         @cli_app.command("open")
         def open_ui(
             backend: Annotated[
                 str, typer.Argument(help="Backend UI to open: langfuse | langsmith | otel")
             ] = "langfuse",
+            trace: Annotated[
+                bool,
+                typer.Option("--trace", "-t", help="Open the latest trace URL instead of the dashboard home."),
+            ] = False,
+            trace_id: Annotated[
+                str | None,
+                typer.Option("--trace-id", help="Open a specific trace by ID."),
+            ] = None,
         ) -> None:
-            """Open the monitoring backend UI in the browser."""
+            """Open the monitoring backend UI or a trace URL in the browser.
+
+            With ``--trace``, fetches and opens the latest trace from the active backend.
+            With ``--trace-id <id>``, opens that specific trace directly.
+            """
             from genai_tk.utils.tracing import monitoring_config
 
+            console = Console()
             cfg = monitoring_config()
-            urls: dict[str, str] = {
-                "langfuse": cfg.langfuse.host or "http://localhost:3000",
-                "langsmith": "https://smith.langchain.com",
-                "otel": cfg.otel.endpoint,
-            }
-            url = urls.get(backend)
-            if not url:
-                Console().print(f"[red]No URL configured for backend: {backend}[/red]")
+
+            if backend == "langfuse":
+                host = cfg.langfuse.host or os.environ.get("LANGFUSE_HOST", "http://localhost:3000")
+                host = host.rstrip("/")
+
+                if trace_id:
+                    url = f"{host}/trace/{trace_id}"
+                elif trace:
+                    url = _get_latest_langfuse_trace_url(cfg, host, console)
+                    if url is None:
+                        url = f"{host}/traces"
+                else:
+                    url = host
+
+            elif backend == "langsmith":
+                project = cfg.project or os.environ.get("LANGSMITH_PROJECT", "default")
+                if trace_id:
+                    url = f"https://smith.langchain.com/public/{trace_id}/r"
+                elif trace:
+                    url = _get_latest_langsmith_trace_url(project, console)
+                    if url is None:
+                        url = f"https://smith.langchain.com/projects/p/{project}"
+                else:
+                    url = "https://smith.langchain.com"
+
+            elif backend == "otel":
+                url = cfg.otel.endpoint
+            else:
+                console.print(f"[red]No URL configured for backend: {backend}[/red]")
                 raise typer.Exit(1)
-            Console().print(f"Opening [link={url}]{url}[/link]")
+
+            console.print(f"Opening [link={url}]{url}[/link]")
             webbrowser.open(url)
 
         @cli_app.command("tail")

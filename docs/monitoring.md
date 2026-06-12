@@ -92,10 +92,50 @@ cli monitoring status
 
 ### CLI Monitoring Commands
 
-```bash
-# Show active backends and their configuration
-cli monitoring status
+#### Viewing Status
 
+```bash
+# Show active backends (config + .genai_tk state file)
+cli monitoring status
+```
+
+Output includes:
+- **Monitoring Backends** table — shows configured backends (langsmith, langfuse, otel, local) with API key status
+- **Local state** — contents of the `.genai_tk` state file (if monitoring is enabled)
+
+#### Enabling / Disabling Monitoring
+
+```bash
+# Enable monitoring (writes to .genai_tk state file)
+# Optionally override backends (default: from config)
+cli monitoring start langfuse,local
+
+# Disable monitoring (removes .genai_tk entry)
+cli monitoring stop
+```
+
+The `.genai_tk` state file is used by `cli info config` and other tools to know which backends are currently enabled. It does NOT start Docker services — use `just langfuse-server-start` for that.
+
+#### Opening UIs and Traces
+
+```bash
+# Open the monitoring backend dashboard
+cli monitoring open langfuse           # Dashboard home
+cli monitoring open langsmith
+cli monitoring open otel
+
+# Open the latest trace from the active backend
+cli monitoring open langfuse --trace   # or -t
+cli monitoring open langsmith --trace
+
+# Open a specific trace by ID
+cli monitoring open langfuse --trace-id abc123def456
+cli monitoring open langsmith --trace-id abc123def456
+```
+
+#### Viewing and Clearing Logs
+
+```bash
 # View the local JSONL trace log (most recent first)
 cli monitoring tail                    # Last 20 entries
 cli monitoring tail --n 50             # Last 50 entries
@@ -103,12 +143,25 @@ cli monitoring tail --json             # Raw JSON output for piping
 
 # Clear the local trace log
 cli monitoring clear --yes
+```
 
-# Manage LangFuse Docker instance (self-hosted)
-cli monitoring start langfuse          # Start via docker-compose
-cli monitoring stop langfuse           # Stop the containers
-cli monitoring open langfuse           # Open UI in browser
-cli monitoring open langsmith          # Open LangSmith UI
+#### Managing LangFuse Docker Service
+
+Use `just` targets to manage the self-hosted LangFuse service (Docker Compose):
+
+```bash
+just langfuse-server-start             # Start PostgreSQL + LangFuse
+just langfuse-server-stop              # Stop containers
+just langfuse-server-status            # Show service status
+```
+
+Shorthand aliases in `justfile`:
+
+```bash
+just monitoring-open langfuse          # Alias for: cli monitoring open langfuse
+just monitoring-open-trace langfuse    # Alias for: cli monitoring open langfuse --trace
+just monitoring-tail                   # Alias for: cli monitoring tail --n 30
+just monitoring-status                 # Alias for: cli monitoring status
 ```
 
 ### Programmatic Access
@@ -162,6 +215,28 @@ Fields:
 - `cost_usd` — Estimated cost (calculated from token counts + pricing DB)
 - `latency_ms` — Wall-clock latency in milliseconds
 - `error` — Error message (null if no error)
+
+## The `.genai_tk` State File
+
+The `.genai_tk` JSON file at your project root tracks which monitoring backends are currently enabled:
+
+```json
+{
+  "monitoring": {
+    "active_backends": ["langfuse", "local"],
+    "project": "MyProject",
+    "started_at": "2026-06-11T10:30:41.879977+00:00",
+    "langfuse_host": "https://cloud.langfuse.com"
+  }
+}
+```
+
+This file is created when you run `cli monitoring start`. It's used by:
+- `cli monitoring status` — to show which backends are currently enabled
+- `cli info config` — to display monitoring state alongside other system info
+- Other tools that need to know which backends are active
+
+To disable monitoring, run `cli monitoring stop`, which removes the `monitoring` entry.
 
 ## Configuration Reference
 
@@ -267,40 +342,6 @@ export LANGSMITH_API_KEY=
 # Sample only 10% of traces (LangFuse only)
 export LANGFUSE_SAMPLE_RATE=0.1
 ```
-
-## Self-Hosted LangFuse
-
-### Start with Docker Compose
-
-A docker-compose file is included for running LangFuse locally:
-
-```bash
-cli monitoring start langfuse
-```
-
-This starts PostgreSQL + LangFuse v3 on `http://localhost:3000`.
-
-### Configure for Self-Hosted
-
-```yaml
-monitoring:
-  backends: [langfuse, local]
-  project: MyProject
-  langfuse:
-    host: http://localhost:3000
-    public_key: ${oc.env:LANGFUSE_PUBLIC_KEY,""}
-    secret_key: ${oc.env:LANGFUSE_SECRET_KEY,""}
-```
-
-Then set in `.env`:
-
-```bash
-LANGFUSE_HOST=http://localhost:3000
-LANGFUSE_PUBLIC_KEY=...
-LANGFUSE_SECRET_KEY=...
-```
-
-Create an account in the LangFuse UI at `http://localhost:3000`, copy the keys, and add to `.env`.
 
 ## Observability Integrations
 

@@ -50,8 +50,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from langchain.agents.middleware import AgentMiddleware
-from langgraph.checkpoint.base import BaseCheckpointSaver
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -63,6 +61,8 @@ import_from_qualified = ImportResolver.import_from_qualified
 
 if TYPE_CHECKING:
     from deepagents.backends.protocol import BackendProtocol
+    from langchain.agents.middleware import AgentMiddleware
+    from langgraph.checkpoint.base import BaseCheckpointSaver
 
 AgentType = Literal["react", "deep", "custom"]
 

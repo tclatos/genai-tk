@@ -1,7 +1,8 @@
 """FastEmbed-backed LangChain Embeddings implementation.
 
 Wraps the ``fastembed`` package directly, providing a ``langchain_core``-compatible
-``Embeddings`` class without depending on ``langchain-community``.
+``Embeddings`` class without depending on ``langchain-community`` (which is depreciated). 
+Check if supporte version exists. 
 
 Usage (via config/providers/providers.yaml)::
 

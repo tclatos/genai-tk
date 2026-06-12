@@ -1,0 +1,12 @@
+{
+  "monitoring": {
+    "active_backends": [
+      "langfuse",
+      "langsmith",
+      "local"
+    ],
+    "project": "GenAI_demo",
+    "started_at": "2026-06-12T08:14:46.571834+00:00",
+    "langfuse_host": "https://cloud.langfuse.com"
+  }
+}

@@ -345,7 +345,8 @@ class OmegaConfig(BaseModel):
                         logger.warning(
                             f"Config key '{key_str}' has overlapping leaf keys {sorted(leaf_conflicts)} "
                             f"defined in {existing_files} and {source}. "
-                            "Later file wins. Use a profile overlay or overrides.yaml to override intentionally."
+                            "Later file wins. Either exclude one file in :merge: patterns (use '!' prefix) "
+                            "or add a profile overlay in :profiles: to intentionally override values."
                         )
             except Exception:
                 pass

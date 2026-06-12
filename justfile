@@ -122,17 +122,21 @@ webapp:
 monitoring-status:
     uv run cli monitoring status
 
-[doc('Start LangFuse self-hosted via Docker Compose  (monitoring-start langfuse)')]
-monitoring-start backend="langfuse":
-    uv run cli monitoring start {{ backend }}
+[doc('Enable monitoring for this project (writes .genai_tk state file)')]
+monitoring-start backends="":
+    uv run cli monitoring start {{ backends }}
 
-[doc('Stop LangFuse Docker Compose  (monitoring-stop langfuse)')]
-monitoring-stop backend="langfuse":
-    uv run cli monitoring stop {{ backend }}
+[doc('Disable monitoring for this project (clears .genai_tk state entry)')]
+monitoring-stop:
+    uv run cli monitoring stop
 
 [doc('Open monitoring backend UI in browser  (monitoring-open langfuse|langsmith)')]
 monitoring-open backend="langfuse":
     uv run cli monitoring open {{ backend }}
+
+[doc('Open the latest trace in the browser  (monitoring-open-trace langfuse|langsmith)')]
+monitoring-open-trace backend="langfuse":
+    uv run cli monitoring open {{ backend }} --trace
 
 [doc('Tail the last 30 entries from the local JSONL trace log')]
 monitoring-tail n="30":
@@ -141,6 +145,23 @@ monitoring-tail n="30":
 [doc('Clear the local JSONL trace log (with confirmation)')]
 monitoring-clear:
     uv run cli monitoring clear
+
+# ─── LangFuse server (Docker) ────────────────────────────────────────────────
+
+[private]
+_compose_file := `python3 -c "from pathlib import Path; p = Path('deploy/docker-compose.langfuse.yaml'); print(p if p.exists() else '')" 2>/dev/null || echo "deploy/docker-compose.langfuse.yaml"`
+
+[doc('Start self-hosted LangFuse via Docker Compose')]
+langfuse-server-start:
+    docker compose -f deploy/docker-compose.langfuse.yaml up -d
+
+[doc('Stop self-hosted LangFuse Docker Compose')]
+langfuse-server-stop:
+    docker compose -f deploy/docker-compose.langfuse.yaml down
+
+[doc('Show LangFuse Docker Compose service status')]
+langfuse-server-status:
+    docker compose -f deploy/docker-compose.langfuse.yaml ps
 
 # ─── Deer-flow ──────────────────────────────────────────────────────────────
 

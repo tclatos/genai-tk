@@ -176,12 +176,19 @@ def should_enable_tracing() -> bool:
 def get_monitoring_callbacks() -> list:
     """Return active LangChain callbacks (e.g. the local JSONL handler).
 
+    Initialises monitoring on first call (lazy — avoids importing heavy packages
+    at CLI startup when no LLM command is actually running).
+
     Remote backends use OTEL auto-instrumentation and do not appear here.
     Pass the returned list via ``config={"callbacks": ...}`` when invoking chains.
     """
     global _monitoring_context
     if _monitoring_context is None:
-        return []
+        try:
+            setup_monitoring()
+        except Exception as exc:
+            logger.debug(f"Monitoring setup skipped: {exc}")
+            return []
     return list(_monitoring_context.langchain_callbacks)
 
 
@@ -247,13 +254,19 @@ def _setup_langsmith(cfg: MonitoringConfig) -> None:
 
 
 def _setup_langfuse(cfg: MonitoringConfig) -> Any | None:
-    """Activate LangFuse tracing; returns a LangChain CallbackHandler."""
+    """Activate LangFuse tracing; returns a LangChain CallbackHandler.
+
+    When keys are not configured the function sets env vars and returns early
+    without importing any heavy LangFuse / LangChain packages, keeping CLI
+    startup fast.
+    """
     lf = cfg.langfuse
     if not lf.is_configured:
-        logger.warning(
-            "LangFuse backend selected but LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY are not set. "
-            "Set them as env vars or under monitoring.langfuse in config."
+        logger.debug(
+            "LangFuse backend selected but LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY are not set — "
+            "skipping LangFuse initialisation (set keys to enable tracing)."
         )
+        return None
 
     # Set LangFuse SDK env vars (used by the langfuse Python SDK and litellm)
     if lf.public_key:
@@ -372,7 +385,17 @@ def _instrument_smolagents_otel() -> None:
 
 
 def _setup_litellm_langfuse() -> None:
-    """Register LiteLLM → LangFuse OTEL callback if litellm is importable."""
+    """Register LiteLLM → LangFuse OTEL callback — only if litellm is already loaded.
+
+    Importing litellm on a cold start takes ~2.5s. We skip the registration
+    entirely when litellm hasn't been imported yet; it will be registered the
+    first time the caller actually imports litellm (e.g. when running an LLM).
+    """
+    import sys
+
+    if "litellm" not in sys.modules:
+        logger.debug("LiteLLM not yet loaded — skipping langfuse_otel callback registration")
+        return
     try:
         import litellm
 

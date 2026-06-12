@@ -185,6 +185,25 @@ class InfoCommands(CliTopCommand):
 
             console.print(f"LangSmith Tracing: {ls_utils.tracing_is_enabled()}")
 
+            # Monitoring state from .genai_tk
+            try:
+                from genai_tk.cli.commands_monitoring import _state_file, read_monitoring_state
+
+                ms = read_monitoring_state()
+                sf = _state_file()
+                mon_table = Table(title="Monitoring State (.genai_tk)", show_header=True, header_style="bold magenta")
+                mon_table.add_column("Key", style="cyan", width=16)
+                mon_table.add_column("Value", style="green")
+                if ms:
+                    for k, v in ms.items():
+                        mon_table.add_row(str(k), str(v))
+                    mon_table.add_row("[dim]file[/dim]", str(sf))
+                else:
+                    mon_table.add_row("[dim]status[/dim]", "[yellow]not set[/yellow]  (run: cli monitoring start)")
+                console.print(mon_table)
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not load monitoring state: {e}[/yellow]")
+
         @cli_app.command("models")
         def models() -> None:
             """

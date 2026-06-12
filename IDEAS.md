@@ -1,17 +1,4 @@
 
-# Tracing
-- Have a command to staop  / stop monitoring. 
-I suggest that you move  current 'cli  monitoring start' and ' cli monitoring  stop" as just targets (as just langfuse-server start) .
-cli  monitoring start could write a locel file (ex: .genai_tk) 
-and have a local file to store stat
-
-# Misc
-We have changed recently scalfolding and package management. Some improvement are needed: 
-1 -     "presidio-analyze and presidio-anonymizer need spacy. Put them as optional with "nlp" optional dependency , and check  that dependecy is loaded
-2 - BAML need to be  installed with 'uv add baml-py', to have the baml-cli command properly installed. So correct te topml file and the 'cli init' command (with correct dstination for uv run baml-cli init )
-3 
-
-
  
 # huggingface
  Check it accetp streaming, .... 

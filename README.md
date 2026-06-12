@@ -35,6 +35,15 @@ Orchestrate multi-step AI pipelines with Prefect and a YAML DSL for composable, 
 - **Structured extraction** — BAML-based extraction with type-safe output
 - See: `cli workflow`, `cli prefect`, [docs/workflows.md](docs/workflows.md), [docs/prefect.md](docs/prefect.md)
 
+### 📊 **Monitoring & Observability**
+Built-in tracing for all LLM calls, agents, and workflows across multiple observability backends.
+- **Multi-backend support** — LangSmith, LangFuse (cloud or self-hosted), OpenTelemetry, local JSONL
+- **State management** — `.genai_tk` file tracks which backends are active
+- **Trace URL opening** — `cli monitoring open --trace` fetches and opens the latest trace in your browser
+- **JSONL logging** — local file-based trace log (always on, no external service required)
+- Docker service control — `just langfuse-server-start/stop` for self-hosted LangFuse
+- See: `cli monitoring`, [docs/monitoring.md](docs/monitoring.md)
+
 ---
 
 **What it gives you:**
@@ -195,6 +204,38 @@ workflows:
 ```
 
 Then: `uv run cli workflow run my_pipeline`
+
+---
+
+### 📊 Monitoring & Observability
+
+```bash
+# Check monitoring status (config + enabled backends)
+uv run cli monitoring status
+
+# Enable monitoring (writes .genai_tk state file)
+uv run cli monitoring start langfuse,local
+
+# Start self-hosted LangFuse (Docker Compose)
+just langfuse-server-start
+
+# Open latest trace in browser
+uv run cli monitoring open langfuse --trace
+
+# View local trace log
+uv run cli monitoring tail --n 50
+```
+
+**Python:**
+```python
+from genai_tk.utils.tracing import setup_monitoring, get_monitoring_callbacks
+
+setup_monitoring()  # Initialize all active backends
+callbacks = get_monitoring_callbacks()
+
+# Pass callbacks to LLM invocation
+llm.invoke("Hello", config={"callbacks": callbacks})
+```
 
 ---
 
