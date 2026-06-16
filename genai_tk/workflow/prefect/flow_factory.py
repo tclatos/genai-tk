@@ -392,6 +392,10 @@ def _build_prefect_flow(
     manifest_path = workflow_manifest_path(compiled.name)
 
     def _flow_body() -> dict[str, Any]:
+        from genai_tk.utils.prefect_logging import install_loguru_prefect_bridge
+
+        install_loguru_prefect_bridge()
+
         manifest = ManifestCache.load(manifest_path)
         futures: dict[str, Any] = {}
         results: dict[str, Any] = {}
@@ -558,10 +562,6 @@ def _publish_workflow_artifact(
     results: dict[str, Any],
 ) -> None:
     """Create a markdown summary artifact for the workflow run (best-effort)."""
-    publishable = [s for s in steps if s.artifacts.publish_result]
-    if not publishable:
-        return
-
     try:
         from prefect.artifacts import create_markdown_artifact
     except ImportError:

@@ -59,7 +59,7 @@ def mistral_ocr(path: Path, use_cache: bool = True) -> OCRResponse:
         if cached_ocr:
             logger.info(f"use cached OCR for: '{str(path)}'")
             return cached_ocr
-    if path.protocol in ["http", "https"]:
+    if getattr(path, "protocol", None) in ["http", "https"]:
         document_url = str(path)
     else:
         base64_file = _encode_to_base64(path)
@@ -203,7 +203,7 @@ async def process_pdf_batch(pdf_paths: list[Path], output_dir: Path, use_cache: 
         progress.update(task, description="[cyan]Preparing batch file...")
         document_urls = []
         for pdf_path in pdf_paths:
-            if pdf_path.protocol in ["http", "https"]:
+            if getattr(pdf_path, "protocol", None) in ["http", "https"]:
                 document_url = str(pdf_path)
             else:
                 base64_file = _encode_to_base64(pdf_path)

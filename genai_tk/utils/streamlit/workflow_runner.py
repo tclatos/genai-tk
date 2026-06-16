@@ -165,7 +165,7 @@ class WorkflowRunner:
         self._state["thread"] = thread
         thread.start()
 
-    def start_flow(self, flow_fn: "Any") -> None:
+    def start_flow(self, flow_fn: "Any", *, flow_kwargs: "dict[str, Any] | None" = None) -> None:
         """Launch a pre-built Prefect ``@flow`` function in a background thread.
 
         Use this when you have a Prefect flow object directly (e.g. a demo or
@@ -173,6 +173,7 @@ class WorkflowRunner:
 
         Args:
             flow_fn: A Prefect ``@flow``-decorated callable.
+            flow_kwargs: Keyword arguments forwarded to the flow when called.
         """
         if not self.idle and not self.failed:
             logger.warning("WorkflowRunner[{}]: already running, ignoring start_flow()", self._key)
@@ -184,6 +185,7 @@ class WorkflowRunner:
         thread = threading.Thread(
             target=self._run_flow_in_thread,
             args=(flow_fn,),
+            kwargs={"flow_kwargs": flow_kwargs or {}},
             daemon=True,
             name=f"wf-runner-{self._key}",
         )
@@ -370,7 +372,7 @@ class WorkflowRunner:
             store["status"] = _FAILED
             store["error"] = str(exc)
 
-    def _run_flow_in_thread(self, flow_fn: "Any") -> None:
+    def _run_flow_in_thread(self, flow_fn: "Any", *, flow_kwargs: "dict[str, Any] | None" = None) -> None:
         """Target for start_flow() — runs a bare Prefect @flow function.
 
         All state updates go to ``_thread_store``.
@@ -391,7 +393,7 @@ class WorkflowRunner:
                     logger.debug("WorkflowRunner[{}] on_running hook error: {}", self._key, exc)
 
             patched = flow_fn.with_options(on_running=[_on_running])
-            results = patched()
+            results = patched(**(flow_kwargs or {}))
 
             store["status"] = _COMPLETED
             store["results"] = results if isinstance(results, dict) else {"result": results}

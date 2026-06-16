@@ -83,7 +83,7 @@ FEATURES: dict[str, FeatureInfo] = {
     "baml": FeatureInfo(
         description="BAML structured data extraction",
         packages=["baml-py"],
-        check_modules=["baml_lib"],
+        check_modules=["baml_py"],
         install_cmd='uv sync --extra baml  # or: uv add "genai-tk[baml]"',
     ),
     "chromadb": FeatureInfo(

@@ -475,6 +475,10 @@ def markdownize_flow(
     Returns:
         Updated manifest with processing results.
     """
+    from genai_tk.utils.prefect_logging import install_loguru_prefect_bridge
+
+    install_loguru_prefect_bridge()
+
     if pathspecs is None:
         pathspecs = [
             "**/*.pdf",
@@ -526,6 +530,21 @@ def markdownize_flow(
                 for k, rec in cache.records.items()
             }
         )
+        try:
+            from prefect.artifacts import create_markdown_artifact
+
+            lines = [
+                "# Markdownize Summary",
+                "",
+                f"**All {skipped} file(s) served from cache — nothing to reprocess.**",
+                "",
+            ]
+            lines += ["| Cached file | Output |", "|-------------|--------|"] + [
+                f"| `{Path(k).name}` | `{v.output_path}` |" for k, v in manifest.entries.items()
+            ]
+            create_markdown_artifact("\n".join(lines), key="markdownize-summary")
+        except Exception:
+            pass
         return manifest
 
     logger.info(f"Processing {len(to_process)} files")
@@ -568,4 +587,29 @@ def markdownize_flow(
             for k, rec in cache.records.items()
         }
     )
+
+    # Publish a Prefect artifact summarising the conversion results.
+    try:
+        from prefect.artifacts import create_markdown_artifact
+
+        lines = [
+            "# Markdownize Summary",
+            "",
+            f"**Processed:** {len(to_process)}  |  **Skipped (cached):** {skipped}",
+            "",
+        ]
+        if to_process:
+            lines += ["## Converted files", "", "| Source file | Output |", "|-------------|--------|"] + [
+                f"| `{Path(k).name}` | `{v.output_path}` |"
+                for k, v in manifest.entries.items()
+                if any(str(f.path) == k for f in to_process)
+            ]
+        if skipped:
+            lines += ["", "## Cached (skipped)", ""] + [
+                f"- `{Path(k).name}`" for k in manifest.entries if not any(str(f.path) == k for f in to_process)
+            ]
+        create_markdown_artifact("\n".join(lines), key="markdownize-summary")
+    except Exception:
+        pass  # Artifacts are best-effort; never block the return value.
+
     return manifest

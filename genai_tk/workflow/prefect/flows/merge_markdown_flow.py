@@ -116,10 +116,10 @@ def _make_anchor(display_name: str) -> str:
     return anchor
 
 
-def _collect_md_files(base_dir: Path) -> list[Path]:
-    """Collect all .md files in base_dir (non-recursive), excluding MERGED.md."""
+def _collect_md_files(base_dir: Path, output_filename: str = "MERGED.md") -> list[Path]:
+    """Collect all .md files in base_dir (non-recursive), excluding MERGED*.md output files."""
     return sorted(
-        (p for p in base_dir.glob("*.md") if p.name.upper() != "MERGED.MD"),
+        (p for p in base_dir.glob("*.md") if p.name.upper() != "MERGED.MD" and p.name != output_filename),
         key=_sort_key,
     )
 
@@ -176,6 +176,10 @@ def merge_markdown_flow(
     Returns:
         MergeResult with path and merged file count.
     """
+    from genai_tk.utils.prefect_logging import install_loguru_prefect_bridge
+
+    install_loguru_prefect_bridge()
+
     resolved = resolve_config_path(base_dir)
     base_upath = Path(resolved)
 
@@ -183,7 +187,7 @@ def merge_markdown_flow(
         logger.error(f"Directory does not exist: {base_upath}")
         return MergeResult(output_path="", file_count=0)
 
-    md_files = _collect_md_files(base_upath)
+    md_files = _collect_md_files(base_upath, output_filename)
 
     if not md_files:
         logger.warning(f"No markdown files found in {base_upath}")
@@ -196,6 +200,23 @@ def merge_markdown_flow(
     output_path = base_upath / output_filename
     output_path.write_text(content, encoding="utf-8")
     logger.success(f"Wrote merged document to {output_path} ({len(md_files)} files)")
+
+    # Publish a Prefect artifact with the merge summary.
+    try:
+        from prefect.artifacts import create_markdown_artifact
+
+        lines = [
+            "# Merge Summary",
+            "",
+            f"**Output:** `{output_path}`  ",
+            f"**Files merged:** {len(md_files)}",
+            "",
+            "| # | Source file |",
+            "|---|-------------|",
+        ] + [f"| {i + 1} | `{md_files[i].name}` |" for i in range(len(md_files))]
+        create_markdown_artifact("\n".join(lines), key="merge-summary")
+    except Exception:
+        pass
 
     return MergeResult(
         output_path=str(output_path),

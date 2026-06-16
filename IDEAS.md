@@ -1,3 +1,15 @@
+# zvec
+
+genai_tk/core/vector_backends/zvec.py 
+
+- Implement retriever ManagedRetriever 
+
+
+## Ladybug embeddings
+
+We want to store in Ladybug the embeddings of some kinf of documents.  
+
+
 
  
 # huggingface
@@ -64,9 +76,6 @@ examples/notebooks/middleware_anonymization_demo.ipynb
 - the user can visualize the configurarauon and oyther information to understand how it works
 
 
-## Ladybug embeddings
-
-We want to store in Ladybug the embeddings of some kinf of documents.  
 
 
 

@@ -15,7 +15,10 @@ from genai_tk.config_mgmt.features import require_feature
 
 require_feature("baml", context="genai_tk.extra.structured.baml_util")
 
-import baml_lib  # noqa: E402
+try:
+    import baml_lib  # type: ignore[import-not-found]
+except ModuleNotFoundError:
+    baml_lib = None  # type: ignore[assignment]  # baml_lib removed in baml-py >= 0.100
 from baml_py import ClientRegistry  # noqa: E402
 from loguru import logger  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
@@ -363,6 +366,11 @@ def prompt_fingerprint(function_name: str, config_name: str = "default", **kwarg
         )
 
     # Create PyBamlContext for the return type and render schema
+    if baml_lib is None:
+        raise ImportError(
+            "baml_lib is not available in this version of baml-py. "
+            "Schema hashing is not supported with baml-py >= 0.100."
+        )
     baml_context = baml_lib.PyBamlContext(baml_schema_content, return_type_name)  # pyright: ignore[reportAttributeAccessIssue]
     rendered = baml_context.render_prompt(None, True)
 
