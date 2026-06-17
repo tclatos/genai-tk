@@ -65,6 +65,15 @@ mcpServers:
       example : "Find relevant studies on alcohol hangover and treatment."
       disabled: true
 
+  weather:
+      command: uv
+      args: 
+        - "--directory"
+        - ${paths.project}/examples/mcp_server
+        - run 
+        - weather_server.py
+      disabled: false
+
 # Project-defined MCP servers (served via `cli mcp serve --name <name>`).
 # Each key is the server name declared in config/examples/tk_servers.yaml.
 # Set disabled: true to exclude a server without removing it from this list.

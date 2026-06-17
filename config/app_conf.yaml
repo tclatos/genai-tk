@@ -8,6 +8,7 @@ profile: ${oc.env:GENAITK_PROFILE,local}
 paths:
   home: ${oc.env:HOME}
   project: ${oc.env:PWD}
+  src: ${paths.project}/genai_tk
   config: ${paths.project}/config
   data_root: ${paths.project}/data
 

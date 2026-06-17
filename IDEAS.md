@@ -1,3 +1,10 @@
+# Refactor Retriever 
+We want to completly refactor the RAG processing part of the toolkit, tp ba able to deal with mode complex use cases, backends and configuration. We want notably able to levearge the capabilities of hybrid rag of the zvec lib, use LandyBug for hybrid RAG, in addition of current use cases with PostgreSQL and vercor stode + bm25 +  reranker. 
+
+Our idea is this one : 
+- ManagedRetriever shoud become an abstract class , with core abstract methods such as aquery, aadd_documents, adelete_colection, ...
+
+- Remove SQLRecordManager and replace caching with py-key-value
 # zvec
 
 genai_tk/core/vector_backends/zvec.py 

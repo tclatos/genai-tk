@@ -224,7 +224,17 @@ class WorkflowRunner:
 
         # Determine st.status label and state
         if status == _RUNNING:
-            label = "⏳ Processing…"
+            # Show the current running task in the label for better UX
+            running_tasks = [t for t in task_runs if t.state_name == "Running"]
+            if running_tasks:
+                # Get the most recent running task
+                running_tasks.sort(key=lambda t: t.start_time or "", reverse=True)
+                current_task = running_tasks[0]
+                # Strip Prefect hash suffix for cleaner display
+                clean_name = re.sub(r"-[0-9a-f]{3,6}$", "", current_task.name)
+                label = f"⏳ {clean_name}…"
+            else:
+                label = "⏳ Processing…"
             expanded = True
             state_arg = "running"
         elif status == _COMPLETED:

@@ -65,6 +65,7 @@ class LangchainAgent(BaseModel):
     agent_type: AgentType | None = None
     system_prompt: str | None = None
     mcp_servers: list[str] = Field(default_factory=list)
+    extra_middlewares: list[str] = Field(default_factory=list)
     checkpointer: bool = False
     details: bool = False
     sandbox: SandboxType | None = None
@@ -241,6 +242,19 @@ class LangchainAgent(BaseModel):
 
                 profile = profile.model_copy(update=update)
 
+            # Apply CLI --middleware overrides (prepend to the profile's stack)
+            if self.extra_middlewares:
+                from genai_tk.agents.langchain.commands import _MIDDLEWARE_REGISTRY
+                from genai_tk.agents.langchain.config import MiddlewareConfig
+
+                extra_mw_configs = [
+                    MiddlewareConfig.model_validate(_MIDDLEWARE_REGISTRY[name])
+                    for name in self.extra_middlewares
+                    if name in _MIDDLEWARE_REGISTRY
+                ]
+                existing = list(profile.middlewares or [])
+                profile = profile.model_copy(update={"middlewares": extra_mw_configs + existing})
+
             self._agent = await create_langchain_agent(
                 profile,
                 extra_tools=self.tools or None,
@@ -249,8 +263,6 @@ class LangchainAgent(BaseModel):
                 details=self.details,
             )
             logger.debug("LangchainAgent initialized: profile={}", self._profile.name)
-
-            # Auto-open VNC in the default browser for visual debugging
             if self.vnc:
                 backend = getattr(self._agent, "_backend", None)
                 base_url = getattr(backend, "_base_url", "") if backend else ""

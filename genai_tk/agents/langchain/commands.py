@@ -16,6 +16,28 @@ if TYPE_CHECKING:
     from genai_tk.agents.langchain.config import AgentProfileConfig
 
 
+# ---------------------------------------------------------------------------
+# Built-in middleware shorthand registry
+# Maps a friendly name to a MiddlewareConfig dict (same shape as YAML).
+# Hard-coded for now; extend as new middlewares are added.
+# ---------------------------------------------------------------------------
+
+_MIDDLEWARE_REGISTRY: dict[str, dict] = {
+    "AnonymizationMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware",
+        "analyzed_fields": ["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "LOCATION"],
+        "fuzzy_deanonymize": True,
+    },
+    "RichToolCallMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware",
+    },
+    "EmptyResponseRetryMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware",
+        "max_retries": 2,
+    },
+}
+
+
 def _get_config_path() -> str:
     """Return the path to the langchain agents config (directory or file).
 
@@ -200,6 +222,17 @@ def register(cli_app: typer.Typer) -> None:
             bool,
             Option("--keep-sandbox", help="Keep the sandbox container running after agent exits for inspection"),
         ] = False,
+        middleware: Annotated[
+            list[str],
+            Option(
+                "--middleware",
+                help=(
+                    "Apply a named middleware (may be repeated). "
+                    f"Built-in names: {', '.join(_MIDDLEWARE_REGISTRY)}. "
+                    "Middlewares are prepended to the profile's existing middleware stack."
+                ),
+            ),
+        ] = [],
     ) -> None:
         """Run a LangChain-based agent (react | deep | custom) from a YAML profile.
 
@@ -225,6 +258,9 @@ def register(cli_app: typer.Typer) -> None:
 
           # Add extra MCP servers
           cli agents langchain -p filesystem --mcp playwright "Browse atos.net"
+
+          # Anonymize PII before sending to the LLM
+          cli agents langchain --middleware AnonymizationMiddleware "Thierry (phone: 0622) has BP 156. Normal?"
         """
         from rich.console import Console
 
@@ -271,12 +307,22 @@ def register(cli_app: typer.Typer) -> None:
             console.print("[red]Error:[/red] Provide a query (positional arg, stdin) or use --chat")
             raise typer.Exit(1)
 
+        # Validate --middleware names against the registry
+        unknown_middlewares = [m for m in middleware if m not in _MIDDLEWARE_REGISTRY]
+        if unknown_middlewares:
+            console.print(
+                f"[red]Unknown middleware(s): {', '.join(unknown_middlewares)}[/red]\n"
+                f"Available: {', '.join(_MIDDLEWARE_REGISTRY)}"
+            )
+            raise typer.Exit(1)
+
         try:
             agent = LangchainAgent(
                 profile_name,
                 llm=llm or None,
                 agent_type=agent_type,  # type: ignore[arg-type]
                 mcp_servers=list(mcp) if mcp else [],
+                extra_middlewares=list(middleware),
                 checkpointer=chat,
                 details=details,
                 sandbox=sandbox or None,
