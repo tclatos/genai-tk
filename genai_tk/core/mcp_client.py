@@ -144,6 +144,29 @@ async def get_mcp_tools_info(filter: list[str] | None = None) -> dict:
     return tools_info
 
 
+async def get_mcp_tools_with_schema(filter: list[str] | None = None) -> dict[str, list]:
+    """Get all tools from MCP servers including their input schemas.
+
+    Returns:
+        Dict mapping server name to list of MCP Tool objects (with .name, .description, .inputSchema).
+    """
+    from mcp import ClientSession, StdioServerParameters  # noqa: PLC0415
+    from mcp.client.stdio import stdio_client  # noqa: PLC0415
+
+    servers = get_mcp_servers_dict(filter)
+    result: dict[str, list] = {}
+    for server_name, param_desc in servers.items():
+        debug(server_name)
+        if not param_desc.get("disabled", False):
+            server_params = StdioServerParameters(**param_desc)
+            async with stdio_client(server_params) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    tools = await session.list_tools()
+                    result[server_name] = tools.tools
+    return result
+
+
 async def get_mcp_prompts(filter: list[str] | None = None) -> dict:
     """Get all prompts  from MCP servers with their names and descriptions."""
     from mcp import ClientSession, StdioServerParameters  # noqa: PLC0415

@@ -27,6 +27,7 @@ st.caption(
     "The status label tracks the **currently running task** in real time."
 )
 
+
 # ── Demo flow definition ──────────────────────────────────────────────────────
 # Stage 1: parallel fetches
 @task(name="fetch-source-a")
@@ -93,7 +94,11 @@ def aggregate_results(batches: list[dict[str, Any]], total: int) -> dict[str, An
 def generate_report(summary: dict[str, Any]) -> dict[str, Any]:
     """Produce the final structured report."""
     time.sleep(1.5)
-    return {**summary, "status": "ok", "coverage_pct": round(summary["total_processed"] / summary["total_input"] * 100, 1)}
+    return {
+        **summary,
+        "status": "ok",
+        "coverage_pct": round(summary["total_processed"] / summary["total_input"] * 100, 1),
+    }
 
 
 @flow(
@@ -211,7 +216,7 @@ with col_right:
         results = runner.results or {}
         st.success("Workflow completed successfully.")
 
-        report = (results.get("report") or {})
+        report = results.get("report") or {}
         if report:
             mcol1, mcol2, mcol3 = st.columns(3)
             mcol1.metric("Total records", results.get("total_records", "—"))
@@ -229,7 +234,8 @@ with col_right:
         task_runs = runner.task_runs
         if task_runs:
             import re
-            from genai_tk.utils.streamlit.workflow_runner import _STATE_ICONS, _DEFAULT_ICON
+
+            from genai_tk.utils.streamlit.workflow_runner import _DEFAULT_ICON, _STATE_ICONS
 
             rows = {}
             for t in task_runs:
@@ -238,8 +244,7 @@ with col_right:
 
             table_md = "| Task | State |\n|---|---|\n"
             table_md += "\n".join(
-                f"| `{name}` | {_STATE_ICONS.get(state, _DEFAULT_ICON)} {state} |"
-                for name, state in rows.items()
+                f"| `{name}` | {_STATE_ICONS.get(state, _DEFAULT_ICON)} {state} |" for name, state in rows.items()
             )
             st.markdown(table_md)
         else:
@@ -247,4 +252,3 @@ with col_right:
 
     else:
         st.caption("No results yet.")
-

@@ -597,7 +597,7 @@ class TestMultipleBackends:
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
         try:
-            ctx = setup_monitoring()
+            _ctx = setup_monitoring()
             app = _make_app(CoreCommands)
             result = _runner().invoke(
                 app,

@@ -631,27 +631,43 @@ class InfoCommands(CliTopCommand):
             from rich.console import Console
             from rich.table import Table
 
-            from genai_tk.core.mcp_client import get_mcp_tools_info
+            from genai_tk.core.mcp_client import get_mcp_tools_with_schema
+
+            def _format_args(input_schema: dict) -> str:
+                """Render inputSchema properties as a compact string."""
+                props = input_schema.get("properties", {})
+                required = set(input_schema.get("required", []))
+                if not props:
+                    return ""
+                parts = []
+                for name, spec in props.items():
+                    typ = spec.get("type", "any")
+                    suffix = "" if name in required else "?"
+                    parts.append(f"{name}:{typ}{suffix}")
+                return "  ".join(parts)
 
             async def display_tools():
-                tools_info = await get_mcp_tools_info(filter)
-                if not tools_info:
+                tools_by_server = await get_mcp_tools_with_schema(filter)
+                if not tools_by_server:
                     print("No MCP tools found.")
                     return
 
                 console = Console()
-                for server_name, tools in tools_info.items():
+                for server_name, tools in tools_by_server.items():
                     table = Table(
                         title=f"Server: {server_name}",
                         show_header=True,
                         header_style="bold magenta",
                         row_styles=["", "dim"],
+                        expand=True,
                     )
-                    table.add_column("Tool", style="cyan", no_wrap=True)
-                    table.add_column("Description", style="green")
+                    table.add_column("Tool", style="cyan", no_wrap=True, ratio=1)
+                    table.add_column("Description", style="green", ratio=3)
+                    table.add_column("Arguments", style="yellow", ratio=1)
 
-                    for tool_name, description in tools.items():
-                        table.add_row(tool_name, description)
+                    for tool in tools:
+                        args_str = _format_args(tool.inputSchema)
+                        table.add_row(tool.name, tool.description or "", args_str)
 
                     console.print(table)
                     print()  # Add space between tables
