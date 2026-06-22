@@ -43,18 +43,31 @@ load_dotenv()
 
 
 CONFIG_FILE = "config/agents/langchain.yaml"
+CONFIG_FILE_EXAMPLES = "config/examples/agents/langchain.yaml"
 
 
 def _resolve_config_file() -> str:
-    """Return config path: project-local if it exists, otherwise the bundled default."""
+    """Return config path: project-local if it exists, otherwise the bundled default.
+
+    Resolution order:
+    1. ``config/agents/langchain.yaml`` relative to CWD (project-specific config)
+    2. ``config/examples/agents/langchain.yaml`` relative to CWD (project examples)
+    3. Bundled ``genai_tk/default_config/agents/langchain.yaml`` (installed package)
+    4. Bundled ``genai_tk/default_config/examples/agents/langchain.yaml`` (examples fallback)
+    """
     if Path(CONFIG_FILE).exists():
         return CONFIG_FILE
+    if Path(CONFIG_FILE_EXAMPLES).exists():
+        return CONFIG_FILE_EXAMPLES
     from importlib.resources import files as _pkg_files
 
     try:
-        bundled = _pkg_files("genai_tk") / "default_config" / "agents" / "langchain.yaml"
-        # Return as string path (works for both installed and editable installs)
-        return str(bundled)
+        pkg = _pkg_files("genai_tk")
+        bundled = pkg / "default_config" / "agents" / "langchain.yaml"
+        if Path(str(bundled)).exists():
+            return str(bundled)
+        bundled_examples = pkg / "default_config" / "examples" / "agents" / "langchain.yaml"
+        return str(bundled_examples)
     except Exception:
         return CONFIG_FILE  # let the caller surface the missing-file error
 

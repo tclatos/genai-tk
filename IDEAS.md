@@ -1,10 +1,15 @@
 # Refactor Retriever 
-We want to completly refactor the RAG processing part of the toolkit, tp ba able to deal with mode complex use cases, backends and configuration. We want notably able to levearge the capabilities of hybrid rag of the zvec lib, use LandyBug for hybrid RAG, in addition of current use cases with PostgreSQL and vercor stode + bm25 +  reranker. 
+We want to completly refactor the RAG processing part of the toolkit, to ba able to deal with more complex use cases, backends and configuration. We want notably able to levearge the capabilities of hybrid rag of the zvec lib, use LandyBug for hybrid RAG, in addition of current use cases with PostgreSQL, ZeroEntropy, and vector store + bm25 +  reranker. 
 
 Our idea is this one : 
-- ManagedRetriever shoud become an abstract class , with core abstract methods such as aquery, aadd_documents, adelete_colection, ...
+- ManagedRetriever should become an abstract class , with core abstract methods such as aquery, aadd_documents, adelete_colection, ...It could inherit langchain Retriever base class, of have a get_retriever mehod that returns one. 
+- We could keep the concept of RAGToolFactory - to get a tools usable from an agent
+- Remove SQLRecordManager and replace caching with a configurable mechanisme : either we can query the vector-store to check that a hash of the chank + medatata + embeddings model has been inserted, or we put that information in a KV sore build withh py-key-value (already used in the project). 
+- Each concrete ManagedRetriever (with pgvecor, zvec, vertor-store+bm25s, ...) should at leab be able to do hybrid search (vector + full text search) with reranking (either RRF or given reranker model). Adapt configuration and possible extra feature to the actuel implementation (read the doc ! )
 
-- Remove SQLRecordManager and replace caching with py-key-value
+- For the ladybug/kuzu ManagedRetriever, create 3 nodes :  one for collection, one for documents, one for chunks (embeddings vectors). Metadata fields 
+
+- 
 # zvec
 
 genai_tk/core/vector_backends/zvec.py 
@@ -37,18 +42,8 @@ https://docs.prefect.io/v3/concepts/artifacts
 # SQL
 Find/code a replacement for langchain_community.utilities.sql_database
 
-# Caching
-langchain_community.cache.SQLiteCache is being discontinued. 
-But we can replace it by key_value.aio.stores, already used elsewhere
-    kv_store:
-      default:
-        type: key_value.aio.stores.filetree.FileTreeStore
+nai_tk/core/cache.py
 
-
-genai_tk/core/cache.py
-
-
-Replace by one  based on aio-  delete sqlite-cache
 
 # tokenization 
 use https://github.com/chonkie-inc/tokie 
