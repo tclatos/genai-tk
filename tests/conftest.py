@@ -1,7 +1,8 @@
 """Pytest configuration and shared fixtures.
 
-This module provides shared fixtures and configuration for all tests,
-ensuring consistent use of fake models and test setup.
+All test settings (fake model IDs, cache strategy, vector store backend) are
+derived from the ``pytest`` profile in ``config/app_conf.yaml`` via the typed
+``PytestConfig`` model.  Individual test files should **not** hardcode model IDs.
 """
 
 from pathlib import Path
@@ -12,19 +13,32 @@ from langchain_core.language_models.chat_models import BaseChatModel
 
 from genai_tk.config_mgmt.config_mngr import switch_profile
 from genai_tk.config_mgmt.features import is_available
+from genai_tk.config_mgmt.test_config import PytestConfig, get_pytest_config
 from genai_tk.core.factories.embeddings_factory import get_embeddings
 from genai_tk.core.factories.llm_factory import get_llm
 
-# Constants for fake models
-FAKE_LLM_ID = "parrot_local@fake"
-FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
-PYTEST_PROFILE = "pytest"
+# ---------------------------------------------------------------------------
+# Pytest hooks
+# ---------------------------------------------------------------------------
 
 
-# ---------------------------------------------------------------------------
-# Optional-feature marker: @pytest.mark.requires_feature("<name>")
-# Tests with this marker are automatically skipped when the feature is absent.
-# ---------------------------------------------------------------------------
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--include-real-models",
+        action="store_true",
+        default=False,
+        help="Include tests that require real AI models (may incur costs and require API keys)",
+    )
+    parser.addoption(
+        "--include-docker",
+        action="store_true",
+        default=False,
+        help="Include tests that require Docker (starts real containers)",
+    )
+    parser.addoption(
+        "--performance-tests", action="store_true", default=False, help="Include performance benchmark tests"
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -58,76 +72,84 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
                 )
 
 
+# ---------------------------------------------------------------------------
+# Session-scoped fixtures
+# ---------------------------------------------------------------------------
+
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_config():
-    """Set up test configuration for all tests.
-
-    This fixture runs automatically for all tests and ensures:
-    - Pytest profile is loaded (fake models, memory cache, etc.)
-    - Test environment is properly configured
-    """
-    switch_profile(PYTEST_PROFILE)
-
+    """Activate the ``pytest`` profile for all tests."""
+    switch_profile("pytest")
     yield
 
 
-@pytest.fixture
-def fake_llm() -> BaseChatModel:
-    """Provide a fake LLM instance for testing.
-
-    Returns:
-        BaseChatModel: Fake LLM instance using parrot_local_fake
-    """
-    return get_llm(llm=FAKE_LLM_ID)
+@pytest.fixture(scope="session")
+def test_cfg(setup_test_config) -> PytestConfig:
+    """Typed test configuration derived from the active pytest profile."""
+    return get_pytest_config()
 
 
-@pytest.fixture
-def fake_embeddings():
-    """Provide a fake embeddings instance for testing.
-
-    Returns:
-        Embeddings: Fake embeddings instance using embeddings_768_fake
-    """
-    return get_embeddings(embeddings=FAKE_EMBEDDINGS_ID)
+# ---------------------------------------------------------------------------
+# Fake model ID string fixtures (for tests that need the raw ID, e.g. CLI args)
+# ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def fake_llm_with_streaming():
-    """Provide a fake LLM instance with streaming enabled.
+@pytest.fixture(scope="session")
+def fake_llm_id(test_cfg: PytestConfig) -> str:
+    """Fake LLM model ID string (e.g. for CLI --llm arguments)."""
+    return test_cfg.fake_llm
 
-    Returns:
-        BaseChatModel: Fake LLM instance with streaming
-    """
-    return get_llm(llm=FAKE_LLM_ID, streaming=True)
+
+@pytest.fixture(scope="session")
+def fake_embeddings_id(test_cfg: PytestConfig) -> str:
+    """Fake embeddings model ID string (e.g. for CLI --model arguments)."""
+    return test_cfg.fake_embeddings
+
+
+# ---------------------------------------------------------------------------
+# Fake model fixtures (resolved from typed config)
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
-def fake_llm_with_json_mode():
-    """Provide a fake LLM instance with JSON mode enabled.
-
-    Returns:
-        BaseChatModel: Fake LLM instance with JSON mode
-    """
-    return get_llm(llm=FAKE_LLM_ID, json_mode=True)
+def fake_llm(test_cfg: PytestConfig) -> BaseChatModel:
+    """Fake LLM instance for testing."""
+    return get_llm(llm=test_cfg.fake_llm)
 
 
 @pytest.fixture
-def fake_llm_with_cache():
-    """Provide a fake LLM instance with caching enabled.
+def fake_embeddings(test_cfg: PytestConfig):
+    """Fake embeddings instance for testing."""
+    return get_embeddings(embeddings=test_cfg.fake_embeddings)
 
-    Returns:
-        BaseChatModel: Fake LLM instance with memory cache
-    """
-    return get_llm(llm=FAKE_LLM_ID, cache="memory")
+
+@pytest.fixture
+def fake_llm_with_streaming(test_cfg: PytestConfig):
+    """Fake LLM instance with streaming enabled."""
+    return get_llm(llm=test_cfg.fake_llm, streaming=True)
+
+
+@pytest.fixture
+def fake_llm_with_json_mode(test_cfg: PytestConfig):
+    """Fake LLM instance with JSON mode enabled."""
+    return get_llm(llm=test_cfg.fake_llm, json_mode=True)
+
+
+@pytest.fixture
+def fake_llm_with_cache(test_cfg: PytestConfig):
+    """Fake LLM instance with caching enabled."""
+    return get_llm(llm=test_cfg.fake_llm, cache="memory")
+
+
+# ---------------------------------------------------------------------------
+# Sample data fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
 def sample_documents():
-    """Provide sample documents for testing.
-
-    Returns:
-        List[Document]: List of sample documents with metadata
-    """
+    """Provide sample documents for testing."""
     from tests.utils.test_data import generate_sample_documents
 
     return generate_sample_documents(5)
@@ -135,11 +157,7 @@ def sample_documents():
 
 @pytest.fixture
 def sample_texts():
-    """Provide sample text strings for testing.
-
-    Returns:
-        List[str]: List of sample text strings
-    """
+    """Provide sample text strings for testing."""
     from tests.utils.test_data import generate_sample_texts
 
     return generate_sample_texts(5)
@@ -147,11 +165,7 @@ def sample_texts():
 
 @pytest.fixture
 def sample_queries():
-    """Provide sample search queries for testing.
-
-    Returns:
-        List[str]: List of sample search queries
-    """
+    """Provide sample search queries for testing."""
     from tests.utils.test_data import generate_sample_queries
 
     return generate_sample_queries()
@@ -159,57 +173,20 @@ def sample_queries():
 
 @pytest.fixture
 def temp_test_dir(tmp_path: Path) -> Generator[Path, None, None]:
-    """Create a temporary directory for test files.
-
-    Args:
-        tmp_path: pytest's temporary path fixture
-
-    Returns:
-        Path to temporary test directory
-    """
+    """Create a temporary directory for test files."""
     test_dir = tmp_path / "test_data"
     test_dir.mkdir(exist_ok=True)
     yield test_dir
 
 
-@pytest.fixture
-def test_config():
-    """Provide a test configuration dictionary.
-
-    Returns:
-        Dict[str, Any]: Test configuration with fake models
-    """
-    return {
-        "llm": {
-            "models": {
-                "default": FAKE_LLM_ID,
-                "fake": FAKE_LLM_ID,
-            },
-            "cache": "memory",
-        },
-        "embeddings": {
-            "models": {
-                "default": FAKE_EMBEDDINGS_ID,
-                "fake": FAKE_EMBEDDINGS_ID,
-            },
-            "cache": True,
-        },
-        "vector_store": {
-            "default": "InMemory",
-        },
-        "kv_store": {
-            "engine": "memory",
-        },
-    }
+# ---------------------------------------------------------------------------
+# Utility fixtures
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
 def tool_definitions():
-    """Provide sample tool definitions for testing.
-
-    Returns:
-        List[Dict[str, Any]]: List of tool definition dictionaries
-    """
+    """Provide sample tool definitions for testing."""
     return [
         {
             "name": "search_web",
@@ -236,54 +213,19 @@ def tool_definitions():
     ]
 
 
-# Performance testing fixtures
 @pytest.fixture
 def performance_threshold():
-    """Provide performance threshold for fake model tests.
-
-    Fake models should be very fast, so we set strict thresholds.
-
-    Returns:
-        float: Maximum response time in seconds
-    """
-    return 1.0  # Fake models should respond in under 1 second
+    """Maximum response time (seconds) for fake model tests."""
+    return 1.0
 
 
-# Error testing fixtures
 @pytest.fixture
 def invalid_llm_id():
-    """Provide an invalid LLM ID for error testing.
-
-    Returns:
-        str: Invalid LLM ID that should raise an error
-    """
+    """An invalid LLM ID for error testing."""
     return "nonexistent_llm_model"
 
 
 @pytest.fixture
 def invalid_embeddings_id():
-    """Provide an invalid embeddings ID for error testing.
-
-    Returns:
-        str: Invalid embeddings ID that should raise an error
-    """
+    """An invalid embeddings ID for error testing."""
     return "nonexistent_embeddings_model"
-
-
-def pytest_addoption(parser):
-    """Add custom command line options."""
-    parser.addoption(
-        "--include-real-models",
-        action="store_true",
-        default=False,
-        help="Include tests that require real AI models (may incur costs and require API keys)",
-    )
-    parser.addoption(
-        "--include-docker",
-        action="store_true",
-        default=False,
-        help="Include tests that require Docker (starts real containers)",
-    )
-    parser.addoption(
-        "--performance-tests", action="store_true", default=False, help="Include performance benchmark tests"
-    )

@@ -1,8 +1,4 @@
-"""Tests for vector store registry with fake models.
-
-This module contains tests for vector store creation and functionality
-using fake embeddings to ensure fast, reliable testing.
-"""
+"""Tests for vector store registry with fake models."""
 
 import pytest
 from langchain_core.documents import Document
@@ -11,9 +7,6 @@ from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.config_mgmt.features import is_available
 from genai_tk.core.embeddings_store import EmbeddingsStore
 from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
-
-# Fake model constants
-FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
 
 _chromadb_available = is_available("chromadb")
 skip_no_chromadb = pytest.mark.skipif(not _chromadb_available, reason="chromadb extra not installed")
@@ -105,12 +98,12 @@ def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
     assert all(isinstance(doc, Document) for doc in results)
 
 
-def test_direct_instantiation_blocked() -> None:
+def test_direct_instantiation_blocked(fake_embeddings_id) -> None:
     """Test that direct instantiation is blocked."""
     with pytest.raises(RuntimeError, match="EmbeddingsStore cannot be instantiated directly"):
         EmbeddingsStore(
             backend="InMemory",
-            embeddings_factory=EmbeddingsFactory(embeddings=FAKE_EMBEDDINGS_ID),
+            embeddings_factory=EmbeddingsFactory(embeddings=fake_embeddings_id),
         )
 
 

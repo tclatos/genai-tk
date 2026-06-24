@@ -85,8 +85,8 @@ class TestLsCommand:
 
 
 class TestLlmProfileCommand:
-    def test_llm_profile_with_fake_id(self, info_app, runner) -> None:
-        result = runner.invoke(info_app, ["info", "llm-profile", "parrot_local@fake"])
+    def test_llm_profile_with_fake_id(self, info_app, runner, fake_llm_id) -> None:
+        result = runner.invoke(info_app, ["info", "llm-profile", fake_llm_id])
         assert result.exit_code == 0
 
     def test_llm_profile_with_invalid_id(self, info_app, runner) -> None:

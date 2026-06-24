@@ -30,13 +30,13 @@ class TestCoreCommandsHelp:
 
 
 class TestLlmCommand:
-    def test_llm_basic_invocation(self, core_app, runner) -> None:
-        result = runner.invoke(core_app, ["core", "llm", "--input", "Hello", "--llm", "parrot_local@fake"])
+    def test_llm_basic_invocation(self, core_app, runner, fake_llm_id) -> None:
+        result = runner.invoke(core_app, ["core", "llm", "--input", "Hello", "--llm", fake_llm_id])
         assert result.exit_code == 0
         assert len(result.stdout) > 0
 
-    def test_llm_fake_model_returns_output(self, core_app, runner) -> None:
-        result = runner.invoke(core_app, ["core", "llm", "--input", "test input", "--llm", "parrot_local@fake"])
+    def test_llm_fake_model_returns_output(self, core_app, runner, fake_llm_id) -> None:
+        result = runner.invoke(core_app, ["core", "llm", "--input", "test input", "--llm", fake_llm_id])
         assert result.exit_code == 0
 
     def test_llm_default_model(self, core_app, runner) -> None:
@@ -44,8 +44,8 @@ class TestLlmCommand:
         result = runner.invoke(core_app, ["core", "llm", "--input", "hello"])
         assert result.exit_code == 0
 
-    def test_llm_missing_input_shows_error(self, core_app, runner) -> None:
-        result = runner.invoke(core_app, ["core", "llm", "--llm", "parrot_local@fake"])
+    def test_llm_missing_input_shows_error(self, core_app, runner, fake_llm_id) -> None:
+        result = runner.invoke(core_app, ["core", "llm", "--llm", fake_llm_id])
         assert result.exit_code == 0  # Returns gracefully
         assert "Error" in result.stdout or result.exit_code == 0
 
@@ -54,50 +54,50 @@ class TestLlmCommand:
         # Should either show an error or exit with non-zero code
         assert result.exit_code == 0  # Returns gracefully with error message
 
-    def test_llm_with_cache_option(self, core_app, runner) -> None:
+    def test_llm_with_cache_option(self, core_app, runner, fake_llm_id) -> None:
         result = runner.invoke(
             core_app,
-            ["core", "llm", "--input", "hello", "--llm", "parrot_local@fake", "--cache", "memory"],
+            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--cache", "memory"],
         )
         assert result.exit_code == 0
 
-    def test_llm_with_temperature(self, core_app, runner) -> None:
+    def test_llm_with_temperature(self, core_app, runner, fake_llm_id) -> None:
         result = runner.invoke(
             core_app,
-            ["core", "llm", "--input", "hello", "--llm", "parrot_local@fake", "--temperature", "0.5"],
+            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--temperature", "0.5"],
         )
         assert result.exit_code == 0
 
-    def test_llm_raw_output(self, core_app, runner) -> None:
+    def test_llm_raw_output(self, core_app, runner, fake_llm_id) -> None:
         result = runner.invoke(
             core_app,
-            ["core", "llm", "--input", "hello", "--llm", "parrot_local@fake", "--raw"],
+            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--raw"],
         )
         assert result.exit_code == 0
 
-    def test_llm_verbose_flag(self, core_app, runner) -> None:
+    def test_llm_verbose_flag(self, core_app, runner, fake_llm_id) -> None:
         result = runner.invoke(
             core_app,
-            ["core", "llm", "--input", "hello", "--llm", "parrot_local@fake", "--verbose"],
+            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--verbose"],
         )
         assert result.exit_code == 0
 
-    def test_llm_debug_flag(self, core_app, runner) -> None:
+    def test_llm_debug_flag(self, core_app, runner, fake_llm_id) -> None:
         result = runner.invoke(
             core_app,
-            ["core", "llm", "--input", "hello", "--llm", "parrot_local@fake", "--debug"],
+            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--debug"],
         )
         assert result.exit_code == 0
 
 
 class TestEmbeddCommand:
-    def test_embedd_basic(self, core_app, runner) -> None:
-        result = runner.invoke(core_app, ["core", "embedd", "test text", "--model", "embeddings_768@fake"])
+    def test_embedd_basic(self, core_app, runner, fake_embeddings_id) -> None:
+        result = runner.invoke(core_app, ["core", "embedd", "test text", "--model", fake_embeddings_id])
         assert result.exit_code == 0
         assert "Embeddings Summary" in result.stdout or "Vector Length" in result.stdout
 
-    def test_embedd_shows_vector_length(self, core_app, runner) -> None:
-        result = runner.invoke(core_app, ["core", "embedd", "test text", "--model", "embeddings_768@fake"])
+    def test_embedd_shows_vector_length(self, core_app, runner, fake_embeddings_id) -> None:
+        result = runner.invoke(core_app, ["core", "embedd", "test text", "--model", fake_embeddings_id])
         assert result.exit_code == 0
         assert "768" in result.stdout  # FakeEmbeddings produces 768-dim vectors
 
@@ -128,10 +128,10 @@ class TestEmbeddCommand:
 
 
 class TestSimilarityCommand:
-    def test_similarity_two_sentences(self, core_app, runner) -> None:
+    def test_similarity_two_sentences(self, core_app, runner, fake_embeddings_id) -> None:
         result = runner.invoke(
             core_app,
-            ["core", "similarity", "Hello world", "Goodbye world", "--model", "embeddings_768@fake"],
+            ["core", "similarity", "Hello world", "Goodbye world", "--model", fake_embeddings_id],
         )
         assert result.exit_code == 0
         assert "Semantic Similarity" in result.stdout or len(result.stdout) > 0
@@ -144,9 +144,9 @@ class TestSimilarityCommand:
         assert result.exit_code == 0
         assert "Error" in result.stdout
 
-    def test_similarity_multiple_sentences(self, core_app, runner) -> None:
+    def test_similarity_multiple_sentences(self, core_app, runner, fake_embeddings_id) -> None:
         result = runner.invoke(
             core_app,
-            ["core", "similarity", "reference", "compare1", "compare2", "--model", "embeddings_768@fake"],
+            ["core", "similarity", "reference", "compare1", "compare2", "--model", fake_embeddings_id],
         )
         assert result.exit_code == 0

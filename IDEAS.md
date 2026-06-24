@@ -1,21 +1,31 @@
+# Docker
+
+I want to facilate creation of a docker image running an application using the toolkit.
+Today there's a deploy/docker.just file, adapted from Make (not tested) and deploy/Dockerfile, aso copied from another project. 
+
+1/ adapt theses files and make it work with the newly introduced 'just' . Take into account that 1/ We don't use all features it brings compare to make 2/ later we might have recipes to deploy to Azure, AWS etc
+2/  Make these targets usable from a scaffolded app uing the genai-tk
+3/ Adapt 
+
+
+
+# Spacy 
+en-core-web-lg is pretty large.  Look at we could avoid download it, and use en-core-web-sm instead . 
+More generaly make the model configurable. Revisit genai_tk/utils/spacy_model_mngr.py that might not be used (confim). Add feature to detect the language from a text extract.
+- 
+
+
+
 # Refactor Retriever 
-We want to completly refactor the RAG processing part of the toolkit, to ba able to deal with more complex use cases, backends and configuration. We want notably able to levearge the capabilities of hybrid rag of the zvec lib, use LandyBug for hybrid RAG, in addition of current use cases with PostgreSQL, ZeroEntropy, and vector store + bm25 +  reranker. 
+We want to completly refactor the RAG processing part of the toolkit, to ba able to deal with more complex use cases, backends and configuration. We want notably able to levearge the capabilities of hybrid rag of the zvec lib (genai_tk/core/vector_backends/zvec.py ), in addition of current use cases with PostgreSQL, ZeroEntropy, and vector store + bm25 +  reranker. 
 
 Our idea is this one : 
-- ManagedRetriever should become an abstract class , with core abstract methods such as aquery, aadd_documents, adelete_colection, ...It could inherit langchain Retriever base class, of have a get_retriever mehod that returns one. 
+- ManagedRetriever should become an abstract class , with core abstract methods such as aquery, aadd_documents, adelete_colection, ...It could inherit langchain Retriever base class, or have a get_retriever method that returns one. 
 - We could keep the concept of RAGToolFactory - to get a tools usable from an agent
-- Remove SQLRecordManager and replace caching with a configurable mechanisme : either we can query the vector-store to check that a hash of the chank + medatata + embeddings model has been inserted, or we put that information in a KV sore build withh py-key-value (already used in the project). 
-- Each concrete ManagedRetriever (with pgvecor, zvec, vertor-store+bm25s, ...) should at leab be able to do hybrid search (vector + full text search) with reranking (either RRF or given reranker model). Adapt configuration and possible extra feature to the actuel implementation (read the doc ! )
+- Remove SQLRecordManager and replace caching with a configurable mechanisme : either we can query the vector-store to check that a hash of the chunk + medatata + embeddings model has been inserted, or we put that information in a KV store built with py-key-value (already used in the project). 
+- Each concrete ManagedRetriever (with pgvecor, zvec, vertor-store+bm25s, ...) should at least be able to do hybrid search (vector + full text search) with reranking (either RRF or given reranker model). Adapt configuration and possible extra feature to the actuel implementation (read the doc ! )
 
-- For the ladybug/kuzu ManagedRetriever, create 3 nodes :  one for collection, one for documents, one for chunks (embeddings vectors). Metadata fields 
-
-- 
-# zvec
-
-genai_tk/core/vector_backends/zvec.py 
-
-- Implement retriever ManagedRetriever 
-
+Adapt the Prefect workflows and examples accordingly.honkie
 
 ## Ladybug embeddings
 

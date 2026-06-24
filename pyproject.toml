@@ -92,6 +92,7 @@ dependencies = [
     # ============================================
     "py-key-value-aio[disk,filetree,memory]>=0.4.5",
     "zvec>=0.5.0",
+    "baml-py>=0.222.0",
 ]
 
 [project.urls]

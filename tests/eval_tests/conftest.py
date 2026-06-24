@@ -93,16 +93,13 @@ def echo_tool():
 
 
 @pytest.fixture
-def eval_agent(calculator_tool, echo_tool):
-    """LangchainAgent with a fake LLM and deterministic tools.
-
-    Uses ``parrot_local@fake`` — zero cost, no network, instant.
-    """
+def eval_agent(calculator_tool, echo_tool, fake_llm_id):
+    """LangchainAgent with a fake LLM and deterministic tools."""
     from genai_tk.agents.langchain.langchain_agent import LangchainAgent
 
     return LangchainAgent(
         "eval-test",
-        llm="parrot_local@fake",
+        llm=fake_llm_id,
         agent_type="react",
         tools=[calculator_tool, echo_tool],
     )

@@ -10,8 +10,8 @@ class TestSetupLangchain:
         result = setup_langchain(llm=None)
         assert result is True
 
-    def test_returns_true_with_valid_fake_llm(self) -> None:
-        result = setup_langchain(llm="parrot_local@fake")
+    def test_returns_true_with_valid_fake_llm(self, fake_llm_id) -> None:
+        result = setup_langchain(llm=fake_llm_id)
         assert result is True
 
     def test_returns_false_with_invalid_llm(self) -> None:
@@ -43,12 +43,12 @@ class TestSetupLangchain:
             setup_langchain(llm=None, cache=None)
             mock_cache.assert_not_called()
 
-    def test_updates_global_config_with_valid_llm(self) -> None:
+    def test_updates_global_config_with_valid_llm(self, fake_llm_id) -> None:
         from genai_tk.config_mgmt.config_mngr import global_config
 
-        setup_langchain(llm="parrot_local@fake")
+        setup_langchain(llm=fake_llm_id)
         default = global_config().get_str("llm.models.default")
-        assert default == "parrot_local@fake"
+        assert default == fake_llm_id
 
     def test_all_options_combined(self) -> None:
         with (

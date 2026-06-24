@@ -92,14 +92,13 @@ paths:
   pytest:
     llm:
       models:
-        default: parrot_local@fake
+        default: gpt_oss20@openrouter
         fake: parrot_local@fake
-        test: claude-haiku@openrouter
         cheap_model: claude-haiku@openrouter
         fast_model: claude-haiku@openrouter
     embeddings:
       models:
-        default: embeddings_768@fake
+        default: qwen3_06b@deepinfra
         fake: embeddings_768@fake
         test: ada-002@openai
       cache: data/hf_models

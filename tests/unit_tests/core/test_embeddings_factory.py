@@ -1,13 +1,8 @@
-"""Tests for embeddings functionality.
-
-This module contains basic regression tests for the embeddings factory and utilities.
-"""
+"""Tests for embeddings functionality."""
 
 from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
 
-# Fake model constants
-FAKE_EMBEDDINGS_ID = "embeddings_768@fake"
-FAKE_EMBEDDINGS_DIMENSION = 768
+FAKE_EMBEDDINGS_DIMENSION = 768  # Inherent to the fake model, not configurable
 LOCAL_FASTEMBED_ID = "bge-small-en@local"
 LOCAL_FASTEMBED_MODEL = "BAAI/bge-small-en-v1.5"
 EMBEDDINGS_CACHE_DIR = "data/hf_models"
@@ -26,12 +21,12 @@ def test_fake_embeddings(fake_embeddings) -> None:
     assert len(vectors[1]) == FAKE_EMBEDDINGS_DIMENSION
 
 
-def test_known_embeddings_list() -> None:
+def test_known_embeddings_list(fake_embeddings_id) -> None:
     """Test that known embeddings list is not empty."""
     embeddings_list = EmbeddingsFactory.known_items()
     assert len(embeddings_list) > 0
     assert isinstance(embeddings_list, list)
-    assert FAKE_EMBEDDINGS_ID in embeddings_list
+    assert fake_embeddings_id in embeddings_list
     assert LOCAL_FASTEMBED_ID in embeddings_list
 
 

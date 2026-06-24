@@ -30,13 +30,13 @@ def test_sandbox_type_alias() -> None:
     assert set(args) == {"local", "docker"}
 
 
-def test_sandbox_field_accepts_literal_values() -> None:
+def test_sandbox_field_accepts_literal_values(fake_llm_id) -> None:
     """LangchainAgent accepts 'local' and 'docker' as sandbox values."""
-    a = LangchainAgent(llm="parrot_local@fake", sandbox="local")
+    a = LangchainAgent(llm=fake_llm_id, sandbox="local")
     assert a.sandbox == "local"
-    b = LangchainAgent(llm="parrot_local@fake", sandbox="docker")
+    b = LangchainAgent(llm=fake_llm_id, sandbox="docker")
     assert b.sandbox == "docker"
-    c = LangchainAgent(llm="parrot_local@fake", sandbox=None)
+    c = LangchainAgent(llm=fake_llm_id, sandbox=None)
     assert c.sandbox is None
 
 
@@ -48,7 +48,7 @@ def test_sandbox_field_accepts_literal_values() -> None:
 @pytest.mark.integration
 @pytest.mark.fake_models
 @pytest.mark.asyncio
-async def test_docker_sandbox_promotes_react_to_deep() -> None:
+async def test_docker_sandbox_promotes_react_to_deep(fake_llm_id) -> None:
     """When sandbox='docker', a react profile is promoted to type='deep'."""
     from genai_tk.agents.langchain.config import BackendConfig
 
@@ -61,14 +61,14 @@ async def test_docker_sandbox_promotes_react_to_deep() -> None:
         return mock_agent
 
     with patch("genai_tk.agents.langchain.factory.create_langchain_agent", side_effect=fake_create):
-        agent = LangchainAgent(llm="parrot_local@fake", agent_type="react", sandbox="docker")
+        agent = LangchainAgent(llm=fake_llm_id, agent_type="react", sandbox="docker")
         await agent._ensure_initialized()
 
 
 @pytest.mark.integration
 @pytest.mark.fake_models
 @pytest.mark.asyncio
-async def test_docker_sandbox_keeps_deep_type() -> None:
+async def test_docker_sandbox_keeps_deep_type(fake_llm_id) -> None:
     """When sandbox='docker' on a deep profile, type stays 'deep'."""
     from genai_tk.agents.langchain.config import BackendConfig
 
@@ -81,19 +81,15 @@ async def test_docker_sandbox_keeps_deep_type() -> None:
         return mock_agent
 
     with patch("genai_tk.agents.langchain.factory.create_langchain_agent", side_effect=fake_create):
-        agent = LangchainAgent(llm="parrot_local@fake", agent_type="deep", sandbox="docker")
+        agent = LangchainAgent(llm=fake_llm_id, agent_type="deep", sandbox="docker")
         await agent._ensure_initialized()
 
 
 @pytest.mark.integration
 @pytest.mark.fake_models
 @pytest.mark.asyncio
-async def test_docker_sandbox_clears_skill_directories() -> None:
-    """skill_directories is always empty when sandbox='docker'.
-
-    Local host paths are not accessible inside the container; passing them to
-    SkillsMiddleware causes a 404 error from the sandbox API.
-    """
+async def test_docker_sandbox_clears_skill_directories(fake_llm_id) -> None:
+    """skill_directories is always empty when sandbox='docker'."""
     captured: dict[str, Any] = {}
 
     async def fake_create(profile: Any, **kwargs: Any) -> MagicMock:
@@ -101,7 +97,7 @@ async def test_docker_sandbox_clears_skill_directories() -> None:
         return MagicMock()
 
     with patch("genai_tk.agents.langchain.factory.create_langchain_agent", side_effect=fake_create):
-        agent = LangchainAgent(llm="parrot_local@fake", sandbox="docker")
+        agent = LangchainAgent(llm=fake_llm_id, sandbox="docker")
         await agent._ensure_initialized()
 
     assert captured["skill_directories"] == [], (
@@ -112,8 +108,8 @@ async def test_docker_sandbox_clears_skill_directories() -> None:
 @pytest.mark.integration
 @pytest.mark.fake_models
 @pytest.mark.asyncio
-async def test_local_sandbox_preserves_profile() -> None:
-    """sandbox='local' (or None) leaves the profile type and backend unchanged."""
+async def test_local_sandbox_preserves_profile(fake_llm_id) -> None:
+    """sandbox='local' leaves the profile type and backend unchanged."""
     captured: dict[str, Any] = {}
 
     async def fake_create(profile: Any, **kwargs: Any) -> MagicMock:
@@ -122,11 +118,10 @@ async def test_local_sandbox_preserves_profile() -> None:
         return MagicMock()
 
     with patch("genai_tk.agents.langchain.factory.create_langchain_agent", side_effect=fake_create):
-        agent = LangchainAgent(llm="parrot_local@fake", agent_type="react", sandbox="local")
+        agent = LangchainAgent(llm=fake_llm_id, agent_type="react", sandbox="local")
         await agent._ensure_initialized()
 
     assert captured["type"] == "react"
-    # backend may be None or the profile-default; it must NOT be a docker BackendConfig
     from genai_tk.agents.langchain.config import BackendConfig
 
     backend = captured["backend"]
@@ -136,7 +131,7 @@ async def test_local_sandbox_preserves_profile() -> None:
 @pytest.mark.integration
 @pytest.mark.fake_models
 @pytest.mark.asyncio
-async def test_no_sandbox_preserves_profile() -> None:
+async def test_no_sandbox_preserves_profile(fake_llm_id) -> None:
     """sandbox=None leaves the profile entirely unchanged."""
     captured: dict[str, Any] = {}
 
@@ -145,7 +140,7 @@ async def test_no_sandbox_preserves_profile() -> None:
         return MagicMock()
 
     with patch("genai_tk.agents.langchain.factory.create_langchain_agent", side_effect=fake_create):
-        agent = LangchainAgent(llm="parrot_local@fake", agent_type="react", sandbox=None)
+        agent = LangchainAgent(llm=fake_llm_id, agent_type="react", sandbox=None)
         await agent._ensure_initialized()
 
     assert captured["type"] == "react"
@@ -159,7 +154,7 @@ async def test_no_sandbox_preserves_profile() -> None:
 @pytest.mark.integration
 @pytest.mark.fake_models
 @pytest.mark.asyncio
-async def test_docker_sandbox_uses_shared_config_image() -> None:
+async def test_docker_sandbox_uses_shared_config_image(fake_llm_id) -> None:
     """The AioSandboxBackend started for 'docker' sandbox uses the image from sandbox.yaml."""
     from genai_tk.config_mgmt.features import is_available
 
@@ -185,7 +180,6 @@ async def test_docker_sandbox_uses_shared_config_image() -> None:
     fake_agent._backend = FakeBackend.__new__(FakeBackend)
 
     async def fake_create(profile: Any, **kwargs: Any) -> MagicMock:
-        # Simulate the backend being created inside create_langchain_agent
         from genai_tk.agents.langchain.config import create_backend
 
         await create_backend(profile.backend)
@@ -196,7 +190,7 @@ async def test_docker_sandbox_uses_shared_config_image() -> None:
         patch("genai_tk.agents.langchain.factory.create_langchain_agent", side_effect=fake_create),
         patch("genai_tk.config_mgmt.config_mngr.global_config", return_value=MagicMock(**{"get.return_value": {}})),
     ):
-        agent = LangchainAgent(llm="parrot_local@fake", sandbox="docker")
+        agent = LangchainAgent(llm=fake_llm_id, sandbox="docker")
         await agent._ensure_initialized()
 
     assert started_config["image"] == "ghcr.io/agent-infra/sandbox:latest"
@@ -211,7 +205,7 @@ async def test_docker_sandbox_uses_shared_config_image() -> None:
 @pytest.mark.integration
 @pytest.mark.fake_models
 @pytest.mark.asyncio
-async def test_docker_sandbox_end_to_end_mocked() -> None:
+async def test_docker_sandbox_end_to_end_mocked(fake_llm_id) -> None:
     """arun() completes successfully with sandbox='docker' when backend is mocked."""
     mock_backend = AsyncMock()
     mock_backend.start = AsyncMock()
@@ -227,7 +221,7 @@ async def test_docker_sandbox_end_to_end_mocked() -> None:
         return mock_compiled
 
     with patch("genai_tk.agents.langchain.factory.create_langchain_agent", side_effect=fake_create):
-        agent = LangchainAgent(llm="parrot_local@fake", sandbox="docker")
+        agent = LangchainAgent(llm=fake_llm_id, sandbox="docker")
         result = await agent.arun("What is 6 × 7?")
 
     assert "42" in result

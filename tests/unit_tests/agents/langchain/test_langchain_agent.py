@@ -86,19 +86,19 @@ def _make_config():
 
 
 class TestLangchainAgentConstruction:
-    def test_adhoc_no_profile(self) -> None:
-        agent = LangchainAgent(llm="parrot_local@fake")
+    def test_adhoc_no_profile(self, fake_llm_id) -> None:
+        agent = LangchainAgent(llm=fake_llm_id)
         assert agent._profile is not None
         assert agent._profile.name == "adhoc"
         assert agent._profile.type == "react"
-        assert agent._profile.llm == "parrot_local@fake"
+        assert agent._profile.llm == fake_llm_id
 
-    def test_adhoc_with_agent_type(self) -> None:
-        agent = LangchainAgent(llm="parrot_local@fake", agent_type="deep")
+    def test_adhoc_with_agent_type(self, fake_llm_id) -> None:
+        agent = LangchainAgent(llm=fake_llm_id, agent_type="deep")
         assert agent._profile.type == "deep"
 
-    def test_adhoc_with_system_prompt(self) -> None:
-        agent = LangchainAgent(llm="parrot_local@fake", system_prompt="Be concise")
+    def test_adhoc_with_system_prompt(self, fake_llm_id) -> None:
+        agent = LangchainAgent(llm=fake_llm_id, system_prompt="Be concise")
         assert agent._profile.system_prompt == "Be concise"
 
     def test_profile_from_config(self) -> None:
@@ -132,16 +132,16 @@ class TestLangchainAgentConstruction:
             with pytest.raises(ValueError, match="not found"):
                 LangchainAgent("nonexistent")
 
-    def test_agent_not_initialized_on_construction(self) -> None:
-        agent = LangchainAgent(llm="parrot_local@fake")
+    def test_agent_not_initialized_on_construction(self, fake_llm_id) -> None:
+        agent = LangchainAgent(llm=fake_llm_id)
         assert agent._agent is None
 
-    def test_checkpointer_flag(self) -> None:
-        agent = LangchainAgent(llm="parrot_local@fake", checkpointer=True)
+    def test_checkpointer_flag(self, fake_llm_id) -> None:
+        agent = LangchainAgent(llm=fake_llm_id, checkpointer=True)
         assert agent.checkpointer is True
 
-    def test_details_flag(self) -> None:
-        agent = LangchainAgent(llm="parrot_local@fake", details=True)
+    def test_details_flag(self, fake_llm_id) -> None:
+        agent = LangchainAgent(llm=fake_llm_id, details=True)
         assert agent.details is True
 
 
@@ -152,42 +152,42 @@ class TestLangchainAgentConstruction:
 
 class TestLangchainAgentInit:
     @pytest.mark.asyncio
-    async def test_ensure_initialized_creates_agent(self) -> None:
+    async def test_ensure_initialized_creates_agent(self, fake_llm_id) -> None:
         mock_compiled = MagicMock()
         with patch(
             "genai_tk.agents.langchain.factory.create_langchain_agent",
             new_callable=AsyncMock,
             return_value=mock_compiled,
         ):
-            agent = LangchainAgent(llm="parrot_local@fake")
+            agent = LangchainAgent(llm=fake_llm_id)
             result = await agent._ensure_initialized()
 
         assert result is mock_compiled
         assert agent._agent is mock_compiled
 
     @pytest.mark.asyncio
-    async def test_ensure_initialized_caches_agent(self) -> None:
+    async def test_ensure_initialized_caches_agent(self, fake_llm_id) -> None:
         mock_compiled = MagicMock()
         with patch(
             "genai_tk.agents.langchain.factory.create_langchain_agent",
             new_callable=AsyncMock,
             return_value=mock_compiled,
         ) as mock_factory:
-            agent = LangchainAgent(llm="parrot_local@fake")
+            agent = LangchainAgent(llm=fake_llm_id)
             await agent._ensure_initialized()
             await agent._ensure_initialized()
 
         assert mock_factory.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_ensure_initialized_passes_checkpointer_flag(self) -> None:
+    async def test_ensure_initialized_passes_checkpointer_flag(self, fake_llm_id) -> None:
         mock_compiled = MagicMock()
         with patch(
             "genai_tk.agents.langchain.factory.create_langchain_agent",
             new_callable=AsyncMock,
             return_value=mock_compiled,
         ) as mock_factory:
-            agent = LangchainAgent(llm="parrot_local@fake", checkpointer=True)
+            agent = LangchainAgent(llm=fake_llm_id, checkpointer=True)
             await agent._ensure_initialized()
 
         _args, kwargs = mock_factory.call_args
@@ -201,7 +201,7 @@ class TestLangchainAgentInit:
 
 class TestLangchainAgentRun:
     @pytest.mark.asyncio
-    async def test_arun_returns_string(self) -> None:
+    async def test_arun_returns_string(self, fake_llm_id) -> None:
         mock_compiled = AsyncMock()
         mock_compiled.ainvoke.return_value = {"messages": [AIMessage(content="The answer is 42")]}
 
@@ -210,12 +210,12 @@ class TestLangchainAgentRun:
             new_callable=AsyncMock,
             return_value=mock_compiled,
         ):
-            agent = LangchainAgent(llm="parrot_local@fake")
+            agent = LangchainAgent(llm=fake_llm_id)
             result = await agent.arun("What is the answer?")
 
         assert result == "The answer is 42"
 
-    def test_run_sync_wrapper(self) -> None:
+    def test_run_sync_wrapper(self, fake_llm_id) -> None:
         mock_compiled = AsyncMock()
         mock_compiled.ainvoke.return_value = {"messages": [AIMessage(content="sync result")]}
 
@@ -224,13 +224,13 @@ class TestLangchainAgentRun:
             new_callable=AsyncMock,
             return_value=mock_compiled,
         ):
-            agent = LangchainAgent(llm="parrot_local@fake")
+            agent = LangchainAgent(llm=fake_llm_id)
             result = agent.run("hello")
 
         assert result == "sync result"
 
     @pytest.mark.asyncio
-    async def test_astream_yields_chunks(self) -> None:
+    async def test_astream_yields_chunks(self, fake_llm_id) -> None:
         async def _mock_stream(messages: Any) -> Any:
             for chunk in [
                 {"messages": [AIMessage(content="Hello")]},
@@ -246,7 +246,7 @@ class TestLangchainAgentRun:
             new_callable=AsyncMock,
             return_value=mock_compiled,
         ):
-            agent = LangchainAgent(llm="parrot_local@fake")
+            agent = LangchainAgent(llm=fake_llm_id)
             chunks = []
             async for chunk in agent.astream("tell me"):
                 chunks.append(chunk)
@@ -261,7 +261,7 @@ class TestLangchainAgentRun:
 
 class TestLangchainAgentClose:
     @pytest.mark.asyncio
-    async def test_close_stops_backend(self) -> None:
+    async def test_close_stops_backend(self, fake_llm_id) -> None:
         mock_backend = AsyncMock()
         mock_compiled = MagicMock()
         mock_compiled._backend = mock_backend
@@ -271,7 +271,7 @@ class TestLangchainAgentClose:
             new_callable=AsyncMock,
             return_value=mock_compiled,
         ):
-            agent = LangchainAgent(llm="parrot_local@fake")
+            agent = LangchainAgent(llm=fake_llm_id)
             await agent._ensure_initialized()
             await agent.close()
 
@@ -279,13 +279,13 @@ class TestLangchainAgentClose:
         assert agent._agent is None
 
     @pytest.mark.asyncio
-    async def test_close_noop_when_not_initialized(self) -> None:
-        agent = LangchainAgent(llm="parrot_local@fake")
+    async def test_close_noop_when_not_initialized(self, fake_llm_id) -> None:
+        agent = LangchainAgent(llm=fake_llm_id)
         # Should not raise
         await agent.close()
 
     @pytest.mark.asyncio
-    async def test_async_context_manager(self) -> None:
+    async def test_async_context_manager(self, fake_llm_id) -> None:
         mock_compiled = MagicMock()
         mock_compiled._backend = None
 
@@ -294,7 +294,7 @@ class TestLangchainAgentClose:
             new_callable=AsyncMock,
             return_value=mock_compiled,
         ):
-            async with LangchainAgent(llm="parrot_local@fake") as agent:
+            async with LangchainAgent(llm=fake_llm_id) as agent:
                 await agent._ensure_initialized()
                 assert agent._agent is not None
             assert agent._agent is None

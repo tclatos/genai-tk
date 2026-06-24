@@ -1,16 +1,4 @@
-"""Tests for LLM factory functionality.
-
-This module contains tests that verify:
-- Basic LLM initialization and functionality
-- Configuration switching between different LLMs
-- Error handling for invalid configurations
-- Factory method behavior
-- JSON mode and streaming options
-"""
-
-# Import constants directly to avoid import resolution issues
-import sys
-from pathlib import Path
+"""Tests for LLM factory functionality."""
 
 import pytest
 from langchain_core.messages.human import HumanMessage
@@ -26,10 +14,6 @@ from genai_tk.core.factories.llm_factory import (
     llm_config,
 )
 
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-# Fake model constants - using same values as in test utils
-FAKE_LLM_ID = "parrot_local@fake"
 FAKE_LLM_PROVIDER = "fake"
 LLM_ID_FOR_TEST = "gpt_41mini@openrouter"
 
@@ -70,17 +54,17 @@ def test_invalid_llm_id_raises_error() -> None:
         get_llm(llm="nonexistent_model")
 
 
-def test_llm_factory_creation() -> None:
+def test_llm_factory_creation(fake_llm_id) -> None:
     """Test LlmFactory class creation."""
-    factory = LlmFactory(llm=FAKE_LLM_ID)
-    assert factory.llm_id == FAKE_LLM_ID
+    factory = LlmFactory(llm=fake_llm_id)
+    assert factory.llm_id == fake_llm_id
     assert factory.info is not None
     assert factory.provider == FAKE_LLM_PROVIDER
 
 
-def test_llm_factory_short_name() -> None:
+def test_llm_factory_short_name(fake_llm_id) -> None:
     """Test short_name method returns correct format."""
-    factory = LlmFactory(llm=FAKE_LLM_ID)
+    factory = LlmFactory(llm=fake_llm_id)
     short = factory.short_name()
     assert short == "parrot_local"
 
@@ -95,11 +79,11 @@ def test_llm_factory_get_litellm_model_name() -> None:
     assert model_name == "openrouter/openai/gpt-4.1-mini"
 
 
-def test_llm_factory_get_smolagent_model() -> None:
+def test_llm_factory_get_smolagent_model(fake_llm_id) -> None:
     """Test get_smolagent_model returns a model object (smolagents mocked)."""
     from unittest.mock import MagicMock, patch
 
-    factory = LlmFactory(llm=FAKE_LLM_ID)
+    factory = LlmFactory(llm=fake_llm_id)
     mock_model = MagicMock()
     mock_litellm_cls = MagicMock(return_value=mock_model)
     mock_smolagents = MagicMock()
@@ -116,10 +100,10 @@ def test_llm_factory_get_smolagent_model() -> None:
     mock_litellm_cls.assert_called_once_with(model_id="fake/parrot", **factory.llm_params)
 
 
-def test_get_llm_info() -> None:
+def test_get_llm_info(fake_llm_id) -> None:
     """Test get_llm_info function."""
-    info = get_llm_info(FAKE_LLM_ID)
-    assert info.llm == FAKE_LLM_ID
+    info = get_llm_info(fake_llm_id)
+    assert info.llm == fake_llm_id
     assert info.provider == FAKE_LLM_PROVIDER
     assert info.model == "parrot"
 
@@ -130,11 +114,11 @@ def test_get_llm_info_invalid_id(invalid_llm_id) -> None:
         get_llm_info(invalid_llm_id)
 
 
-def test_llm_config() -> None:
+def test_llm_config(fake_llm_id) -> None:
     """Test llm_config function."""
-    config = llm_config(FAKE_LLM_ID)
+    config = llm_config(fake_llm_id)
     assert "configurable" in config
-    assert config["configurable"]["llm_id"] == FAKE_LLM_ID
+    assert config["configurable"]["llm_id"] == fake_llm_id
 
 
 def test_llm_config_invalid_id() -> None:
@@ -165,25 +149,25 @@ def test_cache_parameter(fake_llm_with_cache) -> None:
     assert fake_llm_with_cache is not None
 
 
-def test_llm_params_parameter(fake_llm) -> None:
+def test_llm_params_parameter(fake_llm_id) -> None:
     """Test additional LLM parameters."""
-    llm = get_llm(llm=FAKE_LLM_ID, temperature=0.5, max_tokens=100)
+    llm = get_llm(llm=fake_llm_id, temperature=0.5, max_tokens=100)
     assert llm is not None
 
 
-def test_known_items() -> None:
+def test_known_items(fake_llm_id) -> None:
     """Test known_items method."""
     items = LlmFactory.known_items()
     assert isinstance(items, list)
     assert len(items) > 0
-    assert FAKE_LLM_ID in items
+    assert fake_llm_id in items
 
 
-def test_known_items_dict() -> None:
+def test_known_items_dict(fake_llm_id) -> None:
     """Test known_items_dict method."""
     items_dict = LlmFactory.known_items_dict()
     assert isinstance(items_dict, dict)
-    assert FAKE_LLM_ID in items_dict
+    assert fake_llm_id in items_dict
 
 
 def test_complex_provider_config_parsing() -> None:
@@ -266,18 +250,18 @@ def test_resolve_llm_identifier_tag_with_compact_alias() -> None:
     assert "/" in model_part, f"Expected vendor/model format, got: '{model_part}'"
 
 
-def test_llm_factory_model_validation() -> None:
+def test_llm_factory_model_validation(fake_llm_id) -> None:
     """Test LlmFactory model validation."""
     # Test valid ID
-    factory = LlmFactory(llm=FAKE_LLM_ID)
-    assert factory.llm_id == FAKE_LLM_ID
+    factory = LlmFactory(llm=fake_llm_id)
+    assert factory.llm_id == fake_llm_id
 
     # Test invalid ID
     with pytest.raises(ValueError, match="Unknown LLM"):
         LlmFactory(llm="invalid_model_id")
 
 
-def test_field_validator_cache() -> None:
+def test_field_validator_cache(fake_llm_id) -> None:
     """Test cache field validator."""
     # Valid cache value
     from genai_tk.utils.langchain_community_repl.sqlite_cache import SQLiteCache
@@ -289,7 +273,7 @@ def test_field_validator_cache() -> None:
     from pydantic import ValidationError
 
     with pytest.raises(ValidationError, match="'memory', 'sqlite' or 'no_cache'"):
-        LlmFactory(llm_id=FAKE_LLM_ID, cache="invalid_cache")
+        LlmFactory(llm_id=fake_llm_id, cache="invalid_cache")
 
 
 def test_edenai_v3_uses_openai_compatible_endpoint() -> None:
@@ -379,11 +363,11 @@ def test_openai_compatible_injects_reasoning_payload() -> None:
     assert call_kwargs["extra_body"]["reasoning"] == {"effort": "high", "max_tokens": 1024}
 
 
-def test_warn_when_reasoning_requested_on_non_thinking_model() -> None:
+def test_warn_when_reasoning_requested_on_non_thinking_model(fake_llm_id) -> None:
     """Factory should warn when reasoning options are requested on a non-thinking model."""
     from unittest.mock import patch
 
-    factory = LlmFactory(llm=FAKE_LLM_ID, llm_params={"reasoning": {"effort": "high"}})
+    factory = LlmFactory(llm=fake_llm_id, llm_params={"reasoning": {"effort": "high"}})
 
     with patch("genai_tk.core.factories.llm_factory.logger.warning") as mock_warning:
         model = factory.model_factory()

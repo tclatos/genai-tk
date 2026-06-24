@@ -155,6 +155,42 @@ Both methods return empty model / empty dict when the key is absent — they nev
 - Use `faker` for test data generation
 - No Docker required for unit tests; integration tests may require live services
 
+### Test Conventions
+
+**Never hardcode model IDs.** Use the shared fixtures from `tests/conftest.py`:
+
+```python
+def test_something(fake_llm_id: str, fake_llm, fake_embeddings_id: str, fake_embeddings):
+    ...
+```
+
+These are resolved from the `pytest` profile in `config/app_conf.yaml` at run time.
+The typed source is `genai_tk.config_mgmt.test_config.PytestConfig` / `get_pytest_config()`.
+
+**Do not call `get_pytest_config()` at module level.** It runs before `switch_profile("pytest")`
+fires (session-scoped autouse fixture). Call it only inside fixtures or test functions.
+
+**Avoid `pytest_*` names** for fixtures — pytest treats them as hook registrations and
+raises `PluginValidationError` at collection time. Prefer `test_cfg`, `fake_llm_id`, etc.
+
+**Limit mocks.** Prefer fake providers (`parrot_local@fake`, `embeddings_768@fake`) over `unittest.mock` patches. Only mock at true system boundaries (external HTTP, filesystem side-effects); never mock internal genai-tk classes.
+
+**One behaviour per test.** Prefer a single focused assertion over a multi-step scenario.
+Use `@pytest.mark.parametrize` for repeated cases instead of a loop inside the test body.
+
+**Use pytest style, not `unittest.TestCase`.** Fixtures with `yield` replace `setUp`/`tearDown`;
+plain `assert` replaces `self.assertEqual`; `pytest.raises` replaces `self.assertRaises`.
+
+**Mark tests correctly:**
+
+| Marker | When to use |
+|---|---|
+| `@pytest.mark.unit` | Pure in-process logic, no I/O |
+| `@pytest.mark.integration` | Starts real services or hits the filesystem |
+| `@pytest.mark.fake_models` | Uses `parrot_local@fake` / `embeddings_768@fake` |
+| `@pytest.mark.real_models` | Requires live API keys (skipped by default) |
+| `@pytest.mark.performance_tests` | Throughput / latency benchmarks |
+
 ## Agent and Tool Guidelines
 
 ### Agents

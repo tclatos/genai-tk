@@ -77,7 +77,7 @@ class TestLangchainCommandRun:
             result = runner.invoke(agents_app, ["agents", "langchain", "what is 2+2"])
             assert result.exit_code == 0
 
-    def test_query_with_llm_override(self, agents_app, runner) -> None:
+    def test_query_with_llm_override(self, agents_app, runner, fake_llm_id) -> None:
         with patch(
             "genai_tk.agents.langchain.factory.create_langchain_agent",
             new_callable=AsyncMock,
@@ -88,7 +88,7 @@ class TestLangchainCommandRun:
             mock_compiled.ainvoke.return_value = {"messages": [AIMessage(content="result")]}
             mock_factory.return_value = mock_compiled
 
-            result = runner.invoke(agents_app, ["agents", "langchain", "hello", "--llm", "parrot_local@fake"])
+            result = runner.invoke(agents_app, ["agents", "langchain", "hello", "--llm", fake_llm_id])
             assert result.exit_code == 0
 
     def test_query_with_type_react(self, agents_app, runner) -> None:

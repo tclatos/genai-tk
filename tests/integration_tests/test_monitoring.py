@@ -97,7 +97,7 @@ def reset_monitoring_singleton():
 class TestLocalBackend:
     """Tests for the local JSONL file backend — no API keys required."""
 
-    def test_local_log_writes_entry_on_fake_llm_call(self, tmp_path: Path) -> None:
+    def test_local_log_writes_entry_on_fake_llm_call(self, tmp_path: Path, fake_llm_id) -> None:
         """A LangChain call through the fake LLM should produce a JSONL entry."""
         log_file = tmp_path / "traces" / "llm_calls.jsonl"
         cfg = MonitoringConfig(
@@ -126,7 +126,7 @@ class TestLocalBackend:
 
             from genai_tk.core.factories.llm_factory import get_llm
 
-            llm = get_llm("parrot_local@fake")
+            llm = get_llm(fake_llm_id)
             response = llm.invoke("Tell me a joke", config={"callbacks": ctx.langchain_callbacks})
             assert response is not None
 
