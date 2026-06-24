@@ -1,12 +1,12 @@
 # Docker
 
 I want to facilate creation of a docker image running an application using the toolkit.
-Today there's a deploy/docker.just file, adapted from Make (not tested) and deploy/Dockerfile, aso copied from another project. 
+Today there's a deploy/docker.just file, adapted from Make (not tested) and deploy/Dockerfile, also copied from another project. 
 
-1/ adapt theses files and make it work with the newly introduced 'just' . Take into account that 1/ We don't use all features it brings compare to make 2/ later we might have recipes to deploy to Azure, AWS etc
-2/  Make these targets usable from a scaffolded app uing the genai-tk
-3/ Adapt 
-
+1/ adapt theses files and make them work with the newly introduced 'just' . Take into account that 1/ We don't use all features it brings compare to make 2/ later we might have recipes to deploy to Azure, AWS etc  3/ We have more flexibility in terms of imported package (with uv --extra )
+2/  Make these targets usable from a scaffolded app using the genai-tk
+3/ Adapt rfq_pricing (that started as a scaffolded ) so we can build a docker image with that app.
+Try to have sometjinh siple fro the user, while generic. 
 
 
 # Spacy 

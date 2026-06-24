@@ -1,0 +1,53 @@
+# Version control
+.git
+.gitignore
+
+# Python
+.venv
+__pycache__
+*.py[cod]
+*.egg-info
+dist
+build
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Testing & CI
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+tests
+
+# Documentation (not needed in image)
+docs
+*.md
+!README.md
+
+# Temporary files
+tmp
+*.log
+None
+
+# Data files (mounted at runtime)
+data
+
+# Deploy scripts (not needed inside image)
+deploy/*.just
+deploy/*.mk
+deploy/*.sh
+deploy/docker-compose.*
+
+# Other
+examples
+notebooks
+scripts
+vendor
+ext
+fib.py
+fibonacci.py

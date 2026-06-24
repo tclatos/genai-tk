@@ -248,4 +248,5 @@ Current docs index:
 | `docs/sandbox_support.md` | OpenSandbox Docker container setup and integration |
 | `docs/deer-flow.md` | DeerFlow integration — profiles, modes, chat commands |
 | `docs/webapp.md` | Built-in Streamlit webapp — `just webapp`, built-in agent pages, `genai_tk://` cross-package nav, `cli init` |
+| `docs/docker.md` | Docker image build — generic Dockerfile, just recipes, extras, scaffolded app setup |
 | `docs/TESTING_GUIDE.md` | Pytest fixtures, fake LLM/embeddings, async tests |

@@ -14,6 +14,18 @@ streamlit_entry := "genai_tk/webapp/main/streamlit.py"
 deer_flow_repo := "https://github.com/bytedance/deer-flow.git"
 deer_flow_dir := "ext/deer-flow"
 
+# Docker overrides for genai-tk itself (all extras, with Node.js)
+app_name     := "genai-tk"
+docker_tag   := "latest"
+extras       := "all,monitoring"
+install_node := "true"
+extra_copy   := "skills"
+docker_pkg   := pkg_name
+docker_port  := "8501"
+dockerfile   := "deploy/Dockerfile"
+
+import 'deploy/docker.just'
+
 # List available recipes
 [doc('Show all available recipes')]
 default:
