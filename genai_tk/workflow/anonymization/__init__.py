@@ -1,26 +1,25 @@
-"""PII anonymization core — shared between the Prefect ETL flow and LangChain middleware.
+"""PII anonymization core — DEPRECATED: use ``genai_tk.extra.nlp`` instead.
 
-Public API
-----------
-Configuration & detector (Pydantic models)
-    :class:`~genai_tk.workflow.anonymization.core.AnonymizationConfig`
-    :class:`~genai_tk.workflow.anonymization.presidio_detector.PresidioDetectorConfig`
-    :class:`~genai_tk.workflow.anonymization.presidio_detector.PresidioDetector`
-    :class:`~genai_tk.workflow.anonymization.presidio_detector.DetectedEntity`
-    :class:`~genai_tk.workflow.anonymization.presidio_detector.CustomRecognizerConfig`
-
-Stateless helpers
-    :func:`~genai_tk.workflow.anonymization.core.anonymize_text`
-    :func:`~genai_tk.workflow.anonymization.core.make_fake_value`
+This package is kept for backward compatibility. All symbols are re-exported
+from :mod:`genai_tk.extra.nlp`. Import from there in new code.
 """
 
-from genai_tk.workflow.anonymization.core import (
+import warnings
+
+warnings.warn(
+    "genai_tk.workflow.anonymization is deprecated. "
+    "Use genai_tk.extra.nlp instead (e.g. from genai_tk.extra.nlp import PresidioDetector, anonymize_text).",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from genai_tk.extra.nlp.anonymization import (  # noqa: E402
     AnonymizationConfig,
     _deduplicate_entities,
     anonymize_text,
     make_fake_value,
 )
-from genai_tk.workflow.anonymization.presidio_detector import (
+from genai_tk.extra.nlp.presidio import (  # noqa: E402
     CustomRecognizerConfig,
     DetectedEntity,
     PresidioDetector,
@@ -28,14 +27,11 @@ from genai_tk.workflow.anonymization.presidio_detector import (
 )
 
 __all__ = [
-    # Config
     "AnonymizationConfig",
-    # Detector
     "PresidioDetectorConfig",
     "PresidioDetector",
     "DetectedEntity",
     "CustomRecognizerConfig",
-    # Helpers
     "anonymize_text",
     "make_fake_value",
     "_deduplicate_entities",

@@ -86,9 +86,17 @@ class BM25RetrieverConfig(BaseModel):
     type: Literal["bm25"] = "bm25"
     k: int = 4
     preprocessing: str = "default"
-    spacy_model: str = "en_core_web_sm"
+    spacy_model: str | None = Field(default=None, description="spaCy model. Falls back to NlpConfig when None.")
     cache_dir: str | None = None
     bm25_params: dict[str, Any] = Field(default_factory=dict)
+
+    def resolve_spacy_model(self) -> str:
+        """Return spaCy model name, falling back to NlpConfig default."""
+        if self.spacy_model:
+            return self.spacy_model
+        from genai_tk.extra.nlp.config import nlp_config
+
+        return nlp_config().default_model
 
 
 class PgHybridRetrieverConfig(BaseModel):
@@ -240,7 +248,7 @@ class BM25DocumentStore:
         self,
         cache_dir: Path,
         preprocessing: str = "default",
-        spacy_model: str = "en_core_web_sm",
+        spacy_model: str | None = None,
         bm25_params: dict[str, Any] | None = None,
     ) -> None:
         self.cache_dir = cache_dir
@@ -249,15 +257,21 @@ class BM25DocumentStore:
         self.bm25_params = bm25_params or {}
         self._current_retriever: Any | None = None
 
+    def _resolve_spacy_model(self) -> str:
+        """Return spaCy model name, falling back to NlpConfig default."""
+        if self.spacy_model:
+            return self.spacy_model
+        from genai_tk.extra.nlp.config import nlp_config
+
+        return nlp_config().default_model
+
     # -- preprocessing -------------------------------------------------------
 
     def _preprocess_func(self) -> Any:
-        from genai_tk.workflow.retrievers.bm25s_retriever import default_preprocessing_func
+        from genai_tk.extra.nlp.preprocessing import default_preprocessing_func, get_spacy_preprocess_fn
 
         if self.preprocessing == "spacy":
-            from genai_tk.workflow.retrievers.bm25s_retriever import get_spacy_preprocess_fn
-
-            return get_spacy_preprocess_fn(self.spacy_model)
+            return get_spacy_preprocess_fn(model=self._resolve_spacy_model())
         return default_preprocessing_func
 
     # -- sync core -----------------------------------------------------------
@@ -639,7 +653,7 @@ class RetrieverFactory:
         bm25_store = BM25DocumentStore(
             cache_dir=cache_dir,
             preprocessing=cfg.preprocessing,
-            spacy_model=cfg.spacy_model,
+            spacy_model=cfg.resolve_spacy_model() if cfg.preprocessing == "spacy" else cfg.spacy_model,
             bm25_params=cfg.bm25_params,
         )
         retriever = bm25_store.get_or_load_retriever(k=cfg.k) or _EmptyRetriever()

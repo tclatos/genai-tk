@@ -12,8 +12,8 @@ from genai_tk.agents.langchain.middleware.anonymization_middleware import (
     AnonymizationConfig,
     AnonymizationMiddleware,
 )
-from genai_tk.workflow.anonymization.core import _deduplicate_entities
-from genai_tk.workflow.anonymization.presidio_detector import DetectedEntity, PresidioDetectorConfig
+from genai_tk.extra.nlp import DetectedEntity, PresidioDetectorConfig
+from genai_tk.extra.nlp.anonymization import _deduplicate_entities
 
 # ---------------------------------------------------------------------------
 # Helpers

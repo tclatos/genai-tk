@@ -12,6 +12,13 @@ paths:
   config: ${paths.project}/config
   data_root: ${paths.project}/data
 
+nlp:
+  default_language: en
+  default_model: en_core_web_sm
+  models:
+    en: en_core_web_sm
+    fr: fr_core_news_sm
+
 
 # :merge: lists gitignore-style patterns (relative to this directory) for YAML
 # files to load and deep-merge into the config, in sorted order.

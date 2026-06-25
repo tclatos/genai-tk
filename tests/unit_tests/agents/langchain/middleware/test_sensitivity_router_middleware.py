@@ -16,7 +16,7 @@ from genai_tk.agents.langchain.middleware.sensitivity_scorer import (
     DefaultScorerConfig,
     DefaultSensitivityScorer,
 )
-from genai_tk.workflow.anonymization.presidio_detector import PresidioDetectorConfig
+from genai_tk.extra.nlp import PresidioDetectorConfig
 
 # ---------------------------------------------------------------------------
 # Helpers

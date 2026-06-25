@@ -13,9 +13,17 @@ class BM25RetrieverConfig(BaseModel):
 
     k: int = 4
     preprocessing: str = "default"
-    spacy_model: str = "en_core_web_sm"
+    spacy_model: str | None = Field(default=None, description="spaCy model. Falls back to NlpConfig when None.")
     cache_dir: str | None = None
     bm25_params: dict[str, Any] = Field(default_factory=dict)
+
+    def resolve_spacy_model(self) -> str:
+        """Return spaCy model name, falling back to NlpConfig default."""
+        if self.spacy_model:
+            return self.spacy_model
+        from genai_tk.extra.nlp.config import nlp_config
+
+        return nlp_config().default_model
 
 
 class BM25Retriever:
@@ -36,7 +44,7 @@ class BM25Retriever:
         bm25_store = BM25DocumentStore(
             cache_dir=cache_dir,
             preprocessing=cfg.preprocessing,
-            spacy_model=cfg.spacy_model,
+            spacy_model=cfg.resolve_spacy_model() if cfg.preprocessing == "spacy" else cfg.spacy_model,
             bm25_params=cfg.bm25_params,
         )
         retriever = bm25_store.get_or_load_retriever(k=cfg.k) or _EmptyRetriever()

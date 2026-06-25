@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-from genai_tk.workflow.anonymization.presidio_detector import (
-    CustomRecognizerConfig,
-    PresidioDetector,
-    PresidioDetectorConfig,
-)
+from genai_tk.extra.nlp import CustomRecognizerConfig, PresidioDetector, PresidioDetectorConfig
 
 # ---------------------------------------------------------------------------
 # Helpers / fixtures

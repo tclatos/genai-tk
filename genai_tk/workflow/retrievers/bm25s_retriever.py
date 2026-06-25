@@ -12,40 +12,7 @@ from langchain_core.retrievers import BaseRetriever
 from loguru import logger
 from pydantic import ConfigDict, Field
 
-
-def default_preprocessing_func(text: str) -> list[str]:
-    return text.split()
-
-
-def get_spacy_preprocess_fn(model: str, more_stop_words: list[str] | None = None) -> Callable[[str], list[str]]:
-    """Return a function that preprocess a string for search :  lemmanisation, lower_case, and strop word removal.
-
-    Args:
-    - model: spacy model for lemmanisation
-    - more_stop_words : additional stop words
-    """
-    import spacy
-
-    if more_stop_words is None:
-        more_stop_words = []
-    logger.info("load spacy model {}", model)
-
-    try:
-        nlp = spacy.load(model)
-    except OSError as ex:
-        raise ModuleNotFoundError(
-            f"Cannot load Spacy model.  Try install it with : 'python -m spacy download {model}'"
-        ) from ex
-
-    stop_words = nlp.Defaults.stop_words
-    stop_words.update(more_stop_words or [])
-
-    def preprocess_text(text: str) -> list[str]:
-        lemmas = [token.lemma_.lower() for token in nlp(text)]
-        filtered = [token for token in lemmas if token not in stop_words]
-        return filtered
-
-    return preprocess_text
+from genai_tk.extra.nlp.preprocessing import default_preprocessing_func, get_spacy_preprocess_fn  # noqa: F401
 
 
 class BM25FastRetriever(BaseRetriever):
@@ -171,7 +138,7 @@ class BM25FastRetriever(BaseRetriever):
 
 if __name__ == "__main__":
     """Quick test for BM25FastRetriever using SpaCyModelManager and spacy preprocessing."""
-    from genai_tk.utils.spacy_model_mngr import SpaCyModelManager
+    from genai_tk.extra.nlp.model_manager import SpaCyModelManager
 
     # Use SpaCyModelManager to handle spacy model
     model_name = "en_core_web_sm"  # Default model name

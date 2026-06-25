@@ -1,18 +1,24 @@
-# Docker
+# NLP
+We have Spacy and nlp code used in different part of the toolkit. It's time to refactor.
+Move genai_tk.workflow.anonymization.presidio_detector (and possiblye other part of the module)  to genai_tk.extra.nlp  and refactor to have better control of Spacy for other use cases other than PII (ex: Hybrid search, classifier), or to select language, models, or else ...
 
-I want to facilate creation of a docker image running an application using the toolkit.
-Today there's a deploy/docker.just file, adapted from Make (not tested) and deploy/Dockerfile, also copied from another project. 
-
-1/ adapt theses files and make them work with the newly introduced 'just' . Take into account that 1/ We don't use all features it brings compare to make 2/ later we might have recipes to deploy to Azure, AWS etc  3/ We have more flexibility in terms of imported package (with uv --extra )
-2/  Make these targets usable from a scaffolded app using the genai-tk
-3/ Adapt rfq_pricing (that started as a scaffolded ) so we can build a docker image with that app.
-Try to have sometjinh siple fro the user, while generic. 
+Move also and refactor /home/tcl/prj/genai-tk/genai_tk/utils/spacy_model_mngr.py 
 
 
-# Spacy 
-en-core-web-lg is pretty large.  Look at we could avoid download it, and use en-core-web-sm instead . 
-More generaly make the model configurable. Revisit genai_tk/utils/spacy_model_mngr.py that might not be used (confim). Add feature to detect the language from a text extract.
-- 
+Ensure strong typing, and correct error handling  if nlp feature is not enabled
+
+Check that PPI works for French - or raise a clear message is the model is not loaded
+
+
+Refactor genai_tk/agents/langchain/middleware/presidio_detector.py and related files.
+Consider refactoring genai_tk/agents/langchain/middleware/sensitivity_scorer.py : the sensitivity scorer could be a quite reusable classifier (that we would update). Think about that (and having some form of classifier factory). But its a secondary objective.
+
+Refactor genai_tk/core/retrievers/bm25.py and/or genai_tk/core/factories/retriever_factory.py  to have a better Spacy support (more configurable, single place, ...).
+
+Refactor tests. 
+We should have a better design after these changes !  
+
+Think, ask questions, suggest improvements, ..
 
 
 

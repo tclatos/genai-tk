@@ -39,7 +39,7 @@ from genai_tk.agents.langchain.middleware.sensitivity_scorer import (
     SensitivityAssessment,
     SensitivityScorer,
 )
-from genai_tk.workflow.anonymization.presidio_detector import (
+from genai_tk.extra.nlp import (
     CustomRecognizerConfig,
     DetectedEntity,
     PresidioDetector,

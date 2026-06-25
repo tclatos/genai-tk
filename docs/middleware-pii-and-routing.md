@@ -7,6 +7,8 @@ This document describes two LangChain middlewares for securing agent conversatio
 
 Both middlewares are thread-isolated (concurrent conversations remain separate) and composable.
 
+> **NLP / spaCy internals:** The Presidio detector, anonymization logic, and sensitivity scorer all live in `genai_tk.extra.nlp`. See [docs/nlp.md](nlp.md) for the full reference on configuration, model management, French support, and the classifier abstraction.
+
 ## AnonymizationMiddleware
 
 ### Overview
@@ -24,13 +26,13 @@ from genai_tk.agents.langchain.middleware.anonymization_middleware import (
     AnonymizationMiddleware,
     AnonymizationConfig,
 )
-from genai_tk.agents.langchain.middleware.presidio_detector import PresidioDetectorConfig
+from genai_tk.extra.nlp import PresidioDetectorConfig   # canonical import path
 
 config = AnonymizationConfig(
     detector=PresidioDetectorConfig(
         analyzed_fields=["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD"],
         enable_spacy=True,
-        spacy_model="en_core_web_sm",
+        # spacy_model / language default to NlpConfig (config/app_conf.yaml nlp: section)
     ),
     faker_seed=42,  # reproducible fake values
     faker_locales=["en_US"],
@@ -83,10 +85,7 @@ See [Presidio docs](https://microsoft.github.io/presidio/supported_entities/) fo
 Add domain-specific entity types using regex patterns and optional context words via `CustomRecognizerConfig`:
 
 ```python
-from genai_tk.agents.langchain.middleware.presidio_detector import (
-    CustomRecognizerConfig,
-    PresidioDetectorConfig,
-)
+from genai_tk.extra.nlp import CustomRecognizerConfig, PresidioDetectorConfig
 
 config = PresidioDetectorConfig(
     analyzed_fields=["PERSON", "EMAIL_ADDRESS"],
@@ -184,11 +183,8 @@ from genai_tk.agents.langchain.middleware.sensitivity_router_middleware import (
     SensitivityRouterConfig,
     SensitivityRouterMiddleware,
 )
-from genai_tk.agents.langchain.middleware.sensitivity_scorer import (
-    DefaultScorerConfig,
-    DefaultSensitivityScorer,
-)
-from genai_tk.agents.langchain.middleware.presidio_detector import PresidioDetectorConfig
+from genai_tk.extra.nlp.classifiers import DefaultScorerConfig, DefaultSensitivityScorer
+from genai_tk.extra.nlp import PresidioDetectorConfig
 
 # Build a scorer with custom thresholds
 scorer = DefaultSensitivityScorer(

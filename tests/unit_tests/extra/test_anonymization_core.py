@@ -2,11 +2,13 @@
 
 from faker import Faker
 
-from genai_tk.workflow.anonymization.core import AnonymizationConfig, anonymize_text, make_fake_value
-from genai_tk.workflow.anonymization.presidio_detector import (
+from genai_tk.extra.nlp import (
+    AnonymizationConfig,
     CustomRecognizerConfig,
     PresidioDetector,
     PresidioDetectorConfig,
+    anonymize_text,
+    make_fake_value,
 )
 
 

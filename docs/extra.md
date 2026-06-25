@@ -1,10 +1,10 @@
 # Extra Module (`genai_tk.extra`)
 
-> **Quick nav:** [Agent Graphs](#agent-graphs-extragraphs) · [RAG Systems](#rag-systems-workflowrag) · [Data Loaders](#data-loaders-workflowloaders) · [Retrievers](#retrievers-workflowretrievers) · [Anonymization](#anonymization-extraanonymization) · [BAML / Structured Extraction](#structured-extraction-baml-extrastructured) · [Image Analysis](#image-analysis-extraimage_analysis) · [KV Store](#kv-store-extrakv_store)
+> **Quick nav:** [Agent Graphs](#agent-graphs-extragraphs) · [RAG Systems](#rag-systems-workflowrag) · [Data Loaders](#data-loaders-workflowloaders) · [Retrievers](#retrievers-workflowretrievers) · [NLP](#nlp-extranl) · [BAML / Structured Extraction](#structured-extraction-baml-extrastructured) · [Image Analysis](#image-analysis-extraimage_analysis) · [KV Store](#kv-store-extrakv_store)
 
 ## Overview
 
-The `extra` module contains non-pipeline tooling: agent graphs, anonymization, image analysis, KV store, BAML extraction, and the Mistral OCR / PPT conversion commands.
+The `extra` module contains non-pipeline tooling: agent graphs, NLP (spaCy, PII detection, anonymization, text classifiers), image analysis, KV store, BAML extraction, and the Mistral OCR / PPT conversion commands.
 
 ETL-oriented components (RAG, loaders, retrievers, and Prefect flows) live in **`genai_tk.workflow`** — see [prefect.md](prefect.md) and [rag.md](rag.md) for full documentation.
 
@@ -240,38 +240,52 @@ Low-level retriever implementations live under `genai_tk/workflow/retrievers/` a
 - `BM25FastRetriever` — bm25s-backed keyword retriever with optional Spacy preprocessing
 - `ZeroEntropyRetriever` — read-only retriever backed by the ZeroEntropy SDK
 
+## NLP (`extra.nlp`)
+
+All spaCy and NLP functionality lives in `genai_tk.extra.nlp` — PII detection, anonymization, text classification, BM25 preprocessing, and spaCy model management.
+
+See **[docs/nlp.md](nlp.md)** for the complete reference.
+
+**Quick import:**
+```python
+from genai_tk.extra.nlp import (
+    get_nlp,                    # spaCy Language object
+    get_spacy_preprocess_fn,    # BM25 preprocessing
+    PresidioDetector,           # PII detection
+    PresidioDetectorConfig,
+    DetectedEntity,
+    CustomRecognizerConfig,
+    AnonymizationConfig,
+    anonymize_text,
+    make_fake_value,
+)
+from genai_tk.extra.nlp.classifiers import DefaultSensitivityScorer, DefaultScorerConfig
+```
+
+> **Requires:** `uv sync --extra nlp`
+
 ## Utility Functions
 
-### Anonymization
+### Anonymization (legacy section)
 
-PII detection and replacement using [Presidio](https://microsoft.github.io/presidio/) + [Faker](https://faker.readthedocs.io/).
-Core logic lives in `genai_tk/workflow/anonymization/` and is shared by the Prefect ETL flow
-and the `AnonymizationMiddleware` agent middleware — identical behaviour in both contexts.
+> PII detection and replacement. The canonical location is now `genai_tk.extra.nlp` — see [docs/nlp.md](nlp.md).
 
-> **Requires:** `uv add presidio-analyzer presidio-anonymizer spacy`
+For agent use, configure `AnonymizationMiddleware` — see [middleware-pii-and-routing.md](middleware-pii-and-routing.md).
+For ETL/batch use, configure the `anonymize` workflow — see [workflows.md](workflows.md).
 
 **Standalone usage (batch / scripting):**
 
 ```python
 from faker import Faker
-from genai_tk.workflow.anonymization.core import AnonymizationConfig, anonymize_text
-from genai_tk.workflow.anonymization.presidio_detector import (
-    CustomRecognizerConfig, PresidioDetector, PresidioDetectorConfig,
-)
+from genai_tk.extra.nlp import AnonymizationConfig, CustomRecognizerConfig, PresidioDetector, PresidioDetectorConfig, anonymize_text
 
 config = PresidioDetectorConfig(
     analyzed_fields=["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD"],
-    # Add domain-specific entities via regex recognizers:
     custom_recognizers=[
         CustomRecognizerConfig(
             entity_name="COMPANY",
             patterns=[r"(?i)\b(Acme Corp|Tech Solutions)\b"],
             context=["company", "firm"],
-        ),
-        CustomRecognizerConfig(
-            entity_name="PRODUCT",
-            patterns=[r"(?i)\b(WidgetPro|CloudMaster)\b"],
-            context=["product", "service"],
         ),
     ],
 )
@@ -284,15 +298,7 @@ anonymized, mapping = anonymize_text(
     detector=detector,
     faker=faker,
 )
-# mapping = {"John Smith": "Jane Doe", "Acme Corp": "Hoeger LLC", ...}
 ```
-
-**Supported entity types** (Presidio built-ins + custom via `CustomRecognizerConfig`):
-`PERSON`, `EMAIL_ADDRESS`, `PHONE_NUMBER`, `CREDIT_CARD`, `LOCATION`, `IBAN_CODE`,
-`US_SSN`, `IP_ADDRESS`, `URL`, `DATE_TIME`, `ORG` — and custom `COMPANY`, `PRODUCT`, `PROJECT`.
-
-For agent use, configure `AnonymizationMiddleware` — see [middleware-pii-and-routing.md](middleware-pii-and-routing.md).
-For ETL/batch use, configure the `anonymize` workflow — see [workflows.md](workflows.md).
 
 ### Image Analysis (`image_analysis.py`)
 

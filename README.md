@@ -15,6 +15,14 @@ Build intelligent applications with multi-provider LLM/embeddings support and st
 - LLM caching, prompt templates, structured output
 - See: `cli core llm`, `cli info models`, [docs/core.md](docs/core.md)
 
+### 🔤 **NLP**
+Centralized spaCy and NLP functionality for PII detection, anonymization, BM25 preprocessing, and text classification.
+- PII detection with [Presidio](https://microsoft.github.io/presidio/) + spaCy (English, French, and more)
+- Reversible anonymization with Faker — shared by agent middleware and Prefect ETL flows
+- Configurable sensitivity scoring (regex + keywords + Presidio + heuristics)
+- BM25 lemmatization preprocessing, multi-language model management
+- See: [docs/nlp.md](docs/nlp.md), [docs/middleware-pii-and-routing.md](docs/middleware-pii-and-routing.md)
+
 ### 🤖 **Agents**
 Four agent frameworks (ReAct, Deep, Deer-flow, SmolAgents) sharing YAML profiles, LLM factory, tools, and Docker sandbox.
 - **ReAct** — standard Thought → Action → Observation loop (LangChain)
@@ -719,6 +727,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 
 | **Cross-cutting** | CLI | Python | Docs |
 |---|---|---|---|
+| NLP / PII / spaCy | — | `genai_tk.extra.nlp` | [docs/nlp.md](docs/nlp.md) |
 | Configuration | `cli init` | `global_config()` | [docs/configuration.md](docs/configuration.md) |
 | Project scaffolding | `cli init --name` | `ProjectScaffolder` | [docs/scaffolding.md](docs/scaffolding.md) |
 | Copilot Agent support | `cli init` | — | [docs/copilot-agent-support.md](docs/copilot-agent-support.md) |
@@ -746,7 +755,7 @@ genai_tk/
 │   ├── rag/       # chunkers, RAG CLI commands
 │   ├── loaders/   # Markdown loader, Mistral OCR loader
 │   └── retrievers/ # BM25, ZeroEntropy
-├── extra/         # Non-pipeline tooling: agent graphs, anonymization, BAML, image analysis
+├── extra/         # Non-pipeline tooling: agent graphs, NLP (spaCy/Presidio/classifiers), BAML, image analysis
 ├── tools/         # LangChain and SmolAgents tool sets
 ├── utils/         # Config manager, Pydantic helpers, LangGraph utilities
 └── main/          # CLI entry point + command modules

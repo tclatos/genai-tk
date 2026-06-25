@@ -236,7 +236,8 @@ Current docs index:
 | `docs/scaffolding.md` | `cli init` — template presets, generated files, skills setup, multi-agent support files |
 | `docs/copilot-agent-support.md` | Copilot Agent skills, AGENTS.md, copilot-instructions.md |
 | `docs/core.md` | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, `LlmCache`, `ChainRegistry` |
-| `docs/extra.md` | Non-pipeline tooling: agent graphs, anonymization, BAML, image analysis, KV store, PgVector |
+| `docs/extra.md` | Non-pipeline tooling: agent graphs, NLP, BAML, image analysis, KV store, PgVector |
+| `docs/nlp.md` | NLP package (`extra.nlp`): spaCy engine, model manager, preprocessing, PII detection, anonymization, classifiers, French support |
 | `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, all retriever types, CLI, Prefect flow, agent tools |
 | `docs/prefect.md` | Prefect flows in `workflow/prefect/flows/` — markdownize, ppt2pdf, rag, baml |
 | `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |

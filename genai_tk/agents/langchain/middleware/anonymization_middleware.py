@@ -46,8 +46,7 @@ from langchain.agents.middleware.types import AgentState
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langgraph.runtime import Runtime
 
-from genai_tk.workflow.anonymization.core import AnonymizationConfig, anonymize_text
-from genai_tk.workflow.anonymization.presidio_detector import PresidioDetector, PresidioDetectorConfig
+from genai_tk.extra.nlp import AnonymizationConfig, PresidioDetector, PresidioDetectorConfig, anonymize_text
 
 _DEFAULT_THREAD = "__default__"
 
