@@ -21,7 +21,7 @@ version: "1.0"
 
 ## Key Principle
 
-**All NLP code goes through `genai_tk.extra.nlp`.** Do not call `spacy.load()` directly, do not import from old paths like `genai_tk.workflow.anonymization` or `genai_tk.utils.spacy_model_mngr` in new code.
+**All NLP code goes through `genai_tk.extra.nlp`.** Do not call `spacy.load()` directly.
 
 ## Module Map
 
@@ -186,5 +186,4 @@ GENAITK_PROFILE=pytest uv run pytest tests/unit_tests/extra/ tests/unit_tests/ut
 ## Avoid
 
 - Do NOT call `spacy.load()` directly — use `get_nlp()`.
-- Do NOT import from deprecated paths (`workflow.anonymization.*`, `utils.spacy_model_mngr`) in new code.
 - Do NOT import `presidio_analyzer` or `spacy` at module level — use `TYPE_CHECKING` or lazy imports to keep the `nlp` extra truly optional.

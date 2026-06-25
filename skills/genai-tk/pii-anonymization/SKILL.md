@@ -28,10 +28,6 @@ Consumers:
 
 Both consumers call the **same** `anonymize_text()` function — identical behaviour at ETL time and agent runtime.
 
-> **Deprecated paths** (still work with DeprecationWarning):
-> - `genai_tk.workflow.anonymization.presidio_detector` → use `genai_tk.extra.nlp.presidio`
-> - `genai_tk.workflow.anonymization.core` → use `genai_tk.extra.nlp.anonymization`
-
 ## Key Types
 
 | Type | Module | Purpose |
@@ -187,5 +183,4 @@ GENAITK_PROFILE=pytest uv run pytest tests/unit_tests/agents/langchain/middlewar
 
 ## Avoid
 
-- Do NOT use old import paths like `genai_tk.workflow.anonymization.presidio_detector` in new code — use `genai_tk.extra.nlp`.
 - Do NOT store the anonymization mapping without encryption — it maps fake values back to real PII.

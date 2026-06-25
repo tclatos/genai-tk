@@ -1,17 +1,5 @@
 # NLP
-We have Spacy and nlp code used in different part of the toolkit. It's time to refactor.
-Move genai_tk.workflow.anonymization.presidio_detector (and possiblye other part of the module)  to genai_tk.extra.nlp  and refactor to have better control of Spacy for other use cases other than PII (ex: Hybrid search, classifier), or to select language, models, or else ...
-
-Move also and refactor /home/tcl/prj/genai-tk/genai_tk/utils/spacy_model_mngr.py 
-
-
-Ensure strong typing, and correct error handling  if nlp feature is not enabled
-
-Check that PPI works for French - or raise a clear message is the model is not loaded
-
-
-Refactor genai_tk/agents/langchain/middleware/presidio_detector.py and related files.
-Consider refactoring genai_tk/agents/langchain/middleware/sensitivity_scorer.py : the sensitivity scorer could be a quite reusable classifier (that we would update). Think about that (and having some form of classifier factory). But its a secondary objective.
+~~Refactor NLP code to `genai_tk.extra.nlp` — done.~~
 
 Refactor genai_tk/core/retrievers/bm25.py and/or genai_tk/core/factories/retriever_factory.py  to have a better Spacy support (more configurable, single place, ...).
 

@@ -1,10 +1,10 @@
 """LangChain agent middleware for PII anonymization and sensitivity-based LLM routing.
 
-PII detector (canonical location: :mod:`genai_tk.workflow.anonymization`)
-    :class:`~genai_tk.workflow.anonymization.PresidioDetectorConfig`
-    :class:`~genai_tk.workflow.anonymization.PresidioDetector`
-    :class:`~genai_tk.workflow.anonymization.DetectedEntity`
-    :class:`~genai_tk.workflow.anonymization.CustomRecognizerConfig`
+PII detector (canonical location: :mod:`genai_tk.extra.nlp`)
+    :class:`~genai_tk.extra.nlp.presidio.PresidioDetectorConfig`
+    :class:`~genai_tk.extra.nlp.presidio.PresidioDetector`
+    :class:`~genai_tk.extra.nlp.presidio.DetectedEntity`
+    :class:`~genai_tk.extra.nlp.presidio.CustomRecognizerConfig`
 
 Anonymization middleware
     :class:`~genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationConfig`

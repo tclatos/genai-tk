@@ -555,8 +555,7 @@ For programmatic use (e.g. pre-processing documents before ingestion):
 
 ```python
 from faker import Faker
-from genai_tk.workflow.anonymization.core import anonymize_text
-from genai_tk.workflow.anonymization.presidio_detector import PresidioDetector, PresidioDetectorConfig
+from genai_tk.extra.nlp import PresidioDetector, PresidioDetectorConfig, anonymize_text
 
 detector = PresidioDetector(config=PresidioDetectorConfig())
 Faker.seed(42)

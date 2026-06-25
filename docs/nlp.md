@@ -4,17 +4,7 @@
 
 ## Overview
 
-The `genai_tk.extra.nlp` package is the single home for all NLP and spaCy-related functionality in the toolkit. It consolidates code that was previously scattered across:
-
-| Old location | Now in |
-|---|---|
-| `genai_tk.workflow.anonymization.presidio_detector` | `genai_tk.extra.nlp.presidio` |
-| `genai_tk.workflow.anonymization.core` | `genai_tk.extra.nlp.anonymization` |
-| `genai_tk.utils.spacy_model_mngr` | `genai_tk.extra.nlp.model_manager` |
-| `genai_tk.workflow.retrievers.bm25s_retriever.get_spacy_preprocess_fn` | `genai_tk.extra.nlp.preprocessing` |
-| `genai_tk.agents.langchain.middleware.sensitivity_scorer` (implementation) | `genai_tk.extra.nlp.classifiers.sensitivity` |
-
-Old import paths remain functional with a `DeprecationWarning`. Update imports in new code to use `genai_tk.extra.nlp`.
+The `genai_tk.extra.nlp` package is the single home for all NLP and spaCy-related functionality in the toolkit. All NLP imports should use `genai_tk.extra.nlp`.
 
 ### Installation
 

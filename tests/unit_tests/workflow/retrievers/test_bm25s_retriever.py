@@ -131,7 +131,7 @@ def sample_documents():
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="spacy.*")
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="weasel.*")
 
-        from genai_tk.utils.spacy_model_mngr import SpaCyModelManager
+        from genai_tk.extra.nlp.model_manager import SpaCyModelManager
         from genai_tk.workflow.retrievers.bm25s_retriever import get_spacy_preprocess_fn
 
         # Setup spacy model using SpaCyModelManager
