@@ -128,7 +128,16 @@ if _nav_config and _pages_dir_str:
     pages: dict[str, list] = {}
     for section_name, page_files in _nav_config.items():
         section_pages = []
-        for page_file in page_files:
+        for page_entry in page_files:
+            # Each entry is either a plain string path or a dict with 'path' (required)
+            # and optional 'name'/'title' for the page title.
+            if isinstance(page_entry, dict):
+                page_file = page_entry.get("path") or page_entry.get("file", "")
+                explicit_title: str | None = page_entry.get("name") or page_entry.get("title")
+            else:
+                page_file = str(page_entry)
+                explicit_title = None
+
             # Resolve page path:
             #   genai_tk://path  → installed genai_tk/webapp/path
             #   /absolute/path   → as-is
@@ -147,17 +156,18 @@ if _nav_config and _pages_dir_str:
             else:
                 page_path = _pages_dir / page_file
 
+            page_title = explicit_title or _file_name_to_page_name(page_file)
             if page_path.exists():
-                section_pages.append(st.Page(page=page_path, title=_file_name_to_page_name(page_file)))
+                section_pages.append(st.Page(page=page_path, title=page_title))
             else:
                 logger.warning("Page not found: {}", page_path)
         if section_pages:
             pages[section_name.title()] = section_pages
 
-    pg = st.navigation(pages, position="top")
-    pg.run()
+    if not pages:
+        logger.warning("No pages resolved from navigation config — falling back to built-in demos")
 
-else:
+if not pages:
     # Default: built-in demo pages only
     _here = Path(__file__).parent.parent  # genai_tk/webapp/
     _demos_dir = _here / "pages" / "demos"
@@ -172,5 +182,5 @@ else:
         ],
     }
 
-    pg = st.navigation(pages, position="top")
-    pg.run()
+pg = st.navigation(pages, position="top")
+pg.run()

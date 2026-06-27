@@ -1,14 +1,19 @@
-# NLP
-~~Refactor NLP code to `genai_tk.extra.nlp` — done.~~
+# Separate Graph Project
+We want to extract the use case dependant part of genai-graph, so genai-graph can become more generic.
+- Create new project "ekg-atos" that  import genai-graph and contains ekg specific code, workflows and  config files. It has the same functionnalities than today genai-graph  (workflows to create KG, UI, ...)
 
-Refactor genai_tk/core/retrievers/bm25.py and/or genai_tk/core/factories/retriever_factory.py  to have a better Spacy support (more configurable, single place, ...).
+- Make genai-graph as generic as possible. Have generic node types like Documents. Create a  workflow that build a graph with documents in a directory. Create a Notebook to illustrate the process and display the resulting graph. Improve tests and Notebook support. 
 
-Refactor tests. 
-We should have a better design after these changes !  
-
-Think, ask questions, suggest improvements, ..
+Think, ask questions, suggest alternatives / improvements
 
 
+
+# Image in Markdown / Mistral
+- include_image_base64=True 
+- image_min_size = 40_000 
+Saves extracted base64 encoded images into an _images subdirectory within the output folder for each PDF and updates markdown links to point to these local files.
+
+- ?? add parameter confidence_scores_granularity = "page"
 
 # Refactor Retriever 
 We want to completly refactor the RAG processing part of the toolkit, to ba able to deal with more complex use cases, backends and configuration. We want notably able to levearge the capabilities of hybrid rag of the zvec lib (genai_tk/core/vector_backends/zvec.py ), in addition of current use cases with PostgreSQL, ZeroEntropy, and vector store + bm25 +  reranker. 
@@ -87,18 +92,7 @@ examples/notebooks/middleware_anonymization_demo.ipynb
 
 
 
-
-
-# Better file spec
-use  https://github.com/cpburnz/python-pathspec 
-
-
-
-## Improve Embedders
--  hane new FastEmbedEmbeddings provider: https://reference.langchain.com/python/langchain-community/embeddings/fastembed/FastEmbedEmbeddings  ; https://qdrant.github.io/fastembed/examples/Supported_Models 
-- add category (sparce, reranking, image, ..)
-
-## Around Agents
+# Around Agents
 - Test the AioSandboxBackend (taken from DeerFlow, and made compatible with Langchain protocol) to work with Deep agents and Deepagent-cli. 
 
 - Develop classical Deep Agents use case  , to run without too much change  (skill,  toools, MCP, ..) either in Deer-flow, Deeppagent-cli and our Langchain generic agent : research agent, coder agent, DB expert agent, etc...  

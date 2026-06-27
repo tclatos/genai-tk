@@ -3,7 +3,7 @@ name = "genai-tk"
 version = "0.1.0"
 description = "GenAI Toolkit - Core components for building AI applications"
 authors = [{ name = "Thierry Caminel", email = "thierry.caminel@atos.net" }]
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 dependencies = [
     # ============================================
     # Core Infrastructure
@@ -92,7 +92,7 @@ dependencies = [
     # ============================================
     "py-key-value-aio[disk,filetree,memory]>=0.4.5",
     "zvec>=0.5.0",
-    "baml-py>=0.222.0",
+    "baml-py==0.223.0",
 ]
 
 [project.urls]
