@@ -89,11 +89,15 @@ def install_loguru_prefect_bridge() -> None:
         lr.funcName = record["function"]
         logging.root.handle(lr)
 
+    from genai_tk.utils.logger_factory import logging_config
+
+    bridge_level = logging_config().level
+
     _bridge_id = logger.add(
         _sink,
         # Use a simple format — the sink formats each loguru message object
         # before passing it to _sink; the format string is required but its
         # output is not used (we read record["message"] directly).
         format="{message}",
-        level="DEBUG",
+        level=bridge_level,
     )
