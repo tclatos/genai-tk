@@ -44,7 +44,7 @@ dependencies = [
     "langchain-anthropic>=1.3.4",    # Anthropic Claude models integration
     "langchain-google-genai>=4.2.1", # Google Gemini models integration
     "openai>=1.80.0",                # Official OpenAI Python client
-    "litellm==1.82.5",               # Unified LLM API (100+ models) # FIXED because of bug
+    "litellm>=1.82.5",               # Unified LLM API (100+ models)
     "mistralai>=1.7.0",              # Official Mistral AI client
     "fastembed>=0.8.0",              # Fast embedding generation with support for many models
     # ============================================
@@ -195,6 +195,13 @@ evals = [
 default-groups = ["dev", "evals"]
 
 package = true
+constraint-dependencies = [
+    "ipython<9",       # 9.x has circular import (ultratb → from IPython import get_ipython during __init__)
+    "requests<2.34",   # 2.34.x has broken compat.py (missing JSONDecodeError)
+    "langsmith<0.9",   # 0.9.x has circular import in _openapi_client
+    "alembic<1.18",    # 1.18.x has missing PriorityDispatcher (breaks Prefect)
+    "openai<2.44",     # 2.44.0 has circular import in _utils/_files
+]
 
 [tool.uv.sources]
 deerflow-harness = { git = "https://github.com/bytedance/deer-flow", subdirectory = "backend/packages/harness", rev = "main" }
