@@ -19,7 +19,7 @@ genai-tk now provides seamless in-process integration with [deepagents-cli](http
 ### Launch the Interactive TUI
 
 ```bash
-cli agents deepagent
+  cli agents deepagent
 ```
 
 This opens the Textual terminal UI with the default model. Use `/model` to switch models from the curated list in `config/agents/deepagent.yaml`.
