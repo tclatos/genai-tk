@@ -109,9 +109,6 @@ cli agents langchain --sandbox local "write code and run it"
 
 # Deer-flow
 cli agents deerflow --sandbox local --chat
-
-# SmolAgents
-cli agents smolagents --executor local "build a calculator"
 ```
 
 Or in Python:
@@ -136,9 +133,6 @@ cli agents langchain --sandbox docker "rm -rf /important/files"
 
 # Deer-flow with code execution
 cli agents deerflow -p research --sandbox docker --chat
-
-# SmolAgents
-cli agents smolagents --executor docker "write and test code"
 ```
 
 ### Browser agents with Docker

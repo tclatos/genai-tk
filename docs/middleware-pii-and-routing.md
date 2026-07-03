@@ -1,11 +1,12 @@
 # PII Anonymization & Sensitivity Routing Middleware
 
-This document describes two LangChain middlewares for securing agent conversations:
+This document describes two `langchain.agents.middleware.AgentMiddleware`
+implementations for securing agent conversations:
 
 1. **AnonymizationMiddleware** — Detects and redacts PII before reaching the LLM, then restores it in responses
 2. **SensitivityRouterMiddleware** — Routes sensitive conversations to a safer LLM based on content and RAG sources
 
-Both middlewares are thread-isolated (concurrent conversations remain separate) and composable.
+Both middlewares are thread-isolated (concurrent conversations remain separate), composable, and **harness-neutral** — they run unmodified in both LangChain agents (`cli agents langchain`) and DeerFlow (`cli agents deerflow`), since DeerFlow's embedded client forwards these same `AgentMiddleware` instances to the underlying `DeerFlowClient`. See [Cross-Harness Usage](#cross-harness-usage-deerflow) below.
 
 > **NLP / spaCy internals:** The Presidio detector, anonymization logic, and sensitivity scorer all live in `genai_tk.extra.nlp`. See [docs/nlp.md](nlp.md) for the full reference on configuration, model management, French support, and the classifier abstraction.
 
@@ -379,9 +380,43 @@ uv run pytest tests/unit_tests/agents/langchain/middleware/ -v
 
 ## Demos
 
-Interactive notebooks demonstrating both middlewares:
-- `notebooks/middleware_anonymization_demo.ipynb` — Low-level anonymization + agent demo
-- `notebooks/middleware_router_demo.ipynb` — Content/RAG-based routing with tool integration
+Interactive notebooks:
+- `notebooks/harness_quickstart.ipynb` — programmatic + YAML agent creation across LangChain and DeerFlow, MCP servers
+- `notebooks/harness_middleware_demo.ipynb` — anonymization + sensitivity routing running unmodified across both harnesses
+
+## Cross-Harness Usage (DeerFlow)
+
+No DeerFlow-specific middleware wrapper exists or is needed. `DeerFlowProfile.middlewares`
+uses the exact same shape as LangChain agent profiles (`class` qualified name +
+arbitrary constructor kwargs), and is instantiated through the same
+`genai_tk.agents.langchain.config.instantiate_middlewares()` factory used by
+LangChain agents — including its `model`/`safe_llm` kwarg resolution via `LlmFactory`.
+
+```yaml
+# config/agents/deerflow.yaml
+deerflow_agents:
+  - name: "Privacy-Safe Research"
+    mode: "thinking"
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware
+        analyzed_fields: [PERSON, EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD]
+        fuzzy_deanonymize: true
+      - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware.SensitivityRouterMiddleware
+        safe_llm: gpt_41mini@openai
+        sensitive_source_patterns: ["**/hr/**", "**/confidential/**"]
+```
+
+```bash
+uv run cli agents deerflow -p "Privacy-Safe Research" "My email is alice@example.com, research AI safety"
+
+# Or via the unified harness layer (works for LangChain profiles too):
+uv run cli agents run "Privacy-Safe Research" "My email is alice@example.com, research AI safety"
+```
+
+**Caveat:** DeerFlow's multi-node graph may invoke the model several times per
+turn. `AnonymizationMiddleware` tracks already-anonymized message IDs per
+`thread_id` (`_anonymized_msg_ids`) to avoid re-anonymizing or leaking PII
+across intermediate model calls within the same run.
 
 ## See Also
 

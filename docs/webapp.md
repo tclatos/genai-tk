@@ -8,8 +8,13 @@ of the box:
 |------|---------|-------------|
 | 🦌 **DeerFlow Agent** | Agents | Full 2-panel UI — execution trace + chat, streaming, artifact viewer |
 | 🤖 **ReAct Agent** | Agents | Two-panel chat + trace, tool-call display, MCP support, slash commands |
-| 🤖 **SmolAgents** | Agents | SmolAgents step-by-step display |
 | ⚙️ **Prefect Workflow Demo** | Workflow | Live Prefect flow execution trace with real-time task progress polling |
+
+Both agent demo pages render through the shared
+`genai_tk.webapp.ui_components.harness_workbench` module (trace phase cards +
+chat + artifact gallery), driven by the harness event model described in
+[agents.md](agents.md#harness-layer-agentsharness) — so they share one visual
+model instead of two parallel implementations.
 
 Downstream projects (e.g. genai-blueprint) can embed these pages alongside
 their own pages using the `genai_tk://` reference prefix described below,
@@ -35,9 +40,8 @@ uv add git+https://github.com/tclatos/genai-tk@main
 uv run cli init                # copies default config/ tree + writes justfile
 uv run cli init --name "My Project"  # optionally set the app title
 
-# 3. (Optional) Also install the Deer-flow backend for the DeerFlow demo page
-uv run cli init --deer-flow            # clones deer-flow into ~/deer-flow
-uv run cli init --deer-flow --path ./ext/deer-flow  # or to a custom path
+# 3. (Optional) Also install the DeerFlow / DeepAgents harness (sandbox, DeerFlow, DeepAgents SDK)
+uv run cli init --extra harnessing
 ```
 
 `cli init` is idempotent — re-running it skips files that already exist unless
@@ -67,8 +71,10 @@ uv run python -m streamlit run <genai_tk-package>/webapp/main/streamlit.py
 
 Open <http://localhost:8501> in your browser.
 
-> **Prerequisites**: `DEER_FLOW_PATH` must be set for the DeerFlow page.
-> Run `cli init --deer-flow` or set the env var pointing to your Deer-flow clone.
+> **Prerequisites**: the DeerFlow demo page requires the `harnessing` extra
+> (`uv run cli init --extra harnessing` or `uv sync --extra harnessing`).
+> No `DEER_FLOW_PATH` env var is needed — `deerflow-harness` is a regular
+> Python dependency.
 
 ---
 
@@ -182,7 +188,7 @@ genai_tk/webapp/
     ├── config_editor.py       ← YAML editor dialog (requires streamlit-monaco)
     ├── llm_selector.py        ← LLM dropdown widget
     ├── message_renderer.py    ← Mermaid diagram + markdown renderer
-    ├── smolagents_streamlit.py ← SmolAgents step display helpers
+    ├── harness_workbench.py   ← shared trace/chat/artifact rendering (both demo pages)
     └── streamlit_chat.py      ← chat message display + callback handler
 
 genai_tk/utils/streamlit/

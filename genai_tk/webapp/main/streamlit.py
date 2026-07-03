@@ -92,6 +92,8 @@ except Exception:
 
 _pages_dir_str: str | None = global_config().get_str("ui.pages_dir", default=None)
 
+pages: dict[str, list] = {}
+
 if _nav_config and _pages_dir_str:
     # Project-level navigation: load pages from the configured directory + structure
     _pages_dir = Path(_pages_dir_str)
@@ -102,7 +104,6 @@ if _nav_config and _pages_dir_str:
         _KNOWN_TITLES = {
             "deer_flow_agent": "🦌 DeerFlow Agent",
             "reAct_agent": "🤖 ReAct Agent",
-            "smolagents_streamlit": "🤖 SmolAgents",
             "prefect_workflow_demo": "⚙️ Prefect Workflow Demo",
         }
         try:

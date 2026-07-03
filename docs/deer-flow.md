@@ -192,7 +192,7 @@ deerflow:
 | `mcp_servers` | list | `[]` | MCP server names from `config/mcp_servers.yaml` |
 | `skill_directories` | list | | Paths to skill SKILL.md files (loaded recursively) |
 | `available_skills` | list | all | Restrict skills by name (omit to allow all) |
-| `middlewares` | list | `[]` | Python qualified class names (no-arg constructors) |
+| `middlewares` | list | `[]` | Same shape as LangChain agent profiles — `class` qualified name + kwargs. Reuses any LangChain `AgentMiddleware`, including the shared anonymization/routing middleware (see [middleware-pii-and-routing.md](middleware-pii-and-routing.md)) |
 | `features` | list | | Display badges in UI (e.g., "🌐 Web Search") |
 | `examples` | list | | Sample queries shown in UI |
 
@@ -223,6 +223,12 @@ deerflow:
 
 No `DEER_FLOW_PATH` env var needed. The `deerflow-harness` package is installed
 like any other Python dependency via `uv add`.
+
+DeerFlow is also exposed through the shared harness layer
+(`genai_tk.agents.harness`), which normalizes both DeerFlow and LangChain
+behind one `BaseHarness` interface and one event model — use it via
+`cli agents run <profile> "<query>"` or `create_harness(<profile>)` when you
+don't want to special-case the runtime. See [agents.md](agents.md#harness-layer-agentsharness).
 
 ---
 

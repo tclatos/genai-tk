@@ -11,8 +11,7 @@ langchain_agents:
     type: react
     llm: null
     middlewares:
-      - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
-    checkpointer:
+      - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
       type: none
     backend:
       type: none          # none | aio_sandbox | class
@@ -40,7 +39,7 @@ langchain_agents:
     #   kwargs:
     #     some_option: value
     middlewares:
-      - class: deepagents.middleware.summarization:SummarizationMiddleware
+      - class: deepagents.middleware.summarization.SummarizationMiddleware
         model: "gpt-4.1@openrouter"
         trigger: ["tokens", 4000]
 ```
@@ -82,8 +81,8 @@ class MiddlewareConfig(BaseModel):
     plus any additional kwargs passed to the constructor.
     ```yaml
     middlewares:
-      - class: genai_tk.agents.langchain.middleware.rich_middleware:RichToolCallMiddleware
-      - class: genai_tk.agents.langchain.middleware.rich_middleware:ToolCallLimitMiddleware
+      - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+      - class: genai_tk.agents.langchain.middleware.rich_middleware.ToolCallLimitMiddleware
         thread_limit: 20
     ```
     """
@@ -218,6 +217,9 @@ class AgentProfileConfig(BaseModel):
 
     name: str = Field(..., description="Unique profile name used to select this configuration")
     type: AgentType = Field("react", description="Agent type: react, deep, or custom")
+    harness: Literal["langchain"] = Field(
+        "langchain", description="Harness discriminator; always 'langchain' for this profile type"
+    )
     description: str = Field("", description="Human-readable description shown in UI and help text")
     llm: str | None = Field(None, description="LLM identifier (e.g. 'gpt-4o@openai'); falls back to defaults.llm")
     system_prompt: str | None = Field(None, description="System prompt injected at the start of the conversation")

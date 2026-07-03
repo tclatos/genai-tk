@@ -322,8 +322,8 @@ langchain_agents:
       Use the file system to organize your analysis and maintain research notes.
 
     tools:
-      - function: genai_tk.agents.tools.smolagents.yfinance_tools.get_stock_info
-      - function: genai_tk.agents.tools.smolagents.yfinance_tools.get_historical_price
+      - function: genai_tk.agents.tools.langchain.yfinance_tools.get_stock_info
+      - function: genai_tk.agents.tools.langchain.yfinance_tools.get_historical_price
       - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
       - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_webpage_tool
 

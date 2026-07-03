@@ -174,29 +174,23 @@ uv run cli info llm-profile gpt_4o@openai
 ### `agents` — Agent Runners
 
 ```bash
-# LangChain ReAct / deep agent
+# Unified harness layer — works across LangChain and DeerFlow profiles
+uv run cli agents list                                       # list all profiles (both harnesses)
+uv run cli agents run research "Research quantum computing"  # auto-resolves the harness
+
+# LangChain ReAct / deep agent (DeepAgents SDK) / custom
 uv run cli agents langchain --list                          # list all profiles
 uv run cli agents langchain "Research quantum computing"    # default profile
 uv run cli agents langchain -p research "Deep dive topic"   # specific profile
 uv run cli agents langchain --chat                          # interactive chat
 
-# SmolAgents CodeAct
-uv run cli agents smol "Write and execute a Python sort"
-uv run cli agents smol --chat                               # interactive chat
-uv run cli agents smol --tools web_search,python_interpreter "..."
-
 # DeerFlow
 uv run cli agents deerflow --list         # list profiles / modes
 uv run cli agents deerflow --chat         # interactive chat
 uv run cli agents deerflow "Research AI"  # one-shot
-
-# DeepAgents CLI
-uv run cli agents deepagent task "Analyse this codebase"
-uv run cli agents deepagent list          # list threads
-uv run cli agents deepagent skills        # list available skills
 ```
 
-See [agents.md](agents.md) for full agent configuration reference.
+See [agents.md](agents.md) for full agent configuration reference, including the shared harness layer.
 
 ---
 

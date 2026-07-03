@@ -30,9 +30,6 @@
 # Global Configuration
 # ============================================================================
 
-# :env:
-#   DEER_FLOW_PATH: ${oc.env:DEER_FLOW_PATH,${paths.project}/ext/deer-flow}
-
 deerflow:
   # Skills configuration
   # IMPORTANT: the FIRST entry is volume-mounted into the Docker sandbox at
@@ -112,9 +109,12 @@ deerflow_agents:
     # available_skills:
     #   - public/deep-research
     #   - public/data-analysis
-    # Custom middlewares by Python qualified class name (no-arg constructors):
+    # Custom middlewares — same format as LangChain agent profiles (``class``
+    # qualified name + arbitrary constructor kwargs). Reuses any LangChain
+    # AgentMiddleware, including the shared anonymization/routing middleware
+    # (see the "Privacy-Safe Research" profile below for an example):
     # middlewares:
-    #   - genai_tk.agents.deer_flow.middlewares.LoggingMiddleware
+    #   - class: genai_tk.agents.deer_flow.middlewares.LoggingMiddleware
     features:
       - "🌐 Web Search"
       - "📊 Data Analysis"
@@ -170,3 +170,29 @@ deerflow_agents:
       - "📊 Data Visualization"
     examples:
       - "Find the top 5 genres by number of tracks, then research each genre's history"
+
+  - name: "Privacy-Safe Research"
+    description: "Web research with PII anonymization and sensitivity-based LLM routing"
+    mode: "thinking"
+    subagent_enabled: false
+    plan_mode: false
+    sandbox: local
+    tool_groups:
+      - web
+    mcp_servers:
+      - tavily-mcp
+    # Reuses the exact same LangChain AgentMiddleware classes used by
+    # `cli agents langchain` — see docs/middleware-pii-and-routing.md.
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware
+        analyzed_fields: [PERSON, EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD]
+        fuzzy_deanonymize: true
+      - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware.SensitivityRouterMiddleware
+        safe_llm: gpt_41mini@openai
+        sensitive_source_patterns: ["**/hr/**", "**/confidential/**"]
+    features:
+      - "🔒 PII Anonymization"
+      - "🧭 Sensitivity Routing"
+      - "🌐 Web Search"
+    examples:
+      - "My name is Alice Martin, email alice@example.com — research recent AI safety papers"

@@ -10,7 +10,7 @@ Usage:
     cli init -t workflow-app                    # workflow scaffold
     cli init -t minimal                         # config + justfile only
     cli init --force                            # overwrite existing files
-    cli init --deer-flow                        # also install Deer-flow
+    cli init --extra harnessing                 # also install DeerFlow / DeepAgents harness
 """
 
 from __future__ import annotations
@@ -107,7 +107,7 @@ def _copy_tree(src_traversable, dest: Path, force: bool, written_ref) -> None:
 # Features that can be installed at init time via `--extra`.
 # Keys must match [project.optional-dependencies] extras in pyproject.toml.
 _INSTALLABLE_EXTRAS: dict[str, str] = {
-    "harnessing": "Agent sandbox, DeerFlow harness, DeepAgents CLI, SmolAgents",
+    "harnessing": "Agent sandbox, DeerFlow harness, DeepAgents CLI, SmolAgents, ",
     "browser": "Browser automation (Playwright)",
     "nlp": "NLP with spaCy and English language models (~500 MB)",
     "postgres": "PostgreSQL vector store",

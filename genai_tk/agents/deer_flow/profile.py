@@ -11,6 +11,7 @@ from typing import Literal, cast, get_args
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from genai_tk.agents.langchain.config import MiddlewareConfig
 from genai_tk.agents.tools.tool_specs import ToolSpec
 
 DeerFlowMode = Literal["flash", "thinking", "pro", "ultra"]
@@ -27,6 +28,9 @@ class DeerFlowProfile(BaseModel):
     """
 
     name: str
+    harness: Literal["deerflow"] = Field(
+        "deerflow", description="Harness discriminator; always 'deerflow' for this profile type"
+    )
     description: str = ""
     mode: DeerFlowMode = "flash"
     llm: str | None = None
@@ -50,11 +54,15 @@ class DeerFlowProfile(BaseModel):
     # None means all discovered skills are available.
     available_skills: list[str] | None = None
 
-    # Custom middlewares to inject: list of Python qualified class names,
-    # e.g. ``["mypackage.middleware.LoggingMiddleware"]``.
-    # Each class is imported and instantiated (no constructor arguments) at
-    # runtime via :func:`genai_tk.config_mgmt.import_utils.instantiate_from_qualified_names`.
-    middlewares: list[str] = Field(default_factory=list)
+    # Custom middlewares to inject: same shape as the LangChain agent profiles
+    # (``class`` qualified name + arbitrary constructor kwargs), e.g.:
+    #   middlewares:
+    #     - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
+    #       faker_seed: 42
+    # Each entry is imported and instantiated via
+    # :func:`genai_tk.agents.langchain.config.instantiate_middlewares` at runtime,
+    # which also resolves any ``model``/``safe_llm``-style LLM kwarg via ``LlmFactory``.
+    middlewares: list[MiddlewareConfig] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

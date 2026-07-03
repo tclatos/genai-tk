@@ -4,11 +4,6 @@ from unittest.mock import patch
 
 import pytest
 
-from genai_tk.agents.deer_flow.cli_commands import (
-    _check_agent_sandbox_importable,
-    _validate_and_normalize_sandbox,
-    _validate_docker_sandbox,
-)
 from genai_tk.agents.deer_flow.profile import (
     DeerFlowProfile,
     DockerSandboxError,
@@ -18,6 +13,11 @@ from genai_tk.agents.deer_flow.profile import (
     get_available_profile_names,
     validate_mcp_servers,
     validate_profile_name,
+)
+from genai_tk.agents.deer_flow.runtime import (
+    check_agent_sandbox_importable,
+    validate_and_normalize_sandbox,
+    validate_docker_sandbox,
 )
 
 
@@ -147,26 +147,24 @@ def test_validate_mcp_servers_invalid(monkeypatch):
 
 def test_validate_and_normalize_sandbox_local():
     """Test sandbox normalization for 'local'."""
-    assert _validate_and_normalize_sandbox("local") == "local"
-    assert _validate_and_normalize_sandbox("LOCAL") == "local"
-    assert _validate_and_normalize_sandbox("  local  ") == "local"
-    assert _validate_and_normalize_sandbox("") == "local"
-    assert _validate_and_normalize_sandbox(None) == "local"
+    assert validate_and_normalize_sandbox("local") == "local"
+    assert validate_and_normalize_sandbox("LOCAL") == "local"
+    assert validate_and_normalize_sandbox("  local  ") == "local"
+    assert validate_and_normalize_sandbox("") == "local"
+    assert validate_and_normalize_sandbox(None) == "local"
 
 
 def test_validate_and_normalize_sandbox_docker():
     """Test sandbox normalization for 'docker'."""
-    assert _validate_and_normalize_sandbox("docker") == "docker"
-    assert _validate_and_normalize_sandbox("DOCKER") == "docker"
-    assert _validate_and_normalize_sandbox("  Docker  ") == "docker"
+    assert validate_and_normalize_sandbox("docker") == "docker"
+    assert validate_and_normalize_sandbox("DOCKER") == "docker"
+    assert validate_and_normalize_sandbox("  Docker  ") == "docker"
 
 
 def test_validate_and_normalize_sandbox_invalid():
     """Test sandbox normalization rejects invalid values."""
-    import typer
-
-    with pytest.raises((typer.Exit, SystemExit)):
-        _validate_and_normalize_sandbox("podman")
+    with pytest.raises(ValueError):
+        validate_and_normalize_sandbox("podman")
 
 
 class TestDockerSandboxValidation:
@@ -176,30 +174,30 @@ class TestDockerSandboxValidation:
         """No error when both Docker and agent-sandbox are available."""
         with (
             patch(
-                "genai_tk.agents.deer_flow.cli_commands._check_docker_available",
+                "genai_tk.agents.deer_flow.runtime.check_docker_available",
                 return_value=True,
             ),
             patch(
-                "genai_tk.agents.deer_flow.cli_commands._check_agent_sandbox_importable",
+                "genai_tk.agents.deer_flow.runtime.check_agent_sandbox_importable",
                 return_value=True,
             ),
         ):
-            _validate_docker_sandbox()  # Should not raise
+            validate_docker_sandbox()  # Should not raise
 
     def test_validate_docker_sandbox_no_docker(self):
         """Error when Docker is not available."""
         with (
             patch(
-                "genai_tk.agents.deer_flow.cli_commands._check_docker_available",
+                "genai_tk.agents.deer_flow.runtime.check_docker_available",
                 return_value=False,
             ),
             patch(
-                "genai_tk.agents.deer_flow.cli_commands._check_agent_sandbox_importable",
+                "genai_tk.agents.deer_flow.runtime.check_agent_sandbox_importable",
                 return_value=True,
             ),
             pytest.raises(DockerSandboxError) as exc_info,
         ):
-            _validate_docker_sandbox()
+            validate_docker_sandbox()
 
         error = exc_info.value
         assert len(error.reasons) == 1
@@ -209,16 +207,16 @@ class TestDockerSandboxValidation:
         """Error when agent-sandbox package is missing."""
         with (
             patch(
-                "genai_tk.agents.deer_flow.cli_commands._check_docker_available",
+                "genai_tk.agents.deer_flow.runtime.check_docker_available",
                 return_value=True,
             ),
             patch(
-                "genai_tk.agents.deer_flow.cli_commands._check_agent_sandbox_importable",
+                "genai_tk.agents.deer_flow.runtime.check_agent_sandbox_importable",
                 return_value=False,
             ),
             pytest.raises(DockerSandboxError) as exc_info,
         ):
-            _validate_docker_sandbox()
+            validate_docker_sandbox()
 
         error = exc_info.value
         assert len(error.reasons) == 1
@@ -228,16 +226,16 @@ class TestDockerSandboxValidation:
         """Error lists both reasons when Docker and agent-sandbox are missing."""
         with (
             patch(
-                "genai_tk.agents.deer_flow.cli_commands._check_docker_available",
+                "genai_tk.agents.deer_flow.runtime.check_docker_available",
                 return_value=False,
             ),
             patch(
-                "genai_tk.agents.deer_flow.cli_commands._check_agent_sandbox_importable",
+                "genai_tk.agents.deer_flow.runtime.check_agent_sandbox_importable",
                 return_value=False,
             ),
             pytest.raises(DockerSandboxError) as exc_info,
         ):
-            _validate_docker_sandbox()
+            validate_docker_sandbox()
 
         error = exc_info.value
         assert len(error.reasons) == 2
@@ -253,10 +251,10 @@ class TestDockerSandboxValidation:
         assert "test reason" in str(error)
         assert "sandbox: local" in str(error)
 
-    @pytest.mark.skipif(not _check_agent_sandbox_importable(), reason="agent-sandbox extra (harnessing) not installed")
+    @pytest.mark.skipif(not check_agent_sandbox_importable(), reason="agent-sandbox extra (harnessing) not installed")
     def test_check_agent_sandbox_importable_real(self):
         """agent-sandbox should be importable when the harnessing extra is installed."""
-        assert _check_agent_sandbox_importable() is True
+        assert check_agent_sandbox_importable() is True
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +372,6 @@ def test_profile_middlewares_empty_by_default():
 
 
 def test_profile_middlewares_list():
-    """middlewares can be set to a list of qualified class names."""
-    p = DeerFlowProfile(name="test", middlewares=["mymod.MyMiddleware"])
-    assert p.middlewares == ["mymod.MyMiddleware"]
+    """middlewares can be set to a list of class + kwargs configs, same shape as LangChain profiles."""
+    p = DeerFlowProfile(name="test", middlewares=[{"class": "mymod.MyMiddleware"}])
+    assert p.middlewares[0].class_path == "mymod.MyMiddleware"

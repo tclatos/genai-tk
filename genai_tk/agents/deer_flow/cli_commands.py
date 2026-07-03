@@ -21,7 +21,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Optional, cast
+from typing import TYPE_CHECKING, Annotated, Optional
 
 import typer
 from loguru import logger
@@ -79,9 +79,11 @@ def _require_deer_flow_installed() -> None:
     deerflow-harness is installed via uv add, not via a git clone.
     There is no DEER_FLOW_PATH needed — it's a regular Python package.
     """
-    from genai_tk.config_mgmt.features import is_available
+    from genai_tk.agents.deer_flow.runtime import DeerFlowNotInstalledError, require_deer_flow_installed
 
-    if not is_available("harnessing"):
+    try:
+        require_deer_flow_installed()
+    except DeerFlowNotInstalledError:
         console.print(
             "[red]Feature 'harnessing' is not installed.[/red]\n\n"
             "Install it with:\n"
@@ -98,15 +100,7 @@ def _require_deer_flow_installed() -> None:
 
 
 def _resolve_model_name(llm_identifier: str) -> str:
-    """Resolve a GenAI Toolkit LLM identifier to a deer-flow model name.
-
-    Delegates to ``LlmFactory.resolve_llm_identifier_safe`` which handles
-    exact IDs, config tags, hyphen/underscore normalisation, and fuzzy
-    models.dev resolution in a single call.
-
-    The returned ID is used both as the ``model_name`` parameter for the
-    embedded client and as the ``selected_llm`` filter in
-    ``config_bridge.generate_deer_flow_models``.
+    """Resolve a GenAI Toolkit LLM identifier to a deer-flow model_name.
 
     Args:
         llm_identifier: LLM ID, tag, or compact alias (e.g. ``gpt_oss120@openrouter``).
@@ -114,113 +108,45 @@ def _resolve_model_name(llm_identifier: str) -> str:
     Returns:
         Resolved LLM ID string.
     """
-    from genai_tk.core.factories.llm_factory import LlmFactory
+    from genai_tk.agents.deer_flow.runtime import resolve_model_name
 
-    llm_id, error_msg = LlmFactory.resolve_llm_identifier_safe(llm_identifier)
-    if error_msg:
-        console.print(f"[red]{error_msg}[/red]")
-        raise typer.Exit(1)
-    if llm_id is None:
-        console.print("[red]Could not resolve model identifier[/red]")
-        raise typer.Exit(1)
-    return llm_id
+    try:
+        return resolve_model_name(llm_identifier)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
 
 
 # ---------------------------------------------------------------------------
-# Server boot helper (sync wrapper used once per run)
+# Sandbox helpers
 # ---------------------------------------------------------------------------
 
 
 def _validate_and_normalize_sandbox(sandbox: str) -> DeerFlowSandbox:
-    """Validate sandbox provider string.
-
-    Args:
-        sandbox: Raw sandbox string from the profile.
-
-    Returns:
-        Normalized sandbox string.
-    """
-    normalized = (sandbox or "").strip().lower() or "local"
-    if normalized not in {"local", "docker"}:
-        console.print(
-            f"[red]Invalid sandbox value:[/red] '{sandbox}'. Expected 'local' or 'docker'. "
-            "Update config/agents/deerflow.yaml."
-        )
-        raise typer.Exit(1)
-    return cast("DeerFlowSandbox", normalized)
-
-
-def _check_docker_available() -> bool:
-    """Return True if Docker appears usable by this user."""
-    from shutil import which
-
-    if which("docker") is None:
-        return False
+    """Validate and normalize sandbox provider string (CLI wrapper)."""
+    from genai_tk.agents.deer_flow.runtime import validate_and_normalize_sandbox
 
     try:
-        # `docker ps` is a practical permission check (fails if daemon isn't reachable).
-        result = subprocess.run(["docker", "ps"], capture_output=True, text=True, timeout=3, check=False)
-        return result.returncode == 0
-    except Exception:
-        return False
-
-
-def _check_agent_sandbox_importable() -> bool:
-    """Return True if the ``agent-sandbox`` package is importable."""
-    try:
-        import agent_sandbox  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
+        return validate_and_normalize_sandbox(sandbox)
+    except ValueError as e:
+        console.print(f"[red]Invalid sandbox value:[/red] {e} Update config/agents/deerflow.yaml.")
+        raise typer.Exit(1) from e
 
 
 def _validate_docker_sandbox() -> None:
-    """Raise :class:`DockerSandboxError` if Docker sandbox prerequisites are unmet.
+    """Raise :class:`DockerSandboxError` if Docker sandbox prerequisites are unmet."""
+    from genai_tk.agents.deer_flow.runtime import validate_docker_sandbox
 
-    Checks two things:
-    1. The ``docker`` CLI is present and the daemon is reachable.
-    2. The ``agent-sandbox`` Python package is importable (needed by DeerFlow's
-       ``AioSandbox`` to talk to the container's HTTP API).
-    """
-    from genai_tk.agents.deer_flow.profile import DockerSandboxError
-
-    reasons: list[str] = []
-    if not _check_docker_available():
-        reasons.append("Docker is not available (docker CLI not found or daemon not running)")
-    if not _check_agent_sandbox_importable():
-        reasons.append("'agent-sandbox' package is not installed — install with: uv add agent-sandbox")
-    if reasons:
-        raise DockerSandboxError(reasons)
+    validate_docker_sandbox()
 
 
 def _verify_written_sandbox(config_path: Path, expected_sandbox: str) -> None:
-    """Verify the generated deer-flow config.yaml matches the profile sandbox.
+    """Verify the generated deer-flow config.yaml matches the profile sandbox."""
+    from genai_tk.agents.deer_flow.runtime import verify_written_sandbox
 
-    Args:
-        config_path: Path to the generated deer-flow config.yaml.
-        expected_sandbox: Expected sandbox setting (local or docker).
-    """
-    try:
-        import yaml
-
-        raw = yaml.safe_load(config_path.read_text()) or {}
-        use_str = ((raw.get("sandbox") or {}).get("use") or "").strip()
-    except Exception as e:
-        logger.debug(f"Could not verify sandbox provider in {config_path}: {e}")
-        return
-
-    expected = expected_sandbox.lower()
-    if expected == "docker" and "aio_sandbox_provider" not in use_str:
-        console.print(
-            "[yellow]Warning:[/yellow] Profile sandbox is 'docker' but generated config does not look like a Docker sandbox. "
-            f"config.yaml={config_path} sandbox.use={use_str!r}"
-        )
-    if expected == "local" and "LocalSandboxProvider" not in use_str:
-        console.print(
-            "[yellow]Warning:[/yellow] Profile sandbox is 'local' but generated config does not look like LocalSandboxProvider. "
-            f"config.yaml={config_path} sandbox.use={use_str!r}"
-        )
+    warning = verify_written_sandbox(config_path, expected_sandbox)
+    if warning:
+        console.print(f"[yellow]Warning:[/yellow] {warning}")
 
 
 async def _prepare_profile(
@@ -234,8 +160,11 @@ async def _prepare_profile(
 ) -> tuple[DeerFlowProfile, str | None, Path]:
     """Load, validate and prepare a profile, then write the deer-flow config.
 
-    Writes ``config.yaml`` + ``extensions_config.json`` ready for use by
-    the embedded client.
+    Thin CLI wrapper around :func:`genai_tk.agents.deer_flow.runtime.prepare_profile`
+    that renders warnings to the console and translates runtime exceptions into
+    ``typer.Exit``. The pure logic (no console/typer) lives in
+    ``runtime.prepare_profile``, which is what the harness adapter and the
+    registry call.
 
     Args:
         profile_name: Profile name from deerflow.yaml.
@@ -248,87 +177,33 @@ async def _prepare_profile(
     Returns:
         Tuple of (prepared DeerFlowProfile, resolved model_name or None, config_path).
     """
-    from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
-    from genai_tk.agents.deer_flow.profile import (
-        DeerFlowError,
-        load_deer_flow_profiles,
-        validate_mcp_servers,
-        validate_mode,
-        validate_profile_name,
-    )
-
-    if verbose:
-        logger.remove()
-        logger.add(
-            sys.stderr,
-            level="DEBUG",
-            format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan> - <level>{message}</level>",
-        )
-
-    _require_deer_flow_installed()
-
-    config_path = _resolve_deerflow_config_path()
-
-    try:
-        profiles = load_deer_flow_profiles(config_path)
-        profile = validate_profile_name(profile_name, profiles)
-    except DeerFlowError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1) from e
-
-    os.environ["LANGSMITH_PROJECT"] = f"DeerFlow-tk-{profile.name}"
-
-    # Initialise all active monitoring backends (idempotent).
-    # This sets the LANGSMITH_PROJECT env var used above and activates LangFuse / OTEL / local log.
-    from genai_tk.utils.tracing import setup_monitoring
-
-    _mon = setup_monitoring()
-    # Override the project name for this DeerFlow run (so traces are grouped per-profile)
-    os.environ["LANGSMITH_PROJECT"] = f"DeerFlow-tk-{profile.name}"
-
-    try:
-        if mode_override:
-            profile.mode = validate_mode(mode_override)
-        if extra_mcp:
-            validated = validate_mcp_servers(extra_mcp)
-            profile.mcp_servers = list(set(profile.mcp_servers + validated))
-        if sandbox_override:
-            profile.sandbox = sandbox_override
-        profile.sandbox = _validate_and_normalize_sandbox(profile.sandbox)
-    except DeerFlowError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1) from e
-
-    model_name: str | None = None
-    if llm_override:
-        model_name = _resolve_model_name(llm_override)
-    elif profile.llm:
-        model_name = _resolve_model_name(profile.llm)
+    from genai_tk.agents.deer_flow.profile import DeerFlowError
+    from genai_tk.agents.deer_flow.runtime import prepare_profile as _prepare_profile_runtime
 
     with console.status("Preparing Deer-flow config...", spinner="dots"):
-        config_path, _ext_path, setup_warnings = setup_deer_flow_config(
-            mcp_server_names=profile.mcp_servers,
-            skill_directories=profile.skill_directories,
-            sandbox=profile.sandbox,
-            selected_llm=model_name,
-        )
-        _verify_written_sandbox(config_path, profile.sandbox)
-
-    # Display any warnings collected during config setup
-    if setup_warnings.has_warnings:
-        console.print("[yellow]Warnings:[/yellow]")
-        for msg in setup_warnings.missing_skill_directories:
-            console.print(f"  [yellow]⚠[/yellow]  {msg}")
-        for msg in setup_warnings.external_symlinks:
-            console.print(f"  [yellow]⚠[/yellow]  {msg}")
-        console.print()  # Add blank line for readability
-
-    if profile.sandbox == "docker":
         try:
-            _validate_docker_sandbox()
+            profile, model_name, config_path, warnings = await _prepare_profile_runtime(
+                profile_name,
+                llm_override,
+                extra_mcp,
+                mode_override,
+                verbose,
+                sandbox_override=sandbox_override,
+            )
         except DeerFlowError as e:
             console.print(f"[red]Error:[/red] {e}")
             raise typer.Exit(1) from e
+        except ValueError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1) from e
+
+    if warnings.has_warnings:
+        console.print("[yellow]Warnings:[/yellow]")
+        for msg in warnings.missing_skill_directories:
+            console.print(f"  [yellow]⚠[/yellow]  {msg}")
+        for msg in warnings.external_symlinks:
+            console.print(f"  [yellow]⚠[/yellow]  {msg}")
+        console.print()  # Add blank line for readability
 
     return profile, model_name, config_path
 
@@ -551,31 +426,17 @@ async def _stream_message(
 
 
 def _resolve_deerflow_config_path() -> str:
-    """Return path to deerflow.yaml, with fallback to examples/agents/deerflow.yaml.
+    """Return path to deerflow.yaml (delegates to runtime)."""
+    from genai_tk.agents.deer_flow.runtime import resolve_deerflow_config_path
 
-    Looks in ``{paths.config}/agents/deerflow.yaml`` first (project-specific),
-    then falls back to ``{paths.config}/examples/agents/deerflow.yaml`` (bundled
-    with genai-tk for out-of-the-box usage).
-    """
-
-    config_dir = global_config().get_dir_path("paths.config")
-    primary = config_dir / "agents" / "deerflow.yaml"
-    if primary.exists():
-        return str(primary)
-    fallback = config_dir / "examples" / "agents" / "deerflow.yaml"
-    return str(fallback)
+    return resolve_deerflow_config_path()
 
 
 def _get_default_profile_name() -> str | None:
     """Return the name of the first available profile, or None."""
-    try:
-        from genai_tk.agents.deer_flow.profile import load_deer_flow_profiles
+    from genai_tk.agents.deer_flow.runtime import get_default_profile_name
 
-        config_path = _resolve_deerflow_config_path()
-        profiles = load_deer_flow_profiles(config_path)
-        return profiles[0].name if profiles else None
-    except Exception:
-        return None
+    return get_default_profile_name()
 
 
 def _list_profiles() -> None:
@@ -613,7 +474,7 @@ def _list_profiles() -> None:
             p.mode or "flash",
             ", ".join(p.tool_groups) or "-",
             ", ".join(p.mcp_servers) or "-",
-            ", ".join(m.rsplit(".", 1)[-1] for m in p.middlewares) or "-",
+            ", ".join(str(m.class_path).rsplit(".", 1)[-1] for m in p.middlewares) or "-",
         )
 
     console.print(table)
@@ -715,20 +576,15 @@ def _stable_thread_id() -> str:
     return hashlib.sha256(b"genai-tk-deerflow-single").hexdigest()[:16]
 
 
-def _build_cli_middlewares(profile_middlewares: list[str]) -> list:
-    """Instantiate profile middlewares and prepend RichToolCallMiddleware.
+def _build_cli_middlewares(profile_middlewares: list) -> list:
+    """Instantiate profile middlewares and prepend RichToolCallMiddleware (CLI wrapper).
 
-    Mirrors the langchain agent default: every CLI run gets Rich tool-call
-    tracing automatically, regardless of what the profile config lists.
+    Delegates to :func:`genai_tk.agents.deer_flow.runtime.build_cli_middlewares`,
+    passing this module's rich console so the tool-call tracing renders here.
     """
-    from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
-    from genai_tk.config_mgmt.import_utils import ImportResolver
+    from genai_tk.agents.deer_flow.runtime import build_cli_middlewares
 
-    user_mws = ImportResolver.instantiate_from_qualified_names(profile_middlewares, logger=logger)
-    # Avoid duplicates if the profile already lists RichToolCallMiddleware.
-    if not any(isinstance(m, RichToolCallMiddleware) for m in user_mws):
-        user_mws.insert(0, RichToolCallMiddleware(console=console))
-    return user_mws
+    return build_cli_middlewares(profile_middlewares, rich_console=console)
 
 
 def _show_output_files(files: list[Path]) -> None:
@@ -749,7 +605,6 @@ def _cleanup_stale_sandbox_containers() -> None:
     prefix except the one belonging to the current stable thread_id.
     """
     import hashlib
-    import subprocess
 
     keep_suffix = hashlib.sha256(b"genai-tk-deerflow-single").hexdigest()[:8]
     keep_name = f"deer-flow-sandbox-{keep_suffix}"
@@ -1289,7 +1144,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
             """Install the deerflow-harness feature (harnessing extra).
 
             Runs ``uv sync --extra harnessing`` to install the deerflow-harness
-            package and all harnessing dependencies (deepagents, smolagents,
+            package and all harnessing dependencies (deepagents, agent-sandbox,
             opensandbox, etc.).
 
             Examples:

@@ -1,5 +1,21 @@
 # Harness Interoperability Proposal
 
+> **Status: Implemented.** This design document is kept for historical
+> context. The canonical, up-to-date reference is
+> [docs/harness.md](../harness.md). Key deviations from this proposal after
+> critical review:
+>
+> - SmolAgents and the `deepagents-cli` bridge were removed entirely rather
+>   than kept as peers — DeepAgents is a LangChain agent type, not a separate
+>   harness, so no `cli agents deepagent` command was added.
+> - `BaseHarness` is an abstract base class, not a `Protocol`.
+> - No separate `ModelIoMiddleware` / `ToolPolicyMiddleware` vocabulary was
+>   introduced — DeerFlow already forwards LangChain `AgentMiddleware`
+>   instances, so `AnonymizationMiddleware` / `SensitivityRouterMiddleware`
+>   run unmodified in both harnesses.
+> - Profile discriminator: each profile model carries an explicit
+>   `harness: Literal[...]` field instead of merging the two profile schemas.
+
 ## Goal
 
 Align DeerFlow, Deep Agents, and the existing LangChain agent stack behind a

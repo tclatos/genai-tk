@@ -10,6 +10,35 @@ Supported backends:
 
 Multiple backends can be **active simultaneously** — traces are sent to all configured backends in parallel.
 
+## Harness Trace Metadata
+
+Every agent harness (LangChain react/deep/custom, DeerFlow) annotates its runs
+with the same canonical metadata, defined in
+`genai_tk.utils.tracing.HarnessTraceMetadata`:
+
+| Field | Meaning |
+|---|---|
+| `harness` | `"langchain"` or `"deerflow"` |
+| `profile_name` | Agent profile name (e.g. `"Research Assistant"`) |
+| `thread_id` | Conversation thread id, when available |
+| `session_id` | Session id; defaults to the thread id when not distinct |
+| `user_id` | End-user identifier, when known |
+| `model_name` | Resolved model id, when known |
+| `environment` | Deployment tag (e.g. `dev` / `prod`) — read from `GENAI_TK_ENV` |
+
+The trace project name follows one convention for both harnesses —
+
+```
+GenAITk-<harness>-<profile>
+```
+
+(e.g. `GenAITk-deerflow-Research Assistant`, `GenAITk-langchain-Research`) —
+set via `trace_project_name(harness, profile)` and applied through
+`apply_harness_trace_metadata(...)` at harness startup. This replaces the
+former ad-hoc `DeerFlow-tk-<name>` / LangChain default split, so traces are
+grouped per harness+profile consistently across the toolkit. See
+[docs/harness.md](harness.md) for the harness adapter layer.
+
 ## Quick Start
 
 ### 1. Configure Monitoring
@@ -359,19 +388,11 @@ Traces are sent to:
 - **OTEL** — via `openinference-instrumentation-langchain` auto-instrumentation
 - **Local** — via `LocalTraceLog` callback handler
 
-### SmolAgents
+### DeerFlow
 
-SmolAgents is automatically instrumented via OpenInference if the backend is configured:
-
-```python
-from genai_tk.utils.tracing import setup_monitoring
-
-setup_monitoring()  # Auto-instruments SmolAgents
-
-# Now use SmolAgents normally — tracing is automatic
-agent = CodeAgent(tools=[...])
-agent.run("your task")
-```
+DeerFlow sets stable trace metadata (session id from thread id, model, environment
+tags) and a per-profile `LANGSMITH_PROJECT` (`DeerFlow-tk-<profile>`) so traces
+group by profile automatically — see [deer-flow.md](deer-flow.md).
 
 ### LiteLLM
 

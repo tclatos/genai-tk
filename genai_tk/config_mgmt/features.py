@@ -51,9 +51,9 @@ class FeatureInfo(BaseModel):
 # ---------------------------------------------------------------------------
 FEATURES: dict[str, FeatureInfo] = {
     "harnessing": FeatureInfo(
-        description="Agent sandbox, DeerFlow harness, DeepAgents CLI, SmolAgents",
-        packages=["smolagents", "deepagents", "deepagents-cli", "agent-sandbox", "opensandbox", "deerflow-harness"],
-        check_modules=["smolagents", "deepagents", "agent_sandbox", "opensandbox", "deerflow"],
+        description="Agent sandbox, DeerFlow harness, DeepAgents SDK",
+        packages=["deepagents", "agent-sandbox", "opensandbox", "deerflow-harness"],
+        check_modules=["deepagents", "agent_sandbox", "opensandbox", "deerflow"],
         install_cmd='uv sync --extra harnessing  # or: uv add "genai-tk[harnessing]"',
     ),
     "browser": FeatureInfo(

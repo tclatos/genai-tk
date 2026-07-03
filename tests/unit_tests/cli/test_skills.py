@@ -333,26 +333,26 @@ class TestDeerFlowCLI:
             cli_commands._require_deer_flow_installed()
 
     def test_no_deer_flow_path_check_in_require(self):
-        """After refactor, _require_deer_flow_installed does not check DEER_FLOW_PATH at runtime."""
+        """After refactor, require_deer_flow_installed does not check DEER_FLOW_PATH at runtime."""
         import inspect
 
-        from genai_tk.agents.deer_flow import cli_commands
+        from genai_tk.agents.deer_flow import runtime
 
-        src = inspect.getsource(cli_commands._require_deer_flow_installed)
-        # The docstring mentions DEER_FLOW_PATH, but the actual code logic must not
-        # reference it: no os.environ access, no Path resolution, no exists() check.
+        src = inspect.getsource(runtime.require_deer_flow_installed)
+        # The pure runtime check must not reference DEER_FLOW_PATH side-effects:
+        # no os.environ access, no Path resolution, no exists() check.
         assert "os.environ" not in src
         assert "expanduser" not in src
         assert "exists()" not in src
 
     def test_prepare_profile_uses_new_check(self):
-        """_prepare_profile calls _require_deer_flow_installed, not _require_deer_flow_path."""
+        """prepare_profile calls require_deer_flow_installed, not _require_deer_flow_path."""
         import inspect
 
-        from genai_tk.agents.deer_flow import cli_commands
+        from genai_tk.agents.deer_flow import runtime
 
-        src = inspect.getsource(cli_commands._prepare_profile)
-        assert "_require_deer_flow_installed" in src
+        src = inspect.getsource(runtime.prepare_profile)
+        assert "require_deer_flow_installed" in src
         assert "_require_deer_flow_path" not in src
 
 

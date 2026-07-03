@@ -19,7 +19,7 @@ All names are re-exported here for backward compatibility.
 Example YAML config::
 
     middlewares:
-      - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware
+      - class: genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware
         analyzed_fields: ["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD"]
         fuzzy_deanonymize: true
 

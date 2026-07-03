@@ -3,8 +3,8 @@
 Thin coordinator that registers all agent sub-commands by delegating
 to per-agent-type modules:
 
-- ``langchain`` — Unified LangChain agents (react | deep | custom)
-- ``smolagents`` — SmolAgents CodeAct (``smol`` command)
+- ``harness`` — Unified cross-harness commands (``run`` | ``list``)
+- ``langchain`` — Unified LangChain agents (react | deep | custom — including DeepAgents)
 - ``deer_flow`` — Deer-flow agents (``deerflow`` command group)
 """
 
@@ -21,9 +21,9 @@ class AgentCommands(CliTopCommand):
 
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
         from genai_tk.agents.deer_flow.cli_commands import DeerFlowCommands
+        from genai_tk.agents.harness.commands import register as register_harness
         from genai_tk.agents.langchain.commands import register as register_langchain
-        from genai_tk.agents.smolagents.commands import register as register_smol
 
+        register_harness(cli_app)
         register_langchain(cli_app)
-        register_smol(cli_app)
         DeerFlowCommands().register(cli_app)

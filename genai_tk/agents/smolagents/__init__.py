@@ -1,1 +1,0 @@
-"""SmolAgents-based agent implementations."""

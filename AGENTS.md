@@ -243,7 +243,8 @@ Current docs index:
 | `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |
 | `docs/workflows.md` | YAML-driven task orchestration — defining workflows, profiles, CLI integration, multi-step pipelines |
 | `docs/prefect.md` | Prefect flows — ephemeral vs. server mode, available flows, writing new flows, workflow engine integration |
-| `docs/agents.md` | LangChain / SmolAgents / DeerFlow agent profiles and config |
+| `docs/agents.md` | LangChain / DeerFlow agent profiles, config, and the shared harness layer |
+| `docs/harness.md` | `agents.harness` — `BaseHarness`, shared event model, adapters, cross-harness middleware, `cli agents run`/`list` |
 | `docs/mcp-servers.md` | MCP server configuration, CLI, and standalone scripts |
 | `docs/browser_control.md` | Browser automation (sandbox vs. direct Playwright) |
 | `docs/sandbox_support.md` | OpenSandbox Docker container setup and integration |

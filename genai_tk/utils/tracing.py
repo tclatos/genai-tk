@@ -37,6 +37,73 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from genai_tk.config_mgmt.config_mngr import global_config
 
+# ── Canonical harness trace metadata ────────────────────────────────────────────
+
+
+class HarnessTraceMetadata(BaseModel):
+    """Canonical trace metadata shared across all agent harnesses.
+
+    Adopted from DeerFlow's trace discipline (see
+    ``docs/design/harness_interoperability_proposal.md`` §4) so LangChain /
+    DeepAgents and DeerFlow annotate runs with the same fields. Backend-specific
+    wiring (LangSmith ``LANGSMITH_PROJECT``, LangFuse metadata, OTEL attributes)
+    is applied by :func:`apply_harness_trace_metadata`.
+
+    Fields:
+        harness: ``"langchain"`` or ``"deerflow"``.
+        profile_name: Agent profile name (e.g. ``"Research Assistant"``).
+        thread_id: Conversation thread id, when available.
+        session_id: Session id; defaults to the thread id when not distinct.
+        user_id: End-user identifier, when known.
+        model_name: Resolved model id, when known.
+        environment: Deployment tag (``"dev"`` / ``"prod"`` / …).
+    """
+
+    harness: str
+    profile_name: str
+    thread_id: str | None = None
+    session_id: str | None = None
+    user_id: str | None = None
+    model_name: str | None = None
+    environment: str | None = None
+    model_config = ConfigDict(frozen=True)
+
+
+def trace_project_name(harness: str, profile_name: str) -> str:
+    """Return the canonical LangSmith trace project name for a harness + profile.
+
+    Format: ``GenAITk-<harness>-<profile>`` (e.g. ``GenAITk-deerflow-Research Assistant``).
+    Using a single naming convention groups traces per harness+profile across the
+    whole toolkit, replacing the ad hoc per-command ``DeerFlow-tk-<name>`` /
+    LangChain default.
+    """
+    return f"GenAITk-{harness}-{profile_name}"
+
+
+def apply_harness_trace_metadata(meta: HarnessTraceMetadata) -> HarnessTraceMetadata:
+    """Apply canonical harness trace metadata to the active tracing backends.
+
+    Currently wires LangSmith via ``LANGSMITH_PROJECT`` and ``LANGSMITH_SESSION_ID``
+    env vars (LangSmith reads these at run start). Other backends (LangFuse, OTEL)
+    consume metadata through LangChain callbacks / auto-instrumentation and pick
+    the project from the unified env var when applicable.
+
+    Idempotent: safe to call per turn. Returns ``meta`` unchanged for the caller
+    to also pass to LangChain ``metadata=`` / ``config={"metadata": ...}``.
+    """
+    project = trace_project_name(meta.harness, meta.profile_name)
+    os.environ["LANGSMITH_PROJECT"] = project
+    if meta.session_id:
+        os.environ["LANGSMITH_SESSION_ID"] = meta.session_id
+    elif "LANGSMITH_SESSION_ID" in os.environ:
+        os.environ.pop("LANGSMITH_SESSION_ID", None)
+    logger.debug(
+        f"Trace metadata → harness={meta.harness} profile={meta.profile_name} "
+        f"project={project} thread={meta.thread_id} session={meta.session_id} "
+        f"model={meta.model_name} env={meta.environment}"
+    )
+    return meta
+
 # ── Sub-config models ──────────────────────────────────────────────────────────
 
 
@@ -292,9 +359,8 @@ def _setup_langfuse(cfg: MonitoringConfig) -> Any | None:
     _set_otel_auth_header_langfuse(lf)
     os.environ.setdefault("OTEL_SERVICE_NAME", f"genai-tk-{cfg.project}")
 
-    # Auto-instrument LangChain and SmolAgents via OpenInference
+    # Auto-instrument LangChain via OpenInference
     _instrument_langchain_otel()
-    _instrument_smolagents_otel()
 
     # Register LiteLLM → LangFuse OTEL callback
     _setup_litellm_langfuse()
@@ -354,7 +420,6 @@ def _setup_otel(cfg: MonitoringConfig) -> None:
         os.environ.setdefault("OTEL_EXPORTER_OTLP_HEADERS", header_str)
 
     _instrument_langchain_otel()
-    _instrument_smolagents_otel()
     logger.debug(f"OTEL tracing enabled → {os.environ.get('OTEL_EXPORTER_OTLP_ENDPOINT')}")
 
 
@@ -369,19 +434,6 @@ def _instrument_langchain_otel() -> None:
         logger.debug("openinference-instrumentation-langchain not installed — skipping")
     except Exception as exc:
         logger.warning(f"LangChain OTEL instrumentation failed: {exc}")
-
-
-def _instrument_smolagents_otel() -> None:
-    """Instrument SmolAgents via OpenInference OTEL instrumentor."""
-    try:
-        from openinference.instrumentation.smolagents import SmolagentsInstrumentor
-
-        SmolagentsInstrumentor().instrument()
-        logger.debug("SmolAgents OTEL auto-instrumentation active")
-    except ImportError:
-        logger.debug("openinference-instrumentation-smolagents not installed — skipping")
-    except Exception as exc:
-        logger.warning(f"SmolAgents OTEL instrumentation failed: {exc}")
 
 
 def _setup_litellm_langfuse() -> None:

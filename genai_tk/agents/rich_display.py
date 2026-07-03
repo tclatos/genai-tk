@@ -1,7 +1,7 @@
 """Shared Rich terminal display helpers for agent CLI commands.
 
 Provides consistent tool-call rendering across all agent backends
-(LangChain, DeerFlow, SmolAgents).
+(LangChain, DeerFlow).
 """
 
 from __future__ import annotations

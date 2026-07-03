@@ -95,5 +95,14 @@ just webapp
 from genai_tk.webapp.ui_components.llm_selector import render_llm_selector
 from genai_tk.webapp.ui_components.agent_layout import render_agent_sidebar
 from genai_tk.webapp.ui_components.message_renderer import render_message_with_mermaid
-from genai_tk.webapp.ui_components.trace_middleware import TraceMiddleware
+# For agent pages: build a BaseHarness (LangChainHarness / DeerFlowHarness or
+# create_harness(profile_key)) and render it with the shared workbench —
+# see docs/harness.md and the built-in reAct_agent.py / deer_flow_agent.py pages.
+from genai_tk.agents.harness import create_harness
+from genai_tk.webapp.ui_components.harness_workbench import (
+    render_trace_panel,
+    render_artifact,
+    render_artifact_gallery,
+    stream_harness_turn,
+)
 ```

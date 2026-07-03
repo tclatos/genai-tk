@@ -1,7 +1,7 @@
 """Shared Pydantic models for tool specifications across all agent frameworks.
 
 Provides reusable tool specification models for factory, class, and function-based
-tools used in LangChain, Smolagents, and Deerflow agent configurations.
+tools used in LangChain and DeerFlow agent configurations.
 
 YAML format (flat dict, ``class``/``function``/``factory`` key acts as discriminator):
 

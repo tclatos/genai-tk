@@ -1,0 +1,121 @@
+# Unified Agent Profiles — all harnesses under one ``agents:`` dict.
+#
+# This is the recommended canonical form for new deployments. Each profile
+# carries an explicit ``harness:`` discriminator (``langchain`` or
+# ``deerflow``) so a single lookup resolves it to the right runtime. See
+# ``docs/harness.md`` and ``docs/agents.md``.
+#
+# The optional top-level ``agent_defaults:`` block holds inheritable
+# defaults applied to ``harness: langchain`` profiles (DeerFlow has no such
+# concept — its profiles are fully self-describing). Field-by-field fallback
+# mirrors the legacy ``langchain_agents.defaults`` semantics.
+#
+# A profile's dict key becomes its identifier (slug) used by
+# ``cli agents run <key>`` and ``create_harness(<key>)``. When the profile
+# itself omits ``name``, the slug is injected as the name.
+#
+# This file is a self-contained demo; the full set of legacy example profiles
+# (react / deep / browser / text2sql / deerflow) remains under
+# ``config/examples/agents/langchain/`` and ``config/examples/agents/deerflow.yaml``
+# until they migrate. ``load_agent_profiles()`` prefers this file when present,
+# else falls back to those legacy sources.
+
+# ---------------------------------------------------------------------------
+# Inheritable defaults for ``harness: langchain`` profiles.
+# ---------------------------------------------------------------------------
+agent_defaults:
+  type: react
+  llm: null  # null = use the global default LLM from config
+  middlewares:
+    - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+  checkpointer:
+    type: none
+  backend:
+    type: none
+  enable_planning: true
+  enable_file_system: true
+  skills:
+    directories:
+      - ${paths.project}/skills
+  default_profile: simple  # profile chosen when -p is omitted (langchain side)
+
+# ---------------------------------------------------------------------------
+# All profiles — keyed by slug, discriminated by ``harness:``.
+# ---------------------------------------------------------------------------
+agents:
+  # --- LangChain (react | deep | custom — incl. DeepAgents SDK) ----------
+  simple:
+    harness: langchain
+    name: "simple"
+    description: "Simple react agent with web search"
+    type: react
+    pre_prompt: "You are an agent having access to the Web."
+    tools:
+      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+        verbose: true
+
+  research_deep:
+    harness: langchain
+    name: "Research"
+    description: "Deep researcher with planning + file system"
+    type: deep
+    llm: gpt_41@openai
+    system_prompt: |
+      You are an expert researcher. Conduct thorough research and write polished,
+      well-formatted Markdown reports. Use write_todos to plan, search the web,
+      and write_file to save findings.
+    tools:
+      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+    mcp_servers:
+      - tavily-mcp
+    skill_directories:
+      - ${paths.project}/skills
+    features:
+      - "🔍 Web Search"
+      - "📝 Planning"
+      - "📁 File System"
+    examples:
+      - "Research the latest developments in quantum computing"
+
+  # --- DeerFlow -----------------------------------------------------------
+  "Research Assistant":
+    harness: deerflow
+    name: "Research Assistant"
+    description: "Web research with deep reasoning and skill execution"
+    mode: pro
+    llm: gpt_oss120@openrouter
+    subagent_enabled: false
+    plan_mode: true
+    sandbox: docker
+    tool_groups:
+      - web
+      - file
+      - bash
+    mcp_servers:
+      - tavily-mcp
+    skill_directories:
+      - ${paths.project}/ext/deer-flow/skills
+    features:
+      - "🌐 Web Search"
+      - "📊 Data Analysis"
+      - "📈 Chart Generation"
+      - "🧠 Planning Mode"
+    examples:
+      - "Research the latest developments in quantum computing"
+
+  "Web Browser":
+    harness: deerflow
+    name: "Web Browser"
+    description: "Fast web browsing and content extraction"
+    mode: flash
+    sandbox: local
+    tool_groups:
+      - web
+    mcp_servers:
+      - playwright
+    features:
+      - "🌐 Web Browsing"
+      - "📄 Content Extraction"
+      - "⚡ Fast Mode"
+    examples:
+      - "Go to atos.net and summarize the project"

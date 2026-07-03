@@ -1,11 +1,9 @@
 """CLI commands for AI Extra functionality."""
 
 import asyncio
-import sys
 from typing import Annotated
 
 import typer
-from loguru import logger
 from typer import Option
 
 from genai_tk.cli.base import CliTopCommand

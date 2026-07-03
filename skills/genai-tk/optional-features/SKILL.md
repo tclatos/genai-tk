@@ -195,7 +195,7 @@ uv add "genai-tk[harnessing,browser]"
 
 | Feature | Packages | Notes |
 |---------|----------|-------|
-| `harnessing` | smolagents, deepagents, deepagents-cli, agent-sandbox, opensandbox, deerflow-harness | Heavy — includes Docker sandbox |
+| `harnessing` | deepagents, agent-sandbox, opensandbox, deerflow-harness | Heavy — includes Docker sandbox |
 | `browser` | playwright | Run `uv run playwright install chromium` after install |
 | `nlp` | spacy, en-core-web-sm, en-core-web-lg | ~500 MB including models |
 | `postgres` | langchain-postgres, psycopg, psycopg2-binary | Requires PostgreSQL server |

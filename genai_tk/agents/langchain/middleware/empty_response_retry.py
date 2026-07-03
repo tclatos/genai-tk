@@ -10,7 +10,7 @@ the request, optionally swapping to a fallback model on the final attempt.
 Example YAML config::
 
     middlewares:
-      - class: genai_tk.agents.langchain.middleware.empty_response_retry:EmptyResponseRetryMiddleware
+      - class: genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware
         max_retries: 2
         fallback_llm: claude-haiku@openrouter
 """

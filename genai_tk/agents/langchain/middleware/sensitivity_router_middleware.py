@@ -14,7 +14,7 @@ model calls for that ``thread_id`` are routed to the safe LLM.
 Example YAML config::
 
     middlewares:
-      - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware:SensitivityRouterMiddleware
+      - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware.SensitivityRouterMiddleware
         safe_llm: ollama_local
         sensitive_source_patterns:
           - "**/hr/**"

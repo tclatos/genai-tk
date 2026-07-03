@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `agents` module provides agent implementations including LangChain-based agents (ReAct, Deep, Custom) and SmolAgents. All agents are configuration-driven with support for tools, MCP servers, middlewares, and checkpointing.
+The `agents` module provides agent implementations including LangChain-based agents (ReAct, Deep — including the DeepAgents SDK —, Custom) and DeerFlow. All agents are configuration-driven with support for tools, MCP servers, middlewares, and checkpointing. A shared **harness layer** (`agents.harness`) normalizes both runtimes behind one event model and one CLI/UI surface — see [Harness Layer](#harness-layer-agentsharness) below.
 
 ## LangChain Agents (`agents.langchain`)
 
@@ -348,54 +348,72 @@ from genai_tk.agents.langchain.agent_cli import run_langchain_agent_shell
 await run_langchain_agent_shell()
 ```
 
-## SmolAgents (`agents.smolagents`)
+## SmolAgents removed
 
-CodeAct-based agent framework with code execution and tool composition.
+SmolAgents (`cli agents smol`) has been removed. Use LangChain agents
+(`cli agents langchain`) or DeerFlow (`cli agents deerflow`) instead — both
+now share one harness layer (see below).
 
-**Key Features:**
-- Code-based agents (generates Python code)
-- Integrated tool execution
-- Sandbox support (local, Docker, e2b)
-- Model agnostic (works with any LLM)
-- Interactive and batch modes
+## Harness Layer (`agents.harness`)
 
-**CLI Usage:**
-```bash
-# Interactive shell mode
-cli agents smol --chat
+Both LangChain and DeerFlow agents run on LangChain/LangGraph, so they share
+one set of Pydantic event types and one abstract session interface instead of
+maintaining parallel CLI/UI code paths per framework.
 
-# Single query with tools
-cli agents smol "How many users in the database?" -t sql_tools
+**Core types** (`genai_tk.agents.harness`):
 
-# Web search and calculations
-cli agents smol "What's the latest AI news and calculate 2+2?" -t web_search
+```python
+from genai_tk.agents.harness import BaseHarness, TokenEvent, ToolCallEvent, create_harness
 
-# With custom LLM
-cli agents smol "Your task" --llm gpt_4o@openai -t web_search
-
-# With sandbox execution
-cli agents smol "Run some Python code" --sandbox docker
+harness = create_harness("research")   # resolves "research" across BOTH
+                                        # langchain_agents and deerflow_agents
+async for event in harness.astream("What is RAG?"):
+    if isinstance(event, TokenEvent):
+        print(event.text, end="", flush=True)
 ```
 
-**Tool Options:**
-- `web_search` - Web search tool
-- `calculator` - Math operations
-- `sql_tools` - Database operations
-- `dataframe_tools` - Data processing
-- `yfinance_tools` - Financial data
-- `browser_use` - Browser automation
+`BaseHarness` (abstract base class, not a `Protocol`) defines:
 
-**Configuration:**
-SmolAgents configuration is in `config/smolagents.yaml`:
-```yaml
-codeact_agent:
-  default:
-    type: codeact
-    llm: gpt_4o@openai
-    tools:
-      - web_search
-      - calculator
-```
+| Method | Purpose |
+|---|---|
+| `astream(message, thread_id=None)` | Abstract — stream canonical `StreamEvent`s |
+| `arun(message, thread_id=None)` | Concrete — consumes the stream, returns concatenated text |
+| `list_threads()` / `list_models()` / `list_skills()` | Optional harness introspection |
+| `aclose()` | Release resources (sandbox containers, connections) |
+
+Event kinds (`genai_tk.agents.harness.events`): `TokenEvent`, `NodeEvent`,
+`ToolCallEvent`, `ToolResultEvent`, `ArtifactEvent`, `ClarificationEvent`,
+`UsageEvent`, `ErrorEvent`, `EndEvent`.
+
+**Adapters:**
+
+- `LangChainHarness` — wraps `create_langchain_agent()`; works for `react`,
+  `deep` (DeepAgents SDK), and `custom` profiles via LangGraph's
+  `astream_events()`.
+- `DeerFlowHarness` — wraps `EmbeddedDeerFlowClient`; translates DeerFlow's
+  own event dataclasses into the same canonical types.
+
+**Profile discriminator:** every profile carries an explicit `harness` field
+(`AgentProfileConfig.harness` = `"langchain"`, `DeerFlowProfile.harness` =
+`"deerflow"`). `create_harness(key)` and `list_harness_profiles()` search both
+config trees by key and dispatch to the matching adapter — no YAML changes
+needed.
+
+**CLI:** `cli agents run <profile> "<query>"` and `cli agents list` work
+across both harnesses. Framework-specific commands (`cli agents langchain`,
+`cli agents deerflow`) remain for flags unique to one runtime (sandbox, mode,
+`--chat` REPL, etc.) — see [cli.md](cli.md).
+
+**Middleware is shared, not adapted.** Since DeerFlow's embedded client
+already forwards LangChain `AgentMiddleware` instances to the underlying
+`DeerFlowClient`, the exact same `AnonymizationMiddleware` and
+`SensitivityRouterMiddleware` classes run unmodified in DeerFlow profiles —
+see [middleware-pii-and-routing.md](middleware-pii-and-routing.md).
+
+**Streamlit:** both demo pages (`reAct_agent.py`, `deer_flow_agent.py`) render
+through the shared `genai_tk.webapp.ui_components.harness_workbench` module
+(trace phase cards, chat transcript, artifact gallery) driven by the same
+event stream — see [webapp.md](webapp.md).
 
 ## Common Patterns
 

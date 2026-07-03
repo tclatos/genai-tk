@@ -24,11 +24,11 @@ Centralized spaCy and NLP functionality for PII detection, anonymization, BM25 p
 - See: [docs/nlp.md](docs/nlp.md), [docs/middleware-pii-and-routing.md](docs/middleware-pii-and-routing.md)
 
 ### 🤖 **Agents**
-Four agent frameworks (ReAct, Deep, Deer-flow, SmolAgents) sharing YAML profiles, LLM factory, tools, and Docker sandbox.
+Three agent frameworks (ReAct, Deep, DeerFlow) sharing YAML profiles, LLM factory, tools, and Docker sandbox — unified behind a shared harness layer (`agents.harness`) for CLI and UI.
 - **ReAct** — standard Thought → Action → Observation loop (LangChain)
-- **Deep agent** — multi-step planning + subagent delegation (LangChain)
-- **Deer-flow** — native web research, multi-agent orchestration (LangGraph / ByteDance)
-- **SmolAgents** — code-first automation (Hugging Face)
+- **Deep agent** — multi-step planning + subagent delegation (LangChain / DeepAgents SDK)
+- **DeerFlow** — native web research, multi-agent orchestration (LangGraph / ByteDance)
+- **Harness layer** — one `BaseHarness` interface + one event model across LangChain and DeerFlow; `cli agents run`/`cli agents list` work across both
 - **Skills system** — `SKILL.md` domain-knowledge files loaded on demand; managed with `cli skills`
 - Docker sandbox — isolated execution, browser automation
 - MCP servers — protocol-standard tool integration
@@ -88,13 +88,10 @@ uv run cli init -t rag-app    --name "My RAG App"       # document ingestion + r
 uv run cli init -t workflow-app                         # YAML-driven pipelines
 uv run cli init -t minimal                              # config + justfile only
 
-# (optional) also clone the Deer-flow backend
-uv run cli init --deer-flow
+# (optional) also install the DeerFlow / DeepAgents harness
+uv run cli init --extra harnessing
 
 just run                                                # start the application
-
-# After running cli init --deer-flow, add this to your .env:
-# DEER_FLOW_PATH=~/deer-flow  (or wherever you cloned it)
 ```
 
 **Add to existing project:**
@@ -110,7 +107,7 @@ uv add "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
 # (scaffolds config/, skills/, justfile, hatchling build backend, runs uv sync)
 uv run cli init                      # interactive template picker
 uv run cli init -t agent-app         # agent app with tools + skills
-uv run cli init --deer-flow          # also clone the Deer-flow backend
+uv run cli init --extra harnessing   # also install the DeerFlow / DeepAgents harness
 ```
 
 **Development (clone & edit):**
@@ -283,8 +280,7 @@ just webapp          # launches Streamlit on http://localhost:8501
 Three built-in demo pages are included in an **Agents** section:
 
 - **🦌 DeerFlow Agent** — 2-panel trace + chat, artifacts, streaming
-- **🤖 ReAct Agent** — tool-call trace, MCP servers, slash commands
-- **🤖 SmolAgents** — SmolAgents step display
+- **🤖 ReAct Agent** — tool-call trace, MCP servers, slash commands, artifact tab
 
 **Downstream projects** (like genai-blueprint) can embed these pages in their
 own navigation using the `genai_tk://` prefix — no copy-pasting, no wrappers:
@@ -365,7 +361,7 @@ For complete Python examples:
 
 ## Agents Deep Dive
 
-The toolkit ships four agent frameworks, all sharing the same YAML profile system, LLM factory, MCP servers, and Docker sandbox.
+The toolkit ships three agent frameworks, all sharing the same YAML profile system, LLM factory, MCP servers, and Docker sandbox — unified behind a shared harness layer (see [docs/agents.md](docs/agents.md#harness-layer-agentsharness)).
 
 ### Choosing an agent
 
@@ -373,8 +369,7 @@ The toolkit ships four agent frameworks, all sharing the same YAML profile syste
 |-------|----------|:----------:|:--------:|:------------:|:--------------:|
 | **ReAct** | General tasks, tool use | ✓ | — | via tools | via tools |
 | **Deep agent** | Complex multi-step planning | ✓ | ✓ | via tools | Docker sandbox |
-| **Deer-flow** | Deep web research & reports | ✓ | ✓ | ✓ native | Docker sandbox |
-| **SmolAgents** | Code-first automation | ✓ | — | via tools | local / E2B |
+| **DeerFlow** | Deep web research & reports | ✓ | ✓ | ✓ native | Docker sandbox |
 
 ---
 
@@ -436,16 +431,17 @@ langchain_agents:
 
 ---
 
-### Deer-flow (ByteDance / LangGraph)
+### DeerFlow (ByteDance / LangGraph)
 
-[Deer-flow](https://github.com/bytedance/deer-flow) is a multi-agent LangGraph system with native web search, planning, reporting, and sub-agents. genai-tk embeds it **in-process** — no separate server.
+[DeerFlow](https://github.com/bytedance/deer-flow) is a multi-agent LangGraph system with native web search, planning, reporting, and sub-agents. genai-tk embeds it **in-process** — no separate server.
 
 **Setup** (one-time):
 
 ```bash
-cli init --deer-flow          # clones Deer-flow and installs its backend deps
-# then add to .env: DEER_FLOW_PATH=~/deer-flow
+cli init --extra harnessing   # installs deerflow-harness as a regular uv dependency
 ```
+
+No `DEER_FLOW_PATH` env var is needed — `deerflow-harness` is a regular Python package.
 
 **Run:**
 
@@ -481,19 +477,7 @@ deerflow_agents:
     sandbox: local              # local | docker
 ```
 
-Skills in `$DEER_FLOW_PATH/skills` are discovered automatically when running outside the development tree.
-
----
-
-### SmolAgents (HuggingFace)
-
-Code-first agent that writes and executes Python. Supports local, E2B, and Docker execution backends.
-
-```bash
-cli agents smolagents "Plot the sine function and save to sine.png"
-cli agents smolagents --executor docker "Install pandas and analyse data.csv"
-cli agents smolagents --executor e2b "Scrape and summarise this webpage: …"    # requires E2B_API_KEY
-```
+Skills configured under `skill_directories` are discovered automatically.
 
 ---
 
@@ -544,7 +528,6 @@ cli sandbox pull
 # Use with any agent
 cli agents langchain  -p research --sandbox docker "Write and run a Python script"
 cli agents deerflow   -p research_assistant --sandbox docker --chat
-cli agents smolagents --executor docker "Run some code"
 ```
 
 The sandbox provides Chromium (VNC at `localhost:8080/vnc`), Python, Node.js, and a REST shell/file API. Skill directories are mount-inserted automatically.
@@ -709,10 +692,10 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 
 | **Agents** | CLI | Python | Docs |
 |---|---|---|---|
+| Unified harness | `cli agents run` / `cli agents list` | `create_harness()` | [docs/agents.md](docs/agents.md#harness-layer-agentsharness) |
 | ReAct agent | `cli agents langchain` | `LangchainAgent` | [docs/agents.md](docs/agents.md) |
 | Deep agent | `cli agents langchain -p <deep>` | `LangchainAgent` (deep) | [docs/agents.md](docs/agents.md) |
-| Deer-flow | `cli agents deerflow` | `EmbeddedDeerFlowClient` | [docs/deer-flow.md](docs/deer-flow.md) |
-| SmolAgents | `cli agents smolagents` | `SmolAgent` | [docs/agents.md](docs/agents.md) |
+| DeerFlow | `cli agents deerflow` | `EmbeddedDeerFlowClient` | [docs/deer-flow.md](docs/deer-flow.md) |
 | Skills | — | `skill_directories:` in config | [AGENTS.md](AGENTS.md#skills) |
 | Docker sandbox | `cli sandbox` | `SandboxBackend` | [docs/sandbox_support.md](docs/sandbox_support.md) |
 | MCP servers | `cli mcpserver` | `McpClient` | [docs/mcp-servers.md](docs/mcp-servers.md) |
@@ -747,16 +730,16 @@ genai_tk/
 ├── core/          # LLM factory, embeddings, vector stores, cache, MCP client
 │   └── vector_backends/  # Chroma, InMemory, PgVector (+ Postgres connection mgmt)
 ├── agents/
+│   ├── harness/   # Shared BaseHarness + event model across LangChain and DeerFlow
 │   ├── langchain/ # Unified ReAct / Deep / Custom agents + middleware
-│   ├── deer_flow/ # Deer-flow embedded client + CLI
-│   └── smolagents/
+│   └── deer_flow/ # DeerFlow embedded client + CLI
 ├── workflow/      # ETL orchestration: Prefect flows, RAG, loaders, retrievers
 │   ├── prefect/   # run helpers + flows/ (markdownize, ppt2pdf, rag, baml)
 │   ├── rag/       # chunkers, RAG CLI commands
 │   ├── loaders/   # Markdown loader, Mistral OCR loader
 │   └── retrievers/ # BM25, ZeroEntropy
 ├── extra/         # Non-pipeline tooling: agent graphs, NLP (spaCy/Presidio/classifiers), BAML, image analysis
-├── tools/         # LangChain and SmolAgents tool sets
+├── tools/         # LangChain tool sets
 ├── utils/         # Config manager, Pydantic helpers, LangGraph utilities
 └── main/          # CLI entry point + command modules
 ```

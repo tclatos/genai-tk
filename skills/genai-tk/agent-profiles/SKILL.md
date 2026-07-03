@@ -1,6 +1,6 @@
 ---
 name: genai-tk-agent-profiles
-description: Build or modify LangChain, DeepAgent, SmolAgents, DeerFlow profiles, agent tools, middleware, checkpointing, and skills wiring in genai-tk.
+description: Build or modify LangChain, DeepAgent, DeerFlow profiles, agent tools, middleware, checkpointing, skills wiring, and the shared harness layer in genai-tk.
 ---
 
 # GenAI Toolkit Agent Profiles
