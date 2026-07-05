@@ -1,6 +1,6 @@
 ---
-name: genai-tk-nlp
-description: Configure and extend spaCy-based NLP in genai-tk — covers the centralized NLP package (genai_tk.extra.nlp), the nlp: YAML config section, spaCy model management, text preprocessing for BM25, PII detection with Presidio, anonymization, French and multilingual support, the TextClassifier protocol, and the DefaultSensitivityScorer. Use when adding NLP, language detection, preprocessing, PII detection, or text classification to any part of the toolkit.
+name: nlp
+description: "Configure and extend spaCy-based NLP in genai-tk — covers the centralized NLP package (genai_tk.extra.nlp), the nlp: YAML config section, spaCy model management, text preprocessing for BM25, PII detection with Presidio, anonymization, French and multilingual support, the TextClassifier protocol, and the DefaultSensitivityScorer. Use when adding NLP, language detection, preprocessing, PII detection, or text classification to any part of the toolkit."
 tags: [nlp, spacy, presidio, pii, anonymization, bm25, french, classifier]
 version: "1.0"
 ---

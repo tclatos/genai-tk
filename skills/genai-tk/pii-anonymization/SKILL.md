@@ -1,5 +1,5 @@
 ---
-name: genai-tk-pii-anonymization
+name: pii-anonymization
 description: Use or extend PII anonymization in genai-tk — covers the shared core library (genai_tk.extra.nlp), the AnonymizationMiddleware for agents, the anonymize_files_flow Prefect ETL flow, custom entity recognizers (COMPANY, PRODUCT, PROJECT), and the SensitivityRouterMiddleware. Use when adding privacy controls to a workflow, an agent profile, or a batch pipeline.
 ---
 

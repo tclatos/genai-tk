@@ -18,9 +18,7 @@ from genai_tk.agents.harness.langchain_harness import LangChainHarness
 from genai_tk.agents.harness.profiles import load_agent_profiles
 from genai_tk.agents.langchain.config import AgentProfileConfig
 
-_BUNDLED_AGENTS_YAML = (
-    Path(__file__).resolve().parents[4] / "config" / "examples" / "agents" / "agents.yaml"
-)
+_BUNDLED_AGENTS_YAML = Path(__file__).resolve().parents[4] / "config" / "examples" / "agents" / "agents.yaml"
 
 
 def test_unified_loader_reads_bundled_agents_yaml() -> None:

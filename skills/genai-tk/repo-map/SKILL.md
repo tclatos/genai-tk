@@ -1,5 +1,5 @@
 ---
-name: genai-tk-repo-map
+name: repo-map
 description: Navigate the genai-tk repository by mapping docs to code, config, tests, and existing skills. Use before making cross-cutting changes or when deciding which domain skill to load.
 ---
 

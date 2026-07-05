@@ -1,5 +1,5 @@
 ---
-name: genai-tk-docker
+name: docker
 description: Build, configure, and troubleshoot Docker images for genai-tk and scaffolded applications. Add Docker support to a new project, adjust extras, fix Dockerfile issues, update just recipes.
 ---
 

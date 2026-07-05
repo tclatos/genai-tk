@@ -1,5 +1,5 @@
 ---
-name: genai-tk-agent-profiles
+name: agent-profiles
 description: Build or modify LangChain, DeepAgent, DeerFlow profiles, agent tools, middleware, checkpointing, skills wiring, and the shared harness layer in genai-tk.
 ---
 

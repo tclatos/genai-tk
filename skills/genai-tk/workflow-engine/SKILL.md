@@ -1,5 +1,5 @@
 ---
-name: genai-tk-workflow-engine
+name: workflow-engine
 description: Work on YAML-driven workflows, Prefect flow wrappers, workflow compilation, execution, resolver behavior, cache manifests, and CLI workflow commands.
 ---
 

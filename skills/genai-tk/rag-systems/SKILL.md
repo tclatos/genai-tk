@@ -1,5 +1,5 @@
 ---
-name: genai-tk-rag-systems
+name: rag-systems
 description: Build or debug genai-tk RAG retrievers, ingestion, chunking, hybrid search, reranking, and RAG agent tools. Use when editing docs/rag.md areas or config/rag.yaml.
 ---
 

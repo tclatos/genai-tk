@@ -63,8 +63,13 @@ async def create_langchain_agent(
         A compiled LangGraph agent (``CompiledStateGraph`` or ``Pregel``).
     """
     # 1. Resolve LLM
+    # Agents run interactively and stream tokens through ``astream_events``;
+    # force streaming on so the harness receives ``on_chat_model_stream``
+    # chunks for the final assistant message.  Without streaming, non-tool
+    # answers are emitted only via ``on_chat_model_end`` (whose text is not
+    # surfaced by the harness) and silently dropped on the floor.
     llm_id = llm_override or profile.llm or "default"
-    model = get_llm(llm=llm_id)
+    model = get_llm(llm=llm_id, streaming=True)
 
     # 2. Resolve tools from profile
     profile_tools = process_langchain_tools_from_config(profile.tools, llm=llm_id)

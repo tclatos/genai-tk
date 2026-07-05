@@ -1,5 +1,5 @@
 ---
-name: genai-tk-browser-and-sandbox
+name: browser-and-sandbox
 description: Work on browser automation, sandbox browser tools, direct Playwright tools, AioSandbox backend, and sandbox CLI support in genai-tk.
 ---
 

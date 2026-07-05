@@ -1,5 +1,5 @@
 ---
-name: genai-tk-mcp-servers
+name: mcp-servers
 description: Expose genai-tk tools and agents as MCP servers, generate standalone MCP scripts, and debug MCP configuration and tool adaptation.
 ---
 

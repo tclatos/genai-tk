@@ -1,5 +1,5 @@
 ---
-name: genai-tk-webapp
+name: webapp
 description: Add or modify the genai-tk Streamlit webapp, pages, navigation, UI components, and genai_tk:// page references.
 ---
 

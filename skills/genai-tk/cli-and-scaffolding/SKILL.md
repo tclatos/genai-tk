@@ -1,5 +1,5 @@
 ---
-name: genai-tk-cli-and-scaffolding
+name: cli-and-scaffolding
 description: Add or modify genai-tk Typer CLI commands, dynamic command registration, project scaffolding, and generated Copilot/agent support files.
 ---
 

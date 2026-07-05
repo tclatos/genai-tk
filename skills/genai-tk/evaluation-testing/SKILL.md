@@ -1,5 +1,5 @@
 ---
-name: genai-tk-evaluation-testing
+name: evaluation-testing
 description: Add or debug pytest unit, integration, and LLM evaluation tests for genai-tk, including fake models, real-model gates, and trajectory tests.
 ---
 

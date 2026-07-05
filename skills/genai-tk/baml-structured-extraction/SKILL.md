@@ -1,5 +1,5 @@
 ---
-name: genai-tk-baml-structured-extraction
+name: baml-structured-extraction
 description: Work on BAML structured extraction, BAML CLI commands, processors, utilities, and Prefect BAML workflow integration in genai-tk.
 ---
 

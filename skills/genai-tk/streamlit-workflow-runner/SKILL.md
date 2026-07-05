@@ -1,3 +1,10 @@
+---
+name: streamlit-workflow-runner
+description: "Embed a live Prefect workflow execution UI in a Streamlit page — use the WorkflowRunner component to run workflows in a background thread and display task progress via Prefect REST API polling."
+tags: [streamlit, prefect, workflows, ui]
+version: "1.0"
+---
+
 # Streamlit Workflow Runner — Live Prefect Execution UI
 
 **Problem:** You want to run a Prefect workflow from a Streamlit page and show live progress without writing thread/polling logic.

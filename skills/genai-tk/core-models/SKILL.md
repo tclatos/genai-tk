@@ -1,5 +1,5 @@
 ---
-name: genai-tk-core-models
+name: core-models
 description: Work on core LLM, embeddings, vector store, provider, cache, prompt, and retriever factories in genai-tk. Use when editing genai_tk/core or provider configuration.
 ---
 

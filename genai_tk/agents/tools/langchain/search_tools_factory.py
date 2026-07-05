@@ -396,6 +396,89 @@ def create_search_tool(verbose: bool = False):
     return web_search
 
 
+def create_webpage_tool(verbose: bool = False):
+    """Create a webpage fetcher tool that retrieves and extracts readable text from URLs.
+
+    Uses httpx to fetch the page and readabilipy to extract the main article
+    content (boilerplate removed).  Falls back to raw HTML stripping when
+    readabilipy is unavailable.  Returns a LangChain ``@tool`` so it can be
+    registered in an agent profile.
+
+    Args:
+        verbose: Whether to log the selected extraction backend on startup.
+
+    Returns:
+        A LangChain ``@tool`` callable that takes a ``url`` and returns the
+        page's visible text (truncated to ~4000 chars).
+    """
+    import re as _re
+
+    import httpx
+
+    @tool
+    def fetch_webpage(url: str, max_chars: int = 4000) -> str:
+        """Fetch a webpage and extract its main readable text content.
+
+        Useful for reading article, doc, or news pages returned by search tools.
+
+        Args:
+            url: Full URL to fetch (must include scheme, e.g. ``https://``).
+            max_chars: Maximum number of characters of extracted text to return.
+                Defaults to 4000; pass ``0`` for the full content.
+
+        Returns:
+            The page's main text content, truncated to ``max_chars``. On error,
+            a short ``Error: ...`` message is returned instead.
+        """
+        try:
+            response = httpx.get(url, timeout=20.0, follow_redirects=True, headers={"User-Agent": "genai-tk/1.0"})
+            response.raise_for_status()
+            html = response.text
+        except Exception as e:
+            logger.error("fetch_webpage error fetching {!r}: {}", url, e)
+            return f"Error fetching {url}: {e}"
+
+        try:
+            from readabilipy import simple_json_from_html_string
+
+            out = simple_json_from_html_string(html)
+            blocks: list[str] = []
+            for block in out.get("plain_text") or []:
+                if not isinstance(block, dict):
+                    continue
+                chunk = block.get("text", "")
+                if not chunk:
+                    continue
+                # Some blocks come back with leftover inline HTML tags.
+                chunk = _re.sub(r"<[^>]+>", "", chunk)
+                chunk = _re.sub(r"\s+", " ", chunk).strip()
+                if chunk:
+                    blocks.append(chunk)
+            text = "\n\n".join(blocks)
+            if verbose:
+                logger.info("fetch_webpage: extracted {} chars via readabilipy", len(text))
+        except Exception:
+            # Fallback: very naive HTML tag stripping.
+            text = _re.sub(r"<[^>]+>", " ", html)
+            text = _re.sub(r"\s+", " ", text).strip()
+            if verbose:
+                logger.info("fetch_webpage: extracted {} chars via regex fallback", len(text))
+
+        if max_chars and len(text) > max_chars:
+            text = text[:max_chars] + "… [truncated]"
+        return text or "(no extractable text)"
+
+    if verbose:
+        try:
+            import readabilipy  # noqa: F401
+
+            logger.info("Using readabilipy for webpage text extraction")
+        except ImportError:
+            logger.info("Using regex fallback for webpage text extraction (install readabilipy for better quality)")
+
+    return fetch_webpage
+
+
 def test_search_tool():
     """Test the search tool to see which provider is being used."""
     search_tool = create_search_tool(verbose=True)
