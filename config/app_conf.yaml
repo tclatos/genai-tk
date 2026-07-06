@@ -105,7 +105,11 @@ nlp:
         fast_model: claude-haiku@openrouter
     embeddings:
       models:
-        default: qwen3_06b@deepinfra
+        # Tests must not require provider API keys: the pytest profile's
+        # default embeddings resolve to the in-process fake model so that any
+        # embeddings_store entry using the 'default' tag (or no embeddings at
+        # all) works in a clean CI environment.
+        default: embeddings_768@fake
         fake: embeddings_768@fake
         test: ada-002@openai
       cache: data/hf_models
