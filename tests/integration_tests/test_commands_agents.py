@@ -34,9 +34,19 @@ class TestLangchainCommandHelp:
         result = runner.invoke(agents_app, ["agents", "langchain", "--help"])
         assert result.exit_code == 0
 
-    def test_help_shows_options(self, agents_app, runner) -> None:
-        result = runner.invoke(agents_app, ["agents", "langchain", "--help"])
-        assert "--list" in result.stdout or "--profile" in result.stdout
+    def test_help_shows_options(self, agents_app) -> None:
+        """The langchain command must expose the --list and --profile options.
+
+        Asserting on the registered options (instead of the rendered --help
+        text) keeps the test terminal-width independent: rich renders help
+        differently in CI's narrow / no-TTY environment, which can wrap or
+        omit option names from the captured stdout.
+        """
+        click_group = typer.main.get_command(agents_app)
+        langchain_cmd = click_group.commands["agents"].commands["langchain"]
+        option_names = {opt for param in langchain_cmd.params for opt in param.opts}
+        assert "--list" in option_names
+        assert "--profile" in option_names
 
     def test_agents_group_help(self, agents_app, runner) -> None:
         result = runner.invoke(agents_app, ["agents", "--help"])
