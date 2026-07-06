@@ -1,8 +1,10 @@
-"""Unit tests for kv_store module."""
+"""Unit tests for the pydantic_utils.kv_store module (pytest style)."""
 
-import asyncio
-import unittest
+from __future__ import annotations
 
+import re
+
+import pytest
 from pydantic import BaseModel
 
 from genai_tk.utils.pydantic_utils.kv_store import PydanticStore, _make_key
@@ -25,104 +27,88 @@ def _configure_memory_store(store_id: str = "test") -> None:
     clear_store_cache()
 
 
-class TestMakeKey(unittest.TestCase):
-    """Tests for the _make_key helper."""
-
-    def test_string_key_unchanged(self):
-        self.assertEqual(_make_key("hello"), "hello")
-
-    def test_string_key_with_special_chars(self):
-        # Raw keys are passed through as-is
-        self.assertEqual(_make_key("some/path/file.json"), "some/path/file.json")
-
-    def test_dict_key_is_hex(self):
-        key = _make_key({"user_id": 123})
-        # buffer_digest uses xxh3_64 by default (16 hex chars), not MD5 (32)
-        self.assertRegex(key, r"^[0-9a-f]+$")
-
-    def test_dict_key_deterministic(self):
-        key1 = _make_key({"a": 1, "b": 2})
-        key2 = _make_key({"b": 2, "a": 1})
-        self.assertEqual(key1, key2)
-
-    def test_invalid_key_type_raises(self):
-        with self.assertRaises(ValueError):
-            _make_key(123)  # type: ignore[arg-type]
+@pytest.fixture
+def store() -> PydanticStore:
+    """Configure a fresh in-memory store and return a PydanticStore for SampleModel."""
+    _configure_memory_store("test")
+    return PydanticStore(kvstore_id="test", model=SampleModel)
 
 
-class TestPydanticStore(unittest.TestCase):
-    """Test PydanticStore async operations backed by MemoryStore."""
-
-    def setUp(self):
-        _configure_memory_store("test")
-        self.test_model = SampleModel(name="test_object", value=42)
-        self.store = PydanticStore(kvstore_id="test", model=SampleModel)
-
-    def test_save_and_load(self):
-        async def _run():
-            await self.store.save_obj("key1", self.test_model)
-            result = await self.store.load_object("key1")
-            self.assertIsNotNone(result)
-            self.assertEqual(result.name, "test_object")
-            self.assertEqual(result.value, 42)
-
-        asyncio.run(_run())
-
-    def test_load_missing_key_returns_none(self):
-        async def _run():
-            result = await self.store.load_object("nonexistent")
-            self.assertIsNone(result)
-
-        asyncio.run(_run())
-
-    def test_dict_key(self):
-        async def _run():
-            dict_key = {"user_id": 123, "session": "abc"}
-            await self.store.save_obj(dict_key, self.test_model)
-            result = await self.store.load_object(dict_key)
-            self.assertIsNotNone(result)
-            self.assertEqual(result.name, "test_object")
-
-        asyncio.run(_run())
-
-    def test_overwrite(self):
-        async def _run():
-            await self.store.save_obj("key1", self.test_model)
-            new_model = SampleModel(name="updated", value=99)
-            await self.store.save_obj("key1", new_model)
-            result = await self.store.load_object("key1")
-            self.assertIsNotNone(result)
-            self.assertEqual(result.name, "updated")
-            self.assertEqual(result.value, 99)
-
-        asyncio.run(_run())
-
-    def test_multiple_model_types(self):
-        class AnotherModel(BaseModel):
-            title: str
-            count: float
-
-        _configure_memory_store("test2")
-
-        async def _run():
-            store2 = PydanticStore(kvstore_id="test2", model=AnotherModel)
-            await self.store.save_obj("k1", SampleModel(name="m1", value=1))
-            await store2.save_obj("k2", AnotherModel(title="m2", count=2.5))
-            r1 = await self.store.load_object("k1")
-            r2 = await store2.load_object("k2")
-            self.assertEqual(r1.name, "m1")
-            self.assertEqual(r2.title, "m2")
-
-        asyncio.run(_run())
-
-    def test_invalid_store_id_raises(self):
-        async def _run():
-            bad_store = PydanticStore(kvstore_id="nonexistent_store", model=SampleModel)
-            with self.assertRaises(ValueError):
-                await bad_store.save_obj("key", self.test_model)
-
-        asyncio.run(_run())
+@pytest.fixture
+def test_model() -> SampleModel:
+    """Return a sample model instance used across tests."""
+    return SampleModel(name="test_object", value=42)
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_string_key_unchanged() -> None:
+    assert _make_key("hello") == "hello"
+
+
+def test_string_key_with_special_chars() -> None:
+    assert _make_key("some/path/file.json") == "some/path/file.json"
+
+
+def test_dict_key_is_hex() -> None:
+    key = _make_key({"user_id": 123})
+    assert re.fullmatch(r"[0-9a-f]+", key)
+
+
+def test_dict_key_deterministic() -> None:
+    assert _make_key({"a": 1, "b": 2}) == _make_key({"b": 2, "a": 1})
+
+
+def test_invalid_key_type_raises() -> None:
+    with pytest.raises(ValueError):
+        _make_key(123)  # type: ignore[arg-type]
+
+
+async def test_save_and_load(store: PydanticStore, test_model: SampleModel) -> None:
+    await store.save_obj("key1", test_model)
+    result = await store.load_object("key1")
+    assert result is not None
+    assert result.name == "test_object"
+    assert result.value == 42
+
+
+async def test_load_missing_key_returns_none(store: PydanticStore) -> None:
+    assert await store.load_object("nonexistent") is None
+
+
+async def test_dict_key(store: PydanticStore, test_model: SampleModel) -> None:
+    dict_key = {"user_id": 123, "session": "abc"}
+    await store.save_obj(dict_key, test_model)
+    result = await store.load_object(dict_key)
+    assert result is not None
+    assert result.name == "test_object"
+
+
+async def test_overwrite(store: PydanticStore, test_model: SampleModel) -> None:
+    await store.save_obj("key1", test_model)
+    await store.save_obj("key1", SampleModel(name="updated", value=99))
+    result = await store.load_object("key1")
+    assert result is not None
+    assert result.name == "updated"
+    assert result.value == 99
+
+
+async def test_multiple_model_types(store: PydanticStore) -> None:
+    class AnotherModel(BaseModel):
+        title: str
+        count: float
+
+    _configure_memory_store("test2")
+    store2 = PydanticStore(kvstore_id="test2", model=AnotherModel)
+
+    await store.save_obj("k1", SampleModel(name="m1", value=1))
+    await store2.save_obj("k2", AnotherModel(title="m2", count=2.5))
+
+    r1 = await store.load_object("k1")
+    r2 = await store2.load_object("k2")
+    assert r1.name == "m1"
+    assert r2.title == "m2"
+
+
+async def test_invalid_store_id_raises(test_model: SampleModel) -> None:
+    bad_store = PydanticStore(kvstore_id="nonexistent_store", model=SampleModel)
+    with pytest.raises(ValueError):
+        await bad_store.save_obj("key", test_model)

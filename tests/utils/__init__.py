@@ -1,22 +1,26 @@
-"""Test utilities for GenAI Toolkit.
+"""Shared test utilities for GenAI Toolkit.
 
-This module provides shared constants, fixtures, and utilities for testing
-with fake models to ensure fast, reliable, and cost-effective tests.
+Re-exports the live helpers from :mod:`tests.utils.test_data` for convenience.
+The deprecated ``factories`` and ``constants`` modules were removed in favour
+of the typed ``PytestConfig`` fixtures in ``tests/conftest.py``.
 """
 
-from .constants import (
-    FAKE_EMBEDDINGS_ID,
-    FAKE_EMBEDDINGS_PROVIDER,
-    FAKE_LLM_ID,
-    FAKE_LLM_PROVIDER,
+from tests.utils.test_data import (
+    create_sample_json_files,
+    create_sample_markdown_files,
+    create_sample_text_files,
+    create_test_file,
+    generate_sample_documents,
+    generate_sample_queries,
+    generate_sample_texts,
 )
-from .factories import FakeLLMResponseFactory, FakeTestDataFactory
 
 __all__ = [
-    "FAKE_LLM_ID",
-    "FAKE_EMBEDDINGS_ID",
-    "FAKE_LLM_PROVIDER",
-    "FAKE_EMBEDDINGS_PROVIDER",
-    "FakeLLMResponseFactory",
-    "FakeTestDataFactory",
+    "generate_sample_documents",
+    "generate_sample_texts",
+    "generate_sample_queries",
+    "create_test_file",
+    "create_sample_text_files",
+    "create_sample_markdown_files",
+    "create_sample_json_files",
 ]

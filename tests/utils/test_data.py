@@ -5,9 +5,7 @@ test data across all test modules.
 """
 
 from pathlib import Path
-from typing import Generator
 
-import pytest
 from langchain_core.documents import Document
 
 
@@ -84,21 +82,6 @@ def generate_sample_queries() -> list[str]:
         "vector representation",
         "cloud infrastructure",
     ]
-
-
-@pytest.fixture
-def temp_test_dir(tmp_path: Path) -> Generator[Path, None, None]:
-    """Create a temporary directory for test files.
-
-    Args:
-        tmp_path: pytest's temporary path fixture
-
-    Returns:
-        Path to temporary test directory
-    """
-    test_dir = tmp_path / "test_data"
-    test_dir.mkdir(exist_ok=True)
-    yield test_dir
 
 
 def create_test_file(directory: Path, filename: str, content: str | bytes) -> Path:

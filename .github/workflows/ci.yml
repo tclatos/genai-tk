@@ -11,21 +11,22 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ["3.12"]
-    
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install uv
       uses: astral-sh/setup-uv@v4
       with:
         version: "latest"
-        
+
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
-      
+
     - name: Cache uv
       uses: actions/cache@v4
       with:
@@ -35,38 +36,56 @@ jobs:
         key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml', 'uv.lock') }}
         restore-keys: |
           ${{ runner.os }}-uv-
-    
+
     - name: Install dependencies
       run: uv sync --all-extras
-      
+
     - name: Format check
       run: uv run ruff format --check .
-      
+
     - name: Lint
       run: uv run ruff check .
-      
-    - name: Type check (if mypy available)
-      run: |
-        if uv run python -c "import mypy" 2>/dev/null; then
-          uv run mypy .
-        else
-          echo "MyPy not available, skipping type check"
-        fi
+
+    - name: Type check (pyright, advisory)
+      # Pyright runs as a non-blocking advisory gate until the codebase is
+      # clean enough to enforce. Remove `continue-on-error` once the baseline
+      # error count is driven to zero.
+      run: uv run --with pyright pyright
       continue-on-error: true
-      
+
     - name: Install just
       uses: taiki-e/install-action@just
 
     - name: Test installation
       run: just test-install
-      
-    - name: Run unit tests
-      run: just test-unit
-      continue-on-error: true
-      
-    # - name: Run integration tests
-    #   run: just test
-    #   continue-on-error: true
+
+    - name: Run unit tests (with coverage gate)
+      # Coverage threshold sits just below the current branch-coverage baseline
+      # (~49%) so CI is green and catches regressions; raise it as coverage
+      # grows. Branch coverage is enabled via [tool.coverage] in pyproject.toml.
+      run: |
+        uv run pytest tests/unit_tests/ \
+          --cov=genai_tk \
+          --cov-report=term-missing \
+          --cov-report=xml:coverage.xml \
+          --cov-fail-under=45 \
+          -q
+
+    - name: Run integration tests (fake models, no services)
+      # Fast integration tests only: real-model, Docker, network, slow,
+      # performance and DeerFlow-backend tests are skipped (opt-in via flags).
+      run: |
+        uv run pytest tests/integration_tests/ \
+          -m "not slow and not docker and not real_models and not network and not performance_tests and not deerflow" \
+          -q
+
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ matrix.os }}
+        path: coverage.xml
+        if-no-files-found: ignore
 
   build:
     runs-on: ubuntu-latest

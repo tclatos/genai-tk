@@ -151,7 +151,6 @@ class TestLangchainAgentConstruction:
 
 
 class TestLangchainAgentInit:
-    @pytest.mark.asyncio
     async def test_ensure_initialized_creates_agent(self, fake_llm_id) -> None:
         mock_compiled = MagicMock()
         with patch(
@@ -165,7 +164,6 @@ class TestLangchainAgentInit:
         assert result is mock_compiled
         assert agent._agent is mock_compiled
 
-    @pytest.mark.asyncio
     async def test_ensure_initialized_caches_agent(self, fake_llm_id) -> None:
         mock_compiled = MagicMock()
         with patch(
@@ -179,7 +177,6 @@ class TestLangchainAgentInit:
 
         assert mock_factory.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_ensure_initialized_passes_checkpointer_flag(self, fake_llm_id) -> None:
         mock_compiled = MagicMock()
         with patch(
@@ -200,7 +197,6 @@ class TestLangchainAgentInit:
 
 
 class TestLangchainAgentRun:
-    @pytest.mark.asyncio
     async def test_arun_returns_string(self, fake_llm_id) -> None:
         mock_compiled = AsyncMock()
         mock_compiled.ainvoke.return_value = {"messages": [AIMessage(content="The answer is 42")]}
@@ -229,7 +225,6 @@ class TestLangchainAgentRun:
 
         assert result == "sync result"
 
-    @pytest.mark.asyncio
     async def test_astream_yields_chunks(self, fake_llm_id) -> None:
         async def _mock_stream(messages: Any, **kwargs: Any) -> Any:
             for chunk in [
@@ -263,7 +258,6 @@ class TestLangchainAgentRun:
 
 
 class TestLangchainAgentClose:
-    @pytest.mark.asyncio
     async def test_close_stops_backend(self, fake_llm_id) -> None:
         mock_backend = AsyncMock()
         mock_compiled = MagicMock()
@@ -281,13 +275,11 @@ class TestLangchainAgentClose:
         mock_backend.stop.assert_called_once()
         assert agent._agent is None
 
-    @pytest.mark.asyncio
     async def test_close_noop_when_not_initialized(self, fake_llm_id) -> None:
         agent = LangchainAgent(llm=fake_llm_id)
         # Should not raise
         await agent.close()
 
-    @pytest.mark.asyncio
     async def test_async_context_manager(self, fake_llm_id) -> None:
         mock_compiled = MagicMock()
         mock_compiled._backend = None

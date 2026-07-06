@@ -41,7 +41,6 @@ def langchain_profile():
     return AgentProfileConfig(name="TestProfile", type="react", llm="fake_llm")
 
 
-@pytest.mark.asyncio
 async def test_langchain_harness_ensure_agent_calls_setup_monitoring(langchain_profile) -> None:
     """LangChainHarness._ensure_agent() must call setup_monitoring() before creating the agent."""
     from genai_tk.agents.harness.langchain_harness import LangChainHarness
@@ -63,7 +62,6 @@ async def test_langchain_harness_ensure_agent_calls_setup_monitoring(langchain_p
     mock_apply.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_langchain_harness_astream_passes_callbacks(langchain_profile) -> None:
     """LangChainHarness.astream() must include monitoring callbacks in the config."""
     from genai_tk.agents.harness.langchain_harness import LangChainHarness
@@ -88,7 +86,6 @@ async def test_langchain_harness_astream_passes_callbacks(langchain_profile) -> 
     assert fake_callback in config["callbacks"]
 
 
-@pytest.mark.asyncio
 async def test_langchain_harness_astream_no_callbacks_when_none_active(langchain_profile) -> None:
     """When get_monitoring_callbacks() returns [], no callbacks key is added."""
     from genai_tk.agents.harness.langchain_harness import LangChainHarness
@@ -115,7 +112,6 @@ async def test_langchain_harness_astream_no_callbacks_when_none_active(langchain
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_langchain_agent_ensure_initialized_calls_setup_monitoring(fake_llm_id) -> None:
     """LangchainAgent._ensure_initialized() must call setup_monitoring()."""
     from genai_tk.agents.langchain.langchain_agent import LangchainAgent
@@ -135,7 +131,6 @@ async def test_langchain_agent_ensure_initialized_calls_setup_monitoring(fake_ll
     mock_setup.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_langchain_agent_arun_passes_callbacks(fake_llm_id) -> None:
     """LangchainAgent.arun() must pass monitoring callbacks in the invoke config."""
     from genai_tk.agents.langchain.langchain_agent import LangchainAgent
@@ -159,7 +154,6 @@ async def test_langchain_agent_arun_passes_callbacks(fake_llm_id) -> None:
     assert fake_callback in config["callbacks"]
 
 
-@pytest.mark.asyncio
 async def test_langchain_agent_astream_passes_callbacks(fake_llm_id) -> None:
     """LangchainAgent.astream() must pass monitoring callbacks in the stream config."""
     from genai_tk.agents.langchain.langchain_agent import LangchainAgent
@@ -218,7 +212,6 @@ def test_langchain_agent_invoke_config_no_callbacks_when_empty() -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_deerflow_harness_prepare_profile_calls_setup_monitoring() -> None:
     """DeerFlowHarness._ensure_client() delegates to prepare_profile which calls setup_monitoring()."""
     from genai_tk.agents.harness.deerflow_harness import DeerFlowHarness

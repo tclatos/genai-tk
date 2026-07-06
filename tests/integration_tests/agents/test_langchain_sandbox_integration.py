@@ -47,7 +47,6 @@ def test_sandbox_field_accepts_literal_values(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_docker_sandbox_promotes_react_to_deep(fake_llm_id) -> None:
     """When sandbox='docker', a react profile is promoted to type='deep'."""
     from genai_tk.agents.langchain.config import BackendConfig
@@ -67,7 +66,6 @@ async def test_docker_sandbox_promotes_react_to_deep(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_docker_sandbox_keeps_deep_type(fake_llm_id) -> None:
     """When sandbox='docker' on a deep profile, type stays 'deep'."""
     from genai_tk.agents.langchain.config import BackendConfig
@@ -87,7 +85,6 @@ async def test_docker_sandbox_keeps_deep_type(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_docker_sandbox_clears_skill_directories(fake_llm_id) -> None:
     """skill_directories is always empty when sandbox='docker'."""
     captured: dict[str, Any] = {}
@@ -107,7 +104,6 @@ async def test_docker_sandbox_clears_skill_directories(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_local_sandbox_preserves_profile(fake_llm_id) -> None:
     """sandbox='local' leaves the profile type and backend unchanged."""
     captured: dict[str, Any] = {}
@@ -130,7 +126,6 @@ async def test_local_sandbox_preserves_profile(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_no_sandbox_preserves_profile(fake_llm_id) -> None:
     """sandbox=None leaves the profile entirely unchanged."""
     captured: dict[str, Any] = {}
@@ -153,7 +148,6 @@ async def test_no_sandbox_preserves_profile(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_docker_sandbox_uses_shared_config_image(fake_llm_id) -> None:
     """The AioSandboxBackend started for 'docker' sandbox uses the image from sandbox.yaml."""
     from genai_tk.config_mgmt.features import is_available
@@ -204,7 +198,6 @@ async def test_docker_sandbox_uses_shared_config_image(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_docker_sandbox_end_to_end_mocked(fake_llm_id) -> None:
     """arun() completes successfully with sandbox='docker' when backend is mocked."""
     mock_backend = AsyncMock()

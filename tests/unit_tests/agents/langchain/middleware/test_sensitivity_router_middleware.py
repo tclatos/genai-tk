@@ -94,7 +94,6 @@ class TestContentBasedRouting:
 
         request.override.assert_called_once_with(model=middleware._safe_model)
 
-    @pytest.mark.asyncio
     async def test_async_sensitive_text_routes_to_safe_model(self) -> None:
         middleware = _make_middleware(threshold=0.01)
         request = _make_model_request("root password is abc123", thread_id="async-sens-thread")
@@ -104,7 +103,6 @@ class TestContentBasedRouting:
 
         request.override.assert_called_once_with(model=middleware._safe_model)
 
-    @pytest.mark.asyncio
     async def test_async_clean_text_no_override(self) -> None:
         middleware = _make_middleware(threshold=0.99)  # extremely high → nothing is sensitive
         request = _make_model_request("Tell me about Python.", thread_id="clean-async")
@@ -179,7 +177,6 @@ class TestSourceBasedRouting:
             middleware.wrap_model_call(req, MagicMock(return_value=MagicMock()))
             req.override.assert_called_once_with(model=middleware._safe_model)
 
-    @pytest.mark.asyncio
     async def test_async_source_routing(self) -> None:
         middleware = _make_middleware(
             sensitive_source_patterns=["**/hr/**"],

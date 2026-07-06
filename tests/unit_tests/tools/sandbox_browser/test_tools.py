@@ -46,7 +46,6 @@ def mock_session() -> SandboxBrowserSession:
 
 
 class TestBrowserToolConnectionHandling:
-    @pytest.mark.asyncio
     async def test_transient_navigation_error_does_not_reconnect(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.page.evaluate.side_effect = Exception(
             "Execution context was destroyed, most likely because of a navigation",
@@ -60,7 +59,6 @@ class TestBrowserToolConnectionHandling:
         mock_session.close.assert_not_called()
         mock_session.connect.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_closed_page_reconnects(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.page.evaluate.side_effect = Exception("Target page, context or browser has been closed")
         mock_session.page.is_closed.return_value = True
@@ -75,7 +73,6 @@ class TestBrowserToolConnectionHandling:
 
 
 class TestBrowserNavigateTool:
-    @pytest.mark.asyncio
     async def test_navigate_success(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserNavigateTool(session=mock_session)
         result = await tool._arun("https://example.com")
@@ -83,7 +80,6 @@ class TestBrowserNavigateTool:
         assert "Dashboard" in result
         assert "example.com" in result
 
-    @pytest.mark.asyncio
     async def test_navigate_failure(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.page.goto.side_effect = TimeoutError("Timeout")
         tool = BrowserNavigateTool(session=mock_session)
@@ -92,14 +88,12 @@ class TestBrowserNavigateTool:
 
 
 class TestBrowserClickTool:
-    @pytest.mark.asyncio
     async def test_click_success(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserClickTool(session=mock_session)
         result = await tool._arun("#submit-btn")
         mock_session.page.click.assert_called_once()
         assert "Dashboard" in result
 
-    @pytest.mark.asyncio
     async def test_click_failure(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.page.click.side_effect = Exception("Element not found")
         tool = BrowserClickTool(session=mock_session)
@@ -108,13 +102,11 @@ class TestBrowserClickTool:
 
 
 class TestBrowserTypeTool:
-    @pytest.mark.asyncio
     async def test_type_success(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserTypeTool(session=mock_session)
         result = await tool._arun(selector="#search", text="hello")
         assert "successfully" in result
 
-    @pytest.mark.asyncio
     async def test_type_failure(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.page.click.side_effect = Exception("Not found")
         tool = BrowserTypeTool(session=mock_session)
@@ -123,7 +115,6 @@ class TestBrowserTypeTool:
 
 
 class TestBrowserFillCredentialTool:
-    @pytest.mark.asyncio
     async def test_fill_credential_success(self, mock_session: SandboxBrowserSession) -> None:
         with patch.dict(os.environ, {"TEST_USER": "myuser@example.com"}):
             tool = BrowserFillCredentialTool(session=mock_session)
@@ -132,7 +123,6 @@ class TestBrowserFillCredentialTool:
             # The actual value should NOT appear in the result
             assert "myuser@example.com" not in result
 
-    @pytest.mark.asyncio
     async def test_fill_credential_blocked_by_allowlist(self, mock_session: SandboxBrowserSession) -> None:
         with patch.dict(os.environ, {"SECRET_KEY": "super_secret"}):
             tool = BrowserFillCredentialTool(session=mock_session)
@@ -142,7 +132,6 @@ class TestBrowserFillCredentialTool:
             # Value should NEVER appear
             assert "super_secret" not in result
 
-    @pytest.mark.asyncio
     async def test_fill_credential_missing_env(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserFillCredentialTool(session=mock_session)
         result = await tool._arun(selector="#field", credential_env="TEST_USER")
@@ -150,7 +139,6 @@ class TestBrowserFillCredentialTool:
 
 
 class TestBrowserScreenshotTool:
-    @pytest.mark.asyncio
     async def test_screenshot(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserScreenshotTool(session=mock_session)
         result = await tool._arun()
@@ -158,7 +146,6 @@ class TestBrowserScreenshotTool:
 
 
 class TestBrowserReadPageTool:
-    @pytest.mark.asyncio
     async def test_read_full_page(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserReadPageTool(session=mock_session)
         result = await tool._arun()
@@ -166,7 +153,6 @@ class TestBrowserReadPageTool:
         assert "Title: Dashboard" in result
         assert "42kWh" in result
 
-    @pytest.mark.asyncio
     async def test_read_with_selector(self, mock_session: SandboxBrowserSession) -> None:
         mock_element = AsyncMock()
         mock_element.inner_text = AsyncMock(return_value="Production: 42kWh")
@@ -176,7 +162,6 @@ class TestBrowserReadPageTool:
         assert "URL: https://example.com/dashboard" in result
         assert "42kWh" in result
 
-    @pytest.mark.asyncio
     async def test_read_selector_not_found(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.page.query_selector.return_value = None
         tool = BrowserReadPageTool(session=mock_session)
@@ -185,14 +170,12 @@ class TestBrowserReadPageTool:
 
 
 class TestBrowserScrollTool:
-    @pytest.mark.asyncio
     async def test_scroll_down(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserScrollTool(session=mock_session)
         result = await tool._arun(direction="down", amount=500)
         mock_session.page.evaluate.assert_any_call("window.scrollBy(0, 500)")
         assert "Dashboard" in result
 
-    @pytest.mark.asyncio
     async def test_scroll_up(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserScrollTool(session=mock_session)
         await tool._arun(direction="up", amount=300)
@@ -200,20 +183,17 @@ class TestBrowserScrollTool:
 
 
 class TestBrowserWaitTool:
-    @pytest.mark.asyncio
     async def test_wait_for_selector(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserWaitTool(session=mock_session)
         result = await tool._arun(selector="#data-table", timeout_ms=5000)
         assert "appeared" in result
 
-    @pytest.mark.asyncio
     async def test_wait_timeout(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.page.wait_for_selector.side_effect = TimeoutError("timeout")
         tool = BrowserWaitTool(session=mock_session)
         result = await tool._arun(selector="#missing", timeout_ms=1000)
         assert "Timeout" in result
 
-    @pytest.mark.asyncio
     async def test_wait_for_load_state(self, mock_session: SandboxBrowserSession) -> None:
         tool = BrowserWaitTool(session=mock_session)
         result = await tool._arun(load_state="networkidle", timeout_ms=5000)
@@ -222,7 +202,6 @@ class TestBrowserWaitTool:
 
 
 class TestBrowserSaveCookiesTool:
-    @pytest.mark.asyncio
     async def test_save_cookies(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.save_cookies = AsyncMock(return_value="/tmp/test_session.json")
         tool = BrowserSaveCookiesTool(session=mock_session)
@@ -231,14 +210,12 @@ class TestBrowserSaveCookiesTool:
 
 
 class TestBrowserLoadCookiesTool:
-    @pytest.mark.asyncio
     async def test_load_cookies_success(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.load_cookies = AsyncMock(return_value=True)
         tool = BrowserLoadCookiesTool(session=mock_session)
         result = await tool._arun(name="test")
         assert "loaded" in result.lower()
 
-    @pytest.mark.asyncio
     async def test_load_cookies_not_found(self, mock_session: SandboxBrowserSession) -> None:
         mock_session.load_cookies = AsyncMock(return_value=False)
         tool = BrowserLoadCookiesTool(session=mock_session)
@@ -249,7 +226,6 @@ class TestBrowserLoadCookiesTool:
 class TestCredentialSecurity:
     """Verify credentials never leak into tool outputs."""
 
-    @pytest.mark.asyncio
     async def test_credential_value_never_in_output(self, mock_session: SandboxBrowserSession) -> None:
         secret = "my_super_secret_password_123!"
         with patch.dict(os.environ, {"TEST_PASS": secret}):
@@ -257,7 +233,6 @@ class TestCredentialSecurity:
             result = await tool._arun(selector="#password", credential_env="TEST_PASS")
             assert secret not in result
 
-    @pytest.mark.asyncio
     async def test_credential_env_name_in_output(self, mock_session: SandboxBrowserSession) -> None:
         with patch.dict(os.environ, {"TEST_PASS": "secret"}):
             tool = BrowserFillCredentialTool(session=mock_session)

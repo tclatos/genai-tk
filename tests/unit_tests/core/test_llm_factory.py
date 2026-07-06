@@ -261,11 +261,14 @@ def test_llm_factory_model_validation(fake_llm_id) -> None:
         LlmFactory(llm="invalid_model_id")
 
 
-def test_field_validator_cache(fake_llm_id) -> None:
+def test_field_validator_cache(fake_llm_id, monkeypatch) -> None:
     """Test cache field validator."""
-    # Valid cache value
+    # Valid cache value. The openrouter model only needs a non-empty API key to
+    # be constructed (no call is made); provide a dummy so the test does not
+    # depend on real credentials being present (e.g. in CI).
     from genai_tk.utils.langchain_community_repl.sqlite_cache import SQLiteCache
 
+    monkeypatch.setenv("OPENROUTER_API_KEY", "dummy")
     llm = LlmFactory(llm=LLM_ID_FOR_TEST, cache="sqlite").get()
     assert isinstance(llm.cache, SQLiteCache)
 

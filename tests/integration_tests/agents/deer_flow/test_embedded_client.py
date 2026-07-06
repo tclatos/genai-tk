@@ -60,7 +60,6 @@ def embedded_client(deer_flow_config):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 @pytest.mark.real_models
 async def test_stream_message_yields_token_events(embedded_client) -> None:
     """A simple prompt produces at least one TokenEvent."""
@@ -80,7 +79,6 @@ async def test_stream_message_yields_token_events(embedded_client) -> None:
     assert len(full_text.strip()) > 0
 
 
-@pytest.mark.asyncio
 @pytest.mark.real_models
 async def test_stream_message_produces_nonempty_response(embedded_client) -> None:
     """Full concatenated text from a simple prompt is non-empty."""
@@ -105,7 +103,6 @@ async def test_stream_message_produces_nonempty_response(embedded_client) -> Non
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 @pytest.mark.real_models
 async def test_middleware_is_invoked(deer_flow_config) -> None:
     """A custom middleware is called during agent execution."""
@@ -154,7 +151,6 @@ async def test_middleware_is_invoked(deer_flow_config) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_available_skills_empty_set_accepted(deer_flow_config) -> None:
     """EmbeddedDeerFlowClient accepts an empty available_skills set without error."""
     from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
@@ -175,7 +171,6 @@ async def test_available_skills_empty_set_accepted(deer_flow_config) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_client_property_exposes_upstream_api(embedded_client) -> None:
     """The .client property exposes the upstream DeerFlowClient API."""
     models_resp = embedded_client.client.list_models()

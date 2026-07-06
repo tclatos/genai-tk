@@ -93,17 +93,27 @@ def test_isolated_search(fresh_embeddings_store, sample_documents):
 
 ## Async Tests
 
-```python
-import pytest
+`asyncio_mode = "auto"` is enabled in `pyproject.toml`, so any `async def test_*`
+function is automatically run as an asyncio test — **no `@pytest.mark.asyncio`
+decorator is needed**.
 
-@pytest.mark.asyncio
+```python
 async def test_async_operation(fake_llm):
     """Test async operations."""
     from langchain_core.runnables import RunnablePassthrough
-    
+
     chain = RunnablePassthrough.assign(response=fake_llm)
     result = await chain.ainvoke({"query": "test"})
     assert "response" in result
+```
+
+The only time you need an explicit decorator is to share one event loop across a
+whole module (e.g. for module-scoped async fixtures):
+
+```python
+@pytest.mark.asyncio(loop_scope="module")
+async def test_uses_shared_loop(module_async_fixture):
+    ...
 ```
 
 ## Mocking External Dependencies
@@ -113,7 +123,6 @@ async def test_async_operation(fake_llm):
 from unittest.mock import Mock, AsyncMock, patch
 
 @patch("genai_tk.agents.tools.langchain.rag_tool_factory.EmbeddingsStore")
-@pytest.mark.asyncio
 async def test_rag_tool(mock_embeddings_store_class):
     """Test RAG tool with mocked vector store."""
     from langchain_core.documents import Document
@@ -369,14 +378,41 @@ uv run pytest tests/unit_tests/core/test_llm_factory.py::test_basic_call
 # Run with verbose output
 uv run pytest tests/ -v
 
-# Run with coverage
-uv run pytest tests/ --cov=genai_tk
-
 # Run and stop on first failure
 uv run pytest tests/ -x
 
 # Run matching pattern
 uv run pytest tests/ -k "llm"
+```
+
+## Parallel Execution, Coverage & Flaky Retries
+
+Coverage is collected automatically on every run via `addopts` in
+`pyproject.toml` (branch coverage, `--cov-report=term-missing`). A coverage
+**gate** is enforced in CI via `--cov-fail-under` (see `.github/workflows/ci.yml`);
+raise the threshold as coverage grows.
+
+```bash
+# Run unit tests in parallel across CPU cores (pytest-xdist)
+uv run pytest tests/unit_tests/ -n auto
+
+# Disable coverage for a faster, debuggable local run
+uv run pytest tests/unit_tests/ --no-cov
+
+# Enforce a coverage threshold locally
+uv run pytest tests/unit_tests/ --cov=genai_tk --cov-fail-under=37
+
+# Auto-retry flaky tests (e.g. LLM-judged evals) — pytest-rerunfailures
+uv run pytest tests/eval_tests/ --include-real-models --reruns 2 --reruns-delay 2
+```
+
+For eval tests, you can also mark individual flaky tests:
+
+```python
+@pytest.mark.flaky(reruns=2, reruns_delay=2)
+@pytest.mark.real_models
+async def test_llm_judged_feature(judge_llm):
+    ...
 ```
 
 ## Troubleshooting

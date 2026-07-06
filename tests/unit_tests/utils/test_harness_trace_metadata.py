@@ -24,9 +24,7 @@ def test_trace_project_name_format() -> None:
 
 
 def test_apply_metadata_sets_langsmith_project(_clear_trace_env: None) -> None:
-    meta = apply_harness_trace_metadata(
-        HarnessTraceMetadata(harness="langchain", profile_name="Research")
-    )
+    meta = apply_harness_trace_metadata(HarnessTraceMetadata(harness="langchain", profile_name="Research"))
     assert os.environ["LANGSMITH_PROJECT"] == "GenAITk-langchain-Research"
     assert meta.harness == "langchain"
 

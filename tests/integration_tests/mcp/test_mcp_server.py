@@ -22,7 +22,6 @@ import pytest
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
 async def test_list_tools_from_yaml(tmp_path: Path) -> None:
     """Server built from YAML must expose the tool declared in the factory."""
     from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig
@@ -41,7 +40,6 @@ async def test_list_tools_from_yaml(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
 async def test_call_tool_returns_string(tmp_path: Path) -> None:
     """Calling an MCP tool must return the expected string result."""
     from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig
@@ -60,7 +58,6 @@ async def test_call_tool_returns_string(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
 async def test_multi_tool_server(tmp_path: Path) -> None:
     """A server with multiple factory entries must expose all tools."""
     from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig
@@ -82,7 +79,6 @@ async def test_multi_tool_server(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
 async def test_tool_with_structured_schema(tmp_path: Path) -> None:
     """Tool with multi-field Pydantic schema must expose all parameters."""
     from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig
@@ -103,7 +99,6 @@ async def test_tool_with_structured_schema(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.asyncio
 async def test_structured_tool_invocation() -> None:
     """Structured tool with two int params must produce correct sum."""
     from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig

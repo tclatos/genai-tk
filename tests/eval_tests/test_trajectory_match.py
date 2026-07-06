@@ -263,7 +263,6 @@ class TestStrictMatch:
 
 
 @pytest.mark.evals
-@pytest.mark.asyncio
 async def test_extract_message_trajectory_format() -> None:
     """extract_message_trajectory returns valid OpenAI-format dicts from mock graph."""
 
@@ -305,7 +304,6 @@ async def test_extract_message_trajectory_format() -> None:
 
 
 @pytest.mark.evals
-@pytest.mark.asyncio
 async def test_extract_message_trajectory_passes_superset_eval() -> None:
     """Extracted trajectory from mock graph passes superset evaluator for calculator call."""
 
@@ -378,7 +376,6 @@ def test_graph_trajectory_strict_match_fail() -> None:
 
 @pytest.mark.evals
 @pytest.mark.real_models
-@pytest.mark.asyncio
 async def test_react_agent_calls_calculator_with_real_model(eval_agent) -> None:
     """Real React agent calls the calculator tool on an arithmetic query.
 
