@@ -264,7 +264,6 @@ def test_trajectory_accuracy_wrong_tool_scores_low(judge_llm) -> None:
 @pytest.mark.evals
 @pytest.mark.real_models
 @pytest.mark.timeout(JUDGE_TIMEOUT)
-@pytest.mark.asyncio
 async def test_real_agent_calculator_output_correctness(judge_llm) -> None:
     """Run a real React agent with the calculator tool, then judge its final answer.
 

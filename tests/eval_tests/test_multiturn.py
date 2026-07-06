@@ -143,7 +143,6 @@ class TestDeterministicSimulation:
 
 
 @pytest.mark.evals
-@pytest.mark.asyncio
 async def test_agent_app_wrapper_with_mocked_graph() -> None:
     """LangchainAgent wrapped as a simulation 'app' callable integrates correctly.
 

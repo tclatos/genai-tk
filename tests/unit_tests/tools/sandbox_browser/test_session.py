@@ -32,7 +32,6 @@ class TestSandboxBrowserSession:
 
 
 class TestCookiePersistence:
-    @pytest.mark.asyncio
     async def test_save_cookies(self, config: SandboxBrowserConfig) -> None:
         session = SandboxBrowserSession(config=config)
         mock_context = AsyncMock()
@@ -44,14 +43,12 @@ class TestCookiePersistence:
         saved = json.loads(Path(path).read_text())
         assert saved["cookies"][0]["name"] == "sid"
 
-    @pytest.mark.asyncio
     async def test_load_cookies_missing_file(self, config: SandboxBrowserConfig) -> None:
         session = SandboxBrowserSession(config=config)
         session._browser = MagicMock()
         result = await session.load_cookies("nonexistent")
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_load_cookies_success(self, config: SandboxBrowserConfig, tmp_path: Path) -> None:
         # Create a cookie file
         cookies_dir = Path(config.cookies_dir)
@@ -77,7 +74,6 @@ class TestCookiePersistence:
         temp_page.close.assert_not_called()
         assert session._page is mock_page
 
-    @pytest.mark.asyncio
     async def test_load_cookies_raises_without_browser(self, config: SandboxBrowserConfig) -> None:
         cookies_dir = Path(config.cookies_dir)
         cookies_dir.mkdir(parents=True, exist_ok=True)

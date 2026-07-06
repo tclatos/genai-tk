@@ -69,7 +69,6 @@ class TestToolRegistry:
 
 
 class TestBrowserToolConnectionHandling:
-    @pytest.mark.asyncio
     async def test_transient_error_does_not_reconnect(self, mock_session: DirectBrowserSession) -> None:
         mock_session.page.evaluate.side_effect = Exception(
             "Execution context was destroyed, most likely because of a navigation",
@@ -81,7 +80,6 @@ class TestBrowserToolConnectionHandling:
         mock_session.close.assert_not_called()
         mock_session.connect.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_closed_page_reconnects(self, mock_session: DirectBrowserSession) -> None:
         mock_session.page.evaluate.side_effect = Exception("Target page has been closed")
         mock_session.page.is_closed.return_value = True
@@ -94,7 +92,6 @@ class TestBrowserToolConnectionHandling:
 
 
 class TestBrowserNavigateTool:
-    @pytest.mark.asyncio
     async def test_navigate_success(self, mock_session: DirectBrowserSession) -> None:
         tool = BrowserNavigateTool(session=mock_session)
         result = await tool._arun("https://example.com")
@@ -102,7 +99,6 @@ class TestBrowserNavigateTool:
         assert "Dashboard" in result
         assert "example.com" in result
 
-    @pytest.mark.asyncio
     async def test_navigate_failure(self, mock_session: DirectBrowserSession) -> None:
         mock_session.page.goto.side_effect = TimeoutError("Timeout")
         tool = BrowserNavigateTool(session=mock_session)
@@ -111,7 +107,6 @@ class TestBrowserNavigateTool:
 
 
 class TestBrowserClickTool:
-    @pytest.mark.asyncio
     async def test_click_success(self, mock_session: DirectBrowserSession) -> None:
         tool = BrowserClickTool(session=mock_session)
         result = await tool._arun("#submit-btn")
@@ -120,14 +115,12 @@ class TestBrowserClickTool:
 
 
 class TestBrowserFillCredentialTool:
-    @pytest.mark.asyncio
     async def test_fill_credential_success(self, mock_session: DirectBrowserSession) -> None:
         with patch.dict(os.environ, {"TEST_USER": "user@test.com"}):
             tool = BrowserFillCredentialTool(session=mock_session)
             result = await tool._arun(selector="#email", credential_env="TEST_USER")
             assert "Credential from $TEST_USER filled" in result
 
-    @pytest.mark.asyncio
     async def test_fill_credential_blocked_by_allowlist(self, mock_session: DirectBrowserSession) -> None:
         with patch.dict(os.environ, {"SECRET_KEY": "val"}):
             tool = BrowserFillCredentialTool(session=mock_session)
@@ -136,7 +129,6 @@ class TestBrowserFillCredentialTool:
 
 
 class TestBrowserReadPageTool:
-    @pytest.mark.asyncio
     async def test_read_page_success(self, mock_session: DirectBrowserSession) -> None:
         tool = BrowserReadPageTool(session=mock_session)
         result = await tool._arun()
@@ -145,7 +137,6 @@ class TestBrowserReadPageTool:
 
 
 class TestBrowserScreenshotTool:
-    @pytest.mark.asyncio
     async def test_screenshot_success(self, mock_session: DirectBrowserSession) -> None:
         tool = BrowserScreenshotTool(session=mock_session)
         result = await tool._arun()
@@ -153,7 +144,6 @@ class TestBrowserScreenshotTool:
 
 
 class TestBrowserScrollTool:
-    @pytest.mark.asyncio
     async def test_scroll_down(self, mock_session: DirectBrowserSession) -> None:
         tool = BrowserScrollTool(session=mock_session)
         result = await tool._arun(direction="down", amount=500)
@@ -162,14 +152,12 @@ class TestBrowserScrollTool:
 
 
 class TestBrowserWaitTool:
-    @pytest.mark.asyncio
     async def test_wait_for_selector(self, mock_session: DirectBrowserSession) -> None:
         tool = BrowserWaitTool(session=mock_session)
         result = await tool._arun(selector="#content")
         mock_session.page.wait_for_selector.assert_called_once()
         assert "appeared" in result
 
-    @pytest.mark.asyncio
     async def test_wait_for_load_state(self, mock_session: DirectBrowserSession) -> None:
         tool = BrowserWaitTool(session=mock_session)
         result = await tool._arun(load_state="networkidle")
@@ -178,7 +166,6 @@ class TestBrowserWaitTool:
 
 
 class TestBrowserEvaluateTool:
-    @pytest.mark.asyncio
     async def test_evaluate_success(self, mock_session: DirectBrowserSession) -> None:
         mock_session.page.evaluate.return_value = "Mozilla/5.0"
         tool = BrowserEvaluateTool(session=mock_session)

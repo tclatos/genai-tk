@@ -80,7 +80,6 @@ class TestReactAgent:
     """
 
     @pytest.mark.timeout(120)
-    @pytest.mark.asyncio
     async def async_code_generation(self) -> None:
         """Agent generates a valid Python Fibonacci function when asked."""
         agent = LangchainAgent(llm=LLM, agent_type="react")
@@ -96,7 +95,6 @@ class TestReactAgent:
         assert _has(result, "return", "n <= 1", "n == 0", "n == 1", "n < 2", "base")
 
     @pytest.mark.timeout(60)
-    @pytest.mark.asyncio
     async def test_simple_qa(self) -> None:
         """Agent answers a simple factual question correctly."""
         agent = LangchainAgent(llm=LLM, agent_type="react")
@@ -104,7 +102,6 @@ class TestReactAgent:
         assert "paris" in result.lower(), f"Expected 'Paris' in response — got: {result!r}"
 
     @pytest.mark.timeout(60)
-    @pytest.mark.asyncio
     async def test_arithmetic(self) -> None:
         """Agent computes a numeric result."""
         agent = LangchainAgent(llm=LLM, agent_type="react")
@@ -112,7 +109,6 @@ class TestReactAgent:
         assert "714" in result, f"Expected '714' in response — got: {result!r}"
 
     @pytest.mark.timeout(90)
-    @pytest.mark.asyncio
     async def test_streaming_yields_content(self) -> None:
         """astream() produces non-empty string chunks that join into a real response."""
         agent = LangchainAgent(llm=LLM, agent_type="react")
@@ -126,7 +122,6 @@ class TestReactAgent:
         assert len(full) > 15, f"Streaming response too short: {full!r}"
 
     @pytest.mark.timeout(90)
-    @pytest.mark.asyncio
     async def test_system_prompt_respected(self) -> None:
         """A strong system prompt overrides the default agent behaviour."""
         agent = LangchainAgent(
@@ -138,7 +133,6 @@ class TestReactAgent:
         assert "banana" in result.lower(), f"Expected system prompt to force 'BANANA' — got: {result!r}"
 
     @pytest.mark.timeout(120)
-    @pytest.mark.asyncio
     async def test_checkpointer_multi_turn_memory(self) -> None:
         """Agent with checkpointer=True remembers context across arun() calls.
 
@@ -172,7 +166,6 @@ class TestDeepAgentLocal:
     """
 
     @pytest.mark.timeout(180)
-    @pytest.mark.asyncio
     async def test_code_generation_no_backend(self) -> None:
         """Deep agent (no backend) generates Python code in its response."""
         pytest.importorskip("deepagents", reason="deepagents package required")
@@ -191,7 +184,6 @@ class TestDeepAgentLocal:
         _assert_python_function(result, "fib", "fibonacci")
 
     @pytest.mark.timeout(240)
-    @pytest.mark.asyncio
     async def test_writes_file_to_filesystem_backend(self, tmp_path: Path) -> None:
         """Deep agent writes a Python file using a local FilesystemBackend.
 
@@ -244,7 +236,6 @@ class TestDeepAgentLocal:
         )
 
     @pytest.mark.timeout(180)
-    @pytest.mark.asyncio
     async def test_deep_agent_planning_step(self) -> None:
         """Deep agent uses the write_todos planning step on a multi-step task.
 
@@ -318,7 +309,6 @@ class TestNamedProfiles:
 
     @pytest.mark.real_models
     @pytest.mark.timeout(120)
-    @pytest.mark.asyncio
     async def test_simple_profile_qa(self) -> None:
         """'simple' profile answers a direct question without using search."""
         agent = LangchainAgent("simple", llm=LLM)
@@ -328,7 +318,6 @@ class TestNamedProfiles:
     @pytest.mark.real_models
     @pytest.mark.requires_feature("harnessing")
     @pytest.mark.timeout(180)
-    @pytest.mark.asyncio
     async def test_coding_profile_generates_code(self) -> None:
         """'Coding' profile (deep) generates Python code when asked.
 
@@ -352,7 +341,6 @@ class TestNamedProfiles:
 
     @pytest.mark.real_models
     @pytest.mark.timeout(180)
-    @pytest.mark.asyncio
     @pytest.mark.network
     async def test_simple_profile_web_search(self) -> None:
         """'simple' profile runs a web search and returns a factual answer.
@@ -404,7 +392,6 @@ class TestSkillsLoading:
     @pytest.mark.real_models
     @pytest.mark.requires_feature("harnessing")
     @pytest.mark.timeout(120)
-    @pytest.mark.asyncio
     async def test_agent_initializes_with_skill_directories(self, tmp_path: Path) -> None:
         """Deep agent initializes without error when skill_directories are configured.
 
@@ -440,7 +427,6 @@ class TestSkillsLoading:
     @pytest.mark.real_models
     @pytest.mark.requires_feature("harnessing")
     @pytest.mark.timeout(240)
-    @pytest.mark.asyncio
     async def test_skill_content_accessible_to_agent(self, tmp_path: Path) -> None:
         """Agent can read a custom SKILL.md and uses its content in its reply.
 
@@ -521,7 +507,6 @@ class TestDockerSandbox:
     """
 
     @pytest.mark.timeout(300)
-    @pytest.mark.asyncio
     async def test_react_via_docker_sandbox_override(self) -> None:
         """React agent promoted to deep with sandbox='docker' produces a response.
 
@@ -540,7 +525,6 @@ class TestDockerSandbox:
         assert "42" in result, f"Expected '42' from sandboxed agent — got: {result!r}"
 
     @pytest.mark.timeout(300)
-    @pytest.mark.asyncio
     async def test_coding_profile_writes_file_in_docker(self, tmp_path: Path) -> None:
         """'Coding' profile inside Docker writes a Python file to the container.
 

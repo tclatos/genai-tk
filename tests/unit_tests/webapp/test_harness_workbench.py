@@ -2,6 +2,8 @@
 
 from collections.abc import AsyncIterator
 
+import pytest
+
 from genai_tk.agents.harness.base import BaseHarness
 from genai_tk.agents.harness.events import (
     EndEvent,
@@ -11,12 +13,18 @@ from genai_tk.agents.harness.events import (
     ToolCallEvent,
     ToolResultEvent,
 )
-from genai_tk.webapp.ui_components.harness_workbench import (
-    extract_final_artifacts,
-    extract_tool_artifact,
-    lang_from_path,
-    stream_harness_turn,
-)
+
+# harness_workbench imports streamlit at module load time; skip the whole
+# module when the optional streamlit extra is not installed.
+try:
+    from genai_tk.webapp.ui_components.harness_workbench import (
+        extract_final_artifacts,
+        extract_tool_artifact,
+        lang_from_path,
+        stream_harness_turn,
+    )
+except ImportError as exc:
+    pytest.skip(f"Optional feature 'streamlit' not installed: {exc}", allow_module_level=True)
 
 
 class _FakeHarness(BaseHarness):

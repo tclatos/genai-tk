@@ -73,9 +73,7 @@ def create_harness(
     profile = _lookup(profiles, key)
     if profile is None:
         available = list(profiles.keys())
-        raise ValueError(
-            f"Profile '{key}' not found. Available profiles ({len(available)}): {available}"
-        )
+        raise ValueError(f"Profile '{key}' not found. Available profiles ({len(available)}): {available}")
 
     if profile.harness == "langchain":
         from genai_tk.agents.harness.langchain_harness import LangChainHarness

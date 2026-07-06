@@ -32,7 +32,6 @@ class TestDirectBrowserSession:
 
 
 class TestCookiePersistence:
-    @pytest.mark.asyncio
     async def test_save_cookies(self, config: DirectBrowserConfig) -> None:
         session = DirectBrowserSession(config=config)
         mock_context = AsyncMock()
@@ -44,13 +43,11 @@ class TestCookiePersistence:
         saved = json.loads(Path(path).read_text())
         assert saved["cookies"][0]["name"] == "sid"
 
-    @pytest.mark.asyncio
     async def test_load_cookies_missing_file(self, config: DirectBrowserConfig) -> None:
         session = DirectBrowserSession(config=config)
         result = await session.load_cookies("nonexistent")
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_load_cookies_success(self, config: DirectBrowserConfig) -> None:
         cookies_dir = Path(config.cookies_dir)
         cookies_dir.mkdir(parents=True, exist_ok=True)
@@ -69,7 +66,6 @@ class TestCookiePersistence:
         mock_context.clear_cookies.assert_called_once()
         mock_context.add_cookies.assert_called_once_with(state["cookies"])
 
-    @pytest.mark.asyncio
     async def test_load_cookies_raises_without_context(self, config: DirectBrowserConfig) -> None:
         cookies_dir = Path(config.cookies_dir)
         cookies_dir.mkdir(parents=True, exist_ok=True)

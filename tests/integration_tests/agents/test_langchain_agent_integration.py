@@ -19,7 +19,6 @@ from genai_tk.agents.langchain.langchain_agent import LangchainAgent
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_adhoc_arun_with_fake_llm(fake_llm_id) -> None:
     """Ad-hoc agent with fake LLM returns a non-empty string."""
     agent = LangchainAgent(llm=fake_llm_id)
@@ -39,7 +38,6 @@ def test_adhoc_run_sync_with_fake_llm(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_agent_reuses_compiled_graph(fake_llm_id) -> None:
     """Calling arun() twice reuses the same compiled graph (lazy init caches)."""
     agent = LangchainAgent(llm=fake_llm_id)
@@ -51,7 +49,6 @@ async def test_agent_reuses_compiled_graph(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_close_clears_agent(fake_llm_id) -> None:
     """close() sets _agent back to None."""
     agent = LangchainAgent(llm=fake_llm_id)
@@ -63,7 +60,6 @@ async def test_close_clears_agent(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_async_context_manager(fake_llm_id) -> None:
     """LangchainAgent works as an async context manager."""
     async with LangchainAgent(llm=fake_llm_id) as agent:
@@ -73,7 +69,6 @@ async def test_async_context_manager(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_astream_yields_strings(fake_llm_id) -> None:
     """astream() yields non-empty string chunks."""
     agent = LangchainAgent(llm=fake_llm_id)
@@ -91,7 +86,6 @@ async def test_astream_yields_strings(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.real_models
-@pytest.mark.asyncio
 async def test_react_agent_with_cheap_llm() -> None:
     """React agent with the configured fast_model tag returns a coherent response.
 
@@ -153,7 +147,6 @@ def test_mcp_servers_stored(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_arun_shell_delegates_to_shell_function(fake_llm_id) -> None:
     """arun_shell() delegates to run_langchain_agent_shell."""
     agent = LangchainAgent(llm=fake_llm_id)
@@ -167,7 +160,6 @@ async def test_arun_shell_delegates_to_shell_function(fake_llm_id) -> None:
 
 @pytest.mark.integration
 @pytest.mark.fake_models
-@pytest.mark.asyncio
 async def test_unsupported_sandbox_raises_value_error(fake_llm_id) -> None:
     """_ensure_initialized() raises ValueError for an unknown sandbox type."""
     agent = LangchainAgent(llm=fake_llm_id)

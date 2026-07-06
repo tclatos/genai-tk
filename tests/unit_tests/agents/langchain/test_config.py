@@ -468,16 +468,13 @@ class TestResolveProfileBackend:
 
 
 class TestCreateBackend:
-    @pytest.mark.asyncio
     async def test_none_config_returns_none(self) -> None:
         assert await create_backend(None) is None
 
-    @pytest.mark.asyncio
     async def test_type_none_returns_none(self) -> None:
         cfg = BackendConfig(type="none")
         assert await create_backend(cfg) is None
 
-    @pytest.mark.asyncio
     async def test_aio_sandbox_instantiates_and_starts(self) -> None:
         from genai_tk.config_mgmt.features import is_available
 
@@ -501,7 +498,6 @@ class TestCreateBackend:
         # Extra kwargs forwarded to config
         assert backend.config.opensandbox_server_url == "http://myserver:8080"
 
-    @pytest.mark.asyncio
     async def test_aio_sandbox_default_config(self) -> None:
         from genai_tk.config_mgmt.features import is_available
 
@@ -525,13 +521,11 @@ class TestCreateBackend:
         assert backend.config.opensandbox_server_url == "http://localhost:8080"
         assert backend.config.work_dir == "/home/user"
 
-    @pytest.mark.asyncio
     async def test_class_type_missing_class_path_raises(self) -> None:
         cfg = BackendConfig(type="class")  # no class_path
         with pytest.raises(ValueError, match="backend.class is required"):
             await create_backend(cfg)
 
-    @pytest.mark.asyncio
     async def test_class_type_dynamic_import(self) -> None:
         """'class' type imports the class and calls start() if present."""
         from unittest.mock import AsyncMock, MagicMock, patch
@@ -548,7 +542,6 @@ class TestCreateBackend:
         mock_backend.start.assert_awaited_once()
         assert backend is mock_backend
 
-    @pytest.mark.asyncio
     async def test_class_type_no_start_method(self) -> None:
         """'class' type with no start() on the backend — should not raise."""
         from unittest.mock import MagicMock, patch
@@ -562,7 +555,6 @@ class TestCreateBackend:
 
         assert backend is mock_backend
 
-    @pytest.mark.asyncio
     async def test_unknown_type_raises(self) -> None:
         cfg = BackendConfig.model_construct(type="unknown")  # bypass validation
         with pytest.raises(ValueError, match="Unknown backend type"):

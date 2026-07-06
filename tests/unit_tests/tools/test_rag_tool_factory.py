@@ -87,7 +87,6 @@ class TestRAGToolFactory:
             factory.create_tool(basic_config)
 
     @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
-    @pytest.mark.asyncio
     async def test_tool_ainvoke_success(self, mock_factory_cls, factory, basic_config):
         mock_managed = Mock()
         mock_docs = [
@@ -107,7 +106,6 @@ class TestRAGToolFactory:
         assert "Second document content" in result
 
     @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
-    @pytest.mark.asyncio
     async def test_tool_ainvoke_with_filter(self, mock_factory_cls, factory):
         config = RAGToolConfig(retriever="test_retriever", default_filter={"category": "technical"}, top_k=2)
 
@@ -123,7 +121,6 @@ class TestRAGToolFactory:
         assert "Filtered document" in result
 
     @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
-    @pytest.mark.asyncio
     async def test_tool_ainvoke_with_runtime_filter(self, mock_factory_cls, factory, basic_config):
         mock_managed = Mock()
         mock_managed.aquery = AsyncMock(return_value=[Document(page_content="Runtime filtered document")])
@@ -136,7 +133,6 @@ class TestRAGToolFactory:
         assert "Document 1:" in result
 
     @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
-    @pytest.mark.asyncio
     async def test_tool_ainvoke_no_results(self, mock_factory_cls, factory, basic_config):
         mock_managed = Mock()
         mock_managed.aquery = AsyncMock(return_value=[])
@@ -148,7 +144,6 @@ class TestRAGToolFactory:
         assert result == "No relevant documents found."
 
     @patch("genai_tk.core.factories.retriever_factory.RetrieverFactory")
-    @pytest.mark.asyncio
     async def test_tool_ainvoke_search_error(self, mock_factory_cls, factory, basic_config):
         mock_managed = Mock()
         mock_managed.aquery = AsyncMock(side_effect=Exception("Search failed"))

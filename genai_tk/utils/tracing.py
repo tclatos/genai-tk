@@ -104,6 +104,7 @@ def apply_harness_trace_metadata(meta: HarnessTraceMetadata) -> HarnessTraceMeta
     )
     return meta
 
+
 # ── Sub-config models ──────────────────────────────────────────────────────────
 
 

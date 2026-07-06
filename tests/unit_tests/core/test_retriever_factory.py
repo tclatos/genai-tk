@@ -83,7 +83,6 @@ class TestConfigParsing:
 
 
 class TestBM25DocumentStore:
-    @pytest.mark.asyncio
     async def test_add_documents_creates_index(
         self, bm25_store: BM25DocumentStore, sample_docs: list[Document]
     ) -> None:
@@ -91,14 +90,12 @@ class TestBM25DocumentStore:
         assert (bm25_store.cache_dir / "bm25_index").exists()
         assert (bm25_store.cache_dir / "documents.json").exists()
 
-    @pytest.mark.asyncio
     async def test_query_after_add(self, bm25_store: BM25DocumentStore, sample_docs: list[Document]) -> None:
         await bm25_store.aadd_documents(sample_docs)
         results = await bm25_store.aget_relevant_documents("programming language", k=2)
         assert isinstance(results, list)
         assert all(isinstance(d, Document) for d in results)
 
-    @pytest.mark.asyncio
     async def test_empty_query_before_add(self, bm25_store: BM25DocumentStore) -> None:
         results = await bm25_store.aget_relevant_documents("test", k=3)
         assert results == []
@@ -114,7 +111,6 @@ class TestBM25DocumentStore:
         assert retriever is not None
         assert len(retriever.docs) == len(sample_docs)
 
-    @pytest.mark.asyncio
     async def test_rebuild_on_readd(self, bm25_store: BM25DocumentStore, sample_docs: list[Document]) -> None:
         await bm25_store.aadd_documents(sample_docs)
         extra = [Document(page_content="New document added", metadata={"source": "new"})]
@@ -130,7 +126,6 @@ class TestBM25DocumentStore:
 
 
 class TestVectorDocumentStore:
-    @pytest.mark.asyncio
     async def test_add_without_record_manager(self, sample_docs: list[Document]) -> None:
         mock_vs = AsyncMock()
         mock_vs.aadd_documents = AsyncMock(return_value=["id1", "id2", "id3"])
@@ -139,7 +134,6 @@ class TestVectorDocumentStore:
         mock_vs.aadd_documents.assert_called_once_with(sample_docs)
         assert result == ["id1", "id2", "id3"]
 
-    @pytest.mark.asyncio
     async def test_add_with_record_manager(self, sample_docs: list[Document]) -> None:
         mock_vs = MagicMock()
         mock_rm = MagicMock()
@@ -157,7 +151,6 @@ class TestVectorDocumentStore:
 
 
 class TestCompositeDocumentStore:
-    @pytest.mark.asyncio
     async def test_fans_out_to_all_stores(self, sample_docs: list[Document]) -> None:
         mock_vs_a = AsyncMock()
         mock_vs_a.aadd_documents = AsyncMock(return_value=["a"])
@@ -193,14 +186,12 @@ class TestManagedRetriever:
             vector_store=mock_vs,
         )
 
-    @pytest.mark.asyncio
     async def test_aquery_vector(self) -> None:
         managed = self._make_vector_managed()
         results = await managed.aquery("test query")
         assert len(results) == 1
         assert results[0].page_content == "result"
 
-    @pytest.mark.asyncio
     async def test_aquery_uses_default_k(self) -> None:
         mock_vs = AsyncMock()
         mock_vs.asimilarity_search = AsyncMock(return_value=[])
@@ -213,7 +204,6 @@ class TestManagedRetriever:
         await managed.aquery("test")
         mock_vs.asimilarity_search.assert_called_once_with("test", k=7, filter=None)
 
-    @pytest.mark.asyncio
     async def test_aquery_with_filter(self) -> None:
         mock_vs = AsyncMock()
         mock_vs.asimilarity_search = AsyncMock(return_value=[])
@@ -226,7 +216,6 @@ class TestManagedRetriever:
         await managed.aquery("test", filter={"source": "docs"})
         mock_vs.asimilarity_search.assert_called_once_with("test", k=4, filter={"source": "docs"})
 
-    @pytest.mark.asyncio
     async def test_aadd_raises_when_no_store(self) -> None:
         managed = ManagedRetriever(retriever=_EmptyRetriever(), store=None, config_tag="read_only")
         with pytest.raises(RuntimeError, match="read-only"):
@@ -251,7 +240,6 @@ class TestManagedRetriever:
         results = managed.query("test")
         assert len(results) == 1
 
-    @pytest.mark.asyncio
     async def test_bm25_query_delegates_to_store(
         self, bm25_store: BM25DocumentStore, sample_docs: list[Document]
     ) -> None:
@@ -266,7 +254,6 @@ class TestManagedRetriever:
         results = await managed.aquery("programming")
         assert isinstance(results, list)
 
-    @pytest.mark.asyncio
     async def test_delete_vector_store(self) -> None:
         mock_vs = MagicMock(spec=[])  # no attributes → triggers _collection path
         mock_vs._collection = MagicMock()
@@ -283,7 +270,6 @@ class TestManagedRetriever:
         assert result is True
         mock_vs._collection.delete.assert_called_once_with(ids=["id1", "id2"])
 
-    @pytest.mark.asyncio
     async def test_delete_bm25_store(self, bm25_store: BM25DocumentStore, sample_docs: list[Document]) -> None:
         await bm25_store.aadd_documents(sample_docs)
         managed = ManagedRetriever(
