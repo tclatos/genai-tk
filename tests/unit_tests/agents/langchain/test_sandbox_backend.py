@@ -673,3 +673,61 @@ async def test_adownload_files_missing_gives_file_not_found(started_backend: Aio
 
     assert responses[0].error == "file_not_found"
     assert responses[0].content is None
+
+
+# ---------------------------------------------------------------------------
+# Deprecated SandboxBackendProtocol methods (als_info / agrep_raw / aglob_info)
+# ---------------------------------------------------------------------------
+# These are deprecated in deepagents but still part of SandboxBackendProtocol
+# and may be called by either harness. They delegate to als/agrep/aglob by
+# default; verify the delegation so both harness paths stay supported.
+
+
+@pytest.mark.asyncio
+async def test_als_info_delegates_to_als(started_backend: AioSandboxBackend) -> None:
+    started_backend._client.file.list_path = AsyncMock(
+        return_value=_make_file_list_response([("/home/user/a.py", 100), ("/home/user/sub", None)])
+    )
+
+    infos = await started_backend.als_info("/home/user")
+
+    assert isinstance(infos, list)
+    assert infos[0]["path"] == "/home/user/a.py"
+    assert infos[0]["size"] == 100
+
+
+@pytest.mark.asyncio
+async def test_agrep_raw_delegates_to_agrep(started_backend: AioSandboxBackend) -> None:
+    started_backend._client.shell.exec_command = AsyncMock(
+        return_value=_make_shell_response("/src/a.py:10:    foo = bar\n", 0)
+    )
+
+    out = await started_backend.agrep_raw("foo", path="/src")
+
+    assert isinstance(out, list)
+    assert len(out) == 1
+    assert out[0] == GrepMatch(path="/src/a.py", line=10, text="    foo = bar")
+
+
+@pytest.mark.asyncio
+async def test_agrep_raw_returns_error_string_on_agrep_error(started_backend: AioSandboxBackend) -> None:
+    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("grep: bad", 2))
+
+    out = await started_backend.agrep_raw("x", path="/bad")
+
+    assert isinstance(out, str)
+    assert "grep error" in out
+
+
+@pytest.mark.asyncio
+async def test_aglob_info_delegates_to_aglob(started_backend: AioSandboxBackend) -> None:
+    started_backend._client.shell.exec_command = AsyncMock(
+        return_value=_make_shell_response("/src/a.py\n/src/b.py\n", 0)
+    )
+
+    infos = await started_backend.aglob_info("*.py", path="/src")
+
+    assert isinstance(infos, list)
+    assert all(isinstance(i, dict) and "path" in i for i in infos)
+    assert infos[0]["path"] == "/src/a.py"
+    assert infos[1]["path"] == "/src/b.py"

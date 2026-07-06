@@ -34,6 +34,12 @@ sandbox:
       startup_timeout: 60.0
       work_dir: "/home/user"
       env_vars: {}
+      # Volume mounts shared by both harnesses (LangChain deepagent + Deer Flow).
+      # Same field names as Deer Flow's sandbox.mounts; forwarded automatically.
+      # volumes:
+      #   - host_path: /home/me/project/skills
+      #     container_path: /mnt/skills
+      #     read_only: true
       opensandbox_server_url: "http://localhost:8080"
       # entrypoint: ["/opt/gem/run.sh"]  # default matches ghcr.io/agent-infra/sandbox
 

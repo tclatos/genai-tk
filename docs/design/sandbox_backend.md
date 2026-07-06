@@ -179,13 +179,41 @@ assert result.exit_code == 42
 
 ## Configuration Reference
 
+All settings live in the ``sandbox.docker.aio`` block of ``config/sandbox.yaml``
+and are shared by **both** harnesses — the LangChain/deepagents harness
+(``AioSandboxBackend``) and the DeerFlow harness
+(``deerflow.community.aio_sandbox:AioSandboxProvider``). The DeerFlow config
+bridge (:func:`genai_tk.agents.deer_flow.config_bridge.write_deer_flow_config`)
+forwards ``env_vars`` → ``environment`` and ``volumes`` → ``mounts`` into the
+generated DeerFlow ``config.yaml`` so a single ``sandbox.yaml`` drives both
+runtimes. DeerFlow's provider manages containers directly and does not consume
+``opensandbox_server_url`` (kept in the generated config for diagnostics only).
+
 | Field                     | Type              | Default                                      | Description                              |
 |---------------------------|-------------------|----------------------------------------------|------------------------------------------|
-| `opensandbox_server_url`  | `str`             | `http://localhost:8080`                      | OpenSandbox server URL                   |
-| `entrypoint`              | `list[str]`       | `["/opt/gem/run.sh"]`                        | Sandbox container entrypoint             |
+| `opensandbox_server_url`  | `str`             | `http://localhost:8080`                      | OpenSandbox server URL (LangChain harness) |
+| `image`                   | `str`             | `ghcr.io/agent-infra/sandbox:latest`         | Container image (both harnesses)         |
+| `entrypoint`              | `list[str]`       | `["/opt/gem/run.sh"]`                        | Sandbox container entrypoint (LangChain) |
 | `startup_timeout`         | `float`           | `60.0`                                       | Seconds to wait for the API              |
 | `work_dir`                | `str`             | `/home/user`                                 | Default path for `ls` / `agrep_raw`      |
-| `env_vars`                | `dict[str, str]`  | `{}`                                         | Extra env vars for the container         |
+| `env_vars`                | `dict[str, str]`  | `{}`                                         | Container env vars (both harnesses)      |
+| `volumes`                 | `list[VolumeMountConfig]` | `[]`                              | Bind-mounts (both harnesses)             |
+
+```yaml
+sandbox:
+  docker:
+    aio:
+      image: "ghcr.io/agent-infra/sandbox:latest"
+      opensandbox_server_url: "http://localhost:8080"
+      startup_timeout: 60.0
+      work_dir: "/home/user"
+      env_vars:
+        API_KEY: ${oc.env:MY_API_KEY}
+      volumes:
+        - host_path: /home/me/project/skills
+          container_path: /mnt/skills
+          read_only: true
+```
 
 ## Testing
 

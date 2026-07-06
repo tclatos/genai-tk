@@ -177,6 +177,30 @@ This happens automatically — no manual configuration needed. See
 [browser_control.md](browser_control.md#skills-site-specific-knowledge) for
 details about browser agent skills.
 
+### Shared sandbox config (both harnesses)
+
+`sandbox.docker.aio` in `config/sandbox.yaml` is the single source of truth for
+**both** the LangChain deepagent harness (`AioSandboxBackend`) and the DeerFlow
+harness (`AioSandboxProvider`). `env_vars` and `volumes` are forwarded into the
+generated DeerFlow `config.yaml` (`environment` / `mounts`) so configuring them
+once applies to either runtime:
+
+```yaml
+sandbox:
+  docker:
+    aio:
+      env_vars:
+        DEBUG: "1"
+      volumes:
+        - host_path: /home/me/data
+          container_path: /mnt/data
+          read_only: true
+```
+
+Note: the LangChain harness starts the sandbox via `opensandbox-server` while
+DeerFlow's provider manages Docker containers directly; `opensandbox_server_url`
+is only used by the LangChain path.
+
 ---
 
 ## Advanced usage

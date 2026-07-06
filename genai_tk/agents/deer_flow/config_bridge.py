@@ -413,7 +413,11 @@ def write_deer_flow_config(
 
     pfx = _deer_flow_module_prefix()
 
-    # Build sandbox config based on requested provider
+    # Build sandbox config based on requested provider.
+    # The Docker sandbox config is shared with the LangChain/deepagents harness
+    # via ``sandbox.docker.aio`` in sandbox.yaml.  We forward ``env_vars`` and
+    # ``volumes`` into DeerFlow's ``environment``/``mounts`` schema (identical
+    # field names) so a single sandbox.yaml drives both harnesses.
     if sandbox == "docker":
         from genai_tk.agents.sandbox.config import get_docker_aio_settings
 
@@ -421,6 +425,12 @@ def write_deer_flow_config(
         sandbox_cfg: dict[str, Any] = {
             "use": f"{pfx}.community.aio_sandbox.aio_sandbox_provider:AioSandboxProvider",
             "image": aio.image,
+            # Forward user-configured env vars and volume mounts so the DeerFlow
+            # sandbox honours the same sandbox.yaml as the LangChain harness.
+            "environment": dict(aio.env_vars),
+            "mounts": [m.model_dump() for m in aio.volumes],
+            # Kept for diagnostics; DeerFlow's AioSandboxProvider manages
+            # containers directly and does not consume the opensandbox-server URL.
             "opensandbox_server_url": aio.opensandbox_server_url,
         }
     else:

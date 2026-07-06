@@ -1,11 +1,3 @@
-# Separate Graph Project
-We want to extract the use case dependant part of genai-graph, so genai-graph can become more generic.
-- Create new project "ekg-atos" that  import genai-graph and contains ekg specific code, workflows and  config files. It has the same functionnalities than today genai-graph  (workflows to create KG, UI, ...)
-
-- Make genai-graph as generic as possible. Have generic node types like Documents. Create a  workflow that build a graph with documents in a directory. Create a Notebook to illustrate the process and display the resulting graph. Improve tests and Notebook support. 
-
-Think, ask questions, suggest alternatives / improvements
-
 
 
 # Image in Markdown / Mistral
