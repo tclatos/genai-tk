@@ -64,6 +64,26 @@ def _resolve_test_path(key: str) -> Path:
     return Path(_FALLBACKS[key][0])
 
 
+def _resolve_select_path(pattern: str, roots: list[Path]) -> Path | None:
+    """Resolve *pattern* to a pytest path target when it denotes a file or dir.
+
+    Returns the matched path when *pattern* exists on disk, ends with ``.py``,
+    or matches a file name found under one of the configured test *roots* — so
+    callers can write just ``test_sandbox.py`` instead of the full path.  Returns
+    ``None`` when *pattern* should be interpreted as a ``-k`` name expression.
+    """
+    candidate = Path(pattern)
+    if candidate.exists():
+        return candidate
+    if pattern.endswith(".py"):
+        for root in roots:
+            for hit in root.rglob(pattern):
+                return hit
+        # Not found anywhere — pass through so pytest reports a clear error.
+        return candidate
+    return None
+
+
 class TestCommands(CliTopCommand):
     """Commands for running test suites."""
 
@@ -222,45 +242,82 @@ class TestCommands(CliTopCommand):
 
         @cli_app.command("select")
         def select(
-            pattern: Annotated[str, typer.Argument(help="Pattern to match test names (e.g. '*deerflow*')")],
-            verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Verbose pytest output")] = False,
-            real: Annotated[bool, typer.Option("--real", help="Include tests that require real LLM API keys")] = False,
+            pattern: Annotated[
+                str,
+                typer.Argument(
+                    help="Test file/dir path (e.g. 'test_sandbox.py') or -k name pattern (e.g. '*deerflow*')."
+                ),
+            ],
+            docker: Annotated[
+                bool,
+                typer.Option("--docker", "--include-docker", help="Include tests that require Docker"),
+            ] = False,
+            real: Annotated[
+                bool, typer.Option("--real", help="Include tests that require real LLM API keys")
+            ] = False,
+            verbose: Annotated[
+                bool, typer.Option("--verbose", "-v", help="Verbose pytest output")
+            ] = False,
         ) -> None:
-            """Run tests whose name matches a pattern across all test directories.
+            """Run tests matching a path or name pattern across all test dirs.
 
-            The pattern is matched against test names using pytest's ``-k`` option
-            (substring/expression matching).  Glob wildcards (``*``) are stripped
-            automatically since pytest performs substring matching by default.
+            If *pattern* looks like a file or directory path (ends with ``.py``,
+            exists on disk, or matches a file under the configured test dirs),
+            it is passed straight to pytest and **all** tests in that target
+            run — the path already narrows the selection, so no ``-k`` filter is
+            applied.  This is the easiest way to run a single file behind an
+            extra gate:
+
+            ```
+            cli test select test_sandbox_backend_integration.py --include-docker
+            ```
+
+            Otherwise *pattern* is matched against test names via pytest's
+            ``-k`` option (substring/expression matching).  Glob wildcards
+            (``*``) are stripped automatically since pytest does substring
+            matching by default.
 
             Examples:
                 cli test select '*deerflow*'
                 cli test select 'rag' -v
                 cli test select 'embedding or vectorstore' --real
+                cli test select test_sandbox_backend_integration.py --include-docker
+                cli test select tests/integration_tests/agents --docker -v
             """
             import subprocess
 
-            # Normalise glob wildcards: pytest -k does substring matching, so '*foo*' == 'foo'
-            k_expr = pattern.replace("*", "").strip()
-            if not k_expr:
-                import typer as _typer
-
-                _typer.echo("Pattern must contain at least one non-wildcard character.", err=True)
-                raise typer.Exit(1)
-
-            # Collect all configured test directories as search roots.
+            # Collect all configured test directories as search roots (also
+            # used to resolve bare file names like 'test_sandbox.py').
             seen: set[Path] = set()
-            roots: list[str] = []
+            roots: list[Path] = []
             for key in ("unit", "integration", "evals"):
                 p = _resolve_test_path(key)
                 if p not in seen:
                     seen.add(p)
-                    roots.append(str(p))
+                    roots.append(p)
 
-            args = ["uv", "run", "pytest"] + roots + ["-k", k_expr]
-            if verbose:
-                args.append("-v")
+            path_target = _resolve_select_path(pattern, roots)
+
+            args: list[str] = ["uv", "run", "pytest"]
+            if path_target is not None:
+                args.append(str(path_target))
+            else:
+                # -k expression mode: normalise glob wildcards (pytest does
+                # substring matching, so '*foo*' == 'foo').
+                k_expr = pattern.replace("*", "").strip()
+                if not k_expr:
+                    typer.echo("Pattern must contain at least one non-wildcard character.", err=True)
+                    raise typer.Exit(1)
+                args.extend(str(r) for r in roots)
+                args += ["-k", k_expr]
+
+            if docker:
+                args.append("--include-docker")
             if real:
                 args.append("--include-real-models")
+            if verbose:
+                args.append("-v")
+
             result = subprocess.run(args)
             raise typer.Exit(result.returncode)
 

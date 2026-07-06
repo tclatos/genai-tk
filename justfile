@@ -175,21 +175,21 @@ test-full *args:
     uv run pytest tests/integration_tests/ --include-real-models -v {{ args }}
 
 [group('Testing')]
-[doc('Run all tests including real LLM calls')]
+[doc('Run all tests including real LLM calls and docker')]
 test-all *args:
-    uv run pytest tests/unit_tests/ tests/integration_tests/ --include-real-models -m 'not slow' -v {{ args }}
+    uv run pytest tests/unit_tests/ tests/integration_tests/ --include-real-models --include-docker -m 'not slow' -v {{ args }}
 
 # Delegated to cli test — these need config-path resolution, marker logic, or notebook execution:
 
 [group('Testing')]
 [doc('Run eval tests  (--real for LLM-judged, --deerflow for DeerFlow suite)')]
 test-evals *args:
-    uv run cli test evals {{ args }}
+    uv run cli test evals -v {{ args }}
 
 [group('Testing')]
-[doc('Run tests matching a pattern across all test dirs  e.g: just test-select rag')]
+[doc('Run tests matching a path or pattern across all test dirs  e.g: just test-select rag | just test-select test_sandbox.py --include-docker')]
 test-select pattern *args:
-    uv run cli test select '{{ pattern }}' {{ args }}
+    uv run cli test select -v  '{{ pattern }}' {{ args }}
 
 [group('Testing')]
 [doc('Execute Jupyter notebooks as tests')]

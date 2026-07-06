@@ -62,7 +62,7 @@ test-all *args:
 test-evals *args:
     uv run cli test evals {{ args }}
 
-[doc('Run tests matching a pattern across all test dirs  e.g: just test-select rag')]
+[doc('Run tests matching a path or pattern across all test dirs  e.g: just test-select rag | just test-select test_sandbox.py --include-docker')]
 test-select pattern *args:
     uv run cli test select '{{ pattern }}' {{ args }}
 

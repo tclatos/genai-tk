@@ -17,6 +17,8 @@ Example:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from genai_tk.agents.sandbox.models import (
     DockerAioSettings,
     DockerSmolSettings,
@@ -27,6 +29,39 @@ from genai_tk.config_mgmt.config_mngr import global_config
 
 _SANDBOX_YAML_KEY = "sandbox"
 _SANDBOX_YAML_FILE = "basic/sandbox.yaml"
+
+# execd image used by the minimal generated server config (single source of
+# truth shared by ``cli sandbox start`` and ``AioSandboxBackend._ensure_server``).
+_OPENSANDBOX_EXECD_IMAGE = "opensandbox/execd:v1.0.16"
+
+
+def write_server_config(port: int, *, path: Path | None = None, execd_image: str = _OPENSANDBOX_EXECD_IMAGE) -> Path:
+    """Write a minimal opensandbox-server TOML config bound to *port*.
+
+    The server is launched with ``SANDBOX_CONFIG_PATH`` pointing at the result
+    so it does not depend on ``~/.sandbox.toml`` (which may be missing or bound
+    to the wrong port) and boots non-interactively. Pass an explicit *path* for
+    a long-lived daemon so ``cli sandbox stop`` can remove it; omit it for a
+    concurrency-safe tempfile used by the short-lived test/agent server.
+
+    Returns:
+        Path of the written config.
+    """
+    import os  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+
+    if path is None:
+        fd, name = tempfile.mkstemp(suffix=".toml")
+        os.close(fd)
+        target = Path(name)
+    else:
+        target = path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        f'[server]\nhost = "127.0.0.1"\nport = {port}\n\n'
+        f'[runtime]\ntype = "docker"\nexecd_image = "{execd_image}"\n'
+    )
+    return target
 
 
 def load_sandbox_config() -> SandboxConfig:
