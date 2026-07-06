@@ -165,6 +165,9 @@ def _patch_step_factory(callable_fn: Any) -> Any:
     )
 
 
+@pytest.mark.filterwarnings(
+    "ignore:Artifact creation outside of a flow or task run is deprecated:FutureWarning",
+)
 class TestFlowBodyCaching:
     """Test the manifest caching logic in _build_prefect_flow via .fn()."""
 

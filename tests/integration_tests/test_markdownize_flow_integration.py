@@ -10,6 +10,15 @@ from genai_tk.workflow.prefect.flows.markdownize_flow import (
     markdownize_flow,
 )
 
+# These tests drive ``markdownize_flow.fn(...)`` directly (bypassing the @flow
+# decorator) for deterministic stubbed execution, so Prefect artifact creation
+# happens outside a flow/task run context. The flow already treats artifacts as
+# best-effort (try/except); suppress the resulting deprecation warning rather
+# than adding a real flow-run context that would defeat the fast stub path.
+pytestmark = pytest.mark.filterwarnings(
+    "ignore:Artifact creation outside of a flow or task run is deprecated:FutureWarning",
+)
+
 
 class _FakeFuture:
     def __init__(self, result):

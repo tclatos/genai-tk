@@ -648,6 +648,7 @@ async def test_adownload_files_missing_gives_file_not_found(started_backend: Aio
 # default; verify the delegation so both harness paths stay supported.
 
 
+@pytest.mark.filterwarnings("ignore::langchain_core._api.deprecation.LangChainDeprecationWarning")
 async def test_als_info_delegates_to_als(started_backend: AioSandboxBackend) -> None:
     started_backend._client.file.list_path = AsyncMock(
         return_value=_make_file_list_response([("/home/user/a.py", 100), ("/home/user/sub", None)])
@@ -660,6 +661,7 @@ async def test_als_info_delegates_to_als(started_backend: AioSandboxBackend) -> 
     assert infos[0]["size"] == 100
 
 
+@pytest.mark.filterwarnings("ignore::langchain_core._api.deprecation.LangChainDeprecationWarning")
 async def test_agrep_raw_delegates_to_agrep(started_backend: AioSandboxBackend) -> None:
     started_backend._client.shell.exec_command = AsyncMock(
         return_value=_make_shell_response("/src/a.py:10:    foo = bar\n", 0)
@@ -672,6 +674,7 @@ async def test_agrep_raw_delegates_to_agrep(started_backend: AioSandboxBackend) 
     assert out[0] == GrepMatch(path="/src/a.py", line=10, text="    foo = bar")
 
 
+@pytest.mark.filterwarnings("ignore::langchain_core._api.deprecation.LangChainDeprecationWarning")
 async def test_agrep_raw_returns_error_string_on_agrep_error(started_backend: AioSandboxBackend) -> None:
     started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("grep: bad", 2))
 
@@ -681,6 +684,7 @@ async def test_agrep_raw_returns_error_string_on_agrep_error(started_backend: Ai
     assert "grep error" in out
 
 
+@pytest.mark.filterwarnings("ignore::langchain_core._api.deprecation.LangChainDeprecationWarning")
 async def test_aglob_info_delegates_to_aglob(started_backend: AioSandboxBackend) -> None:
     started_backend._client.shell.exec_command = AsyncMock(
         return_value=_make_shell_response("/src/a.py\n/src/b.py\n", 0)

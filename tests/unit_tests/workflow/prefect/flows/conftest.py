@@ -24,9 +24,13 @@ _NO_PROXY_VALUE = "*"
 @pytest.fixture(scope="session", autouse=True)
 def prefect_test_harness_session() -> Generator[None, None, None]:
     """Run all flow tests against an ephemeral in-memory Prefect server."""
-    saved = {key: os.environ.get(key) for key in ("NO_PROXY", "no_proxy")}
+    saved = {key: os.environ.get(key) for key in ("NO_PROXY", "no_proxy", "PREFECT_LOGGING_TO_API_WHEN_MISSING_FLOW")}
     os.environ["NO_PROXY"] = _NO_PROXY_VALUE
     os.environ["no_proxy"] = _NO_PROXY_VALUE
+    # The harness runs @task callables without a flow-run context, so the Prefect
+    # API log handler would warn on every task log. This is the officially
+    # recommended opt-out (see the warning's own guidance text).
+    os.environ["PREFECT_LOGGING_TO_API_WHEN_MISSING_FLOW"] = "ignore"
     try:
         with prefect_test_harness():
             yield
