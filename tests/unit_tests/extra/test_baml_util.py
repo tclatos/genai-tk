@@ -321,7 +321,7 @@ def test_create_baml_options_with_fake_llm_raises() -> None:
 
 # --------------------------------------------------------------------------- #
 # load_baml_client / load_and_validate_baml_function / prompt_fingerprint / baml_invoke
-# (error paths — no generated baml_client package is present in this repo)
+# (error paths — error propagation is checked by forcing load_baml_client to fail)
 # --------------------------------------------------------------------------- #
 
 
@@ -330,23 +330,30 @@ def test_load_baml_client_unknown_config_raises_value_error() -> None:
         baml.load_baml_client("nonexistent_config")
 
 
-def test_load_baml_client_default_raises_load_error_without_package() -> None:
-    # The configured package (tests.baml_client) has no Python package here.
-    with pytest.raises(BamlClientLoadError):
-        baml.load_baml_client("default")
+def _raise_load_error(_config: str) -> tuple[Any, Any]:
+    """Stand-in for load_baml_client that always raises BamlClientLoadError."""
+    raise BamlClientLoadError("default", "forced load failure for test")
 
 
-def test_load_and_validate_baml_function_propagates_load_error() -> None:
+def test_load_and_validate_baml_function_propagates_load_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """load_and_validate_baml_function must surface a client load failure."""
+    monkeypatch.setattr(baml, "load_baml_client", _raise_load_error)
     with pytest.raises(BamlClientLoadError):
         baml.load_and_validate_baml_function("default", "ExtractResume")
 
 
-def test_prompt_fingerprint_propagates_load_error() -> None:
+def test_prompt_fingerprint_propagates_load_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """prompt_fingerprint must surface a client load failure."""
+    monkeypatch.setattr(baml, "load_baml_client", _raise_load_error)
     with pytest.raises(BamlClientLoadError):
         baml.prompt_fingerprint("ExtractResume")
 
 
-async def test_baml_invoke_propagates_load_error() -> None:
+async def test_baml_invoke_propagates_load_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """baml_invoke must surface a client load failure."""
+    monkeypatch.setattr(baml, "load_baml_client", _raise_load_error)
     with pytest.raises(BamlClientLoadError):
         await baml.baml_invoke("ExtractResume", {"text": "hi"})
 
