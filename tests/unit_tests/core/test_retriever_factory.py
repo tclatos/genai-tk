@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.documents import Document
+from langchain_core.embeddings import FakeEmbeddings
+from langchain_core.vectorstores import InMemoryVectorStore
 
 from genai_tk.core.factories.retriever_factory import (
     BM25DocumentStore,
@@ -25,6 +27,12 @@ from genai_tk.core.factories.retriever_factory import (
     _make_record_manager,
     _parse_retriever_config,
 )
+
+
+def _real_vector_store() -> InMemoryVectorStore:
+    """Return a fresh in-memory vector store backed by a deterministic fake embeddings model."""
+    return InMemoryVectorStore(embedding=FakeEmbeddings(size=768))
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -127,17 +135,21 @@ class TestBM25DocumentStore:
 
 class TestVectorDocumentStore:
     async def test_add_without_record_manager(self, sample_docs: list[Document]) -> None:
-        mock_vs = AsyncMock()
-        mock_vs.aadd_documents = AsyncMock(return_value=["id1", "id2", "id3"])
-        store = VectorDocumentStore(vector_store=mock_vs)
+        vs = _real_vector_store()
+        store = VectorDocumentStore(vector_store=vs)
         result = await store.aadd_documents(sample_docs)
-        mock_vs.aadd_documents.assert_called_once_with(sample_docs)
-        assert result == ["id1", "id2", "id3"]
+        # InMemoryVectorStore returns a list of generated ids, one per document.
+        assert len(result) == len(sample_docs)
+        # The documents are really stored and searchable.
+        hits = await vs.asimilarity_search("programming", k=1)
+        assert len(hits) == 1
 
     async def test_add_with_record_manager(self, sample_docs: list[Document]) -> None:
-        mock_vs = MagicMock()
+        # record_manager path delegates to langchain_classic.indexes.index; keep
+        # that single boundary mocked but use a real vector store around it.
+        vs = _real_vector_store()
         mock_rm = MagicMock()
-        store = VectorDocumentStore(vector_store=mock_vs, record_manager=mock_rm)
+        store = VectorDocumentStore(vector_store=vs, record_manager=mock_rm)
 
         with patch("langchain_classic.indexes.index") as mock_index:
             mock_index.return_value = MagicMock()
@@ -152,20 +164,18 @@ class TestVectorDocumentStore:
 
 class TestCompositeDocumentStore:
     async def test_fans_out_to_all_stores(self, sample_docs: list[Document]) -> None:
-        mock_vs_a = AsyncMock()
-        mock_vs_a.aadd_documents = AsyncMock(return_value=["a"])
-        mock_vs_b = AsyncMock()
-        mock_vs_b.aadd_documents = AsyncMock(return_value=["b"])
-
-        store_a = VectorDocumentStore(vector_store=mock_vs_a)
-        store_b = VectorDocumentStore(vector_store=mock_vs_b)
+        store_a = VectorDocumentStore(vector_store=_real_vector_store())
+        store_b = VectorDocumentStore(vector_store=_real_vector_store())
 
         composite = CompositeDocumentStore(stores=[store_a, store_b])
         result = await composite.aadd_documents(sample_docs)
 
-        mock_vs_a.aadd_documents.assert_called_once_with(sample_docs)
-        mock_vs_b.aadd_documents.assert_called_once_with(sample_docs)
-        assert result == ["a"]  # returns first store result
+        # Composite returns the first store's result; both stores now hold the docs.
+        assert len(result) == len(sample_docs)
+        hits_a = await store_a.vector_store.asimilarity_search("vector", k=1)
+        hits_b = await store_b.vector_store.asimilarity_search("vector", k=1)
+        assert len(hits_a) == 1
+        assert len(hits_b) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -174,25 +184,28 @@ class TestCompositeDocumentStore:
 
 
 class TestManagedRetriever:
-    def _make_vector_managed(self) -> ManagedRetriever:
-        mock_vs = AsyncMock()
-        mock_vs.asimilarity_search = AsyncMock(return_value=[Document(page_content="result", metadata={})])
-        store = VectorDocumentStore(vector_store=mock_vs)
+    async def _make_vector_managed(self) -> ManagedRetriever:
+        vs = _real_vector_store()
+        store = VectorDocumentStore(vector_store=vs)
+        # Seed the store so aquery returns a real result.
+        await store.aadd_documents([Document(page_content="result", metadata={})])
         return ManagedRetriever(
             retriever=_EmptyRetriever(),
             store=store,
             default_k=4,
             config_tag="test",
-            vector_store=mock_vs,
+            vector_store=vs,
         )
 
     async def test_aquery_vector(self) -> None:
-        managed = self._make_vector_managed()
+        managed = await self._make_vector_managed()
         results = await managed.aquery("test query")
-        assert len(results) == 1
+        assert len(results) >= 1
         assert results[0].page_content == "result"
 
     async def test_aquery_uses_default_k(self) -> None:
+        # Keep this one mocked: it asserts the exact k= forwarding, which a real
+        # store does not expose for inspection.
         mock_vs = AsyncMock()
         mock_vs.asimilarity_search = AsyncMock(return_value=[])
         managed = ManagedRetriever(
@@ -221,8 +234,8 @@ class TestManagedRetriever:
         with pytest.raises(RuntimeError, match="read-only"):
             await managed.aadd_documents([Document(page_content="x", metadata={})])
 
-    def test_has_store(self) -> None:
-        managed_with = self._make_vector_managed()
+    async def test_has_store(self) -> None:
+        managed_with = await self._make_vector_managed()
         assert managed_with.has_store is True
 
         managed_without = ManagedRetriever(retriever=_EmptyRetriever(), store=None, config_tag="t")

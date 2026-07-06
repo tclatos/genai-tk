@@ -26,7 +26,8 @@ class TestCoreCommandsHelp:
 
     def test_help_shows_commands(self, core_app, runner) -> None:
         result = runner.invoke(core_app, ["core", "--help"])
-        assert "llm" in result.stdout or result.exit_code == 0
+        assert result.exit_code == 0
+        assert "llm" in result.stdout
 
 
 class TestLlmCommand:
@@ -46,47 +47,35 @@ class TestLlmCommand:
 
     def test_llm_missing_input_shows_error(self, core_app, runner, fake_llm_id) -> None:
         result = runner.invoke(core_app, ["core", "llm", "--llm", fake_llm_id])
-        assert result.exit_code == 0  # Returns gracefully
-        assert "Error" in result.stdout or result.exit_code == 0
+        # Missing required --input must surface an error (non-zero exit or an
+        # error message), never exit 0 with empty output.
+        assert result.exit_code != 0 or "Error" in result.stdout
 
     def test_llm_invalid_model_shows_error(self, core_app, runner) -> None:
         result = runner.invoke(core_app, ["core", "llm", "--input", "hello", "--llm", "nonexistent@nowhere"])
-        # Should either show an error or exit with non-zero code
-        assert result.exit_code == 0  # Returns gracefully with error message
-
-    def test_llm_with_cache_option(self, core_app, runner, fake_llm_id) -> None:
-        result = runner.invoke(
-            core_app,
-            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--cache", "memory"],
+        # An invalid model must surface a failure — either a non-zero exit code
+        # or an error/traceback visible in stdout/stderr.
+        combined = result.stdout + (result.stderr or "")
+        assert result.exit_code != 0 or "error" in combined.lower(), (
+            f"Expected an error for invalid model, got exit_code={result.exit_code}, output={combined!r}"
         )
-        assert result.exit_code == 0
 
-    def test_llm_with_temperature(self, core_app, runner, fake_llm_id) -> None:
-        result = runner.invoke(
-            core_app,
-            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--temperature", "0.5"],
-        )
-        assert result.exit_code == 0
-
-    def test_llm_raw_output(self, core_app, runner, fake_llm_id) -> None:
-        result = runner.invoke(
-            core_app,
-            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--raw"],
-        )
-        assert result.exit_code == 0
-
-    def test_llm_verbose_flag(self, core_app, runner, fake_llm_id) -> None:
-        result = runner.invoke(
-            core_app,
-            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--verbose"],
-        )
-        assert result.exit_code == 0
-
-    def test_llm_debug_flag(self, core_app, runner, fake_llm_id) -> None:
-        result = runner.invoke(
-            core_app,
-            ["core", "llm", "--input", "hello", "--llm", fake_llm_id, "--debug"],
-        )
+    @pytest.mark.parametrize(
+        ("flag", "value"),
+        [
+            ("--cache", "memory"),
+            ("--temperature", "0.5"),
+            ("--raw", None),
+            ("--verbose", None),
+            ("--debug", None),
+        ],
+    )
+    def test_llm_flags_accepted(self, core_app, runner, fake_llm_id, flag, value) -> None:
+        """Each optional LLM flag is accepted and the command still succeeds."""
+        args = ["core", "llm", "--input", "hello", "--llm", fake_llm_id, flag]
+        if value is not None:
+            args.append(value)
+        result = runner.invoke(core_app, args)
         assert result.exit_code == 0
 
 
@@ -131,10 +120,11 @@ class TestSimilarityCommand:
     def test_similarity_two_sentences(self, core_app, runner, fake_embeddings_id) -> None:
         result = runner.invoke(
             core_app,
-            ["core", "similarity", "Hello world", "Goodbye world", "--model", fake_embeddings_id],
+            ["core", "similarity", "reference", "compare1", "compare2", "--model", fake_embeddings_id],
         )
         assert result.exit_code == 0
-        assert "Semantic Similarity" in result.stdout or len(result.stdout) > 0
+        assert len(result.stdout) > 0
+        assert "Semantic Similarity" in result.stdout
 
     def test_similarity_error_single_sentence(self, core_app, runner) -> None:
         result = runner.invoke(
