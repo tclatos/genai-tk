@@ -22,6 +22,7 @@ dependencies = [
     "pathspec>=1.1.1",          # .gitignore-style file matching (gitwildmatch)
     "httpx>=0.28.0",            # Async HTTP client
     "wrapt>=1.17",              # Transparent function/decorator wrapping
+    "bcrypt>=4.0",             # Salted password hashing for basic_auth (webapp)
     # ============================================
     # LangChain Core Framework
     # ============================================

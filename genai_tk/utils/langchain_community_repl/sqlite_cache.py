@@ -6,6 +6,13 @@ Implements the ``langchain_core.caches.BaseCache`` interface using the stdlib
 Serialisation mirrors the original: each ``Generation`` object is stored as a
 pickled blob. The schema is intentionally identical to the community version so
 existing ``.db`` files remain compatible.
+
+Security note:
+    ``pickle.loads`` (see :meth:`SQLiteCache.lookup`) deserialises the
+    ``response`` BLOB column. Pickle can execute arbitrary code, so this cache
+    must ONLY be pointed at a ``.db`` file that you control. Never open a
+    ``.db`` file received from an untrusted source (e.g. shared by a third
+    party or downloaded) with this class.
 """
 
 from __future__ import annotations
@@ -64,7 +71,9 @@ class SQLiteCache(BaseCache):
             rows = cur.fetchall()
         if not rows:
             return None
-        return [pickle.loads(row[0]) for row in rows]
+        # SECURITY: `row[0]` is a pickled ``Generation``. Only load blobs from a
+        # ``.db`` file you control — see the module docstring's security note.
+        return [pickle.loads(row[0]) for row in rows]  # noqa: S301
 
     def update(self, prompt: str, llm_string: str, return_val: list[Generation]) -> None:
         with self._lock, self._conn:

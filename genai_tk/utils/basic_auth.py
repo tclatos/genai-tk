@@ -4,14 +4,27 @@ Provides functionality for:
 - Password hashing and verification
 - User authentication against a YAML config file
 - Session management for Streamlit
+
+Passwords are hashed with bcrypt (salted, slow KDF). For backward
+compatibility, legacy unsalted SHA-256 hashes (64 hex characters) are still
+verified with a constant-time comparison, so existing ``password_hash`` entries
+keep working until they are re-hashed via :func:`hash_password`.
 """
 
-import hashlib
+from __future__ import annotations
 
+import hashlib
+import secrets
+
+import bcrypt
 import yaml
 from pydantic import BaseModel, ConfigDict
 
 from genai_tk.config_mgmt.config_mngr import global_config
+
+# Legacy SHA-256 hashes are 64 lowercase hex characters; bcrypt hashes start
+# with "$2" (e.g. "$2b$..."). Used to pick the verifier in :func:`verify_password`.
+_BCRYPT_PREFIX = "$2"
 
 
 class User(BaseModel):
@@ -31,28 +44,43 @@ class AuthConfig(BaseModel):
 
 
 def hash_password(password: str) -> str:
-    """Hash a password using SHA-256.
+    """Hash a password using bcrypt with a random salt.
 
     Args:
-        password: The plain text password to hash
+        password: The plain text password to hash.
 
     Returns:
-        The hashed password as a string
+        The bcrypt hash as an ASCII string (e.g. ``$2b$12$...``).
     """
-    return hashlib.sha256(password.encode()).hexdigest()
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
+
+
+def _is_legacy_sha256(hashed_password: str) -> bool:
+    """Return True when *hashed_password* is a legacy unsalted SHA-256 digest."""
+    return not hashed_password.startswith(_BCRYPT_PREFIX)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against a hash.
+    """Verify a password against a stored hash in constant time.
+
+    Bcrypt hashes are checked with :func:`bcrypt.checkpw` (constant-time).
+    Legacy unsalted SHA-256 hashes are checked with
+    :func:`secrets.compare_digest` to avoid a timing side-channel.
 
     Args:
-        plain_password: The plain text password to verify
-        hashed_password: The hashed password to check against
+        plain_password: The plain text password to verify.
+        hashed_password: The stored hash to check against.
 
     Returns:
-        True if the password matches, False otherwise
+        True if the password matches, False otherwise (also on malformed hashes).
     """
-    return hash_password(plain_password) == hashed_password
+    if _is_legacy_sha256(hashed_password):
+        legacy = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
+        return secrets.compare_digest(legacy, hashed_password)
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("ascii"))
+    except (ValueError, TypeError):
+        return False
 
 
 def load_auth_config() -> AuthConfig:

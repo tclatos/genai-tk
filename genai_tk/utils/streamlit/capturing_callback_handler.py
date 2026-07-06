@@ -2,6 +2,11 @@
 
 Taken from an example.
 
+Security note:
+    :func:`load_records_from_file` uses :func:`pickle.load`, which can execute
+    arbitrary code. Only load ``.pkl`` callback-log files that you produced
+    yourself; never load a callback log from an untrusted source.
+
 """
 
 from __future__ import annotations
@@ -41,9 +46,13 @@ class CallbackRecord(TypedDict):
 
 
 def load_records_from_file(path: str) -> list[CallbackRecord]:
-    """Load the list of CallbackRecords from a pickle file at the given path."""
+    """Load the list of CallbackRecords from a pickle file at the given path.
+
+    Security: uses :func:`pickle.load` — only call this with a file you created.
+    See the module docstring.
+    """
     with open(path, "rb") as file:
-        records = pickle.load(file)
+        records = pickle.load(file)  # noqa: S301
 
     if not isinstance(records, list):
         raise RuntimeError(f"Bad CallbackRecord data in {path}")

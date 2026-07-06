@@ -6,6 +6,12 @@ Ideas taken from : https://medium.com/codetodeploy/automating-jupyter-notebook-t
 
 Intentionally dependency-free beyond the standard library and Rich so it can
 be used in CI without a full Jupyter stack.
+
+Security note:
+    :func:`run_notebook` executes notebook code with :func:`exec` in the caller's
+    process — there is no sandboxing. Only run ``.ipynb`` files that you trust
+    (e.g. notebooks from this repository or your own project). Never execute a
+    notebook from an untrusted source through this runner.
 """
 
 from __future__ import annotations
