@@ -127,7 +127,7 @@ class LangchainAgent(BaseModel):
         agent = await self._ensure_initialized()
         result = await agent.ainvoke(
             {"messages": query},
-            {"configurable": {"thread_id": "1"}},
+            self._invoke_config(),
         )
         return _extract_content(result)
 
@@ -141,7 +141,7 @@ class LangchainAgent(BaseModel):
             Text chunks from the agent's response.
         """
         agent = await self._ensure_initialized()
-        async for chunk in agent.astream({"messages": query}):
+        async for chunk in agent.astream({"messages": query}, config=self._invoke_config()):
             content = _extract_content(chunk)
             if content:
                 yield content
@@ -219,6 +219,13 @@ class LangchainAgent(BaseModel):
         if self._agent is None:
             from genai_tk.agents.langchain.factory import create_langchain_agent
 
+            # Initialise monitoring backends before the first LLM call so that
+            # LangSmith (LANGCHAIN_TRACING_V2), LangFuse/OTEL auto-instrumentation,
+            # and the local JSONL handler are active for every agent run.
+            from genai_tk.utils.tracing import setup_monitoring
+
+            setup_monitoring()
+
             assert self._profile is not None
             profile = self._profile
 
@@ -274,6 +281,17 @@ class LangchainAgent(BaseModel):
                     webbrowser.open(vnc_url)
 
         return self._agent
+
+    @staticmethod
+    def _invoke_config() -> dict[str, Any]:
+        """Build a RunnableConfig with thread id and monitoring callbacks attached."""
+        from genai_tk.utils.tracing import get_monitoring_callbacks
+
+        config: dict[str, Any] = {"configurable": {"thread_id": "1"}}
+        callbacks = get_monitoring_callbacks()
+        if callbacks:
+            config["callbacks"] = callbacks
+        return config
 
     def _build_adhoc_profile(self) -> AgentProfileConfig:
         """Build a minimal in-memory profile from the ad-hoc constructor args."""

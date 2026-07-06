@@ -25,6 +25,7 @@ from genai_tk.agents.harness.events import (
     UsageEvent,
 )
 from genai_tk.agents.langchain.config import AgentProfileConfig
+from genai_tk.utils.tracing import apply_harness_trace_metadata, get_monitoring_callbacks, setup_monitoring
 
 # Chain-node names that are internal plumbing of the compiled graph rather than
 # meaningful agent phases. These are emitted by ``astream_events`` as
@@ -74,7 +75,13 @@ class LangChainHarness(BaseHarness):
             import os
 
             from genai_tk.agents.langchain.factory import create_langchain_agent
-            from genai_tk.utils.tracing import HarnessTraceMetadata, apply_harness_trace_metadata
+            from genai_tk.utils.tracing import HarnessTraceMetadata
+
+            # Initialise monitoring backends (LangSmith env vars, LangFuse/OTEL
+            # auto-instrumentation, local JSONL handler) before the agent runs.
+            # Without this LANGCHAIN_TRACING_V2 stays "false" and no backend
+            # receives traces from the LangChain harness.
+            setup_monitoring()
 
             llm_id = self._llm_override or self._profile.llm or "default"
             apply_harness_trace_metadata(
@@ -94,7 +101,12 @@ class LangChainHarness(BaseHarness):
 
     async def astream(self, message: str, *, thread_id: str | None = None) -> AsyncIterator[StreamEvent]:
         agent = await self._ensure_agent()
-        config = {"configurable": {"thread_id": thread_id or self.default_thread_id}}
+        config: dict[str, Any] = {"configurable": {"thread_id": thread_id or self.default_thread_id}}
+        # Attach monitoring callbacks (local JSONL log, LangFuse CallbackHandler)
+        # so agent runs are traced alongside the env-var/OTEL backends.
+        callbacks = get_monitoring_callbacks()
+        if callbacks:
+            config["callbacks"] = callbacks
         # Per-run accumulator: maps astream `run_id` → streamed-text buffer.
         # On `on_chat_model_end` we emit any un-streamed remainder of the final
         # AIMessage as a TokenEvent so non-streaming models still surface their

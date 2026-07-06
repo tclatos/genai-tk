@@ -26,6 +26,7 @@ from rich.text import Text
 from genai_tk.agents.langchain.langchain_agent import LangchainAgent, _extract_content
 from genai_tk.agents.rich_display import ASSISTANT_BORDER_STYLE, ASSISTANT_PANEL_TITLE
 from genai_tk.utils.markdown import looks_like_markdown
+from genai_tk.utils.tracing import get_monitoring_callbacks
 
 
 def _render_content(content: str, console: Console, *, elapsed: float | None = None) -> None:
@@ -103,7 +104,7 @@ async def run_langchain_agent_shell(agent: LangchainAgent, initial_query: str | 
             t0 = time.monotonic()
             result = await compiled.ainvoke(
                 {"messages": initial_query},
-                {"configurable": {"thread_id": "1"}},
+                _shell_invoke_config(),
             )
             elapsed = time.monotonic() - t0
             _render_content(_extract_content(result), console, elapsed=elapsed)
@@ -154,7 +155,7 @@ async def run_langchain_agent_shell(agent: LangchainAgent, initial_query: str | 
                 t0 = time.monotonic()
                 result = await compiled.ainvoke(
                     {"messages": user_input},
-                    {"configurable": {"thread_id": "1"}},
+                    _shell_invoke_config(),
                 )
                 elapsed = time.monotonic() - t0
                 _render_content(_extract_content(result), console, elapsed=elapsed)
@@ -178,6 +179,15 @@ async def run_langchain_agent_shell(agent: LangchainAgent, initial_query: str | 
 _LOG_BUFFER: list[str] = []
 _LOG_SINK_ID: int | None = None
 _MAX_LOG_ENTRIES = 200
+
+
+def _shell_invoke_config() -> dict:
+    """Build a RunnableConfig for the shell with monitoring callbacks attached."""
+    config: dict = {"configurable": {"thread_id": "1"}}
+    callbacks = get_monitoring_callbacks()
+    if callbacks:
+        config["callbacks"] = callbacks
+    return config
 
 
 def _setup_log_buffer() -> None:

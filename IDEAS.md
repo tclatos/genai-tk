@@ -1,3 +1,323 @@
+#  just commands 
+Create a just command that takes a path to a directory name as argument and create a new scaffolded project 
+(create the dir if not exists, uv init, uv add genai_tk, cli init, ... )
+
+# Hakathon
+
+sélection concrète, crédible et directement exploitable de :
+
+🧱 MCP servers (ou assimilables)
+🔌 Skills / tools agents
+
+…organisés par scénario pentest réel (ça parlera immédiatement à ton audience).
+
+🔴 1. Offensive / Pentest automation
+🧠 MCP serveur “full-stack pentest”
+🟢 HexStrike AI (MCP)
+
+MCP server orchestrant 150+ tools de cybersécurité
+multi-agents (reco, CVE, exploit, reporting)
+cible :
+
+bug bounty
+CTF
+vuln discovery
+
+
+
+👉 très puissant pour hackathon (effet “wow”)
+ [github.com]
+
+🔌 Skills à intégrer
+
+Nmap skill
+
+scan réseau / ports / services
+
+
+Metasploit skill
+
+exploitation automatique
+
+
+SQLmap skill
+
+injection SQL
+
+
+Gobuster / Amass
+
+enumeration / attack surface
+
+
+
+👉 ces outils sont standards du pentest (scan, exploitation, enum) [esecurityplanet.com], [cybersecur...tynews.com]
+
+💡 Cas hackathon
+
+“Build an autonomous pentest agent”
+
+
+agent lance reconnaissance
+choisit exploit
+génère rapport
+
+
+🔵 2. Web security / AppSec
+🧱 MCP / gateway possible
+
+MCP wrapper autour d’un scanner web (ZAP / Burp API)
+ou simple serveur exposant APIs
+
+🔌 Skills
+
+OWASP ZAP skill
+
+proxy + scan web (XSS, injection…) [esecurityplanet.com]
+
+
+Nikto
+
+vuln serveur web
+
+
+w3af
+
+audit + exploitation web
+
+
+
+
+💡 Cas hackathon
+
+“Agent web hacker”
+
+
+prend URL cible
+lance scan
+exploite vuln simple
+propose remediation
+
+
+🟣 3. Network / infra analysis
+🔌 Skills
+
+Wireshark / tcpdump
+
+analyse trafic réseau [esecurityplanet.com]
+
+
+Nmap NSE scripts
+
+détection vuln automatée [guptadeepak.com]
+
+
+
+
+🧱 MCP idea
+
+MCP server exposant :
+
+capture logs réseau
+alerting
+historique
+
+
+
+
+💡 Cas hackathon
+
+“AI SOC analyst”
+
+
+détecte anomalies dans logs réseau
+propose attaque probable
+
+
+🟠 4. Reverse engineering / malware
+🔌 Skills
+
+Radare / IDA wrapper
+
+analyse binaire [cybersecur...tynews.com]
+
+
+Apktool
+
+reverse app Android [cybersecur...tynews.com]
+
+
+
+
+💡 Cas hackathon
+
+“Malware triage agent”
+
+
+analyse fichier suspect
+identifie comportements
+produit rapport
+
+
+🟡 5. Identity / AD attack
+🔌 Skills
+
+BloodHound (API wrapper)
+
+graph AD attack paths [guptadeepak.com]
+
+
+hashcat / John the Ripper
+
+password cracking [esecurityplanet.com]
+
+
+
+
+💡 Cas hackathon
+
+“AD attack planner agent”
+
+
+analyse AD dump
+propose chaine d’attaque
+
+
+⚫ 6. AI security (très intéressant pour ton positionnement)
+🧱 MCP / Skills spécifiques AI
+🟢 SkillSpector (NVIDIA)
+
+scanner de skills agents
+détecte :
+
+prompt injection
+malware
+exfiltration
+ [github.com]
+
+
+
+
+🔐 Autres skills utiles
+
+prompt injection tester
+secrets scanner
+dependency scanner
+
+👉 car:
+
+~26% des skills contiennent des vulnérabilités [explainx.ai]
+
+
+💡 Cas hackathon
+
+“Secure the agent ecosystem”
+
+
+scanner des skills
+détecter attaques
+bloquer install
+
+
+🧱 7. MCP “infrastructure” (très pédagogique)
+Idées de serveurs MCP simples à builder
+🟢 MCP Filesystem
+
+accès fichiers
+exfiltration possible
+
+🟢 MCP GitHub
+
+accès code + secrets
+
+🟢 MCP Logs / SIEM
+
+accès logs sécurité
+
+📌 Important pour le hackathon :
+👉 Un MCP donne accès à :
+
+fichiers
+APIs
+cloud
+👉 donc devient point unique de compromission [sentinelone.com]
+
+
+🎯 Mapping rapide (ce que tu peux proposer aux équipes)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CatégorieMCP / SkillPentest autoHexStrike MCPScan réseauNmapExploitMetasploitWebZAP / NiktoLogsWiresharkReverseRadare / ApktoolPasswordHashcatADBloodHoundAI securitySkillSpector
+
+🔥 Conseils pratiques pour ton hackathon
+✅ Donne :
+
+1 agent de base
+3–4 skills pré-packagés
+1 MCP vulnérable
+
+✅ Laisse :
+
+ajouter leurs propres tools
+créer nouveaux skills
+modifier MCP server
+
+
+🧠 Insight clé (important pour ton discours)
+👉 Le point fondamental à faire passer aux pentesters :
+
+“Les agents ne sont pas le sujet.
+Les agents = un orchestrateur d’outils… et donc une surface d’attaque énorme.”
+
+Car :
+
+MCP connecte à tous les systèmes critiques [sentinelone.com]
+les tools sont exécutés automatiquement par le LLM [cheatsheet....owasp.org]
+
+
+
 
 
 # Image in Markdown / Mistral

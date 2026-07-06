@@ -231,7 +231,7 @@ class TestLangchainAgentRun:
 
     @pytest.mark.asyncio
     async def test_astream_yields_chunks(self, fake_llm_id) -> None:
-        async def _mock_stream(messages: Any) -> Any:
+        async def _mock_stream(messages: Any, **kwargs: Any) -> Any:
             for chunk in [
                 {"messages": [AIMessage(content="Hello")]},
                 {"messages": [AIMessage(content=" world")]},
@@ -241,10 +241,13 @@ class TestLangchainAgentRun:
         mock_compiled = MagicMock()
         mock_compiled.astream = _mock_stream
 
-        with patch(
-            "genai_tk.agents.langchain.factory.create_langchain_agent",
-            new_callable=AsyncMock,
-            return_value=mock_compiled,
+        with (
+            patch(
+                "genai_tk.agents.langchain.factory.create_langchain_agent",
+                new_callable=AsyncMock,
+                return_value=mock_compiled,
+            ),
+            patch("genai_tk.utils.tracing.get_monitoring_callbacks", return_value=[]),
         ):
             agent = LangchainAgent(llm=fake_llm_id)
             chunks = []
