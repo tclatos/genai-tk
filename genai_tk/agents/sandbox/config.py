@@ -35,7 +35,29 @@ _SANDBOX_YAML_FILE = "basic/sandbox.yaml"
 _OPENSANDBOX_EXECD_IMAGE = "opensandbox/execd:v1.0.16"
 
 
-def write_server_config(port: int, *, path: Path | None = None, execd_image: str = _OPENSANDBOX_EXECD_IMAGE) -> Path:
+def _default_allowed_host_paths() -> list[str]:
+    """Return host-path prefixes to permit for bind mounts in a dev/test server.
+
+    Covers the user home (where projects/skills usually live), ``/tmp``, and the
+    configured project root so skill directories mount without per-path config.
+    """
+    paths: set[str] = {str(Path.home()), "/tmp"}
+    try:
+        from genai_tk.config_mgmt.config_mngr import paths_config  # noqa: PLC0415
+
+        paths.add(str(paths_config().project))
+    except Exception:
+        pass
+    return sorted(p for p in paths if p)
+
+
+def write_server_config(
+    port: int,
+    *,
+    path: Path | None = None,
+    execd_image: str = _OPENSANDBOX_EXECD_IMAGE,
+    allowed_host_paths: list[str] | None = None,
+) -> Path:
     """Write a minimal opensandbox-server TOML config bound to *port*.
 
     The server is launched with ``SANDBOX_CONFIG_PATH`` pointing at the result
@@ -43,6 +65,14 @@ def write_server_config(port: int, *, path: Path | None = None, execd_image: str
     to the wrong port) and boots non-interactively. Pass an explicit *path* for
     a long-lived daemon so ``cli sandbox stop`` can remove it; omit it for a
     concurrency-safe tempfile used by the short-lived test/agent server.
+
+    Args:
+        port: Port the opensandbox-server listens on.
+        path: Optional explicit config destination.
+        execd_image: execd image used by the docker runtime.
+        allowed_host_paths: Host-path prefixes permitted for bind mounts. Defaults
+            to the user home, ``/tmp``, and the project root — enough for local
+            dev/test skill mounts. Pass an explicit list to override.
 
     Returns:
         Path of the written config.
@@ -57,9 +87,24 @@ def write_server_config(port: int, *, path: Path | None = None, execd_image: str
     else:
         target = path
     target.parent.mkdir(parents=True, exist_ok=True)
+    # ``host`` must be a resolvable bind address: the opensandbox-server example
+    # uses the loopback address, but a literal placeholder (e.g. asterisks) makes
+    # uvicorn fail with ``Name or service not known`` on a fresh start, so the
+    # loopback IP is resolved from ``localhost`` at write time.
+    # ``[storage].allowed_host_paths`` gates bind mounts: opensandbox-server
+    # (>=0.2) rejects every mount when the list is empty, and ``["/"]`` matches
+    # nothing (the prefix check is ``path == p or path.startswith(p + "/")``),
+    # so default to home + ``/tmp`` + project root.
+    if allowed_host_paths is None:
+        allowed_host_paths = _default_allowed_host_paths()
+    import socket  # noqa: PLC0415
+
+    bind_host = socket.gethostbyname("localhost")
+    quoted = ", ".join(f'"{p}"' for p in allowed_host_paths)
     target.write_text(
-        f'[server]\nhost = "127.0.0.1"\nport = {port}\n\n'
-        f'[runtime]\ntype = "docker"\nexecd_image = "{execd_image}"\n'
+        f'[server]\nhost = "{bind_host}"\nport = {port}\n\n'
+        f'[runtime]\ntype = "docker"\nexecd_image = "{execd_image}"\n\n'
+        f"[storage]\nallowed_host_paths = [{quoted}]\n"
     )
     return target
 

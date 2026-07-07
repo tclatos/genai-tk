@@ -1,4 +1,9 @@
-"""Unit tests for AioSandboxBackend — all mocked, no Docker required."""
+"""Unit tests for AioSandboxBackend — all mocked, no Docker required.
+
+The backend delegates shell/file work to the native ``opensandbox`` SDK
+(``sandbox.commands.run`` / ``sandbox.files.*``); these tests mock that
+surface so no container or server is required.
+"""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -24,7 +29,7 @@ from deepagents.backends.protocol import (  # noqa: E402
     WriteResult,
 )
 
-from genai_tk.agents.langchain.sandbox_backend import (
+from genai_tk.agents.langchain.sandbox_backend import (  # noqa: E402
     AioSandboxBackend,
     AioSandboxBackendConfig,
     SandboxToolResult,
@@ -35,45 +40,24 @@ from genai_tk.agents.langchain.sandbox_backend import (
 # ---------------------------------------------------------------------------
 
 
-def _make_shell_response(output: str = "", exit_code: int = 0) -> MagicMock:
-    """Build a mock ResponseShellCommandResult."""
-    data = MagicMock()
-    data.output = output
-    data.exit_code = exit_code
-    resp = MagicMock()
-    resp.data = data
-    return resp
+def _make_execution(text: str = "", exit_code: int = 0) -> MagicMock:
+    """Build a mock ``opensandbox.Execution`` with ``.text`` and ``.exit_code``."""
+    execution = MagicMock()
+    execution.text = text
+    execution.exit_code = exit_code
+    logs = MagicMock()
+    logs.stderr = []
+    execution.logs = logs
+    return execution
 
 
-def _make_file_read_response(content: str) -> MagicMock:
-    data = MagicMock()
-    data.content = content
-    resp = MagicMock()
-    resp.data = data
-    return resp
-
-
-def _make_file_list_response(files: list[tuple[str, int | None]]) -> MagicMock:
-    """files: list of (path, size) tuples."""
-    file_infos = []
-    for path, size in files:
-        f = MagicMock()
-        f.path = path
-        f.size = size
-        file_infos.append(f)
-    data = MagicMock()
-    data.files = file_infos
-    resp = MagicMock()
-    resp.data = data
-    return resp
-
-
-def _make_file_replace_response(replaced_count: int) -> MagicMock:
-    data = MagicMock()
-    data.replaced_count = replaced_count
-    resp = MagicMock()
-    resp.data = data
-    return resp
+def _make_entry(path: str, size: int | None = None) -> MagicMock:
+    """Build a mock ``opensandbox.EntryInfo`` with ``.path`` and ``.size``."""
+    entry = MagicMock()
+    entry.path = path
+    entry.size = size
+    entry.entry_type = None
+    return entry
 
 
 # ---------------------------------------------------------------------------
@@ -88,16 +72,16 @@ def backend() -> AioSandboxBackend:
 
 @pytest.fixture
 def started_backend(backend: AioSandboxBackend) -> AioSandboxBackend:
-    """Backend with a mock HTTP client already connected."""
-    mock_client = MagicMock()
-    mock_client.shell = MagicMock()
-    mock_client.shell.exec_command = AsyncMock()
-    mock_client.file = MagicMock()
-    mock_client.file.read_file = AsyncMock()
-    mock_client.file.write_file = AsyncMock()
-    mock_client.file.list_path = AsyncMock()
-    mock_client.file.replace_in_file = AsyncMock()
-    backend._client = mock_client
+    """Backend with a mock opensandbox Sandbox already connected."""
+    sandbox = MagicMock()
+    sandbox.commands = MagicMock()
+    sandbox.commands.run = AsyncMock()
+    sandbox.files = MagicMock()
+    sandbox.files.read_file = AsyncMock()
+    sandbox.files.read_bytes = AsyncMock()
+    sandbox.files.write_file = AsyncMock()
+    sandbox.files.search = AsyncMock()
+    backend._sandbox = sandbox
     return backend
 
 
@@ -169,18 +153,18 @@ async def test_execute_unknown_tool(started_backend: AioSandboxBackend) -> None:
 
 
 async def test_bash_success(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("hello\n", 0))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("hello\n", 0))
 
     result = await started_backend.execute_tool("bash", {"command": "echo hello"})
 
     assert result.success
     assert result.output == "hello\n"
     assert result.tool_name == "bash"
-    started_backend._client.shell.exec_command.assert_awaited_once_with(command="echo hello")
+    started_backend._sandbox.commands.run.assert_awaited_once_with("echo hello")
 
 
 async def test_bash_failure(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("", 1))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("", 1))
 
     result = await started_backend.execute_tool("bash", {"command": "bogus"})
 
@@ -194,24 +178,22 @@ async def test_bash_failure(started_backend: AioSandboxBackend) -> None:
 
 
 async def test_ls_uses_path(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.list_path = AsyncMock(return_value=_make_file_list_response([("/tmp/file.txt", 42)]))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("file.txt\n", 0))
 
     result = await started_backend.execute_tool("ls", {"path": "/tmp"})
 
     assert result.success
-    assert "/tmp/file.txt" in result.output
-    started_backend._client.file.list_path.assert_awaited_once_with(path="/tmp", include_size=True, show_hidden=True)
+    assert "file.txt" in result.output
+    started_backend._sandbox.commands.run.assert_awaited_once_with("ls -1pA /tmp 2>/dev/null")
 
 
 async def test_ls_defaults_to_work_dir(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.list_path = AsyncMock(return_value=_make_file_list_response([]))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("", 0))
 
     result = await started_backend.execute_tool("ls", {})
 
     assert result.success
-    started_backend._client.file.list_path.assert_awaited_once_with(
-        path="/home/user", include_size=True, show_hidden=True
-    )
+    started_backend._sandbox.commands.run.assert_awaited_once_with("ls -1pA /home/user 2>/dev/null")
 
 
 # ---------------------------------------------------------------------------
@@ -220,13 +202,13 @@ async def test_ls_defaults_to_work_dir(started_backend: AioSandboxBackend) -> No
 
 
 async def test_read_file(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.read_file = AsyncMock(return_value=_make_file_read_response("file content"))
+    started_backend._sandbox.files.read_file = AsyncMock(return_value="file content")
 
     result = await started_backend.execute_tool("read_file", {"path": "/tmp/test.txt"})
 
     assert result.success
     assert result.output == "file content"
-    started_backend._client.file.read_file.assert_awaited_once_with(file="/tmp/test.txt")
+    started_backend._sandbox.files.read_file.assert_awaited_once_with("/tmp/test.txt")
 
 
 # ---------------------------------------------------------------------------
@@ -235,14 +217,13 @@ async def test_read_file(started_backend: AioSandboxBackend) -> None:
 
 
 async def test_write_file(started_backend: AioSandboxBackend) -> None:
-    write_response = MagicMock()
-    started_backend._client.file.write_file = AsyncMock(return_value=write_response)
+    started_backend._sandbox.files.write_file = AsyncMock(return_value=None)
 
     result = await started_backend.execute_tool("write_file", {"path": "/tmp/out.txt", "content": "hello"})
 
     assert result.success
     assert "Written" in result.output
-    started_backend._client.file.write_file.assert_awaited_once_with(file="/tmp/out.txt", content="hello")
+    started_backend._sandbox.files.write_file.assert_awaited_once_with("/tmp/out.txt", "hello")
 
 
 # ---------------------------------------------------------------------------
@@ -251,22 +232,25 @@ async def test_write_file(started_backend: AioSandboxBackend) -> None:
 
 
 async def test_str_replace_success(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.replace_in_file = AsyncMock(return_value=_make_file_replace_response(1))
+    started_backend._sandbox.files.read_file = AsyncMock(return_value="foo bar baz")
+    started_backend._sandbox.files.write_file = AsyncMock(return_value=None)
 
     result = await started_backend.execute_tool("str_replace", {"path": "/f.txt", "old_str": "bar", "new_str": "qux"})
 
     assert result.success
-    started_backend._client.file.replace_in_file.assert_awaited_once_with(file="/f.txt", old_str="bar", new_str="qux")
+    started_backend._sandbox.files.write_file.assert_awaited_once_with("/f.txt", "foo qux baz")
 
 
 async def test_str_replace_not_found(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.replace_in_file = AsyncMock(return_value=_make_file_replace_response(0))
+    started_backend._sandbox.files.read_file = AsyncMock(return_value="no match here")
+    started_backend._sandbox.files.write_file = AsyncMock(return_value=None)
 
     result = await started_backend.execute_tool("str_replace", {"path": "/f.txt", "old_str": "missing", "new_str": "x"})
 
     assert not result.success
     assert result.exit_code == 1
     assert "not found" in (result.error or "")
+    started_backend._sandbox.files.write_file.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -275,7 +259,7 @@ async def test_str_replace_not_found(started_backend: AioSandboxBackend) -> None
 
 
 async def test_execute_tool_exception_returns_error(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(side_effect=ConnectionError("sandbox unreachable"))
+    started_backend._sandbox.commands.run = AsyncMock(side_effect=ConnectionError("sandbox unreachable"))
 
     result = await started_backend.execute_tool("bash", {"command": "echo hi"})
 
@@ -332,18 +316,18 @@ def test_id_no_sandbox_falls_back_to_instance_id(backend: AioSandboxBackend) -> 
 
 
 async def test_aexecute_success(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("out\n", 0))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("out\n", 0))
 
     resp = await started_backend.aexecute("echo out")
 
     assert isinstance(resp, ExecuteResponse)
     assert resp.output == "out\n"
     assert resp.exit_code == 0
-    started_backend._client.shell.exec_command.assert_awaited_once_with(command="echo out")
+    started_backend._sandbox.commands.run.assert_awaited_once_with("echo out")
 
 
 async def test_aexecute_nonzero_exit(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("", 1))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("", 1))
 
     resp = await started_backend.aexecute("false")
 
@@ -356,9 +340,7 @@ async def test_aexecute_nonzero_exit(started_backend: AioSandboxBackend) -> None
 
 
 async def test_als_returns_ls_result(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.list_path = AsyncMock(
-        return_value=_make_file_list_response([("/home/user/a.py", 100), ("/home/user/b.txt", None)])
-    )
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("a.py\nb.txt\n", 0))
 
     result = await started_backend.als("/home/user")
 
@@ -367,17 +349,22 @@ async def test_als_returns_ls_result(started_backend: AioSandboxBackend) -> None
     assert result.entries is not None
     assert len(result.entries) == 2
     assert result.entries[0]["path"] == "/home/user/a.py"
-    assert result.entries[0]["size"] == 100
     assert result.entries[1]["path"] == "/home/user/b.txt"
-    assert "size" not in result.entries[1]
+
+
+async def test_als_marks_directories(started_backend: AioSandboxBackend) -> None:
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("a.py\nsub/\n", 0))
+
+    result = await started_backend.als("/home/user")
+
+    assert result.entries is not None
+    by_name = {e["path"].split("/")[-1]: e for e in result.entries}
+    assert by_name["sub"]["is_dir"] is True
+    assert "is_dir" not in by_name["a.py"]
 
 
 async def test_als_empty_directory(started_backend: AioSandboxBackend) -> None:
-    data = MagicMock()
-    data.files = []
-    resp = MagicMock()
-    resp.data = data
-    started_backend._client.file.list_path = AsyncMock(return_value=resp)
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("", 0))
 
     result = await started_backend.als("/empty")
 
@@ -391,7 +378,7 @@ async def test_als_empty_directory(started_backend: AioSandboxBackend) -> None:
 
 
 async def test_aread_returns_numbered_lines(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.read_file = AsyncMock(return_value=_make_file_read_response("line1\nline2\nline3\n"))
+    started_backend._sandbox.files.read_file = AsyncMock(return_value="line1\nline2\nline3\n")
 
     result = await started_backend.aread("/tmp/f.txt")
 
@@ -405,7 +392,7 @@ async def test_aread_returns_numbered_lines(started_backend: AioSandboxBackend) 
 
 async def test_aread_pagination_offset_limit(started_backend: AioSandboxBackend) -> None:
     content = "\n".join(f"line{i}" for i in range(1, 11))  # 10 lines
-    started_backend._client.file.read_file = AsyncMock(return_value=_make_file_read_response(content))
+    started_backend._sandbox.files.read_file = AsyncMock(return_value=content)
 
     result = await started_backend.aread("/tmp/f.txt", offset=2, limit=3)
 
@@ -420,7 +407,7 @@ async def test_aread_pagination_offset_limit(started_backend: AioSandboxBackend)
 
 
 async def test_aread_error_returns_error_string(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.read_file = AsyncMock(side_effect=RuntimeError("not found"))
+    started_backend._sandbox.files.read_file = AsyncMock(side_effect=RuntimeError("not found"))
 
     result = await started_backend.aread("/missing.txt")
 
@@ -436,25 +423,26 @@ async def test_aread_error_returns_error_string(started_backend: AioSandboxBacke
 
 
 async def test_awrite_new_file_success(started_backend: AioSandboxBackend) -> None:
-    # bash check returns ABSENT
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("ABSENT\n", 0))
-    started_backend._client.file.write_file = AsyncMock(return_value=MagicMock())
+    # bash existence check returns ABSENT
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("ABSENT\n", 0))
+    started_backend._sandbox.files.write_file = AsyncMock(return_value=None)
 
     result = await started_backend.awrite("/tmp/new.txt", "content")
 
     assert isinstance(result, WriteResult)
     assert result.error is None
     assert result.path == "/tmp/new.txt"
+    started_backend._sandbox.files.write_file.assert_awaited_once_with("/tmp/new.txt", "content")
 
 
 async def test_awrite_existing_file_returns_error(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("EXISTS\n", 0))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("EXISTS\n", 0))
 
     result = await started_backend.awrite("/tmp/exists.txt", "content")
 
     assert result.error is not None
     assert "already exists" in result.error
-    started_backend._client.file.write_file.assert_not_awaited()
+    started_backend._sandbox.files.write_file.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------
@@ -463,39 +451,40 @@ async def test_awrite_existing_file_returns_error(started_backend: AioSandboxBac
 
 
 async def test_aedit_replaces_first_occurrence(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.read_file = AsyncMock(return_value=_make_file_read_response("foo foo foo"))
-    started_backend._client.file.write_file = AsyncMock(return_value=MagicMock())
+    started_backend._sandbox.files.read_file = AsyncMock(return_value="foo foo foo")
+    started_backend._sandbox.files.write_file = AsyncMock(return_value=None)
 
     result = await started_backend.aedit("/f.txt", "foo", "bar", replace_all=False)
 
     assert isinstance(result, EditResult)
     assert result.error is None
     assert result.occurrences == 1
-    started_backend._client.file.write_file.assert_awaited_once_with(file="/f.txt", content="bar foo foo")
+    started_backend._sandbox.files.write_file.assert_awaited_once_with("/f.txt", "bar foo foo")
 
 
 async def test_aedit_replaces_all_occurrences(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.read_file = AsyncMock(return_value=_make_file_read_response("foo foo foo"))
-    started_backend._client.file.write_file = AsyncMock(return_value=MagicMock())
+    started_backend._sandbox.files.read_file = AsyncMock(return_value="foo foo foo")
+    started_backend._sandbox.files.write_file = AsyncMock(return_value=None)
 
     result = await started_backend.aedit("/f.txt", "foo", "bar", replace_all=True)
 
     assert result.occurrences == 3
-    started_backend._client.file.write_file.assert_awaited_once_with(file="/f.txt", content="bar bar bar")
+    started_backend._sandbox.files.write_file.assert_awaited_once_with("/f.txt", "bar bar bar")
 
 
 async def test_aedit_string_not_found(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.read_file = AsyncMock(return_value=_make_file_read_response("no match here"))
+    started_backend._sandbox.files.read_file = AsyncMock(return_value="no match here")
+    started_backend._sandbox.files.write_file = AsyncMock(return_value=None)
 
     result = await started_backend.aedit("/f.txt", "missing", "x")
 
     assert result.error is not None
     assert "not found" in result.error
-    started_backend._client.file.write_file.assert_not_awaited()
+    started_backend._sandbox.files.write_file.assert_not_awaited()
 
 
 async def test_aedit_read_error(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.read_file = AsyncMock(side_effect=RuntimeError("no such file"))
+    started_backend._sandbox.files.read_file = AsyncMock(side_effect=RuntimeError("no such file"))
 
     result = await started_backend.aedit("/missing.txt", "a", "b")
 
@@ -508,13 +497,9 @@ async def test_aedit_read_error(started_backend: AioSandboxBackend) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _make_grep_shell_response(lines: list[str], exit_code: int = 0) -> MagicMock:
-    return _make_shell_response("\n".join(lines), exit_code)
-
-
 async def test_agrep_returns_matches(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(
-        return_value=_make_grep_shell_response(["/src/a.py:10:    foo = bar", "/src/b.py:42:    foo = baz"])
+    started_backend._sandbox.commands.run = AsyncMock(
+        return_value=_make_execution("/src/a.py:10:    foo = bar\n/src/b.py:42:    foo = baz", 0)
     )
 
     result = await started_backend.agrep("foo", path="/src")
@@ -528,7 +513,7 @@ async def test_agrep_returns_matches(started_backend: AioSandboxBackend) -> None
 
 
 async def test_agrep_no_matches_returns_empty_list(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("", 1))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("", 1))
 
     result = await started_backend.agrep("notfound", path="/src")
 
@@ -538,7 +523,7 @@ async def test_agrep_no_matches_returns_empty_list(started_backend: AioSandboxBa
 
 
 async def test_agrep_error_returns_grep_result_with_error(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("grep: bad", 2))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("grep: bad", 2))
 
     result = await started_backend.agrep("x", path="/bad")
 
@@ -548,12 +533,12 @@ async def test_agrep_error_returns_grep_result_with_error(started_backend: AioSa
 
 
 async def test_agrep_with_glob_passes_include(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("", 1))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("", 1))
 
     await started_backend.agrep("foo", path="/src", glob="*.py")
 
-    call_args = started_backend._client.shell.exec_command.call_args
-    assert "--include=" in call_args.kwargs["command"] or "--include=" in str(call_args)
+    command = started_backend._sandbox.commands.run.call_args.args[0]
+    assert "--include=" in command
 
 
 # ---------------------------------------------------------------------------
@@ -562,8 +547,8 @@ async def test_agrep_with_glob_passes_include(started_backend: AioSandboxBackend
 
 
 async def test_aglob_returns_glob_result(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(
-        return_value=_make_shell_response("/src/a.py\n/src/b.py\n", 0)
+    started_backend._sandbox.files.search = AsyncMock(
+        return_value=[_make_entry("/src/a.py", 100), _make_entry("/src/b.py", 200)]
     )
 
     result = await started_backend.aglob("*.py", path="/src")
@@ -573,11 +558,12 @@ async def test_aglob_returns_glob_result(started_backend: AioSandboxBackend) -> 
     assert result.matches is not None
     assert all(isinstance(i, dict) and "path" in i for i in result.matches)
     assert result.matches[0]["path"] == "/src/a.py"
+    assert result.matches[0]["size"] == 100
     assert result.matches[1]["path"] == "/src/b.py"
 
 
 async def test_aglob_empty_result(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("", 0))
+    started_backend._sandbox.files.search = AsyncMock(return_value=[])
 
     result = await started_backend.aglob("*.nonexistent", path="/src")
 
@@ -591,7 +577,7 @@ async def test_aglob_empty_result(started_backend: AioSandboxBackend) -> None:
 
 
 async def test_aupload_files_success(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.write_file = AsyncMock(return_value=MagicMock())
+    started_backend._sandbox.files.write_file = AsyncMock(return_value=None)
 
     responses = await started_backend.aupload_files(
         [
@@ -608,7 +594,7 @@ async def test_aupload_files_success(started_backend: AioSandboxBackend) -> None
 
 
 async def test_aupload_files_write_error_gives_permission_denied(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.write_file = AsyncMock(side_effect=RuntimeError("forbidden"))
+    started_backend._sandbox.files.write_file = AsyncMock(side_effect=RuntimeError("forbidden"))
 
     responses = await started_backend.aupload_files([("/bad.txt", b"x")])
 
@@ -621,7 +607,7 @@ async def test_aupload_files_write_error_gives_permission_denied(started_backend
 
 
 async def test_adownload_files_success(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.read_file = AsyncMock(return_value=_make_file_read_response("file content"))
+    started_backend._sandbox.files.read_bytes = AsyncMock(return_value=b"file content")
 
     responses = await started_backend.adownload_files(["/a.txt", "/b.txt"])
 
@@ -632,7 +618,7 @@ async def test_adownload_files_success(started_backend: AioSandboxBackend) -> No
 
 
 async def test_adownload_files_missing_gives_file_not_found(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.read_file = AsyncMock(side_effect=RuntimeError("not found"))
+    started_backend._sandbox.files.read_bytes = AsyncMock(side_effect=RuntimeError("not found"))
 
     responses = await started_backend.adownload_files(["/missing.txt"])
 
@@ -650,22 +636,17 @@ async def test_adownload_files_missing_gives_file_not_found(started_backend: Aio
 
 @pytest.mark.filterwarnings("ignore::langchain_core._api.deprecation.LangChainDeprecationWarning")
 async def test_als_info_delegates_to_als(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.file.list_path = AsyncMock(
-        return_value=_make_file_list_response([("/home/user/a.py", 100), ("/home/user/sub", None)])
-    )
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("a.py\nsub/\n", 0))
 
     infos = await started_backend.als_info("/home/user")
 
     assert isinstance(infos, list)
-    assert infos[0]["path"] == "/home/user/a.py"
-    assert infos[0]["size"] == 100
+    assert any(i["path"] == "/home/user/a.py" for i in infos)
 
 
 @pytest.mark.filterwarnings("ignore::langchain_core._api.deprecation.LangChainDeprecationWarning")
 async def test_agrep_raw_delegates_to_agrep(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(
-        return_value=_make_shell_response("/src/a.py:10:    foo = bar\n", 0)
-    )
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("/src/a.py:10:    foo = bar\n", 0))
 
     out = await started_backend.agrep_raw("foo", path="/src")
 
@@ -676,7 +657,7 @@ async def test_agrep_raw_delegates_to_agrep(started_backend: AioSandboxBackend) 
 
 @pytest.mark.filterwarnings("ignore::langchain_core._api.deprecation.LangChainDeprecationWarning")
 async def test_agrep_raw_returns_error_string_on_agrep_error(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(return_value=_make_shell_response("grep: bad", 2))
+    started_backend._sandbox.commands.run = AsyncMock(return_value=_make_execution("grep: bad", 2))
 
     out = await started_backend.agrep_raw("x", path="/bad")
 
@@ -686,9 +667,7 @@ async def test_agrep_raw_returns_error_string_on_agrep_error(started_backend: Ai
 
 @pytest.mark.filterwarnings("ignore::langchain_core._api.deprecation.LangChainDeprecationWarning")
 async def test_aglob_info_delegates_to_aglob(started_backend: AioSandboxBackend) -> None:
-    started_backend._client.shell.exec_command = AsyncMock(
-        return_value=_make_shell_response("/src/a.py\n/src/b.py\n", 0)
-    )
+    started_backend._sandbox.files.search = AsyncMock(return_value=[_make_entry("/src/a.py"), _make_entry("/src/b.py")])
 
     infos = await started_backend.aglob_info("*.py", path="/src")
 
