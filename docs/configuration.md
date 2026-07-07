@@ -49,7 +49,7 @@ profile: ${oc.env:GENAITK_PROFILE,local}
 # Optional: set environment variables at startup (no-op if already set).
 :env:
   LOGURU_LEVEL: INFO
-  LANGCHAIN_TRACING_V2: "false"
+  LANGSMITH_TRACING: "false"
 
 paths:
   home: ${oc.env:HOME}

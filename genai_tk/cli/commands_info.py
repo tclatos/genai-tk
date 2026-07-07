@@ -443,6 +443,8 @@ class InfoCommands(CliTopCommand):
             console.print(Rule(f"[bold cyan]{model_id}[/bold cyan]", style="cyan"))
             console.print()
 
+            from genai_tk.core.providers import LAB_INFO
+
             # --- Left table: llm.yaml registry info ---
             reg_table = Table(
                 title="[bold blue]llm.yaml[/bold blue]",
@@ -454,8 +456,11 @@ class InfoCommands(CliTopCommand):
             reg_table.add_column("Field", style="dim", no_wrap=True, min_width=12)
             reg_table.add_column("Value", style="white", min_width=26)
             if llm_info is not None:
+                lab_key = llm_info.effective_lab
+                lab_display = LAB_INFO[lab_key].display_name if lab_key and lab_key in LAB_INFO else (lab_key or "—")
                 reg_table.add_row("ID", f"[cyan]{llm_info.id}[/cyan]")
                 reg_table.add_row("Provider", llm_info.provider)
+                reg_table.add_row("Lab", lab_display)
                 reg_table.add_row("Model", llm_info.model)
                 caps_yaml = ", ".join(llm_info.capabilities) if llm_info.capabilities else "[dim]—[/dim]"
                 reg_table.add_row("Capabilities", caps_yaml)
@@ -464,8 +469,13 @@ class InfoCommands(CliTopCommand):
                     "Context", str(llm_info.context_window) if llm_info.context_window else "[dim]—[/dim]"
                 )
             else:
+                from genai_tk.core.providers import get_lab_for_model
+
+                lab_key = get_lab_for_model(lc_model_name, lc_provider)
+                lab_display = LAB_INFO[lab_key].display_name if lab_key and lab_key in LAB_INFO else (lab_key or "—")
                 reg_table.add_row("ID", f"[dim]{model_id}[/dim]")
                 reg_table.add_row("Provider", lc_provider)
+                reg_table.add_row("Lab", lab_display)
                 reg_table.add_row("Model", lc_model_name)
                 reg_table.add_row("Capabilities", "[dim]—[/dim]")
                 reg_table.add_row("Max tokens", "[dim]—[/dim]")

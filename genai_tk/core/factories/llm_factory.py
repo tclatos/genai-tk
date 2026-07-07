@@ -327,6 +327,8 @@ class LlmInfo(BaseModel):
         id: Unique identifier in format model_id@provider (e.g. gpt_4o@openai)
         provider: name of the provider
         model: Model identifier used by the provider
+        lab: Explicit lab (model creator) key override. When None, resolved
+            automatically from providers.yaml lab patterns.
         llm_args: Additional kwargs forwarded to the LLM constructor
         capabilities: Capability override list. When empty, derived from ModelProfile.
         max_tokens: Maximum output tokens override. When None, derived from ModelProfile.
@@ -337,6 +339,7 @@ class LlmInfo(BaseModel):
     id: str
     provider: str
     model: str  # Name of the model for the constructor
+    lab: str | None = None  # Explicit lab override; resolved automatically when None
     llm_args: dict[str, Any] = {}
     capabilities: list[str] = []
     max_tokens: int | None = None
@@ -348,6 +351,15 @@ class LlmInfo(BaseModel):
     def profile(self) -> ModelEntry | None:
         """Model entry from the local models.dev database, if available for this model."""
         return lookup_model_entry(self.model, self.provider)
+
+    @property
+    def effective_lab(self) -> str | None:
+        """Lab key for this model: explicit override or auto-detected from providers.yaml."""
+        if self.lab:
+            return self.lab
+        from genai_tk.core.providers import get_lab_for_model
+
+        return get_lab_for_model(self.model, self.provider)
 
     @property
     def effective_capabilities(self) -> list[str]:

@@ -223,7 +223,7 @@ class LangchainAgent(BaseModel):
             from genai_tk.agents.langchain.factory import create_langchain_agent
 
             # Initialise monitoring backends before the first LLM call so that
-            # LangSmith (LANGCHAIN_TRACING_V2), LangFuse/OTEL auto-instrumentation,
+            # LangSmith (LANGSMITH_TRACING), LangFuse/OTEL auto-instrumentation,
             # and the local JSONL handler are active for every agent run.
             from genai_tk.utils.tracing import setup_monitoring
 

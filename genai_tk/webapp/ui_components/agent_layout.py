@@ -24,6 +24,7 @@ from typing import Any
 import streamlit as st
 
 from genai_tk.webapp.ui_components.llm_selector import llm_selector_widget
+from genai_tk.webapp.ui_components.monitoring_widget import monitoring_backend_pills
 
 # ---------------------------------------------------------------------------
 # Shared constants
@@ -37,25 +38,25 @@ PANEL_HEIGHT: int = 640  # px — consistent height for trace / chat containers
 
 
 def render_agent_sidebar(config_file: str) -> None:
-    """Render the standard sidebar block: LLM selector + Edit Config button.
+    """Render the standard sidebar LLM selector (in an expander).
 
-    Call once near the top of the page's ``main()`` function.  Page-specific
-    controls (clear buttons, mode selector …) can be added afterwards with
-    additional ``with st.sidebar:`` blocks.
+    Call once near the top of the page's ``main()`` function, **after** the
+    profile selector has been rendered.  Monitoring pills are rendered
+    separately at the bottom via :func:`render_sidebar_monitoring`.
 
     Args:
-        config_file: Path to the YAML config file opened by the Edit Config dialog.
+        config_file: Kept for backward compatibility; no longer used.
     """
     with st.sidebar:
-        llm_selector_widget(st.sidebar)
-        st.divider()
-        if st.button(":material/edit: Edit Config", help="Edit YAML configuration"):
-            try:
-                from genai_tk.webapp.ui_components.config_editor import edit_config_dialog
+        with st.expander("🤖 LLM", expanded=False):
+            llm_selector_widget(st.sidebar)
 
-                edit_config_dialog(config_file)
-            except ImportError:
-                st.info("Install `streamlit-monaco` to enable the config editor.")
+
+def render_sidebar_monitoring() -> None:
+    """Render monitoring backend pills at the bottom of the sidebar."""
+    with st.sidebar:
+        st.divider()
+        monitoring_backend_pills(st.sidebar)
 
 
 # ---------------------------------------------------------------------------

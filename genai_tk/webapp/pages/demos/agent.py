@@ -19,7 +19,7 @@ from streamlit import session_state as sss
 
 from genai_tk.agents.harness import create_harness, profile_kind
 from genai_tk.agents.harness.base import BaseHarness
-from genai_tk.webapp.ui_components.agent_layout import PANEL_HEIGHT, render_agent_sidebar
+from genai_tk.webapp.ui_components.agent_layout import PANEL_HEIGHT, render_agent_sidebar, render_sidebar_monitoring
 from genai_tk.webapp.ui_components.harness_workbench import (
     render_artifact,
     render_artifact_gallery,
@@ -205,13 +205,13 @@ def main() -> None:
     kinds_present = [k for k in _KIND_ORDER if any(kind == k for _kk, _pp, kind in items)]
 
     # ── Sidebar ───────────────────────────────────────────────────────────
-    render_agent_sidebar(CONFIG_FILE)
     with st.sidebar:
-        st.divider()
+        # 1. Profile selection (top)
         selected_kinds = st.pills(
             "Type",
             options=kinds_present,
             default=kinds_present,
+            selection_mode="multi",
             key="agent_kind_filter",
         )
         st.divider()
@@ -233,6 +233,16 @@ def main() -> None:
         )
         profile = profiles[selected_key]
         _profile_info(profile)
+
+        # Profile config viewer
+        with st.expander("⚙️ Profile config", expanded=False):
+            import yaml as _yaml
+
+            try:
+                raw = profile.model_dump(exclude_none=True, exclude_unset=False)
+                st.code(_yaml.dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), language="yaml")
+            except Exception as exc:
+                st.text(str(exc))
 
         examples: list[str] = getattr(profile, "examples", None) or []
         if examples:
@@ -265,6 +275,13 @@ def main() -> None:
             if st.button("🗑️ All", help="Clear conversation + traces + cached agent"):
                 clear_all_history()
                 st.rerun()
+
+        # 2. LLM selection (collapsed by default)
+        st.divider()
+        render_agent_sidebar(CONFIG_FILE)
+
+    # 3. Monitoring (bottom of sidebar)
+    render_sidebar_monitoring()
 
     # ── Title ─────────────────────────────────────────────────────────────
     st.title("🤖 Agent")

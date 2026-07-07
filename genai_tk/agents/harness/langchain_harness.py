@@ -83,7 +83,7 @@ class LangChainHarness(BaseHarness):
 
             # Initialise monitoring backends (LangSmith env vars, LangFuse/OTEL
             # auto-instrumentation, local JSONL handler) before the agent runs.
-            # Without this LANGCHAIN_TRACING_V2 stays "false" and no backend
+            # Without this LANGSMITH_TRACING stays "false" and no backend
             # receives traces from the LangChain harness.
             setup_monitoring()
 

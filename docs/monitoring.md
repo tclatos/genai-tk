@@ -383,7 +383,7 @@ llm.invoke(input, config={"callbacks": get_monitoring_callbacks()})
 ```
 
 Traces are sent to:
-- **LangSmith** — via `LANGCHAIN_TRACING_V2` env var
+- **LangSmith** — via `LANGSMITH_TRACING` env var
 - **LangFuse** — via `langfuse.langchain.CallbackHandler`
 - **OTEL** — via `openinference-instrumentation-langchain` auto-instrumentation
 - **Local** — via `LocalTraceLog` callback handler
@@ -400,14 +400,14 @@ attach `get_monitoring_callbacks()` to every LangGraph invocation via
 | **LangChain** (`LangchainAgent`) | `_ensure_initialized()` | `arun()` / `astream()` / shell `ainvoke()` |
 | **DeerFlow** (`DeerFlowHarness`) | `prepare_profile()` (runtime) | n/a (see below) |
 
-This ensures LangSmith (`LANGCHAIN_TRACING_V2`), LangFuse/OTEL
+This ensures LangSmith (`LANGSMITH_TRACING`), LangFuse/OTEL
 auto-instrumentation, and the local JSONL handler are active for agent runs, not
 just for `cli core llm`.
 
 **DeerFlow limitation:** DeerFlow's embedded `DeerFlowClient` builds its own
 LangGraph agent internally and does not accept arbitrary LangChain callbacks, so
 the local JSONL handler and the LangFuse `CallbackHandler` cannot be attached
-per-invocation. However, both **LangSmith** (via `LANGCHAIN_TRACING_V2` env var)
+per-invocation. However, both **LangSmith** (via `LANGSMITH_TRACING` env var)
 and **LangFuse/OTEL** (via `openinference-instrumentation-langchain` global
 auto-instrumentation) still work for DeerFlow because they operate at the
 env-var / global-instrumentation level, not per-invocation. The local JSONL log
