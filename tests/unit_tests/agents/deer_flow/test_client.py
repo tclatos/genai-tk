@@ -255,83 +255,8 @@ def test_error_event() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Signature regression tests — guard against re-introducing removed params
+# Embedded client stream_message signature
 # ---------------------------------------------------------------------------
-
-
-def test_run_single_shot_no_stream_enabled() -> None:
-    """_run_single_shot must not accept stream_enabled (removed in embedded refactor)."""
-    from genai_tk.agents.deer_flow.cli_commands import _run_single_shot
-
-    params = inspect.signature(_run_single_shot).parameters
-    assert "stream_enabled" not in params, (
-        "_run_single_shot still has 'stream_enabled' — it was removed when switching to embedded mode"
-    )
-
-
-def test_run_chat_mode_no_stream_enabled() -> None:
-    """_run_chat_mode must not accept stream_enabled (removed in embedded refactor)."""
-    from genai_tk.agents.deer_flow.cli_commands import _run_chat_mode
-
-    params = inspect.signature(_run_chat_mode).parameters
-    assert "stream_enabled" not in params, (
-        "_run_chat_mode still has 'stream_enabled' — it was removed when switching to embedded mode"
-    )
-
-
-def test_run_single_shot_has_expected_params() -> None:
-    """_run_single_shot has all expected parameters."""
-    from genai_tk.agents.deer_flow.cli_commands import _run_single_shot
-
-    params = inspect.signature(_run_single_shot).parameters
-    for expected in (
-        "profile_name",
-        "user_input",
-        "llm_override",
-        "extra_mcp",
-        "mode_override",
-        "verbose",
-        "show_trace",
-        "subagent_enabled",
-        "plan_mode",
-    ):
-        assert expected in params, f"_run_single_shot is missing expected param '{expected}'"
-
-
-def test_run_chat_mode_has_expected_params() -> None:
-    """_run_chat_mode has all expected parameters."""
-    from genai_tk.agents.deer_flow.cli_commands import _run_chat_mode
-
-    params = inspect.signature(_run_chat_mode).parameters
-    for expected in (
-        "profile_name",
-        "llm_override",
-        "extra_mcp",
-        "mode_override",
-        "verbose",
-        "show_trace",
-        "initial_input",
-        "subagent_enabled",
-        "plan_mode",
-    ):
-        assert expected in params, f"_run_chat_mode is missing expected param '{expected}'"
-
-
-def test_commands_agents_deerflow_no_stream_kwarg() -> None:
-    """commands_agents deerflow callback must not pass stream_enabled to cli functions."""
-    import ast
-    from pathlib import Path
-
-    src = (Path(__file__).parents[4] / "genai_tk" / "agents" / "commands_agents.py").read_text()
-    tree = ast.parse(src)
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Call):
-            for kw in node.keywords:
-                assert kw.arg != "stream_enabled", (
-                    f"commands_agents.py line {node.lineno}: call passes 'stream_enabled' — "
-                    "this kwarg was removed in the embedded client refactor"
-                )
 
 
 def test_stream_message_signature() -> None:
@@ -381,37 +306,35 @@ def test_embedded_client_init_signature() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_model_name — delegates to resolve_llm_identifier_safe
+# resolve_model_name — delegates to resolve_llm_identifier_safe
 # ---------------------------------------------------------------------------
 
 
 def test_resolve_model_name_delegates_to_resolve_llm_identifier() -> None:
-    """_resolve_model_name delegates to LlmFactory.resolve_llm_identifier_safe."""
+    """runtime.resolve_model_name delegates to LlmFactory.resolve_llm_identifier_safe."""
     from unittest.mock import patch
 
-    from genai_tk.agents.deer_flow.cli_commands import _resolve_model_name
+    from genai_tk.agents.deer_flow.runtime import resolve_model_name
 
     with patch(
         "genai_tk.core.factories.llm_factory.LlmFactory.resolve_llm_identifier_safe",
         return_value=("openai/gpt-oss-120b@openrouter", None),
     ):
-        assert _resolve_model_name("gpt_oss120@openrouter") == "openai/gpt-oss-120b@openrouter"
+        assert resolve_model_name("gpt_oss120@openrouter") == "openai/gpt-oss-120b@openrouter"
 
 
-def test_resolve_model_name_error_raises_exit() -> None:
-    """Exits with an error when resolution fails."""
+def test_resolve_model_name_error_raises_valueerror() -> None:
+    """Raises ValueError when resolution fails."""
     from unittest.mock import patch
 
-    import typer
-
-    from genai_tk.agents.deer_flow.cli_commands import _resolve_model_name
+    from genai_tk.agents.deer_flow.runtime import resolve_model_name
 
     with patch(
         "genai_tk.core.factories.llm_factory.LlmFactory.resolve_llm_identifier_safe",
         return_value=(None, "Unknown LLM: 'ghost@nowhere'"),
     ):
-        with pytest.raises(typer.Exit):
-            _resolve_model_name("ghost@nowhere")
+        with pytest.raises(ValueError):
+            resolve_model_name("ghost@nowhere")
 
 
 # ---------------------------------------------------------------------------
@@ -540,18 +463,18 @@ def test_sqlite_connection_survives_after_init(fake_deer_flow_env) -> None:
 
 
 def test_config_bridge_to_embedded_client_name_consistency() -> None:
-    """The model name from _resolve_model_name matches config_bridge output names."""
+    """The model name from resolve_model_name matches config_bridge output names."""
     from unittest.mock import patch
 
-    from genai_tk.agents.deer_flow.cli_commands import _resolve_model_name
     from genai_tk.agents.deer_flow.config_bridge import generate_deer_flow_models
+    from genai_tk.agents.deer_flow.runtime import resolve_model_name
 
     # Simulate a model resolved via models.dev (gateway model not in llm.yaml)
     with patch(
         "genai_tk.core.factories.llm_factory.LlmFactory.resolve_llm_identifier_safe",
         return_value=("openai/gpt-oss-120b@openrouter", None),
     ):
-        resolved = _resolve_model_name("gpt_oss120@openrouter")
+        resolved = resolve_model_name("gpt_oss120@openrouter")
 
     with patch.dict(os.environ, {"OPENROUTER_API_KEY": "test"}):
         models = generate_deer_flow_models(selected_llm_id=resolved)

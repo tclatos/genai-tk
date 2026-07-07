@@ -173,22 +173,24 @@ uv run cli info llm-profile gpt_4o@openai
 
 ### `agents` — Agent Runners
 
+One `run` command works across every harness (LangChain react/deep/custom and
+DeerFlow) — it resolves the profile against the unified `agents:` config and
+streams the response through the shared harness layer.
+
 ```bash
-# Unified harness layer — works across LangChain and DeerFlow profiles
-uv run cli agents list                                       # list all profiles (both harnesses)
-uv run cli agents run research "Research quantum computing"  # auto-resolves the harness
-
-# LangChain ReAct / deep agent (DeepAgents SDK) / custom
-uv run cli agents langchain --list                          # list all profiles
-uv run cli agents langchain "Research quantum computing"    # default profile
-uv run cli agents langchain -p research "Deep dive topic"   # specific profile
-uv run cli agents langchain --chat                          # interactive chat
-
-# DeerFlow
-uv run cli agents deerflow --list         # list profiles / modes
-uv run cli agents deerflow --chat         # interactive chat
-uv run cli agents deerflow "Research AI"  # one-shot
+uv run cli agents list                                       # list all profiles (Kind: React/DeepAgent/DeerFlow)
+uv run cli agents run research "Research quantum computing"  # any profile, auto-resolves the harness
+uv run cli agents run "Research Assistant" "Research AI"     # DeerFlow profile by name
+uv run cli agents run research --chat                        # interactive multi-turn REPL
+uv run cli agents run "Research Assistant" --mode ultra      # DeerFlow reasoning mode
+uv run cli agents run coding --sandbox docker                # DeerFlow sandbox override
+uv run cli agents run research "..." --json                 # raw NDJSON event stream
+echo "What is RAG?" | uv run cli agents run research        # query via stdin
 ```
+
+`run` flags: `--llm/-m`, `--chat/-c`, `--mode` (DeerFlow), `--sandbox/-b`
+(DeerFlow), `--mcp` (repeatable), `--thread-id/-t`, `--json`, `--trace`,
+`--verbose/-v`. Omit the profile to use `agent_defaults.default_profile`.
 
 See [agents.md](agents.md) for full agent configuration reference, including the shared harness layer.
 

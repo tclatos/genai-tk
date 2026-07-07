@@ -1,20 +1,19 @@
 # Web Interface (`just webapp`)
 
 genai-tk ships a Streamlit webapp so you can test agents interactively
-without writing any UI code.  Three built-in demo pages are included out
+without writing any UI code.  Two built-in demo pages are included out
 of the box:
 
 | Page | Section | Description |
 |------|---------|-------------|
-| 🦌 **DeerFlow Agent** | Agents | Full 2-panel UI — execution trace + chat, streaming, artifact viewer |
-| 🤖 **ReAct Agent** | Agents | Two-panel chat + trace, tool-call display, MCP support, slash commands |
+| 🤖 **Agent** | Agents | Unified 2-panel UI — execution trace + chat, streaming, artifact viewer; `st.pills` filter by kind (React, DeepAgent, DeerFlow) + profile picker across both harnesses |
 | ⚙️ **Prefect Workflow Demo** | Workflow | Live Prefect flow execution trace with real-time task progress polling |
 
-Both agent demo pages render through the shared
+The agent demo page renders through the shared
 `genai_tk.webapp.ui_components.harness_workbench` module (trace phase cards +
 chat + artifact gallery), driven by the harness event model described in
-[agents.md](agents.md#harness-layer-agentsharness) — so they share one visual
-model instead of two parallel implementations.
+[agents.md](agents.md#harness-layer-agentsharness) — one visual model for
+every agent runtime instead of one page per framework.
 
 Downstream projects (e.g. genai-blueprint) can embed these pages alongside
 their own pages using the `genai_tk://` reference prefix described below,
@@ -71,10 +70,10 @@ uv run python -m streamlit run <genai_tk-package>/webapp/main/streamlit.py
 
 Open <http://localhost:8501> in your browser.
 
-> **Prerequisites**: the DeerFlow demo page requires the `harnessing` extra
-> (`uv run cli init --extra harnessing` or `uv sync --extra harnessing`).
-> No `DEER_FLOW_PATH` env var is needed — `deerflow-harness` is a regular
-> Python dependency.
+> **Prerequisites**: selecting a DeerFlow profile on the Agent page requires
+> the `harnessing` extra (`uv run cli init --extra harnessing` or
+> `uv sync --extra harnessing`). No `DEER_FLOW_PATH` env var is needed —
+> `deerflow-harness` is a regular Python dependency.
 
 ---
 
@@ -124,7 +123,7 @@ ui:
   navigation:
     demos:
       - demos/my_custom_agent.py
-      - demos/deer_flow_agent.py   # include the built-in ones too if you want
+      - genai_tk://demos/agent.py   # include the built-in Agent page too if you want
     settings:
       - settings/configuration.py
 ```
@@ -148,8 +147,7 @@ ui:
   pages_dir: ${paths.src}/webapp/pages   # your own pages directory
   navigation:
     agents:
-      - genai_tk://demos/deer_flow_agent.py   # ← installed genai-tk page
-      - genai_tk://demos/reAct_agent.py       # ← installed genai-tk page
+      - genai_tk://demos/agent.py   # ← installed genai-tk Agent page
     demos:
       - demos/my_custom_agent.py              # ← your own page (relative to pages_dir)
     settings:
@@ -165,7 +163,7 @@ Three path formats are supported for each navigation entry:
 | `relative/path/page.py` | Joined with `ui.pages_dir` |
 
 Page titles are set automatically.  Built-in genai-tk pages receive pretty
-names with emojis (`🦌 DeerFlow Agent`, `🤖 ReAct Agent`, etc.).  Your own
+names with emojis (`🤖 Agent`, etc.).  Your own
 pages are named from their filename with standard title-case conversion.
 
 > **Important:** Streamlit requires each page to have a unique URL pathname.
@@ -181,14 +179,13 @@ genai_tk/webapp/
 │   └── streamlit.py           ← config-driven entry point; handles genai_tk:// resolution
 ├── pages/
 │   └── demos/
-│       ├── deer_flow_agent.py ← DeerFlow 2-panel demo
-│       └── reAct_agent.py     ← ReAct agent demo
+│       └── agent.py            ← unified Agent demo (both harnesses)
 └── ui_components/
-    ├── agent_layout.py        ← sidebar helpers shared by both pages
+    ├── agent_layout.py        ← sidebar helpers used by the Agent page
     ├── config_editor.py       ← YAML editor dialog (requires streamlit-monaco)
     ├── llm_selector.py        ← LLM dropdown widget
     ├── message_renderer.py    ← Mermaid diagram + markdown renderer
-    ├── harness_workbench.py   ← shared trace/chat/artifact rendering (both demo pages)
+    ├── harness_workbench.py   ← shared trace/chat/artifact rendering (the Agent page)
     └── streamlit_chat.py      ← chat message display + callback handler
 
 genai_tk/utils/streamlit/

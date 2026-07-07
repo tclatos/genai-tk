@@ -83,7 +83,7 @@ print(result)
 ## Step 4: Test via CLI
 
 ```bash
-cli agents langchain -p my_agent "Use my_tool to process: hello world"
+cli agents run my_agent "Use my_tool to process: hello world"
 ```
 
 ## Best Practices

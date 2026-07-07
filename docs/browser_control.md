@@ -71,7 +71,7 @@ export ENEDIS_USERNAME="your_email@example.com"
 export ENEDIS_PASSWORD="your_password"
 
 # 3. Run
-uv run cli agents langchain -p "Browser Agent Direct" \
+uv run cli agents run "Browser Agent Direct" \
   "Get my solar panel production for this month from Enedis"
 ```
 
@@ -91,7 +91,7 @@ export ENEDIS_USERNAME="your_email@example.com"
 export ENEDIS_PASSWORD="your_password"
 
 # 4. Run the agent
-uv run cli agents langchain -p "Browser Agent" \
+uv run cli agents run "Browser Agent" \
   "Get my solar panel production for this month from Enedis"
 
 # 5. Optional: watch the browser live
@@ -101,9 +101,11 @@ uv run cli agents langchain -p "Browser Agent" \
 uv run cli sandbox stop
 ```
 
-Keep the sandbox warm across turns (avoids container startup overhead):
+For multi-turn sessions, `--chat` keeps the agent (and its sandbox container)
+alive across turns, avoiding per-turn startup overhead:
+
 ```bash
-uv run cli agents langchain -p "Browser Agent" --keep-sandbox --chat "..."
+uv run cli agents run "Browser Agent" --chat "..."
 ```
 
 ## Browser Tools Reference
@@ -291,8 +293,8 @@ uv run python scripts/browser_probe.py --fingerprint-only
 
 # CLI test — sandbox (requires running sandbox server)
 uv run cli sandbox start
-uv run cli agents langchain -p "Browser Agent" "Navigate to example.com and read the page"
+uv run cli agents run "Browser Agent" "Navigate to example.com and read the page"
 
 # CLI test — direct
-uv run cli agents langchain -p "Browser Agent Direct" "Navigate to example.com and read the page"
+uv run cli agents run "Browser Agent Direct" "Navigate to example.com and read the page"
 ```

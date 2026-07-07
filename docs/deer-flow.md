@@ -14,17 +14,17 @@ cli init --with-deer-flow
 # or:
 uv add "deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdirectory=backend/packages/harness"
 
-# Chat with the default profile (chat or research)
-uv run cli agents deerflow --chat
+# Chat with a profile (interactive REPL)
+uv run cli agents run chat --chat
 
 # Single-shot query
-uv run cli agents deerflow -i "tell me a joke"
+uv run cli agents run chat "tell me a joke"
 
-# List available profiles
-uv run cli agents deerflow --list
+# List available profiles (both harnesses)
+uv run cli agents list
 
 # Use a specific profile and LLM
-uv run cli agents deerflow -p research -m gpt_41mini@openai --chat
+uv run cli agents run research -m gpt_41mini@openai --chat
 ```
 
 ---
@@ -50,7 +50,7 @@ uv run cli init --with-deer-flow
 
 # This installs deerflow-harness via uv
 # Then you can run:
-uv run cli agents deerflow --list
+uv run cli agents list
 ```
 
 ### Manual
@@ -75,53 +75,64 @@ uv add "deerflow-harness @ git+https://github.com/bytedance/deer-flow@abc1234#su
 
 ## CLI reference
 
-### Main commands
+DeerFlow profiles run through the unified `cli agents run` / `cli agents list`
+commands — the same entry points used for LangChain profiles. The harness is
+auto-resolved from the profile's `harness: deerflow` field, so there is no
+separate `cli agents deerflow` command.
 
 ```bash
-cli agents deerflow [OPTIONS] [QUERY]
+cli agents run <profile> [QUERY] [OPTIONS]
 
-# No arguments → interactive chat with default profile
-cli agents deerflow --chat
+# Interactive REPL with a profile
+cli agents run chat --chat
 
 # Single-shot: answer a query and exit
-cli agents deerflow "What is the capital of France?"
-cli agents deerflow -i "tell me a joke"   # same as above
+cli agents run chat "What is the capital of France?"
+echo "tell me a joke" | cli agents run chat   # query via stdin
 
 # Specific profile
-cli agents deerflow -p research --chat
+cli agents run research --chat
 
 # Override LLM
-cli agents deerflow -m gpt_41mini@openai "Your question"
+cli agents run chat -m gpt_41mini@openai "Your question"
 
-# List all profiles
-cli agents deerflow --list
+# Reasoning mode / sandbox overrides (DeerFlow)
+cli agents run research --mode ultra "Compare RAG vs FAISS"
+cli agents run research --sandbox docker "Run this code"
+
+# List all profiles (both harnesses)
+cli agents list
 ```
 
-### Options
+### Options (DeerFlow-relevant)
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--profile` | `-p` | default from config | Profile key from the unified `agents:` config |
-| `--chat` | | false | Interactive REPL (multi-turn) |
+| `--chat` | `-c` | false | Interactive REPL (multi-turn) |
 | `--llm` | `-m` | profile default | Override LLM (genai-tk ID or tag) |
+| `--mode` | | profile default | Reasoning mode: `flash` `thinking` `pro` `ultra` |
+| `--sandbox` | `-b` | profile default | Sandbox: `local` `docker` |
 | `--mcp` | | | Add extra MCP server (repeatable) |
-| `--mode` | | profile default | Override reasoning mode: `flash` `thinking` `pro` `ultra` |
-| `--sandbox` | | profile default | Override sandbox: `local` `docker` |
+| `--thread-id` | `-t` | new | Conversation thread ID |
 | `--trace` | | false | Show graph node execution trace |
-| `--list` | | | Print profiles and exit |
+| `--json` | | false | Print raw NDJSON events |
 | `--verbose` | `-v` | false | Enable DEBUG logging |
-| `--generate-config` | | | Generate config files for native DeerFlow web UI |
+
+> DeerFlow native-web-UI config generation (`--generate-config`) is no longer a
+> CLI flag. DeerFlow setup is covered by `cli init --extra harnessing`.
 
 ### Chat commands (in REPL)
 
 | Command | Action |
 |---------|--------|
-| `/info` | Show current config (profile, mode, LLM, thread ID, models) |
-| `/mode <flash\|thinking\|pro\|ultra>` | Switch reasoning mode (no restart) |
-| `/trace` | Toggle node-level trace |
+| `/info` | Show current agent (harness, profile, model) |
 | `/clear` | Start a new conversation thread |
 | `/help` | Show help |
 | `/quit` | Exit |
+
+> Mid-session mode switching (`/mode`) and trace toggling (`/trace`) from the
+> old DeerFlow-specific REPL are not in the unified REPL — pass `--mode` /
+> `--trace` when starting `cli agents run ... --chat`.
 
 ### Modes
 
@@ -213,7 +224,7 @@ deerflow:
 ┌─────────────────────────────────────────┐
 │  genai-tk (this process)                │
 │                                         │
-│  cli_commands._run_single_shot()        │
+│  cli agents run (harness.astream)       │
 │       │                                 │
 │  EmbeddedDeerFlowClient                 │
 │       │  config_path, model_name        │
@@ -246,7 +257,7 @@ don't want to special-case the runtime. See [agents.md](agents.md#harness-layer-
 ### Example 1: Quick chat
 
 ```bash
-uv run cli agents deerflow -p chat --chat
+uv run cli agents run chat --chat
 ```
 
 Starts an interactive REPL. Type questions, use `/info`, `/clear`, etc.
@@ -254,7 +265,7 @@ Starts an interactive REPL. Type questions, use `/info`, `/clear`, etc.
 ### Example 2: Web research
 
 ```bash
-uv run cli agents deerflow -p research "Compare RAG vs FAISS for similarity search"
+uv run cli agents run research "Compare RAG vs FAISS for similarity search"
 ```
 
 Single-shot query with web tools enabled (requires `tavily-mcp` + `TAVILY_API_KEY`).
@@ -277,13 +288,13 @@ agents:
 Then:
 
 ```bash
-uv run cli agents deerflow -p coder "Debug and fix the import errors in my code"
+uv run cli agents run coder "Debug and fix the import errors in my code"
 ```
 
 ### Example 4: Override LLM at runtime
 
 ```bash
-uv run cli agents deerflow -p research -m claude_haiku@openrouter --chat
+uv run cli agents run research -m claude_haiku@openrouter --chat
 ```
 
 Uses the Claude Haiku model instead of the profile's default LLM.
@@ -314,7 +325,7 @@ agents:
 Then:
 ```bash
 export TAVILY_API_KEY=your_key
-uv run cli agents deerflow -p research --chat
+uv run cli agents run research --chat
 ```
 
 **Q: The response is incomplete or truncated**

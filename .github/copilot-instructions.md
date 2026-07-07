@@ -83,8 +83,8 @@ def my_config() -> MyConfig:
 ### Selecting Agent Profiles at Runtime
 
 ```bash
-cli agents langchain -p research "Your query"      # Use 'research' profile KEY
-cli agents langchain --list                        # Show all profiles
+cli agents run research "Your query"            # Use 'research' profile KEY
+cli agents list                                    # Show all profiles
 GENAITK_PROFILE=prod python myapp.py              # Load prod profile overlay
 ```
 
@@ -117,8 +117,8 @@ langchain_agents:
 ```
 
 **Important**: Use the **KEY** (lowercase) in CLI commands, not the **name**:
-- ✅ `cli agents langchain -p research`
-- ❌ `cli agents langchain -p Research`
+- ✅ `cli agents run research`
+- ❌ `cli agents run Research`
 
 ## Reference
 

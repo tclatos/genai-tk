@@ -105,7 +105,7 @@ agents:
     mcp_servers:
       - tavily-mcp
     # Reuses the exact same LangChain AgentMiddleware classes used by
-    # `cli agents langchain` — see docs/middleware-pii-and-routing.md.
+    # `cli agents run` — see docs/middleware-pii-and-routing.md.
     middlewares:
       - class: genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware
         analyzed_fields: [PERSON, EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD]

@@ -12,10 +12,10 @@ The easiest way is to use the built-in `skill-creator` skill to guide you throug
 
 ```bash
 # List available profiles
-uv run cli agents deerflow --list
+uv run cli agents list
 
 # Run with a profile that has skill-creator enabled
-uv run cli agents deerflow -p "Visual Explainer" --chat
+uv run cli agents run "Visual Explainer" --chat
 
 # Then in the chat, ask:
 # "I want to create a new skill for analyzing code quality"

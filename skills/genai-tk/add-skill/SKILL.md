@@ -61,7 +61,7 @@ Describe exactly when an agent should apply this skill. Be specific:
 
 ```bash
 # Concrete CLI example
-cli agents langchain -p my_agent "use my-skill to do X"
+cli agents run my_agent "use my-skill to do X"
 ```
 
 ## References

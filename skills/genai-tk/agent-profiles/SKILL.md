@@ -16,7 +16,7 @@ description: Build or modify LangChain, DeepAgent, DeerFlow profiles, agent tool
 
 ## Configuration Shape
 
-LangChain profiles are dict-keyed. The key is what users pass to `-p`.
+LangChain profiles are dict-keyed. The key is what users pass to `cli agents run <key>`.
 
 ```yaml
 langchain_agents:
@@ -46,7 +46,7 @@ langchain_agents:
 ## Change Workflow
 
 1. Decide whether the change is profile-only, a new tool factory, middleware, or agent runtime behavior.
-2. For profile-only changes, edit `config/agents/**.yaml` and verify with `uv run cli agents langchain --list`.
+2. For profile-only changes, edit `config/agents/**.yaml` and verify with `uv run cli agents list`.
 3. For tools, expose a factory under `genai_tk/agents/tools/...` and reference it from YAML.
 4. For middleware, add a Pydantic config model if the YAML accepts options.
 5. Add structural tests under `tests/unit_tests/agents/` and integration tests only for real agent behavior.
@@ -54,8 +54,8 @@ langchain_agents:
 ## Commands
 
 ```bash
-uv run cli agents langchain --list
-uv run cli agents langchain -p simple "What is 2+2?"
+uv run cli agents list
+uv run cli agents run simple "What is 2+2?"
 GENAITK_PROFILE=pytest uv run pytest tests/unit_tests/agents -q
 ```
 

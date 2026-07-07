@@ -252,10 +252,9 @@ class LangchainAgent(BaseModel):
 
                 profile = profile.model_copy(update=update)
 
-            # Apply CLI --middleware overrides (prepend to the profile's stack)
+            # Apply named middleware overrides (prepend to the profile's stack)
             if self.extra_middlewares:
-                from genai_tk.agents.langchain.commands import _MIDDLEWARE_REGISTRY
-                from genai_tk.agents.langchain.config import MiddlewareConfig
+                from genai_tk.agents.langchain.config import _MIDDLEWARE_REGISTRY, MiddlewareConfig
 
                 extra_mw_configs = [
                     MiddlewareConfig.model_validate(_MIDDLEWARE_REGISTRY[name])
@@ -329,7 +328,7 @@ class LangchainAgent(BaseModel):
             available = list(profiles.keys())
             raise ValueError(
                 f"Profile '{self.profile_name}' not found. Available: {available}\n"
-                "  Tip: run `cli agents langchain --list` to see all profiles."
+                "  Tip: run `cli agents list` to see all profiles."
             )
 
         profile = match

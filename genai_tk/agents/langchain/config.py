@@ -59,6 +59,29 @@ class MiddlewareConfig(BaseModel):
         return dict(self.model_extra or {})
 
 
+# ----------------------------------------------------------------------------
+# Built-in middleware shorthand registry
+# ----------------------------------------------------------------------------
+
+# Maps a friendly name to a MiddlewareConfig dict (same shape as YAML). Used by
+# ``LangchainAgent(extra_middlewares=[...])`` to apply well-known middlewares by
+# name without spelling out the qualified class path.
+_MIDDLEWARE_REGISTRY: dict[str, dict[str, Any]] = {
+    "AnonymizationMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware",
+        "analyzed_fields": ["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "LOCATION"],
+        "fuzzy_deanonymize": True,
+    },
+    "RichToolCallMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware",
+    },
+    "EmptyResponseRetryMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware",
+        "max_retries": 2,
+    },
+}
+
+
 # ============================================================================
 # Backend
 # ============================================================================

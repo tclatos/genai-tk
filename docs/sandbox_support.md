@@ -104,11 +104,12 @@ using the binary from your Python environment (compatible with `uv`/virtualenvs)
 ### Local sandbox (no Docker, fast)
 
 ```bash
-# LangChain
-cli agents langchain --sandbox local "write code and run it"
+# DeerFlow profile — sandbox selected via --sandbox
+cli agents run chat --sandbox local "write code and run it"
 
-# Deer-flow
-cli agents deerflow --sandbox local --chat
+# LangChain deep agent — sandbox is profile-driven (set backend: aio_sandbox
+# on the profile); --sandbox is ignored for LangChain profiles
+cli agents run coding "write code and run it"
 ```
 
 Or in Python:
@@ -128,11 +129,11 @@ result = await agent.run("Write a Python script and run it")
 # Start the sandbox server once per boot
 cli sandbox start && cli sandbox pull
 
-# LangChain
-cli agents langchain --sandbox docker "rm -rf /important/files"
+# DeerFlow profile — docker sandbox
+cli agents run research --sandbox docker --chat
 
-# Deer-flow with code execution
-cli agents deerflow -p research --sandbox docker --chat
+# LangChain deep agent — sandbox from profile backend config
+cli agents run coding "rm -rf /important/files"
 ```
 
 ### Browser agents with Docker
@@ -140,7 +141,7 @@ cli agents deerflow -p research --sandbox docker --chat
 Observe the browser live via VNC while the agent is working:
 
 ```bash
-cli agents langchain -p "Browser Agent" --sandbox docker --chat "Find the weather"
+cli agents run "Browser Agent" --chat "Find the weather"
 
 # In another terminal:
 # Open http://localhost:8080/vnc/index.html?autoconnect=true
@@ -205,13 +206,13 @@ is only used by the LangChain path.
 
 ## Advanced usage
 
-### Keep-sandbox flag (multi-turn chat)
+### Multi-turn chat (container reuse)
 
-For interactive chat sessions, reuse the same container across turns to avoid
-per-turn startup overhead:
+For interactive sessions, `--chat` keeps the agent (and its sandbox container)
+alive across turns, avoiding per-turn startup overhead:
 
 ```bash
-cli agents langchain -p "Browser Agent" --sandbox docker --keep-sandbox --chat
+cli agents run "Browser Agent" --chat
 ```
 
 ### VNC viewer

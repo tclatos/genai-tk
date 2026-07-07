@@ -254,14 +254,13 @@ agents:
 **CLI usage:**
 ```bash
 cli agents list                          # List all profiles (both harnesses)
-cli agents langchain --list              # List LangChain profiles only
-cli agents langchain -p simple "Hello"   # Use 'simple' profile (by KEY)
-cli agents langchain -p research --chat  # Use 'research' profile (by KEY)
+cli agents run simple "Hello"            # Use the 'simple' profile (by KEY)
+cli agents run research --chat           # Use the 'research' profile (by KEY)
 ```
 
 ### Deep agents
 
-Deep agents use the `deepagents` library (an optional dependency). There is **no separate deepagent CLI** — all agent interaction goes through `cli agents langchain` (set `type: deep` on the profile).
+Deep agents use the `deepagents` library (an optional dependency). There is **no separate deepagent CLI** — all agent interaction goes through `cli agents run <profile>` (set `type: deep` on the profile).
 
 ## Workflow configuration
 

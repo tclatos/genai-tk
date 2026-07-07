@@ -6,7 +6,7 @@ implementations for securing agent conversations:
 1. **AnonymizationMiddleware** — Detects and redacts PII before reaching the LLM, then restores it in responses
 2. **SensitivityRouterMiddleware** — Routes sensitive conversations to a safer LLM based on content and RAG sources
 
-Both middlewares are thread-isolated (concurrent conversations remain separate), composable, and **harness-neutral** — they run unmodified in both LangChain agents (`cli agents langchain`) and DeerFlow (`cli agents deerflow`), since DeerFlow's embedded client forwards these same `AgentMiddleware` instances to the underlying `DeerFlowClient`. See [Cross-Harness Usage](#cross-harness-usage-deerflow) below.
+Both middlewares are thread-isolated (concurrent conversations remain separate), composable, and **harness-neutral** — they run unmodified in both LangChain and DeerFlow profiles (`cli agents run <profile>`), since DeerFlow's embedded client forwards these same `AgentMiddleware` instances to the underlying `DeerFlowClient`. See [Cross-Harness Usage](#cross-harness-usage-deerflow) below.
 
 > **NLP / spaCy internals:** The Presidio detector, anonymization logic, and sensitivity scorer all live in `genai_tk.extra.nlp`. See [docs/nlp.md](nlp.md) for the full reference on configuration, model management, French support, and the classifier abstraction.
 
@@ -68,7 +68,7 @@ agents:
 
 Then run:
 ```bash
-cli agents langchain -p privacy_agent --chat
+cli agents run privacy_agent --chat
 ```
 
 ### Supported Entity Types
@@ -408,9 +408,6 @@ agents:
 ```
 
 ```bash
-uv run cli agents deerflow -p "Privacy-Safe Research" "My email is alice@example.com, research AI safety"
-
-# Or via the unified harness layer (works for LangChain profiles too):
 uv run cli agents run "Privacy-Safe Research" "My email is alice@example.com, research AI safety"
 ```
 

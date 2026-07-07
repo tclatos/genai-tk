@@ -77,8 +77,9 @@ adapters, rather than duplicated.
   (`TokenEvent`, `NodeEvent`, `ToolCallEvent`, …, defined in
   `genai_tk.agents.deer_flow.embedded_client`) into the canonical harness
   events. DeerFlow's own dataclasses are unchanged internally — the
-  translation happens only at the harness boundary — so `cli agents deerflow`
-  and the DeerFlow Streamlit page's lower-level helpers keep working as-is.
+  translation happens only at the harness boundary — so the unified
+  `cli agents run` command and the DeerFlow Streamlit page's lower-level
+  helpers keep working as-is.
 
 ### Registry (`genai_tk.agents.harness.registry`)
 
@@ -126,11 +127,11 @@ uv run cli agents run "Web Browser" "Go to atos.net" --llm gpt_41mini@openai
 uv run cli agents run research "..." --json                # raw NDJSON events
 ```
 
-Framework-specific commands remain for flags unique to one runtime:
+Cross-harness flags on `run` cover framework-specific behaviour:
 
 ```bash
-uv run cli agents langchain -p research --chat --sandbox docker
-uv run cli agents deerflow -p "Research Assistant" --mode ultra --trace
+uv run cli agents run research --chat --sandbox docker           # DeerFlow sandbox
+uv run cli agents run "Research Assistant" --mode ultra --trace  # DeerFlow mode + trace
 ```
 
 ## Middleware Is Shared, Not Adapted
@@ -148,8 +149,7 @@ through the same `instantiate_middlewares()` factory (which also resolves any
 
 ## Streamlit Workbench
 
-Both demo pages (`genai_tk/webapp/pages/demos/reAct_agent.py` and
-`deer_flow_agent.py`) render through
+The unified demo page (`genai_tk/webapp/pages/demos/agent.py`) renders through
 `genai_tk.webapp.ui_components.harness_workbench`:
 
 - `Artifact`, `ToolDetail`, `TraceStep`, `TurnResult` — shared Pydantic models
@@ -159,8 +159,9 @@ Both demo pages (`genai_tk/webapp/pages/demos/reAct_agent.py` and
 - `render_trace_panel()`, `render_artifact()`, `render_artifact_gallery()` —
   shared rendering functions
 
-Both pages use a two-column layout: execution trace (left) + chat/artifact
-tabs (right).
+The page uses a two-column layout: execution trace (left) + chat/artifact
+tabs (right). An `st.pills` filter narrows profiles by kind (React, DeepAgent,
+Custom, DeerFlow) and a profile selector picks one across both harnesses.
 
 ## Adding a New Harness
 

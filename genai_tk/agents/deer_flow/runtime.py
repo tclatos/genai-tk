@@ -6,9 +6,10 @@ that are safe to call from non-CLI callers (the harness adapter, the registry,
 tests). It is deliberately free of ``rich``/``typer`` so it does not invert the
 dependency direction (CLI depends on runtime, never the reverse).
 
-CLI presentation (console output, ``typer.Exit``) lives in
-``cli_commands.py``, which delegates here and renders the returned warnings /
-``DeerFlowError`` exceptions to the terminal.
+CLI presentation (console output, exit codes) lives in the unified harness
+commands (``genai_tk.agents.harness.commands``), which call into this runtime
+module and render any ``DeerFlowError`` / ``DeerFlowNotInstalledError`` to the
+terminal.
 """
 
 from __future__ import annotations

@@ -51,8 +51,8 @@ as the name.
 ```bash
 uv run cli agents list                                   # all profiles, both harnesses
 uv run cli agents run research "Summarise recent AI news" # auto-resolves the harness
-uv run cli agents langchain -p research --chat            # langchain-specific flags
-uv run cli agents deerflow -p "Research Assistant" --chat # deerflow-specific flags
+uv run cli agents run research --chat                     # --chat/--mode/--sandbox/--mcp work across harnesses
+uv run cli agents run "Research Assistant" --chat         # DeerFlow profile (auto-resolved)
 ```
 
 See [docs/agents.md](../../../docs/agents.md) and [docs/harness.md](../../../docs/harness.md).

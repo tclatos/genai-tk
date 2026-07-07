@@ -19,7 +19,7 @@ Usage:
     ```
 
 Once ``cli sandbox start`` and ``cli sandbox pull`` have been run, every
-subsequent ``cli agents langchain --sandbox docker`` invocation skips the
+subsequent sandbox-backed ``cli agents run`` invocation skips the
 ~1 s server startup *and* benefits from a locally cached Docker image,
 reducing total startup overhead by 20-30 s.
 """
@@ -377,7 +377,7 @@ class SandboxCommands(CliTopCommand):
         ) -> None:
             """Pre-pull the configured Docker sandbox image.
 
-            Pulls the image so that the first ``cli agents langchain --sandbox docker``
+            Pulls the image so that the first sandbox-backed ``cli agents run``
             invocation does not stall waiting for the image download.
             """
             import subprocess

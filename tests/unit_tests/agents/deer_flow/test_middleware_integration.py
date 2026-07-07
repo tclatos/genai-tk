@@ -1,15 +1,15 @@
 """Prove the shared LangChain anonymization/routing middleware runs unmodified in DeerFlow.
 
 DeerFlow profiles reuse the exact same ``AgentMiddleware`` classes as
-``cli agents langchain`` (see docs/middleware-pii-and-routing.md). This module
+LangChain agents (see docs/middleware-pii-and-routing.md). This module
 verifies the DeerFlow profile's ``middlewares`` field accepts the same
-``class`` + kwargs shape, and that the DeerFlow CLI middleware builder produces
+``class`` + kwargs shape, and that the runtime middleware builder produces
 real, correctly configured middleware instances — no DeerFlow-specific
 middleware wrapper is needed.
 """
 
-from genai_tk.agents.deer_flow.cli_commands import _build_cli_middlewares
 from genai_tk.agents.deer_flow.profile import DeerFlowProfile
+from genai_tk.agents.deer_flow.runtime import build_cli_middlewares
 from genai_tk.agents.langchain.middleware import AnonymizationMiddleware, SensitivityRouterMiddleware
 from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
 
@@ -39,7 +39,7 @@ def test_deerflow_profile_parses_middleware_config_with_kwargs() -> None:
 
 
 def test_build_cli_middlewares_instantiates_shared_middleware(fake_llm_id: str) -> None:
-    """The DeerFlow CLI middleware builder produces the exact same middleware classes as LangChain agents."""
+    """The DeerFlow runtime middleware builder produces the exact same middleware classes as LangChain agents."""
     profile = DeerFlowProfile.model_validate(
         {
             "name": "Privacy-Safe Research",
@@ -58,9 +58,9 @@ def test_build_cli_middlewares_instantiates_shared_middleware(fake_llm_id: str) 
         }
     )
 
-    middlewares = _build_cli_middlewares(profile.middlewares)
+    middlewares = build_cli_middlewares(profile.middlewares)
 
     assert any(isinstance(m, AnonymizationMiddleware) for m in middlewares)
     assert any(isinstance(m, SensitivityRouterMiddleware) for m in middlewares)
-    # RichToolCallMiddleware is always prepended for DeerFlow CLI runs, same as LangChain agents.
+    # RichToolCallMiddleware is always prepended for DeerFlow runs, same as LangChain agents.
     assert any(isinstance(m, RichToolCallMiddleware) for m in middlewares)

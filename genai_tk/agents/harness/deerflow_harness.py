@@ -34,15 +34,31 @@ class DeerFlowHarness(BaseHarness):
     """Harness session backed by the embedded DeerFlow client.
 
     Args:
-        profile_name: Name of a profile in ``config/agents/deerflow.yaml``.
+        profile_name: Name of a DeerFlow profile in the unified ``agents:`` config.
         llm_override: LLM identifier that takes precedence over ``profile.llm``.
+        mode_override: Reasoning mode override (``flash`` | ``thinking`` | ``pro``
+            | ``ultra``); ``None`` keeps the profile's configured mode.
+        sandbox_override: Sandbox override (``local`` | ``docker``); ``None`` keeps
+            the profile's configured sandbox.
+        extra_mcp: Additional MCP server names appended to the profile's servers.
     """
 
     name = "deerflow"
 
-    def __init__(self, profile_name: str, *, llm_override: str | None = None) -> None:
+    def __init__(
+        self,
+        profile_name: str,
+        *,
+        llm_override: str | None = None,
+        mode_override: str | None = None,
+        sandbox_override: str | None = None,
+        extra_mcp: list[str] | None = None,
+    ) -> None:
         self._profile_name = profile_name
         self._llm_override = llm_override
+        self._mode_override = mode_override
+        self._sandbox_override = sandbox_override
+        self._extra_mcp = list(extra_mcp or [])
         self._client: Any = None
         self._profile: DeerFlowProfile | None = None
         self._model_name: str | None = None
@@ -74,9 +90,10 @@ class DeerFlowHarness(BaseHarness):
             profile, model_name, config_path, _warnings = await prepare_profile(
                 profile_name=self._profile_name,
                 llm_override=self._llm_override,
-                extra_mcp=[],
-                mode_override=None,
+                extra_mcp=self._extra_mcp,
+                mode_override=self._mode_override,
                 verbose=False,
+                sandbox_override=self._sandbox_override,
             )
             apply_harness_trace_metadata(
                 HarnessTraceMetadata(

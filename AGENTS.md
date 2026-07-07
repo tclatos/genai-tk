@@ -194,7 +194,7 @@ plain `assert` replaces `self.assertEqual`; `pytest.raises` replaces `self.asser
 ## Agent and Tool Guidelines
 
 ### Agents
-- Use `cli agents langchain --list` to inspect configured profiles
+- Use `cli agents list` to inspect configured profiles
 - Agent type `react` is the default; use `deep` for multi-step planning + skills
 - Keep system prompts in YAML (`system_prompt:` field), not hardcoded in Python
 - Use `SkillsMiddleware` + SKILL.md files for domain knowledge — avoids bloating

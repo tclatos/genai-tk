@@ -19,7 +19,7 @@ ui:
   # pages_dir: genai_blueprint/webapp/pages   # example
   # navigation:
   #   demos:
-  #     - demos/deer_flow_agent.py
+  #     - genai_tk://demos/agent.py
   #     - demos/deep_agent.py
   #   settings:
   #     - settings/configuration.py

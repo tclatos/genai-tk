@@ -295,7 +295,7 @@ deer-flow-install:
     uv sync --extra harnessing
     @echo ""
     @echo "✓ DeerFlow (deerflow-harness) installed via harnessing extra."
-    @echo "  Verify with: cli agents deerflow --list"
+    @echo "  Verify with: cli agents list"
 
 # ─── Maintenance ────────────────────────────────────────────────────────────
 
