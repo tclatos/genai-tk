@@ -1,0 +1,24 @@
+# Unified Agent Profiles — inheritable defaults for ``harness: langchain`` profiles.
+#
+# DeerFlow profiles are fully self-describing and do NOT inherit from this block.
+# Field-by-field fallback mirrors the former ``langchain_agents.defaults`` semantics.
+# The bundled category files (simple / deep / browser / text2sql / deerflow) are
+# merged together by ``load_agent_profiles()``; each profile key must be unique
+# across the directory.
+
+agent_defaults:
+  type: react
+  llm: null  # null = use the global default LLM from config
+  middlewares:
+    - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+  checkpointer:
+    type: none  # chat mode always forces memory; use 'memory' to persist across invocations
+  backend:
+    type: none  # set to 'aio_sandbox' or 'class' in deep-agent profiles that need a backend
+  enable_planning: true
+  enable_file_system: true
+  skills:
+    directories:
+      - ${paths.project}/skills
+    trace_loading: true
+  default_profile: simple  # profile chosen when -p is omitted (langchain side)

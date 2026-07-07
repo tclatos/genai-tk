@@ -538,8 +538,8 @@ automatically anonymizes every human message before it reaches the LLM and resto
 the response, with full thread isolation for concurrent conversations.
 
 ```yaml
-# config/agents/langchain/simple.yaml
-langchain_agents:
+# config/examples/agents/simple.yaml
+agents:
   privacy_agent:
     name: "Privacy Agent"
     type: react

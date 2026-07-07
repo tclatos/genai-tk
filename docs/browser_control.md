@@ -225,7 +225,7 @@ sandbox_browser:
 Chromium with anti-detection flags before connecting. Use this if the default
 CDP-attach mode is detected by the target site.
 
-### Agent profiles (`config/agents/langchain.yaml`)
+### Agent profiles (`config/agents.yaml`)
 
 Both `Browser Agent` (sandbox) and `Browser Agent Direct` (host) profiles are
 pre-configured with `type: deep`, planning enabled, and the appropriate browser

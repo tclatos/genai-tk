@@ -28,7 +28,7 @@ config/
 ├── app_conf.yaml                  # Main config (merges all below)
 ├── baseline.yaml                  # LLM/embeddings defaults
 ├── webapp.yaml                    # UI navigation and settings
-├── agents/langchain.yaml          # Agent profiles (ReAct, Deep, custom)
+├── agents.yaml                # Agent profiles (unified: ReAct, Deep, DeerFlow)
 ├── providers/llm.yaml             # LLM model definitions
 └── mcp_servers.yaml               # MCP server definitions
 ```
@@ -135,20 +135,25 @@ value = cfg.get_str("ui.app_name")
 
 ### Agent Profiles (YAML)
 
-Configure in `config/agents/langchain.yaml`:
+Configure in `config/agents.yaml` (unified schema — `harness:` discriminates LangChain vs DeerFlow):
 ```yaml
-langchain_agents:
-  profiles:
-    - name: MyAgent
-      type: react
-      llm: default
-      system_prompt: "You are a helpful assistant."
-      tools:
-        - spec: web_search
-      mcp_servers: []
+agent_defaults:
+  default_profile: my_agent
+
+agents:
+  my_agent:
+    harness: langchain
+    name: "MyAgent"
+    type: react
+    llm: default
+    system_prompt: "You are a helpful assistant."
+    tools:
+      - factory: {{ package_name }}.tools.example_tool.create_example_tools
+    mcp_servers: []
 ```
 
-Run with: `cli agents langchain --profile MyAgent --chat`
+Run with: `cli agents langchain --profile my_agent --chat`
+(or `cli agents run my_agent "..."` for the unified harness — works for DeerFlow profiles too.)
 
 ## genai-tk Documentation
 

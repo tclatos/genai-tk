@@ -1,10 +1,9 @@
-# Deep Agents - Advanced Agents with Planning and File System
-#
-# This file contains Deep Agents with planning, file system access, and specialized capabilities
-# for research, development, and analysis tasks.
+# Deep Agents — planning + file system + skills (type: deep).
+# Inheritable defaults come from defaults.yaml.
 
-langchain_agents:
+agents:
   research:
+    harness: langchain
     name: "Research"
     type: deep
     description: "Expert researcher with web search, planning, and file system tools"
@@ -93,6 +92,7 @@ langchain_agents:
       - "Investigate the impact of AI on healthcare industry"
 
   coding:
+    harness: langchain
     name: "Coding"
     type: deep
     description: "Expert Python developer with file system tools, planning, and code execution"
@@ -151,6 +151,7 @@ langchain_agents:
       - "Refactor this class to use Pydantic models"
 
   data_analysis:
+    harness: langchain
     name: "Data Analysis"
     type: deep
     description: "Expert data analyst with web search, file system, and planning tools"
@@ -204,6 +205,7 @@ langchain_agents:
       - "Find correlations and patterns in the provided data"
 
   web_research:
+    harness: langchain
     name: "Web Research"
     type: deep
     description: "Web researcher with browsing tools, MCP servers, and comprehensive research capabilities"
@@ -247,6 +249,7 @@ langchain_agents:
       - "Analyze market trends from financial news websites"
 
   documentation_writer:
+    harness: langchain
     name: "Documentation Writer"
     type: deep
     description: "Technical documentation writer with web search, file system, and planning tools"
@@ -304,6 +307,7 @@ langchain_agents:
       - "Generate README file with installation and usage instructions"
 
   stock_analysis:
+    harness: langchain
     name: "Stock Analysis"
     type: deep
     description: "Financial analyst with stock data tools, web research, and reporting capabilities"

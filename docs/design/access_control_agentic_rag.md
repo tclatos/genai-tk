@@ -710,26 +710,29 @@ and the typed context flows into `Runtime[UserContext]`.
 | `AccessControlMiddleware` | `genai_tk/agents/langchain/middleware/` | Post-filter + audit |
 | `ToolRuntime[UserContext]` | RAG tool parameter | Pre-filter at query time |
 | `SensitivityRouterMiddleware` | Existing, complementary | Routes sensitive content to safe LLM |
-| Agent profile YAML | `config/agents/langchain.yaml` | Declarative middleware config |
+| Agent profile YAML | `config/agents.yaml` | Declarative middleware config |
 
 ### YAML configuration sketch
 
 ```yaml
-langchain_agents:
-  profiles:
-    - name: SecureRAGAgent
-      type: react
-      llm: default
-      context_schema: myapp.auth:UserContext
-      middlewares:
-        - class: myapp.middleware.access_control:AccessControlMiddleware
-          default_policy: deny
-          acl_metadata_key: allowed_roles
-          audit_log: true
-        - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware:SensitivityRouterMiddleware
-          safe_llm: ollama_local
-          sensitive_source_patterns:
-            - "**/hr/**"
+agent_defaults:
+  type: react
+  llm: default
+
+agents:
+  secure_rag_agent:               # Profile KEY (dict-keyed, merge-safe)
+    name: "SecureRAGAgent"
+    harness: langchain
+    context_schema: myapp.auth:UserContext
+    middlewares:
+      - class: myapp.middleware.access_control:AccessControlMiddleware
+        default_policy: deny
+        acl_metadata_key: allowed_roles
+        audit_log: true
+      - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware:SensitivityRouterMiddleware
+        safe_llm: ollama_local
+        sensitive_source_patterns:
+          - "**/hr/**"
 ```
 
 ---

@@ -40,12 +40,14 @@ SandboxType = Literal["local", "docker"]
 class LangchainAgent(BaseModel):
     """Production-friendly interface for LangChain-based agents (react and deep).
 
-    Requires a named YAML profile (defined in ``langchain.yaml``). Ad-hoc
-    parameters such as ``llm``, ``system_prompt``, and ``mcp_servers`` overlay
-    the resolved profile values.
+    Requires a named YAML profile (defined in the unified ``agents:`` config —
+    ``config/agents.yaml`` or ``config/agents/``). Ad-hoc parameters such as
+    ``llm``, ``system_prompt``, and ``mcp_servers`` overlay the resolved profile
+    values.
 
     Args:
-        profile_name: Name of a profile in ``langchain.yaml``. Required.
+        profile_name: Name (key) of a profile in the unified ``agents:`` config.
+            Required.
         llm: LLM identifier (e.g. ``"gpt_41mini@openai"`` or a tag like
             ``"fast_model"``). Overrides the profile's ``llm`` field.
         tools: Pre-built ``BaseTool`` instances appended to the profile's tool list.
@@ -86,13 +88,14 @@ class LangchainAgent(BaseModel):
         """Build the resolved AgentProfileConfig eagerly (sync-safe).
 
         When no ``profile_name`` is given but an ``llm`` is provided, an ad-hoc
-        profile named ``"adhoc"`` is created inline without touching ``langchain.yaml``.
+        profile named ``"adhoc"`` is created inline without touching the unified
+        ``agents:`` config.
         """
         if not self.profile_name:
             if not self.llm:
                 raise ValueError(
                     "Either a profile_name or an llm identifier is required. "
-                    "Define a profile in langchain.yaml and pass its name, e.g. LangchainAgent('Research'), "
+                    "Define a profile in config/agents.yaml and pass its key, e.g. LangchainAgent('Research'), "
                     "or supply an llm directly, e.g. LangchainAgent(llm='gpt_41mini@openai')."
                 )
             self._profile = self._build_adhoc_profile()
@@ -306,19 +309,32 @@ class LangchainAgent(BaseModel):
         )
 
     def _load_profile(self) -> AgentProfileConfig:
-        """Load and merge a named profile from ``langchain.yaml``."""
+        """Load and merge a named profile from the unified agents config.
 
-        from genai_tk.agents.langchain.commands import _get_config_path
-        from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+        Looks up ``profile_name`` (case-insensitive, by slug or display name) in
+        the ``harness: langchain`` profiles returned by
+        :func:`genai_tk.agents.harness.profiles.load_langchain_profiles` (which
+        already applies ``agent_defaults``), then overlays ad-hoc constructor
+        overrides.
+        """
+        from genai_tk.agents.harness.profiles import load_langchain_profiles
 
-        config_path_str = _get_config_path()
-        cfg = load_unified_config(config_path_str)
-        try:
-            profile = resolve_profile(cfg, self.profile_name, type_override=self.agent_type)  # type: ignore[arg-type]
-        except ValueError as exc:
+        profiles = load_langchain_profiles()
+        key_lower = (self.profile_name or "").lower()
+        match = profiles.get(self.profile_name) or next(
+            (p for k, p in profiles.items() if k.lower() == key_lower or p.name.lower() == key_lower),
+            None,
+        )
+        if match is None:
+            available = list(profiles.keys())
             raise ValueError(
-                f"{exc}\n  Config: {config_path_str}\n  Tip: run `cli agents langchain --list` to see all profiles."
-            ) from exc
+                f"Profile '{self.profile_name}' not found. Available: {available}\n"
+                "  Tip: run `cli agents langchain --list` to see all profiles."
+            )
+
+        profile = match
+        if self.agent_type:
+            profile = profile.model_copy(update={"type": self.agent_type})
 
         # Apply ad-hoc overrides on top of the resolved profile
         overrides: dict[str, Any] = {}

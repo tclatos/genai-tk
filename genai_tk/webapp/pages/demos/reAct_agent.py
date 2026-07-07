@@ -12,7 +12,6 @@ visual and event model instead of two parallel implementations.
 """
 
 import uuid
-from pathlib import Path
 from typing import Any
 
 import streamlit as st
@@ -20,7 +19,8 @@ from dotenv import load_dotenv
 from streamlit import session_state as sss
 
 from genai_tk.agents.harness.langchain_harness import LangChainHarness
-from genai_tk.agents.langchain.config import AgentProfileConfig, load_unified_config
+from genai_tk.agents.harness.profiles import load_langchain_profiles
+from genai_tk.agents.langchain.config import AgentProfileConfig
 from genai_tk.webapp.ui_components.agent_layout import (
     PANEL_HEIGHT,
     render_agent_sidebar,
@@ -37,37 +37,11 @@ from genai_tk.webapp.ui_components.message_renderer import render_message_with_m
 load_dotenv()
 
 
-CONFIG_FILE = "config/agents/langchain.yaml"
-CONFIG_FILE_EXAMPLES = "config/examples/agents/langchain.yaml"
+# Edit-Config target: the project-level unified agents file (best-effort).
+CONFIG_FILE = "config/agents.yaml"
 
 CHAT_HEIGHT = PANEL_HEIGHT
 TRACE_HEIGHT = PANEL_HEIGHT
-
-
-def _resolve_config_file() -> str:
-    """Return config path: project-local if it exists, otherwise the bundled default.
-
-    Resolution order:
-    1. ``config/agents/langchain.yaml`` relative to CWD (project-specific config)
-    2. ``config/examples/agents/langchain.yaml`` relative to CWD (project examples)
-    3. Bundled ``genai_tk/default_config/agents/langchain.yaml`` (installed package)
-    4. Bundled ``genai_tk/default_config/examples/agents/langchain.yaml`` (examples fallback)
-    """
-    if Path(CONFIG_FILE).exists():
-        return CONFIG_FILE
-    if Path(CONFIG_FILE_EXAMPLES).exists():
-        return CONFIG_FILE_EXAMPLES
-    from importlib.resources import files as _pkg_files
-
-    try:
-        pkg = _pkg_files("genai_tk")
-        bundled = pkg / "default_config" / "agents" / "langchain.yaml"
-        if Path(str(bundled)).exists():
-            return str(bundled)
-        bundled_examples = pkg / "default_config" / "examples" / "agents" / "langchain.yaml"
-        return str(bundled_examples)
-    except Exception:
-        return CONFIG_FILE  # let the caller surface the missing-file error
 
 
 def initialize_session_state() -> None:
@@ -182,14 +156,13 @@ def main() -> None:
     """Main entry point for the ReAct agent demo page."""
     initialize_session_state()
 
-    config_file = _resolve_config_file()
-    sample_demos = load_unified_config(config_file).profiles
+    sample_demos = list(load_langchain_profiles().values())
     if not sample_demos:
-        st.error(f"No demo configurations found in {config_file}")
+        st.error("No LangChain agent profiles found.")
         st.stop()
 
     # ── Sidebar ───────────────────────────────────────────────────────────
-    render_agent_sidebar(config_file)
+    render_agent_sidebar(CONFIG_FILE)
     with st.sidebar:
         st.divider()
         demo = render_sidebar_demo_section(

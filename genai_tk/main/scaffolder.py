@@ -162,7 +162,7 @@ class ProjectScaffolder:
         file_map = {
             "commands/agent_commands.py.j2": f"{pkg}/commands/agent_commands.py",
             "tools/example_tool.py.j2": f"{pkg}/tools/example_tool.py",
-            "config/langchain.yaml.j2": "config/agents/langchain.yaml",
+            "config/agents.yaml.j2": "config/agents.yaml",
             "skills/custom/getting-started/SKILL.md.j2": "skills/custom/getting-started/SKILL.md",
         }
         self._render_hello_agent_page(ctx, pkg)

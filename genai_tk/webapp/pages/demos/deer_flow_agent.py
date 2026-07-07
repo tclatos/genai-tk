@@ -20,8 +20,9 @@ from dotenv import load_dotenv
 from loguru import logger
 from streamlit import session_state as sss
 
-from genai_tk.agents.deer_flow import DeerFlowProfile, load_deer_flow_profiles
+from genai_tk.agents.deer_flow import DeerFlowProfile
 from genai_tk.agents.harness.deerflow_harness import DeerFlowHarness
+from genai_tk.agents.harness.profiles import load_deerflow_profiles
 from genai_tk.webapp.ui_components.agent_layout import render_agent_sidebar, render_sidebar_demo_section
 from genai_tk.webapp.ui_components.harness_workbench import (
     render_artifact,
@@ -107,7 +108,7 @@ def _clear_all() -> None:
 @st.cache_data(ttl=60)
 def _load_profiles() -> list[DeerFlowProfile]:
     try:
-        return load_deer_flow_profiles(CONFIG_FILE)
+        return load_deerflow_profiles()
     except Exception as exc:
         logger.error("Failed to load DeerFlow profiles: {}", exc)
         return []

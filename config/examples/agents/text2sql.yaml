@@ -1,11 +1,10 @@
-# Text-to-SQL Agents - Database Query Agents
-#
-# This file contains SQL agents for querying the Chinook database:
+# Text-to-SQL Agents — natural-language database queries over the Chinook DB.
 # - text2sql: Deep Agent with planning and schema exploration
-# - chinook: Lightweight React Agent for quick SQL queries
+# - chinook:  Lightweight ReAct Agent for quick SQL queries
 
-langchain_agents:
+agents:
   text2sql:
+    harness: langchain
     name: "text2sql"
     type: deep
     description: "Text-to-SQL agent for querying the Chinook music store database with planning and schema-exploration skills"
@@ -59,6 +58,7 @@ langchain_agents:
       - "How many customers are from Canada?"
 
   chinook:
+    harness: langchain
     name: "Chinook"
     type: react
     description: "SQL agent for querying the Chinook music store database"

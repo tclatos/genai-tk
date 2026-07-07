@@ -1,10 +1,8 @@
 """Harness registry — resolve a profile key against a single unified profile
 dict and build the matching :class:`~genai_tk.agents.harness.base.BaseHarness`.
 
-Profiles live under one ``agents:`` YAML dict (recommended) keyed by profile
-slug/name, discriminated by the ``harness`` field on each profile model. Legacy
-split sources (``langchain_agents:`` dict + ``deerflow_agents:`` list) are still
-supported transparently through
+Profiles live under one ``agents:`` YAML dict keyed by profile slug/name,
+discriminated by the ``harness`` field on each profile model, and loaded by
 :func:`~genai_tk.agents.harness.profiles.load_agent_profiles`.
 """
 

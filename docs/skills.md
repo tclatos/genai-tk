@@ -232,11 +232,11 @@ This skill explains our pricing logic for RFQ responses.
 ### With LangChain agents
 
 Skills are automatically available to the agent if:
-1. The agent profile has `skill_directories:` configured in `config/agents/langchain.yaml`
+1. The agent profile has `skill_directories:` configured in `config/agents.yaml`
 2. Skills are in those directories
 
 ```yaml
-langchain_agents:
+agents:
   research:
     name: "Research"
     skill_directories:
@@ -251,11 +251,12 @@ When the agent needs knowledge, the skill content is injected into the prompt.
 
 ### With Deer-flow
 
-Deer-flow has its own skill loading via the embedded client:
+Deer-flow profiles use the same unified `agents:` dict with `harness: deerflow`:
 
 ```yaml
-deerflow_agents:
-  - name: research
+agents:
+  research:
+    harness: deerflow
     skill_directories:
       - ${paths.project}/skills
     available_skills:      # optional: restrict which skills are available

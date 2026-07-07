@@ -44,27 +44,19 @@ def require_deer_flow_installed() -> None:
         )
 
 
-def resolve_deerflow_config_path() -> str:
-    """Return path to deerflow.yaml, with fallback to examples/agents/deerflow.yaml.
-
-    Looks in ``{paths.config}/agents/deerflow.yaml`` first (project-specific),
-    then falls back to ``{paths.config}/examples/agents/deerflow.yaml`` (bundled
-    with genai-tk for out-of-the-box usage).
-    """
-    config_dir = global_config().get_dir_path("paths.config")
-    primary = config_dir / "agents" / "deerflow.yaml"
-    if primary.exists():
-        return str(primary)
-    fallback = config_dir / "examples" / "agents" / "deerflow.yaml"
-    return str(fallback)
-
-
 def get_default_profile_name() -> str | None:
-    """Return the name of the first available profile, or ``None``."""
+    """Return the configured DeerFlow default profile, else the first one, or ``None``."""
     try:
-        from genai_tk.agents.deer_flow.profile import load_deer_flow_profiles
+        from genai_tk.agents.harness.profiles import load_deerflow_profiles
 
-        profiles = load_deer_flow_profiles(resolve_deerflow_config_path())
+        # Prefer the configured ``deerflow.default_profile`` global setting.
+        try:
+            configured = global_config().get("deerflow.default_profile")
+        except Exception:
+            configured = None
+        if configured:
+            return configured
+        profiles = load_deerflow_profiles()
         return profiles[0].name if profiles else None
     except Exception as e:
         logger.debug(f"Could not resolve default DeerFlow profile: {e}")
@@ -236,11 +228,11 @@ async def prepare_profile(
 
     from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
     from genai_tk.agents.deer_flow.profile import (
-        load_deer_flow_profiles,
         validate_mcp_servers,
         validate_mode,
         validate_profile_name,
     )
+    from genai_tk.agents.harness.profiles import load_deerflow_profiles
 
     if verbose:
         logger.remove()
@@ -252,9 +244,7 @@ async def prepare_profile(
 
     require_deer_flow_installed()
 
-    config_path_src = resolve_deerflow_config_path()
-
-    profiles = load_deer_flow_profiles(config_path_src)
+    profiles = load_deerflow_profiles()
     profile = validate_profile_name(profile_name, profiles)
 
     # Initialise all active monitoring backends (idempotent). Per-profile trace

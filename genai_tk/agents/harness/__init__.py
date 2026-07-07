@@ -39,7 +39,13 @@ from genai_tk.agents.harness.events import (
     ToolResultEvent,
     UsageEvent,
 )
-from genai_tk.agents.harness.profiles import AgentDefaultsConfig, AgentProfile, load_agent_profiles
+from genai_tk.agents.harness.profiles import (
+    AgentDefaultsConfig,
+    AgentProfile,
+    load_agent_profiles,
+    load_deerflow_profiles,
+    load_langchain_profiles,
+)
 from genai_tk.agents.harness.registry import HarnessProfileRef, create_harness, list_harness_profiles
 
 __all__ = [
@@ -64,4 +70,6 @@ __all__ = [
     "AgentProfile",
     "AgentDefaultsConfig",
     "load_agent_profiles",
+    "load_langchain_profiles",
+    "load_deerflow_profiles",
 ]

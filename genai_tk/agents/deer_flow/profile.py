@@ -1,14 +1,14 @@
 """Deer-flow agent profile model.
 
-Defines the Pydantic profile loaded from config/agents/deerflow.yaml.
+Defines the ``DeerFlowProfile`` Pydantic model and validation helpers. Profiles
+are loaded from the unified ``agents:`` dict (see
+:func:`genai_tk.agents.harness.profiles.load_deerflow_profiles`).
 """
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Literal, cast, get_args
 
-from loguru import logger
 from pydantic import BaseModel, Field
 
 from genai_tk.agents.langchain.config import MiddlewareConfig
@@ -24,7 +24,8 @@ DeerFlowSandbox = Literal["local", "docker"]
 class DeerFlowProfile(BaseModel):
     """Configuration for a single Deer-flow agent profile.
 
-    Loaded from the ``deerflow_agents`` list in ``config/agents/deerflow.yaml``.
+    Loaded from the unified ``agents:`` dict (``harness: deerflow``) via
+    :func:`genai_tk.agents.harness.profiles.load_deerflow_profiles`.
     """
 
     name: str
@@ -185,38 +186,3 @@ def validate_mcp_servers(server_names: list[str]) -> list[str]:
     if invalid:
         raise MCPServerNotFoundError(invalid, available)
     return server_names
-
-
-# ---------------------------------------------------------------------------
-# Loading
-# ---------------------------------------------------------------------------
-
-
-def load_deer_flow_profiles(config_path: str | None = None) -> list[DeerFlowProfile]:
-    """Load Deer-flow profiles from a YAML file or directory.
-
-    When *config_path* is ``None`` the loader looks for
-    ``{paths.config}/agents/deerflow/`` (directory) first, then
-    ``{paths.config}/agents/deerflow.yaml`` (single file).  In directory mode
-    all ``*.yaml`` / ``*.yml`` files are loaded and their ``deerflow_agents``
-    lists are concatenated in alphabetical file order.
-
-    Args:
-        config_path: Explicit path to a YAML file or directory.  ``None`` uses
-            the default location derived from ``paths.config``.
-
-    Returns:
-        List of ``DeerFlowProfile`` instances.
-    """
-    from genai_tk.config_mgmt.config_mngr import load_yaml_configs, paths_config
-
-    if config_path is None:
-        agents_dir = paths_config().config / "agents"
-        dir_path = agents_dir / "deerflow"
-        path = dir_path if dir_path.is_dir() else agents_dir / "deerflow.yaml"
-    else:
-        path = Path(config_path)
-
-    profiles: list[DeerFlowProfile] = load_yaml_configs(path, "deerflow_agents", model=DeerFlowProfile)  # type: ignore[assignment]
-    logger.debug(f"Loaded {len(profiles)} Deer-flow profiles from {path}")
-    return profiles

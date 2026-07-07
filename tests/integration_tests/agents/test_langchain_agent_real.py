@@ -262,7 +262,7 @@ class TestDeepAgentLocal:
 
 
 class TestNamedProfiles:
-    """Tests for named profiles defined in ``config/agents/langchain/*.yaml``.
+    """Tests for named profiles defined in the unified ``config/examples/agents/`` tree.
 
     Profile structure (field types, defaults) is tested synchronously — no LLM
     call needed.  Functional "runs and returns coherent text" tests are marked

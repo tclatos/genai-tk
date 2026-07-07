@@ -38,51 +38,23 @@ _MIDDLEWARE_REGISTRY: dict[str, dict] = {
 }
 
 
-def _get_config_path() -> str:
-    """Return the path to the langchain agents config (directory or file).
-
-    Search order:
-    1. ``{paths.config}/agents/langchain/`` (project directory, merged)
-    2. ``{paths.config}/agents/langchain.yaml`` (project single file)
-    3. ``{paths.config}/examples/agents/langchain/`` (bundled directory)
-    4. ``{paths.config}/examples/agents/langchain.yaml`` (bundled single file)
-    """
-    from genai_tk.config_mgmt.config_mngr import paths_config
-
-    agents_dir = paths_config().config / "agents"
-    dir_path = agents_dir / "langchain"
-    if dir_path.is_dir():
-        return str(dir_path)
-    yaml_path = agents_dir / "langchain.yaml"
-    if yaml_path.exists():
-        return str(yaml_path)
-    # Fallback to bundled examples (genai-tk repo or before cli init was run)
-    examples_agents_dir = paths_config().config / "examples" / "agents"
-    examples_dir_path = examples_agents_dir / "langchain"
-    if examples_dir_path.is_dir():
-        return str(examples_dir_path)
-    examples_yaml = examples_agents_dir / "langchain.yaml"
-    if examples_yaml.exists():
-        return str(examples_yaml)
-    # Return the expected project path (will produce a clear error message)
-    return str(agents_dir / "langchain.yaml")
-
-
 def _list_profiles() -> None:
-    """Display all agent profiles in a Rich table."""
+    """Display all LangChain agent profiles in a Rich table."""
     from rich.console import Console
     from rich.table import Table
 
-    from genai_tk.agents.langchain.config import load_unified_config
+    from genai_tk.agents.harness.profiles import load_agent_profiles
 
     console = Console()
     try:
-        cfg = load_unified_config(_get_config_path())
+        all_profiles, _defaults, default_profile = load_agent_profiles()
     except Exception as e:
         _display_config_error(console, e)
         raise typer.Exit(1) from e
 
-    table = Table(title=f"🤖 LangChain Agent Profiles  (default: {cfg.default_profile!r})")
+    profiles = {k: p for k, p in all_profiles.items() if p.harness == "langchain"}
+
+    table = Table(title=f"🤖 LangChain Agent Profiles  (default: {default_profile!r})")
     table.add_column("Key", style="cyan", no_wrap=True)
     table.add_column("Type", style="yellow", no_wrap=True)
     table.add_column("LLM", style="magenta")
@@ -91,8 +63,8 @@ def _list_profiles() -> None:
     table.add_column("MCP Servers", style="blue")
     table.add_column("Features", style="dim")
 
-    for key, p in cfg.profiles_dict.items():
-        is_default = key == cfg.default_profile
+    for key, p in profiles.items():
+        is_default = key == default_profile
         key_cell = f"⭐ {key}" if is_default else key
         tools_cell = f"{len(p.tools)}" if p.tools else "-"
         mcp_cell = ", ".join(p.mcp_servers) if p.mcp_servers else "-"
@@ -173,7 +145,7 @@ def register(cli_app: typer.Typer) -> None:
         profile: Annotated[
             Optional[str],
             Option(
-                "--profile", "-p", help="Profile key from langchain config (default: langchain_agents.default_profile)"
+                "--profile", "-p", help="Profile key from the unified agents config (default: agent_defaults.default_profile)"
             ),
         ] = None,
         agent_type: Annotated[
@@ -286,16 +258,16 @@ def register(cli_app: typer.Typer) -> None:
         # Resolve profile name (need config only to get default_profile)
         profile_name: str | None = profile
         if not profile_name:
-            from genai_tk.agents.langchain.config import load_unified_config
+            from genai_tk.agents.harness.profiles import load_agent_profiles
 
             try:
-                cfg = load_unified_config(_get_config_path())
+                _profiles, _defaults, default_key = load_agent_profiles()
             except Exception as e:
                 _display_config_error(console, e)
                 raise typer.Exit(1) from e
-            profile_name = cfg.default_profile
+            profile_name = default_key
             if not profile_name:
-                console.print("[red]No profile specified and no default_profile set in langchain.yaml[/red]")
+                console.print("[red]No profile specified and no default_profile set in agent_defaults[/red]")
                 raise typer.Exit(1)
 
         # Handle stdin input
@@ -330,9 +302,7 @@ def register(cli_app: typer.Typer) -> None:
                 keep_sandbox=keep_sandbox,
             )
         except ValueError as e:
-            config_path = _get_config_path()
             console.print(f"[red]{e}[/red]")
-            console.print(f"[dim]Config loaded from: {config_path}[/dim]")
             _list_profiles()
             raise typer.Exit(1) from e
 

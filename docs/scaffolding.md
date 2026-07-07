@@ -47,8 +47,7 @@ shown as post-init commands instead), modular structure for tools/skills/chains.
 ```
 config/                           ← copied from genai-tk defaults
   app_conf.yaml                   ← CLI command registry
-  agents/
-    langchain.yaml                ← agent profiles (default + research)
+  agents.yaml                     ← unified agent profiles (default + research)
   providers/
     llm.yaml                      ← LLM model definitions
     embeddings.yaml               ← embedding model definitions
@@ -94,8 +93,8 @@ pyproject.toml                    ← package config with genai-tk dependency
 ### Optional (`--with-deer-flow`)
 
 ```
-config/agents/
-  deerflow.yaml                   ← Deer-flow profiles (chat + research by default)
+config/agents.yaml                ← DeerFlow profiles appended to the unified `agents:` dict
+                                  (chat + research by default)
 
 # In your Python environment:
 # uv add "deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdirectory=backend/packages/harness"
@@ -271,7 +270,7 @@ Edit `config/profiles/local/providers/llm.yaml` (or your active profile) and cha
 
 **Q: Can I have multiple agent profiles?**
 
-Yes. Edit `config/agents/langchain.yaml` to add more profiles. Use `cli agents langchain -p <profile>` to select.
+Yes. Edit `config/agents.yaml` to add more profiles. Use `cli agents langchain -p <profile>` to select.
 
 **Q: How do I add my own tools?**
 

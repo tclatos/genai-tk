@@ -30,15 +30,19 @@ class AgentCommands(CliTopCommand):
         ) -> None:
             """Chat with a configured agent profile."""
             from langchain_core.messages import HumanMessage
-            from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+            from genai_tk.agents.harness.profiles import load_langchain_profiles
             from genai_tk.agents.langchain.factory import create_langchain_agent
-            from genai_tk.config_mgmt.config_mngr import global_config
-
-            cfg = global_config()
 
             async def _run() -> None:
-                agent_config = load_unified_config()
-                agent_profile = resolve_profile(agent_config, profile)
+                profiles = load_langchain_profiles()
+                key_lower = (profile or "").lower()
+                agent_profile = profiles.get(profile) or next(
+                    (p for k, p in profiles.items() if k.lower() == key_lower or p.name.lower() == key_lower),
+                    None,
+                )
+                if agent_profile is None:
+                    console.print(f"[red]Profile '{profile}' not found. Available: {list(profiles.keys())}[/red]")
+                    raise typer.Exit(1)
                 agent = await create_langchain_agent(
                     agent_profile,
                     llm_override=model if model != "default" else None,

@@ -1,97 +1,15 @@
-# Deer-flow Agent Configuration
-# 
-# Unified configuration for Deer-flow agents including profiles, skills, and sandbox settings.
+# DeerFlow agent profiles — unified schema (``harness: deerflow``).
 #
-# SANDBOX MODES:
-#   docker:  Full Docker sandbox — code runs in an isolated container.
-#            Requires Docker running + 'agent-sandbox' package installed.
-#            Files are written to /mnt/user-data/outputs/ inside the container
-#            and volume-mounted back to the host at ~/.deer-flow/threads/{id}/user-data/outputs/.
-#   local:   Lightweight local sandbox. No Docker containers. Commands run directly
-#            on the host via subprocess. Simpler but less isolated.
-#
-# When generating files (PowerPoint, documents, etc.), prefer 'sandbox: docker'
-# for proper isolation and predictable output paths.
-#
-# Profile Key Fields:
-#   name:              Profile display name
-#   description:       Profile description
-#   mode:              Agent mode: flash (fast), thinking (reasoning), pro (planning), ultra (all features)
-#   sandbox:           Sandbox type: docker (requires --web) or local (light, no Docker)
-#   llm:               LLM identifier (ID like 'gpt_41mini@openai' or tag like 'fast_model'). Optional, defaults to global config.
-#   tool_groups:       Deer-flow tool groups to enable (web, file:read, file:write, bash)
-#   skill_directories: Directories to load skills from (loaded recursively)
-#   mcp_servers:       MCP server names from config/mcp_servers.yaml
-#   tools:             Additional GenAI Blueprint tools (factory/class/function patterns)
-#   features:          Feature badges for UI display
-#   examples:          Sample queries for the demo UI
+# DeerFlow profiles are fully self-describing (no inheritance from agent_defaults).
+# DeerFlow runtime settings (skills mount, general title/summarization/memory,
+# recursion limit, default profile) live in ``config/examples/deerflow.yaml``.
 
-# ============================================================================
-# Global Configuration
-# ============================================================================
-
-deerflow:
-  # Skills configuration
-  # IMPORTANT: the FIRST entry is volume-mounted into the Docker sandbox at
-  # container_path.  It must contain real files (not symlinks to external paths)
-  # because Docker bind-mounts cannot follow out-of-tree symlinks.
-  # ${paths.project}/ext/deer-flow/skills contains the bundled public skills with
-  # real files.  Project-specific custom skills in skills/custom/ are also listed
-  # below for skill-discovery (enabling) but are NOT auto-mounted in Docker.
-  skills:
-    directories:
-      - ${paths.project}/ext/deer-flow/skills  # Docker mount — real files, no external symlinks
-#      - ${paths.project}/skills/custom          # Custom project skills (enabling only, not Docker-mounted)
-
-    container_path: /mnt/skills
-    trace_loading: true
-  
-  default_profile: &default_profile "Research Assistant"
-
-  # Max LangGraph recursion steps per run.
-  # Native Deer-flow frontend uses 1000 to support complex multi-tool workflows.
-  recursion_limit: 1000
-
-  # ============================================================================
-  # General deer-flow config settings (copied verbatim into generated config.yaml)
-  # ============================================================================
-  general:
-    title:
-      enabled: true
-      max_words: 6
-      max_chars: 60
-      model_name: null
-
-    summarization:
-      enabled: true
-      model_name: null
-      trigger:
-        - type: tokens
-          value: 15564
-      keep:
-        type: messages
-        value: 10
-      trim_tokens_to_summarize: 15564
-      summary_prompt: null
-
-    memory:
-      enabled: true
-      storage_path: .deer-flow/memory.json
-      debounce_seconds: 30
-      model_name: null
-      max_facts: 100
-      fact_confidence_threshold: 0.7
-      injection_enabled: true
-      max_injection_tokens: 2000
-
-# ============================================================================
-# Agent Profiles
-# ============================================================================
-deerflow_agents:
-  - name: "Research Assistant"
+agents:
+  "Research Assistant":
+    harness: deerflow
+    name: "Research Assistant"
     description: "Web research with deep reasoning, visualizations, and skill execution"
     mode: "pro"  # thinking + plan mode
-    #llm: "deepseek_v32@openrouter"  # Can use LLM ID or tag like 'fast_model'
     llm: gpt_oss120@openrouter
     subagent_enabled: false
     plan_mode: true
@@ -104,7 +22,7 @@ deerflow_agents:
       - tavily-mcp
     skill_directories:
       - ${paths.project}/ext/deer-flow/skills  # Public skills (Docker-accessible)
-     # - ${paths.project}/skills/custom          # Project custom skills
+      # - ${paths.project}/skills/custom          # Project custom skills
     # Skill filtering: only expose these skills to the agent (omit to allow all)
     # available_skills:
     #   - public/deep-research
@@ -125,7 +43,9 @@ deerflow_agents:
       - "Compare different approaches to RAG systems"
       - "Explain what MOE is to a 12-year-old boy"
 
-  - name: "Web Browser"
+  "Web Browser":
+    harness: deerflow
+    name: "Web Browser"
     description: "Fast web browsing and content extraction"
     mode: "flash"  # quick responses
     subagent_enabled: false
@@ -143,8 +63,9 @@ deerflow_agents:
       - "Go to atos.net, find the blog section and list recent articles"
       - "Navigate to github.com/bytedance/deer-flow and summarize the project"
 
- 
-  - name: "Chinook DB + Research"
+  "Chinook DB + Research":
+    harness: deerflow
+    name: "Chinook DB + Research"
     description: "SQL database with web research"
     mode: "thinking"  # reasoning mode
     subagent_enabled: false
@@ -171,7 +92,9 @@ deerflow_agents:
     examples:
       - "Find the top 5 genres by number of tracks, then research each genre's history"
 
-  - name: "Privacy-Safe Research"
+  "Privacy-Safe Research":
+    harness: deerflow
+    name: "Privacy-Safe Research"
     description: "Web research with PII anonymization and sensitivity-based LLM routing"
     mode: "thinking"
     subagent_enabled: false

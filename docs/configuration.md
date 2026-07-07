@@ -18,14 +18,9 @@ This works correctly whether you run from the project root, a notebook, a subdir
 ```
 config/
 ├── app_conf.yaml               # Entry point: :merge: patterns, :profiles: block, paths
-├── agents/
-│   ├── langchain/              # LangChain agent profiles (dict-based)
-│   │   ├── defaults.yaml
-│   │   ├── simple.yaml
-│   │   ├── deep.yaml
-│   │   ├── browser.yaml
-│   │   └── text2sql.yaml
-│   └── deerflow.yaml           # Deer-flow agent profiles
+├── agents.yaml                 # Unified agent profiles (agents: dict + agent_defaults:)
+│                               # — or a config/agents/ directory of category files
+├── deerflow.yaml               # DeerFlow runtime settings (skills, general, default_profile)
 ├── providers/
 │   ├── llm.yaml                # LLM model declarations
 │   └── embeddings.yaml         # Embeddings model declarations
@@ -209,55 +204,64 @@ Use **dict-keyed structure** instead of lists to avoid conflicts:
 
 **❌ Wrong** (causes warnings):
 ```yaml
-langchain_agents:
+agents:
   profiles:           # ← List replacement conflict!
     - name: research
 ```
 
 **✅ Right** (no conflicts):
 ```yaml
-langchain_agents:
+agents:
   research:           # ← Dict key, merged together
     name: research
 ```
 
 ## Agent configuration
 
-Agent profiles are stored as **dict-keyed entries**, not lists. The **key** is what you pass to `--profile` CLI flag; the `name` field is display name only.
+Agent profiles live under one unified `agents:` top-level dict, discriminated by
+a `harness:` field on each profile (`langchain` or `deerflow`). The **dict key**
+is the profile slug used with `--profile`; the `name` field is display name
+only. Profiles are stored as **dict-keyed entries**, never lists.
+
+A separate top-level `agent_defaults:` block holds inheritable defaults applied
+to `harness: langchain` profiles (DeerFlow profiles are fully self-describing and
+do not inherit). Source resolution: a project `config/agents.yaml` (or a
+`config/agents/` directory of category files), falling back to the bundled
+`config/examples/agents/`.
 
 ### LangChain agents
 
-Files: `config/agents/langchain/defaults.yaml`, `simple.yaml`, `deep.yaml`, `browser.yaml`, `text2sql.yaml`
+Files: `config/examples/agents/defaults.yaml`, `simple.yaml`, `deep.yaml`, `browser.yaml`, `text2sql.yaml`
 
 ```yaml
-langchain_agents:
-  default_profile: "simple"    # Used when --profile not specified
-  
-  defaults:                    # Inherited by all profiles
-    type: react
-    llm: null
-    
-  simple:                      # ← Profile KEY (used as: -p simple)
-    name: "simple"             # Display name only
+agent_defaults:                 # optional, langchain-only inheritance
+  type: react                   # default agent type
+  llm: null                     # null = use default from config
+  default_profile: simple       # selected when --profile is omitted
+
+agents:
+  simple:                       # ← Profile KEY (used as: -p simple)
+    name: "simple"              # Display name only
     type: react
     tools: [...]
-    
-  research:                    # ← Another profile key
-    name: "Research"           # Display name (different from key)
+  research:                     # ← Another profile key
+    name: "Research"            # Display name (different from key)
+    harness: langchain          # defaults to langchain when omitted
     type: deep
     skill_directories: [...]
 ```
 
 **CLI usage:**
 ```bash
-cli agents langchain --list              # List all profiles (shows both key and name)
+cli agents list                          # List all profiles (both harnesses)
+cli agents langchain --list              # List LangChain profiles only
 cli agents langchain -p simple "Hello"   # Use 'simple' profile (by KEY)
 cli agents langchain -p research --chat  # Use 'research' profile (by KEY)
 ```
 
 ### Deep agents
 
-Deep agents use the `deepagents` library (an optional dependency). There is **no separate deepagent CLI** — all agent interaction goes through `cli agents langchain`.
+Deep agents use the `deepagents` library (an optional dependency). There is **no separate deepagent CLI** — all agent interaction goes through `cli agents langchain` (set `type: deep` on the profile).
 
 ## Workflow configuration
 

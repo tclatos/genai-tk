@@ -53,36 +53,11 @@ class TestExtractContent:
 # ---------------------------------------------------------------------------
 
 
-MINIMAL_CONFIG: dict[str, Any] = {
-    "langchain_agents": {
-        "defaults": {"type": "react"},
-        "default_profile": "simple",
-        "simple": {
-            "name": "simple",
-            "type": "react",
-            "llm": "parrot_local@fake",
-            "tools": [],
-            "mcp_servers": [],
-        },
-    }
-}
+def _make_profiles() -> dict[str, Any]:
+    """Return a minimal {slug: AgentProfileConfig} dict for mocking load_langchain_profiles."""
+    from genai_tk.agents.langchain.config import AgentProfileConfig
 
-
-def _make_config():
-    """Return a minimal LangchainAgentsConfig for mocking."""
-    from genai_tk.agents.langchain.config import (
-        AgentProfileConfig,
-        LangchainAgentsConfig,
-    )
-
-    profile = AgentProfileConfig(name="simple", type="react", llm="parrot_local@fake")
-    return LangchainAgentsConfig.model_validate(
-        {
-            "defaults": {},
-            "default_profile": "simple",
-            "simple": profile.model_dump(),
-        }
-    )
+    return {"simple": AgentProfileConfig(name="simple", type="react", llm="parrot_local@fake")}
 
 
 class TestLangchainAgentConstruction:
@@ -102,33 +77,28 @@ class TestLangchainAgentConstruction:
         assert agent._profile.system_prompt == "Be concise"
 
     def test_profile_from_config(self) -> None:
-        cfg = _make_config()
-        with patch("genai_tk.agents.langchain.config.load_unified_config", return_value=cfg):
+        with patch("genai_tk.agents.harness.profiles.load_langchain_profiles", return_value=_make_profiles()):
             agent = LangchainAgent("simple")
         assert agent._profile.name == "simple"
         assert agent._profile.llm == "parrot_local@fake"
 
     def test_profile_llm_override(self) -> None:
-        cfg = _make_config()
-        with patch("genai_tk.agents.langchain.config.load_unified_config", return_value=cfg):
+        with patch("genai_tk.agents.harness.profiles.load_langchain_profiles", return_value=_make_profiles()):
             agent = LangchainAgent("simple", llm="other_llm@fake")
         assert agent._profile.llm == "other_llm@fake"
 
     def test_profile_system_prompt_override(self) -> None:
-        cfg = _make_config()
-        with patch("genai_tk.agents.langchain.config.load_unified_config", return_value=cfg):
+        with patch("genai_tk.agents.harness.profiles.load_langchain_profiles", return_value=_make_profiles()):
             agent = LangchainAgent("simple", system_prompt="Custom prompt")
         assert agent._profile.system_prompt == "Custom prompt"
 
     def test_profile_mcp_servers_merged(self) -> None:
-        cfg = _make_config()
-        with patch("genai_tk.agents.langchain.config.load_unified_config", return_value=cfg):
+        with patch("genai_tk.agents.harness.profiles.load_langchain_profiles", return_value=_make_profiles()):
             agent = LangchainAgent("simple", mcp_servers=["extra-server"])
         assert "extra-server" in agent._profile.mcp_servers
 
     def test_invalid_profile_raises(self) -> None:
-        cfg = _make_config()
-        with patch("genai_tk.agents.langchain.config.load_unified_config", return_value=cfg):
+        with patch("genai_tk.agents.harness.profiles.load_langchain_profiles", return_value=_make_profiles()):
             with pytest.raises(ValueError, match="not found"):
                 LangchainAgent("nonexistent")
 

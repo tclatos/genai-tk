@@ -19,11 +19,11 @@ runtime (`create_langchain_agent()` / `EmbeddedDeerFlowClient`).
 ## Why not SmolAgents or a `deepagent` CLI?
 
 SmolAgents and the never-implemented `deepagent-cli` bridge have been
-removed. DeepAgents is a **LangChain agent type** (`type: deep` in a
-`langchain_agents` profile, backed by the `deepagents` SDK) — it does not need
-a separate command group or harness adapter; `LangChainHarness` already
-handles it via the same `create_langchain_agent()` factory used for `react`
-and `custom` profiles.
+removed. DeepAgents is a **LangChain agent type** (`type: deep` in a unified
+`agents:` profile with `harness: langchain`, backed by the `deepagents` SDK) —
+it does not need a separate command group or harness adapter; `LangChainHarness`
+already handles it via the same `create_langchain_agent()` factory used for
+`react` and `custom` profiles.
 
 ## Core Types
 
@@ -111,12 +111,11 @@ class DeerFlowProfile(BaseModel):
     ...
 ```
 
-**Canonical source.** New deployments should adopt a single
-`config/agents.yaml` file (see `config/examples/agents/agents.yaml` as a
-template) holding every profile under one `agents:` dict, with a top-level
-optional `agent_defaults:` block for langchain inheritable defaults. The
-legacy split form (`langchain_agents:` dict + `deerflow_agents:` list)
-remains supported as a fallback when no project-level `agents.yaml` exists.
+**Canonical source.** Profiles live in a single `agents:` dict, resolved from
+a project-level `config/agents.yaml` / `config/agents/` directory or the bundled
+`config/examples/agents/` directory, with a top-level optional `agent_defaults:`
+block for langchain inheritable defaults. The legacy split form
+(`langchain_agents:` dict + `deerflow_agents:` list) is no longer supported.
 
 ## CLI
 

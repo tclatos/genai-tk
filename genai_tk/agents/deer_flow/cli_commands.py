@@ -129,7 +129,7 @@ def _validate_and_normalize_sandbox(sandbox: str) -> DeerFlowSandbox:
     try:
         return validate_and_normalize_sandbox(sandbox)
     except ValueError as e:
-        console.print(f"[red]Invalid sandbox value:[/red] {e} Update config/agents/deerflow.yaml.")
+        console.print(f"[red]Invalid sandbox value:[/red] {e} Update the deerflow profile sandbox field.")
         raise typer.Exit(1) from e
 
 
@@ -425,34 +425,25 @@ async def _stream_message(
 # ---------------------------------------------------------------------------
 
 
-def _resolve_deerflow_config_path() -> str:
-    """Return path to deerflow.yaml (delegates to runtime)."""
-    from genai_tk.agents.deer_flow.runtime import resolve_deerflow_config_path
-
-    return resolve_deerflow_config_path()
-
-
 def _get_default_profile_name() -> str | None:
-    """Return the name of the first available profile, or None."""
+    """Return the configured default DeerFlow profile name, or None."""
     from genai_tk.agents.deer_flow.runtime import get_default_profile_name
 
     return get_default_profile_name()
 
 
 def _list_profiles() -> None:
-    """Print a Rich table of all profiles."""
-    from genai_tk.agents.deer_flow.profile import load_deer_flow_profiles
-
-    config_path = _resolve_deerflow_config_path()
+    """Print a Rich table of all DeerFlow profiles."""
+    from genai_tk.agents.harness.profiles import load_deerflow_profiles
 
     try:
-        profiles = load_deer_flow_profiles(config_path)
+        profiles = load_deerflow_profiles()
     except Exception as e:
         console.print(f"[red]Error loading profiles:[/red] {e}")
         raise typer.Exit(1) from e
 
     if not profiles:
-        console.print(f"[yellow]No profiles found in {config_path}[/yellow]")
+        console.print("[yellow]No DeerFlow profiles found.[/yellow]")
         return
 
     try:
@@ -460,7 +451,7 @@ def _list_profiles() -> None:
     except Exception:
         default_name = None
 
-    table = Table(title=f"Deer-flow Profiles  ({config_path})")
+    table = Table(title="Deer-flow Profiles")
     table.add_column("Name", style="cyan", no_wrap=True)
     table.add_column("Mode", style="magenta")
     table.add_column("Tool Groups", style="green")
@@ -976,7 +967,7 @@ class DeerFlowCommands(CliTopCommand, BaseModel):
             ] = None,
             profile: Annotated[
                 Optional[str],
-                typer.Option("--profile", "-p", help="Profile name from deerflow.yaml"),
+                typer.Option("--profile", "-p", help="DeerFlow profile name (from the unified agents config)"),
             ] = None,
             chat: Annotated[
                 bool,

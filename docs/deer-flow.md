@@ -101,7 +101,7 @@ cli agents deerflow --list
 
 | Flag | Short | Default | Description |
 |------|-------|---------|-------------|
-| `--profile` | `-p` | default from config | Profile name from `deerflow.yaml` |
+| `--profile` | `-p` | default from config | Profile key from the unified `agents:` config |
 | `--chat` | | false | Interactive REPL (multi-turn) |
 | `--llm` | `-m` | profile default | Override LLM (genai-tk ID or tag) |
 | `--mcp` | | | Add extra MCP server (repeatable) |
@@ -136,13 +136,19 @@ cli agents deerflow --list
 
 ## Configuration
 
-Profiles live in `config/agents/deerflow.yaml`.
+DeerFlow profiles live in the unified `agents:` dict (same file/dir as LangChain
+profiles), each tagged `harness: deerflow`. DeerFlow **runtime settings** (skills
+mount, `general` title/summarization/memory, `recursion_limit`, `default_profile`)
+live separately in `config/deerflow.yaml` — see `config/examples/deerflow.yaml`.
 
 ### Minimal example
 
 ```yaml
-deerflow_agents:
-  - name: "chat"
+# config/agents.yaml (or config/agents/deerflow.yaml)
+agents:
+  chat:
+    harness: deerflow
+    name: "chat"
     description: "Lightweight chat (no tools)"
     mode: "flash"
     sandbox: local
@@ -155,7 +161,9 @@ deerflow_agents:
       - "Tell me a joke"
       - "Write a Python function"
 
-  - name: "research"
+  research:
+    harness: deerflow
+    name: "research"
     description: "Web research with planning"
     mode: "pro"
     sandbox: local
@@ -170,6 +178,7 @@ deerflow_agents:
     examples:
       - "Research the latest AI developments"
 
+# config/deerflow.yaml — runtime settings (not profiles)
 deerflow:
   default_profile: "chat"
   skills:
@@ -181,8 +190,8 @@ deerflow:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `name` | string | required | Profile key (used with `-p research`) |
-| `description` | string | required | Display name in `--list` |
+| `name` | string | required | Display name; matched by `-p` (the dict key/slug is the canonical profile id) |
+| `description` | string | | Short description shown in `--list` and the UI |
 | `mode` | string | flash | Agent mode: `flash` `thinking` `pro` `ultra` |
 | `llm` | string | | LLM ID (genai-tk format). Omit to use server default |
 | `sandbox` | string | local | Sandbox type: `local` or `docker` |
@@ -255,8 +264,9 @@ Single-shot query with web tools enabled (requires `tavily-mcp` + `TAVILY_API_KE
 Create a profile:
 
 ```yaml
-deerflow_agents:
-  - name: "coder"
+agents:
+  coder:
+    harness: deerflow
     mode: "thinking"
     tool_groups:
       - file:read
@@ -294,8 +304,9 @@ uv add "deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdi
 Add `tavily-mcp` to `mcp_servers:` and set the `TAVILY_API_KEY` env var:
 
 ```yaml
-deerflow_agents:
-  - name: research
+agents:
+  research:
+    harness: deerflow
     mcp_servers:
       - tavily-mcp
 ```
@@ -315,8 +326,9 @@ This can happen with very long outputs. Try switching to a different mode or LLM
 Use `available_skills` in the profile:
 
 ```yaml
-deerflow_agents:
-  - name: limited
+agents:
+  limited:
+    harness: deerflow
     available_skills:
       - public/web-search
       - custom/my-tool

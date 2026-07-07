@@ -13,7 +13,7 @@ import typer
 from typer.testing import CliRunner
 
 from genai_tk.agents.commands_agents import AgentCommands
-from genai_tk.agents.langchain.commands import _display_config_error, _get_config_path, _list_profiles
+from genai_tk.agents.langchain.commands import _display_config_error, _list_profiles
 
 
 @pytest.fixture
@@ -194,18 +194,6 @@ class TestLangchainCommandRun:
 
             result = runner.invoke(agents_app, ["agents", "langchain", "query", "--profile", "simple"])
             assert result.exit_code == 0
-
-
-class TestGetConfigPath:
-    def test_returns_string(self) -> None:
-        result = _get_config_path()
-        assert isinstance(result, str)
-        # Returns either the directory path or the yaml file, both contain "langchain"
-        assert "langchain" in result
-
-    def test_path_contains_agents(self) -> None:
-        result = _get_config_path()
-        assert "agents" in result
 
 
 class TestDisplayConfigError:
