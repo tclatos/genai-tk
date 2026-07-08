@@ -107,18 +107,40 @@ def _profile_info(profile: Any) -> None:
     parts: list[str] = []
     if getattr(profile, "harness", None) == "deerflow":
         if profile.tool_groups:
-            parts.append("**Tools:** " + ", ".join(f"`{g}`" for g in profile.tool_groups))
+            parts.append("Tools: " + ", ".join(f"`{g}`" for g in profile.tool_groups))
     else:
         if profile.tools:
             tool_names = [
                 getattr(t, "tool_class", None) or getattr(t, "function", None) or getattr(t, "factory", "?")
                 for t in profile.tools
             ]
-            parts.append("**Tools:** " + ", ".join(f"`{n}`" for n in tool_names))
+            parts.append("Tools: " + ", ".join(f"`{n}`" for n in tool_names))
     if profile.mcp_servers:
-        parts.append("**MCP:** " + ", ".join(f"`{m}`" for m in profile.mcp_servers))
+        parts.append("MCP: " + ", ".join(f"`{m}`" for m in profile.mcp_servers))
     if parts:
-        st.markdown("  \n".join(parts))
+        st.caption("  \n".join(parts))
+
+
+@st.dialog("Profile Configuration")
+def _show_profile_config_dialog(profile: Any) -> None:
+    """Modal dialog showing the YAML dump of a profile."""
+    import yaml as _yaml
+
+    try:
+        raw = profile.model_dump(exclude_none=True, exclude_unset=False)
+        st.code(_yaml.dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), language="yaml")
+    except Exception as exc:
+        st.text(str(exc))
+
+
+def _init_llm_from_profile(profile: Any) -> None:
+    """Set the LLM selector to the model specified in the agent profile."""
+    profile_llm: str | None = getattr(profile, "llm", None)
+    if not profile_llm:
+        return
+    from genai_tk.webapp.ui_components.llm_selector import set_active_llm
+
+    set_active_llm(profile_llm)
 
 
 def _harness_signature(key: str, llm: str | None, mode: str | None) -> str:
@@ -206,7 +228,9 @@ def main() -> None:
 
     # ── Sidebar ───────────────────────────────────────────────────────────
     with st.sidebar:
-        # 1. Profile selection (top)
+        # ── Profile section ───────────────────────────────────────────────
+        st.subheader("Profile")
+
         selected_kinds = st.pills(
             "Type",
             options=kinds_present,
@@ -214,7 +238,6 @@ def main() -> None:
             selection_mode="multi",
             key="agent_kind_filter",
         )
-        st.divider()
 
         filtered = [(k, p, kind) for k, p, kind in items if kind in selected_kinds] if selected_kinds else []
         if not filtered:
@@ -225,30 +248,38 @@ def main() -> None:
         # Keep the previous selection valid; otherwise prefer the default key, else first.
         prev = sss.selected_key if sss.selected_key in keys else (default_key if default_key in keys else keys[0])
         selected_key = st.selectbox(
-            "Profile",
+            "Agent",
             options=keys,
             index=keys.index(prev),
             format_func=lambda k: f"{k} · {kind_of[k]}",
             key="agent_profile_sel",
         )
         profile = profiles[selected_key]
+
+        # Detect profile change (or first load) *before* rendering the LLM
+        # selector below, so the Provider/Lab/Model widgets and expander
+        # title reflect the profile's LLM immediately. If the profile has no
+        # explicit ``llm`` override, the app-level default is left untouched.
+        first_load = sss.selected_key is None
+        profile_changed = not first_load and sss.selected_key != selected_key
+        if profile_changed:
+            clear_chat_history(keep_traces=True)
+            sss.harness = None
+            sss.harness_signature = None
+        if first_load or profile_changed:
+            _init_llm_from_profile(profile)
+        sss.selected_key = selected_key
+
         _profile_info(profile)
-
-        # Profile config viewer
-        with st.expander("⚙️ Profile config", expanded=False):
-            import yaml as _yaml
-
-            try:
-                raw = profile.model_dump(exclude_none=True, exclude_unset=False)
-                st.code(_yaml.dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), language="yaml")
-            except Exception as exc:
-                st.text(str(exc))
 
         examples: list[str] = getattr(profile, "examples", None) or []
         if examples:
             with st.expander("💡 Examples", expanded=False):
                 for ex in examples:
                     st.code(ex, language="")
+
+        if st.button("⚙️ Profile Config", use_container_width=True):
+            _show_profile_config_dialog(profile)
 
         # DeerFlow mode selector (only for deerflow profiles).
         if profile.harness == "deerflow":
@@ -264,6 +295,13 @@ def main() -> None:
             )
         else:
             sss.selected_mode = "pro"  # unused for langchain
+
+        # Detect DeerFlow mode change → reset harness (keep traces).
+        if sss.get("last_mode") != sss.selected_mode:
+            clear_chat_history(keep_traces=True)
+            sss.harness = None
+            sss.harness_signature = None
+        sss.last_mode = sss.selected_mode
 
         st.divider()
         c1, c2 = st.columns(2)
@@ -285,17 +323,6 @@ def main() -> None:
 
     # ── Title ─────────────────────────────────────────────────────────────
     st.title("🤖 Agent")
-
-    # Detect profile/mode change → reset harness (keep traces).
-    new_sig_input = (selected_key, sss.selected_mode if profile.harness == "deerflow" else None)
-    if sss.selected_key is not None and (
-        sss.selected_key != new_sig_input[0] or sss.get("last_mode") != new_sig_input[1]
-    ):
-        clear_chat_history(keep_traces=True)
-        sss.harness = None
-        sss.harness_signature = None
-    sss.selected_key = new_sig_input[0]
-    sss.last_mode = new_sig_input[1]
 
     if sss.error:
         st.error(sss.error)

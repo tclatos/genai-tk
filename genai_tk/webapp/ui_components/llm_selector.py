@@ -136,6 +136,66 @@ def _default_lab_for_provider(provider: str, provider_models: list[LlmInfo]) -> 
     return _ALL_LABS
 
 
+# ── Public helpers ─────────────────────────────────────────────────────────────
+
+
+def set_active_llm(llm_id: str) -> None:
+    """Force the Provider/Lab/Model widgets to reflect *llm_id* on this render.
+
+    Resolves aliases/tags via :class:`LlmFactory`, persists the canonical id to
+    ``llm.models.default``, and seeds the selector widgets' session-state keys
+    so the selectboxes pick up the new value immediately — instead of only on
+    the following rerun (Streamlit ignores ``index=`` once a widget key is
+    already present in session state).
+
+    Call this **before** :func:`llm_selector_widget` is rendered in the same
+    script run (e.g. right after switching agent profile).
+
+    Args:
+        llm_id: LLM identifier, alias, or config tag (e.g. from an agent profile).
+    """
+    try:
+        resolved = LlmFactory.resolve_llm_identifier(llm_id)
+    except Exception:
+        resolved = llm_id
+
+    global_config().set("llm.models.default", resolved)
+
+    base_llm, effort = _strip_effort(resolved)
+    all_models = LlmFactory.known_items_dict()
+    info = all_models.get(base_llm)
+    if info is None and "@" in base_llm:
+        model_part, _, prov_part = base_llm.rpartition("@")
+        info = LlmInfo(id=base_llm, provider=prov_part, model=model_part)
+
+    if info is not None:
+        sss["sel_llm_provider"] = info.provider
+        sss["_llm_prev_provider"] = info.provider  # prevents immediate lab reset
+        sss["sel_llm_lab"] = info.effective_lab or _ALL_LABS
+        sss["sel_llm_model"] = info.id
+
+    if effort:
+        sss["llm_thinking_effort"] = effort
+        sss["sel_llm_effort"] = effort
+    else:
+        sss.pop("llm_thinking_effort", None)
+        sss.pop("sel_llm_effort", None)
+
+
+def current_llm_label() -> str:
+    """Return the bare model name of the currently-selected LLM.
+
+    Prefers the Model selectbox's session-state value, which already reflects
+    the latest user interaction at the top of the script run — even before
+    :func:`llm_selector_widget` re-renders — so callers can show an up-to-date
+    label (e.g. an expander title) without lag. Falls back to the persisted
+    config default when the widget hasn't been rendered yet.
+    """
+    model_id = sss.get("sel_llm_model") or global_config().get_str("llm.models.default") or ""
+    base_llm, _ = _strip_effort(model_id)
+    return base_llm.split("@")[0] if base_llm else ""
+
+
 # ── Public widget ──────────────────────────────────────────────────────────────
 
 
@@ -165,52 +225,93 @@ def llm_selector_widget(w: DeltaGenerator) -> None:
     sorted_providers = sorted(groups.keys())
 
     # ── Parse current default ──────────────────────────────────────────────
-    current_llm: str = global_config().get_str("llm.models.default") or ""
-    base_llm, current_effort = _strip_effort(current_llm)
+    # The persisted default may be a compact alias / config tag (e.g.
+    # 'gpt_oss120@openrouter') rather than a canonical known_items_dict key,
+    # so resolve it first. Without this, the raw-string lookup below silently
+    # fails, current_info is None, and the widget falls back to whatever
+    # provider happens to sort first alphabetically — showing an unrelated
+    # model instead of the configured default.
+    raw_current_llm: str = global_config().get_str("llm.models.default") or ""
+    raw_base_llm, current_effort = _strip_effort(raw_current_llm)
+    try:
+        base_llm = LlmFactory.resolve_llm_identifier(raw_base_llm) if raw_base_llm else raw_base_llm
+    except Exception:
+        base_llm = raw_base_llm
+    current_llm = base_llm
     current_info = all_models.get(base_llm)
+    if current_info is None and "@" in base_llm:
+        model_part, _, prov_part = base_llm.rpartition("@")
+        if prov_part:
+            current_info = LlmInfo(id=base_llm, provider=prov_part, model=model_part)
     current_provider = current_info.provider if current_info else sorted_providers[0]
 
     # ── Step 1: Provider ───────────────────────────────────────────────────
-    # Persist provider in session state separately so lab resets on provider change
+    # Initialise via session state only (no index= to avoid session-state conflict).
     if "sel_llm_provider" not in sss:
         sss["sel_llm_provider"] = current_provider
+    if sss.get("sel_llm_provider") not in sorted_providers:
+        sss["sel_llm_provider"] = current_provider
 
-    provider_idx = sorted_providers.index(current_provider) if current_provider in sorted_providers else 0
-    selected_provider: str = w.selectbox(
+    # Provider and Lab rendered side-by-side
+    col_prov, col_lab = w.columns(2)
+
+    selected_provider: str = col_prov.selectbox(
         "Provider",
         sorted_providers,
-        index=provider_idx,
         format_func=_provider_label,
         key="sel_llm_provider",
     )
 
-    provider_models = groups[selected_provider]
+    # ── Gather models for this provider ────────────────────────────────────
+    provider_models = groups.get(selected_provider, [])
+    prov_info = PROVIDER_INFO.get(selected_provider)
+
+    # For OpenRouter (and other openrouter-catalog gateways), supplement the
+    # YAML-only list with every model in the models.dev OpenRouter catalog so
+    # the user can choose any model, not just explicitly configured ones.
+    display_models: dict[str, LlmInfo] = dict(all_models)
+    if prov_info and prov_info.gateway and selected_provider == "openrouter":
+        from genai_tk.core.models_db import get_models_db
+
+        db_catalog = get_models_db().provider_models("openrouter")
+        for model_id in db_catalog:
+            item_id = f"{model_id}@openrouter"
+            if item_id not in display_models:
+                display_models[item_id] = LlmInfo(id=item_id, provider="openrouter", model=model_id)
+        provider_models = sorted(
+            [m for m in display_models.values() if m.provider == "openrouter"],
+            key=lambda m: m.model,
+        )
 
     # ── Step 2: Lab ────────────────────────────────────────────────────────
     available_labs = _labs_for_provider(provider_models)
-
-    # Auto-select: if provider changed or lab never set, default to single lab or *
     auto_lab = _default_lab_for_provider(selected_provider, provider_models)
-    if "sel_llm_lab" not in sss:
-        sss["sel_llm_lab"] = auto_lab
 
-    # Determine initial lab selection
-    init_lab: str
+    # Desired lab: try to follow the currently-active model's lab, else auto.
     if current_info and current_info.provider == selected_provider:
-        init_lab = current_info.effective_lab or auto_lab
+        desired_lab = current_info.effective_lab or auto_lab
     else:
-        init_lab = auto_lab
-    if init_lab not in available_labs:
-        init_lab = _ALL_LABS
+        desired_lab = auto_lab
+    if desired_lab not in available_labs:
+        desired_lab = _ALL_LABS
 
-    # For single-lab providers disable the widget (show as read-only)
-    real_labs = [l for l in available_labs if l != _ALL_LABS]
-    is_single_lab = len(real_labs) == 1
+    # Reset lab session state when provider changes; never use index= to avoid
+    # "widget created with default value AND set via Session State API" warning.
+    if sss.get("_llm_prev_provider") != selected_provider:
+        sss["_llm_prev_provider"] = selected_provider
+        sss["sel_llm_lab"] = desired_lab
+    elif "sel_llm_lab" not in sss:
+        sss["sel_llm_lab"] = desired_lab
+    elif sss["sel_llm_lab"] not in available_labs:
+        sss["sel_llm_lab"] = desired_lab
 
-    selected_lab: str = w.selectbox(
+    real_labs = [lab for lab in available_labs if lab != _ALL_LABS]
+    # Gateway providers span multiple labs — never disable their lab selector.
+    is_single_lab = len(real_labs) == 1 and not (prov_info and prov_info.gateway)
+
+    selected_lab: str = col_lab.selectbox(
         "Lab",
         available_labs,
-        index=available_labs.index(init_lab),
         format_func=_lab_label,
         key="sel_llm_lab",
         disabled=is_single_lab,
@@ -228,17 +329,23 @@ def llm_selector_widget(w: DeltaGenerator) -> None:
             filtered_models = provider_models  # fallback
 
     model_ids = [m.id for m in filtered_models]
-    model_idx = model_ids.index(base_llm) if base_llm in model_ids else 0
+
+    # Manage via session state only (no index=) to avoid the Streamlit warning
+    # about a widget created with both a default value and Session State value.
+    if sss.get("sel_llm_model") not in model_ids:
+        sss["sel_llm_model"] = base_llm if base_llm in model_ids else (model_ids[0] if model_ids else "")
 
     selected_id: str = w.selectbox(
         "Model",
         model_ids,
-        index=model_idx,
-        format_func=lambda mid: all_models[mid].model,
+        format_func=lambda mid: display_models[mid].model if mid in display_models else mid.split("@")[0],
         key="sel_llm_model",
     )
 
-    selected_info = all_models[selected_id]
+    selected_info = display_models.get(selected_id)
+    if selected_info is None:
+        model_part, _, prov_part = selected_id.rpartition("@")
+        selected_info = LlmInfo(id=selected_id, provider=prov_part, model=model_part)
 
     # ── Capabilities caption ───────────────────────────────────────────────
     cap_line = _capability_line(selected_info)
@@ -248,12 +355,14 @@ def llm_selector_widget(w: DeltaGenerator) -> None:
     # ── Thinking effort slider ─────────────────────────────────────────────
     effort: str | None = None
     if selected_info.supports_thinking:
-        init_effort = current_effort if current_effort in _EFFORT_OPTIONS else "medium"
-        sss.setdefault("llm_thinking_effort", init_effort)
+        # Manage via session state only (no value=) to avoid the Streamlit
+        # warning about a widget created with both a default value and
+        # Session State value.
+        if sss.get("sel_llm_effort") not in _EFFORT_OPTIONS:
+            sss["sel_llm_effort"] = current_effort if current_effort in _EFFORT_OPTIONS else "medium"
         effort = w.select_slider(
             "Thinking effort",
             options=_EFFORT_OPTIONS,
-            value=sss.get("llm_thinking_effort", init_effort),
             key="sel_llm_effort",
         )
         sss["llm_thinking_effort"] = effort

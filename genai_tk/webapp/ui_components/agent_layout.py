@@ -23,7 +23,7 @@ from typing import Any
 
 import streamlit as st
 
-from genai_tk.webapp.ui_components.llm_selector import llm_selector_widget
+from genai_tk.webapp.ui_components.llm_selector import current_llm_label, llm_selector_widget
 from genai_tk.webapp.ui_components.monitoring_widget import monitoring_backend_pills
 
 # ---------------------------------------------------------------------------
@@ -40,6 +40,9 @@ PANEL_HEIGHT: int = 640  # px — consistent height for trace / chat containers
 def render_agent_sidebar(config_file: str) -> None:
     """Render the standard sidebar LLM selector (in an expander).
 
+    The expander title shows the currently-active model name so the user can
+    see the selection at a glance without opening the expander.
+
     Call once near the top of the page's ``main()`` function, **after** the
     profile selector has been rendered.  Monitoring pills are rendered
     separately at the bottom via :func:`render_sidebar_monitoring`.
@@ -48,8 +51,10 @@ def render_agent_sidebar(config_file: str) -> None:
         config_file: Kept for backward compatibility; no longer used.
     """
     with st.sidebar:
-        with st.expander("🤖 LLM", expanded=False):
-            llm_selector_widget(st.sidebar)
+        model_name = current_llm_label()
+        title = f"🤖 LLM · {model_name}" if model_name else "🤖 LLM"
+        expander = st.expander(title, expanded=False)
+        llm_selector_widget(expander)
 
 
 def render_sidebar_monitoring() -> None:
