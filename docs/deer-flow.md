@@ -145,6 +145,93 @@ cli agents list
 
 ---
 
+## Terminal UI (TUI)
+
+Deer-flow 2.1.0 ships a terminal workbench (`deerflow.tui`) — a Textual app
+over the embedded `DeerFlowClient` with a transcript, animated status line,
+slash-command palette, and thread switching. genai-tk exposes it as
+`cli agents tui`, the interactive sibling of `cli agents run --chat`.
+
+`textual` is a core genai-tk dependency, so the only extra you need is the
+DeerFlow harness:
+
+```bash
+uv sync --extra harnessing
+uv run cli agents tui simple-deerflow
+```
+
+`simple-deerflow` is the bundled starter profile (flash mode, local sandbox,
+bash only — no Tavily/Docker/API keys beyond an LLM). It's the easiest way to
+open the TUI and a template to copy for your own profiles.
+
+### Launch
+
+```bash
+cli agents tui [profile] [message] [options]
+
+# Open the TUI with the starter profile (empty composer)
+cli agents tui simple-deerflow
+
+# Open and immediately send a first message
+cli agents tui simple-deerflow -- "What is RAG?"
+
+# Omit the profile to use deerflow.default_profile
+cli agents tui
+
+# Override reasoning mode / sandbox / LLM
+cli agents tui "Research Assistant" --mode ultra --sandbox docker
+cli agents tui research -m gpt_41mini@openai
+
+# Resume a thread by id or title, or the most recent one
+cli agents tui research --resume my-thread
+cli agents tui research --continue
+```
+
+### Options
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--llm` | `-m` | profile default | Override LLM (genai-tk ID or tag) |
+| `--mode` | | profile default | Reasoning mode: `flash` `thinking` `pro` `ultra` |
+| `--sandbox` | `-b` | profile default | Sandbox: `local` `docker` |
+| `--mcp` | | | Add extra MCP server (repeatable) |
+| `--resume` | | new | Resume a thread by id or title |
+| `--continue` | | false | Resume the most recent thread |
+| `--verbose` | `-v` | false | Enable DEBUG logging |
+
+Only DeerFlow profiles are supported today. For a LangChain profile, use
+`cli agents run <profile> --chat` instead — the TUI dispatches on the
+profile's `harness` field, so other harnesses can plug in a TUI later.
+
+### Keys & slash commands
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Send message / accept palette selection |
+| `/` | Open the slash-command palette |
+| `↑` / `↓` | Palette navigation, or input history when closed |
+| `Tab` | Complete the highlighted command |
+| `Esc` | Close the palette / overlay |
+| `Ctrl+C` | Interrupt the active run, or quit when idle |
+| `Ctrl+L` | Redraw · `Ctrl+U` clear composer |
+
+Slash commands: `/help` `/new` `/goal` `/threads` (`/switch`) `/model`
+`/skills` `/tools` `/mcp` `/memory` `/uploads` `/usage` `/config` `/quit`,
+plus `/ <task>` to activate any enabled skill for the current turn.
+
+### How it works
+
+The TUI runs the embedded `DeerFlowClient` in-process — no Gateway, frontend,
+or Docker services required. Because the TUI drives `client.stream()`
+directly and only overrides `model_name` per turn, genai-tk bakes the
+profile's `mode` / `plan_mode` / `subagent_enabled` into the
+`DeerFlowClient` constructor (the same values `cli agents run` applies).
+Multi-turn memory within a session uses the shared `SqliteSaver` checkpointer;
+the DeerFlow Web UI's `threads_meta` writer is skipped (genai-tk doesn't ship
+that UI).
+
+---
+
 ## Configuration
 
 DeerFlow profiles live in the unified `agents:` dict (same file/dir as LangChain

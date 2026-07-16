@@ -14,6 +14,7 @@ dependencies = [
     "questionary>=2.0",         # Interactive CLI prompts (template picker)
     "omegaconf>=2.3.0",         # Hierarchical configuration system
     "rich[jupyter]>=13.9.4",    # Rich terminal formatting and progress bars
+    "textual>=0.80",           # Terminal UI framework (complements Rich; powers the DeerFlow TUI)
     "universal-pathlib>=0.2.6", # Unified path interface for local/cloud storage
     "python-dotenv>=1.1.1",     # Environment variable management
     "beartype>=0.21.0",         # Runtime type validation

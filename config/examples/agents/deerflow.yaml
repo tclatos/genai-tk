@@ -5,6 +5,29 @@
 # recursion limit, default profile) live in ``config/examples/deerflow.yaml``.
 
 agents:
+  # Minimal starter profile — no MCP, no skills, no Docker. The simplest way
+  # to try the DeerFlow TUI: `cli agents tui simple-deerflow` (needs only an LLM
+  # API key). mode: flash keeps latency low; switch to thinking/pro for harder
+  # tasks. Serves as both a starter entry point and a template to copy from.
+  simple-deerflow:
+    harness: deerflow
+    name: "simple-deerflow"
+    description: "Minimal DeerFlow starter — chat + bash, no external deps"
+    mode: "flash"  # quick responses
+    subagent_enabled: false
+    plan_mode: false
+    sandbox: local
+    tool_groups:
+      - bash
+    mcp_servers: []
+    features:
+      - "⚡ Fast Mode"
+      - "💻 Bash"
+    examples:
+      - "Write a Python one-liner to reverse a string"
+      - "List the files in the current directory"
+      - "Explain what a closure is in Python"
+
   "Research Assistant":
     harness: deerflow
     name: "Research Assistant"

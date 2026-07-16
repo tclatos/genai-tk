@@ -18,6 +18,13 @@ class DeliveryNote {
   lines DeliveryNoteLine[] @description("list of product lines on the delivery note")
 }
 
+class Example {
+  Provider string @description("Name of the provider")
+  field string 
+  value string 
+}
+  
+
 
 // Extract a structured DeliveryNote from raw document text (Markdown / plain text).
 function ExtractDeliveryNote(document: string) -> DeliveryNote {
@@ -25,6 +32,7 @@ function ExtractDeliveryNote(document: string) -> DeliveryNote {
   prompt #"
     Extract the delivery note information from the following markdown document, extracted from a PDF with OCR.
     The document may be in English, French, Spanish or German.
+
 
     Document:
     {{ document }}
@@ -34,28 +42,49 @@ function ExtractDeliveryNote(document: string) -> DeliveryNote {
 }
 
 // Extract a structured DeliveryNote directly from a PDF file.
-function ExtractDeliveryNotePdf(document: pdf) -> DeliveryNote {
+function ExtractDeliveryNotePdf(document: pdf, examples: Example[]) -> DeliveryNote {
   client "Gpt41mini"
   prompt #"
     Extract the delivery note information from the attached PDF document.
     The document may be in English, French, Spanish or German.
-
-    Here examples of delivery information to extract, depending of the provider: 
-    -  Provider: DIEL
-       product_number : 2127759200000
-       order_number :  8210312328
-    -  Provider: LAUAK
-       product_number : V2121888600200
-    -  Provider: MECACHROME
-       product_number : V2121888600200
-       delivery_note_number : BL 1548177
-         
-
+    
+    Takes the values of the provided correct examples to help extract the field acccroding to a given provider.
+    ### document### : 
     {{ document }}
+
+    ### examples ###
+    {{examples}}
 
     {{ ctx.output_format }}
   "#
 }
+
+function GenerateExamples(extracted: DeliveryNote[], ground_truth: DeliveryNotes[]) -> Examples [] {
+  client "Gpt41mini"
+  prompt #"
+  Compare the 2 provided notes field by field, and when there's a difference generate, 
+  create a JSON obhect with the ground truth value.
+  each different notes  the  
+  
+    ### extracted delivery note ###
+    {{ extracted }}
+
+    ### ground truth ###
+    {{ground_truth}}
+
+    {{ ctx.output_format }}
+  "#
+}
+ 
+    // Here examples of delivery information to extract, depending of the provider: 
+    // -  Provider: DIEL
+    //    product_number : 2127759200000
+    //    order_number :  8210312328
+    // -  Provider: LAUAK
+    //    product_number : V2121888600200
+    // -  Provider: MECACHROME
+    //    product_number : V2121888600200
+    //    delivery_note_number : BL 1548177
 
 
 // Test with a French delivery note sample.

@@ -96,11 +96,7 @@ def create_harness(
     Raises:
         ValueError: If no profile matches *key*.
     """
-    profiles, _defaults, _default_key = load_agent_profiles()
-    profile = _lookup(profiles, key)
-    if profile is None:
-        available = list(profiles.keys())
-        raise ValueError(f"Profile '{key}' not found. Available profiles ({len(available)}): {available}")
+    profile = lookup_profile(key)
 
     extra = list(extra_mcp or [])
     if profile.harness == "langchain":
@@ -125,7 +121,34 @@ def create_harness(
     raise ValueError(f"Unknown harness '{profile.harness}' for profile '{key}'")
 
 
-def _lookup(profiles: dict, key: str):
+def lookup_profile(key: str):
+    """Resolve a profile key against the unified ``agents:`` dict.
+
+    Single dict lookup keyed by profile slug (LangChain) or profile name
+    (DeerFlow). Matching is case-insensitive and also matches a profile's
+    ``name`` field. Use this when the resolved profile is needed without
+    building a harness — e.g. ``cli agents tui`` dispatches on
+    ``profile.harness`` before choosing a launcher.
+
+    Args:
+        key: Profile key/slug or name.
+
+    Returns:
+        The validated profile model (``AgentProfileConfig`` or
+        ``DeerFlowProfile``).
+
+    Raises:
+        ValueError: If no profile matches *key*.
+    """
+    profiles, _defaults, _default_key = load_agent_profiles()
+    profile = _match_profile(profiles, key)
+    if profile is None:
+        available = list(profiles.keys())
+        raise ValueError(f"Profile '{key}' not found. Available profiles ({len(available)}): {available}")
+    return profile
+
+
+def _match_profile(profiles: dict, key: str):
     """Case-insensitive single-dict profile lookup."""
     if key in profiles:
         return profiles[key]

@@ -140,6 +140,98 @@ def register(cli_app: typer.Typer) -> None:
         finally:
             asyncio.run(harness.aclose())
 
+    @cli_app.command("tui")
+    def tui(
+        profile: Annotated[
+            Optional[str],
+            typer.Argument(help="DeerFlow profile key/name (omit to use deerflow.default_profile)."),
+        ] = None,
+        message: Annotated[
+            Optional[str],
+            typer.Argument(help="Optional initial prompt sent when the TUI opens."),
+        ] = None,
+        llm: Annotated[Optional[str], Option("--llm", "-m", help="LLM identifier override")] = None,
+        mode: Annotated[
+            Optional[str],
+            Option("--mode", help="DeerFlow reasoning mode override: flash | thinking | pro | ultra"),
+        ] = None,
+        sandbox: Annotated[
+            Optional[str],
+            Option("--sandbox", "-b", help="DeerFlow sandbox override: local | docker"),
+        ] = None,
+        mcp: Annotated[
+            list[str],
+            Option("--mcp", help="Additional MCP server names appended to the profile (repeatable)"),
+        ] = [],
+        resume: Annotated[Optional[str], Option("--resume", help="Resume a thread by id or title")] = None,
+        continue_recent: Annotated[bool, Option("--continue", help="Resume the most recent thread in the TUI")] = False,
+        verbose: Annotated[bool, Option("--verbose", "-v", help="Enable DEBUG logging")] = False,
+    ) -> None:
+        """Launch the DeerFlow terminal workbench (TUI) for a profile.
+
+        The TUI is the interactive sibling of ``cli agents run --chat``: a
+        Textual app over the embedded DeerFlow client with a transcript, status
+        line, slash-command palette, and thread switching. Only DeerFlow
+        profiles are supported today; other harnesses can plug in a TUI later.
+
+        Examples:
+            uv run cli agents tui simple-deerflow
+            uv run cli agents tui "Research Assistant" --mode ultra
+            uv run cli agents tui research --resume my-thread
+            uv run cli agents tui simple-deerflow -- "What is RAG?"
+        """
+        import sys
+
+        if verbose:
+            from loguru import logger
+
+            logger.remove()
+            logger.add(sys.stderr, level="DEBUG")
+
+        from genai_tk.agents.deer_flow.profile import DeerFlowError
+        from genai_tk.agents.deer_flow.runtime import get_default_profile_name
+        from genai_tk.agents.deer_flow.tui import run_deerflow_tui
+        from genai_tk.agents.harness.registry import lookup_profile
+
+        profile_key = profile or get_default_profile_name()
+        if not profile_key:
+            console.print("[red]No profile specified and no deerflow.default_profile set[/red]")
+            raise typer.Exit(1)
+        if not profile:
+            console.print(f"[dim]Using default profile: {profile_key}[/dim]")
+
+        try:
+            resolved = lookup_profile(profile_key)
+        except ValueError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1) from e
+
+        if resolved.harness != "deerflow":
+            console.print(
+                f"[yellow]TUI not yet supported for harness '{resolved.harness}'[/yellow]. "
+                f"Use [cyan]cli agents run {profile_key} --chat[/cyan] instead."
+            )
+            raise typer.Exit(1)
+
+        try:
+            run_deerflow_tui(
+                resolved.name,
+                llm_override=llm,
+                mode_override=mode,
+                sandbox_override=sandbox,
+                extra_mcp=list(mcp) if mcp else None,
+                message=message,
+                thread_id=resume,
+                continue_recent=continue_recent,
+                verbose=verbose,
+            )
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Interrupted.[/yellow]")
+            raise typer.Exit(0) from None
+        except (ValueError, ImportError, DeerFlowError) as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise typer.Exit(1) from e
+
     @cli_app.command("list")
     def list_profiles() -> None:
         """List all agent profiles across every harness."""

@@ -15,7 +15,7 @@ must be unique across files.
 | `deep.yaml` | Deep agents with planning + file system (`research`, `coding`, `data_analysis`, `web_research`, `documentation_writer`, `stock_analysis`). |
 | `browser.yaml` | Browser-automation deep agents (`browser_agent`, `browser_agent_direct`). |
 | `text2sql.yaml` | SQL agents (`text2sql` deep, `chinook` react). |
-| `deerflow.yaml` | DeerFlow profiles (`Research Assistant`, `Web Browser`, `Chinook DB + Research`, `Privacy-Safe Research`). |
+| `deerflow.yaml` | DeerFlow profiles (`simple-deerflow`, `Research Assistant`, `Web Browser`, `Chinook DB + Research`, `Privacy-Safe Research`). |
 
 DeerFlow **runtime settings** (skills mount, `general` title/summarization/memory,
 `recursion_limit`, `default_profile`) live in `config/examples/deerflow.yaml` —

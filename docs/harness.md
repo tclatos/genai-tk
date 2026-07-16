@@ -134,6 +134,20 @@ uv run cli agents run research --chat --sandbox docker           # DeerFlow sand
 uv run cli agents run "Research Assistant" --mode ultra --trace  # DeerFlow mode + trace
 ```
 
+`cli agents tui` is the TUI sibling of `run --chat` — it launches the DeerFlow
+terminal workbench (a Textual app) for a profile:
+
+```bash
+uv run cli agents tui simple-deerflow                 # bundled starter profile
+uv run cli agents tui "Research Assistant" --mode ultra
+```
+
+Only DeerFlow profiles are supported today; the command dispatches on
+`profile.harness` and prints a clear "not yet supported" message for other
+harnesses (pointing users to `cli agents run --chat`), so a per-harness TUI
+can be added later without changing the command surface. See
+[deer-flow.md](deer-flow.md#terminal-ui-tui).
+
 ## Middleware Is Shared, Not Adapted
 
 DeerFlow's embedded client already forwards LangChain `AgentMiddleware`

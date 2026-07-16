@@ -46,7 +46,13 @@ from genai_tk.agents.harness.profiles import (
     load_deerflow_profiles,
     load_langchain_profiles,
 )
-from genai_tk.agents.harness.registry import HarnessProfileRef, create_harness, list_harness_profiles, profile_kind
+from genai_tk.agents.harness.registry import (
+    HarnessProfileRef,
+    create_harness,
+    list_harness_profiles,
+    lookup_profile,
+    profile_kind,
+)
 
 __all__ = [
     "BaseHarness",
@@ -66,6 +72,7 @@ __all__ = [
     "HarnessSkill",
     "create_harness",
     "list_harness_profiles",
+    "lookup_profile",
     "profile_kind",
     "HarnessProfileRef",
     "AgentProfile",
