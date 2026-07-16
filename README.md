@@ -713,7 +713,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | NLP / PII / spaCy | — | `genai_tk.extra.nlp` | [docs/nlp.md](docs/nlp.md) |
 | Configuration | `cli init` | `global_config()` | [docs/configuration.md](docs/configuration.md) |
 | Project scaffolding | `cli init --name` | `ProjectScaffolder` | [docs/scaffolding.md](docs/scaffolding.md) |
-| Copilot Agent support | `cli init` | — | [docs/copilot-agent-support.md](docs/copilot-agent-support.md) |
+| Copilot Agent support | `cli init` | — | [docs/design/copilot-agent-support.md](docs/design/copilot-agent-support.md) |
 | CLI extension | — | `CliTopCommand` | [docs/cli.md](docs/cli.md) |
 | Streamlit webapp | `just webapp` | `genai_tk.webapp` | [docs/webapp.md](docs/webapp.md) |
 | Testing | `cli test` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |

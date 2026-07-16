@@ -9,7 +9,7 @@ description: Add or modify genai-tk Typer CLI commands, dynamic command registra
 
 - `docs/cli.md`
 - `docs/scaffolding.md`
-- `docs/copilot-agent-support.md`
+- `docs/design/copilot-agent-support.md`
 - `genai_tk/main/cli.py`
 - `genai_tk/main/scaffolder.py`
 - `genai_tk/cli/base.py`

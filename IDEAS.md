@@ -4,6 +4,15 @@ Create a just command that takes a path to a directory name as argument and crea
 
 # Hakathon
 
+
+Create an agent 'pentester'. Use the DeepAgent harness.
+Write a tool factory** exposing nmap/nikto/whatweb/gobuster/ sqlmap as LangChain tools that run as host subprocesses.
+Add these tools to the agent
+Add a CLI command group** (cli pentest ...) to manage the agent
+test the agent with a simple prompt asking for a nmap localhost
+Use skills.
+
+
 sélection concrète, crédible et directement exploitable de :
 
 🧱 MCP servers (ou assimilables)

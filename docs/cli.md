@@ -87,7 +87,7 @@ uv run cli example deerflow "Explain RAG"      # Deer-flow (requires --deer-flow
 ```
 
 See [docs/scaffolding.md](scaffolding.md) for the full reference and
-[docs/copilot-agent-support.md](copilot-agent-support.md) for details on the
+[docs/design/copilot-agent-support.md](design/copilot-agent-support.md) for details on the
 generated Copilot files.
 
 ---
