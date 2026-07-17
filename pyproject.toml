@@ -20,7 +20,7 @@ dependencies = [
     "beartype>=0.21.0",         # Runtime type validation
     "devtools>=0.12.2",         # Debug printing and development utilities
     "xxhash>=3.6.0",            # Fast non-cryptographic hash functions
-    "pathspec>=1.1.1",          # .gitignore-style file matching (gitwildmatch)
+    "pathspec>=1.0.2,<1.1.1",   # .gitignore-style file matching (gitwildmatch); 1.1.1 ships a broken re2 backend (missing re2_error)
     "httpx>=0.28.0",            # Async HTTP client
     "wrapt>=1.17",              # Transparent function/decorator wrapping
     "bcrypt>=4.0",             # Salted password hashing for basic_auth (webapp)
@@ -94,7 +94,6 @@ dependencies = [
     "py-key-value-aio[disk,filetree,memory]>=0.4.5",
     "zvec>=0.5.0",
     "baml-py==0.223.0",
-    "google-re2>=1.1.20251105",
 ]
 
 [project.urls]
