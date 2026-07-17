@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import io
 import os
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Annotated, Any, Optional, TypeVar, overload
 
@@ -179,6 +180,28 @@ class OmegaConfig(BaseModel):
     # -----------------------------------------------------------------------
 
     @staticmethod
+    def _build_gitignore_matcher(patterns: list[str]):
+        """Return a path matcher using pathspec when available, fnmatch otherwise."""
+        try:
+            import pathspec
+
+            spec = pathspec.PathSpec.from_lines("gitignore", patterns)
+            return spec.match_file
+        except Exception as exc:
+            logger.warning("pathspec unavailable for config merge ({}), using fnmatch fallback", exc)
+
+            def _match(rel_path: str) -> bool:
+                included = False
+                for raw in patterns:
+                    is_negated = raw.startswith("!")
+                    pat = raw[1:] if is_negated else raw
+                    if fnmatch(rel_path, pat):
+                        included = not is_negated
+                return included
+
+            return _match
+
+    @staticmethod
     def _resolve_merge_files(config: DictConfig, app_conf_path: Path) -> list[Path]:
         """Resolve :merge: pathspec patterns to an ordered list of YAML files.
 
@@ -186,8 +209,6 @@ class OmegaConfig(BaseModel):
         directory containing app_conf.yaml.  Lines starting with ``!`` exclude
         previously matched files.  app_conf.yaml itself is always skipped.
         """
-        import pathspec
-
         merge_raw = OmegaConf.select(config, ":merge", default=None)
         if merge_raw is None:
             return []
@@ -197,14 +218,14 @@ class OmegaConfig(BaseModel):
             patterns = [str(patterns)]
 
         base_dir = app_conf_path.parent.resolve()
-        spec = pathspec.PathSpec.from_lines("gitignore", [str(p) for p in patterns])
+        matcher = OmegaConfig._build_gitignore_matcher([str(p) for p in patterns])
 
         result: list[Path] = []
         for yaml_path in sorted(base_dir.rglob("*.yaml")):
             if yaml_path.resolve() == app_conf_path.resolve():
                 continue
             rel = yaml_path.relative_to(base_dir)
-            if spec.match_file(str(rel)):
+            if matcher(str(rel)):
                 result.append(yaml_path)
         return result
 
@@ -243,18 +264,16 @@ class OmegaConfig(BaseModel):
         # Handle nested :merge: within the profile block
         profile_merge_raw = OmegaConf.select(profile_data, ":merge", default=None)
         if profile_merge_raw is not None:
-            import pathspec
-
             patterns = OmegaConf.to_container(profile_merge_raw, resolve=False)
             if not isinstance(patterns, list):
                 patterns = [str(patterns)]
             base_dir = app_conf_path.parent.resolve()
-            spec = pathspec.PathSpec.from_lines("gitignore", [str(p) for p in patterns])
+            matcher = OmegaConfig._build_gitignore_matcher([str(p) for p in patterns])
             for yaml_path in sorted(base_dir.rglob("*.yaml")):
                 if yaml_path.resolve() == app_conf_path.resolve():
                     continue
                 rel = yaml_path.relative_to(base_dir)
-                if spec.match_file(str(rel)):
+                if matcher(str(rel)):
                     config, provenance = OmegaConfig._merge_file(config, yaml_path, provenance)
 
         # Build profile overlay without pseudo-keys
