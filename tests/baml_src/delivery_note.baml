@@ -59,7 +59,7 @@ function ExtractDeliveryNotePdf(document: pdf, examples: Example[]) -> DeliveryN
   "#
 }
 
-function GenerateExamples(extracted: DeliveryNote[], ground_truth: DeliveryNotes[]) -> Examples [] {
+function GenerateExamples(extracted: DeliveryNote[], ground_truth: DeliveryNote[]) -> Example [] {
   client "Gpt41mini"
   prompt #"
   Compare the 2 provided notes field by field, and when there's a difference generate, 

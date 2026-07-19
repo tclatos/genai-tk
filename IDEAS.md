@@ -12,6 +12,8 @@ Add a CLI command group** (cli pentest ...) to manage the agent
 test the agent with a simple prompt asking for a nmap localhost
 Use skills.
 
+export PRJ=prjtest; rm -rf $PRJ; mkdir $PRJ; cd $PRJ ; uv init; uv add git+https://github.com/tclatos/genai-tk@main; cli init --extra harnessing
+
 
 sélection concrète, crédible et directement exploitable de :
 

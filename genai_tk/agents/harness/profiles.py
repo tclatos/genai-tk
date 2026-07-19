@@ -77,6 +77,15 @@ class AgentDefaultsConfig(BaseModel):
 _adapter = TypeAdapter(AgentProfile)
 
 
+def _contains_yaml_files(path: Path) -> bool:
+    """Return True when *path* is a YAML file or a directory containing YAML files."""
+    if path.is_file():
+        return path.suffix.lower() in {".yaml", ".yml"}
+    if not path.is_dir():
+        return False
+    return any(path.glob("*.yaml")) or any(path.glob("*.yml"))
+
+
 def _resolve_unified_agents_path(config_path: str | None = None) -> Path | None:
     """Return the path to a unified ``agents:`` file/dir, or ``None``.
 
@@ -95,13 +104,13 @@ def _resolve_unified_agents_path(config_path: str | None = None) -> Path | None:
     if single.exists():
         return single
     agents_dir = cfg_dir / "agents"
-    if agents_dir.is_dir():
+    if _contains_yaml_files(agents_dir):
         return agents_dir
     examples_dir = cfg_dir / "examples" / "agents"
-    if examples_dir.is_dir():
+    if _contains_yaml_files(examples_dir):
         return examples_dir
     examples_single = cfg_dir / "examples" / "agents.yaml"
-    if examples_single.exists():
+    if _contains_yaml_files(examples_single):
         return examples_single
     return None
 
