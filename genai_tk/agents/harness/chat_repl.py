@@ -30,7 +30,7 @@ from genai_tk.agents.harness.base import BaseHarness
 _DEFAULT_CONSOLE = Console()
 
 
-async def _astream_turn(
+async def astream_turn(
     harness: BaseHarness,
     query: str,
     *,
@@ -40,6 +40,12 @@ async def _astream_turn(
     console: Console | None = None,
 ) -> str:
     """Run one turn against *harness*, render events, return the assistant text.
+
+    Async — call this directly (inside your own ``asyncio.run(...)``) when you
+    need to share one event loop with harness creation/``aclose()`` (e.g. a
+    backend like ``AioSandboxBackend`` that binds async resources to the loop
+    active at creation time). Use :func:`stream_turn` only for simple scripts
+    that don't need that guarantee.
 
     Args:
         harness: Any ready-to-stream harness session.
@@ -89,9 +95,16 @@ def stream_turn(
     json_output: bool = False,
     console: Console | None = None,
 ) -> str:
-    """Synchronous wrapper around :func:`_astream_turn` for single-shot use."""
+    """Synchronous wrapper around :func:`astream_turn` for single-shot use.
+
+    Runs its own ``asyncio.run(...)`` — do not call this from code that also
+    creates/closes the harness under a *different* ``asyncio.run()`` call, or
+    async resources bound to one loop (e.g. ``AioSandboxBackend``'s HTTP
+    client) can fail with "attached to a different loop" errors. Prefer
+    :func:`astream_turn` directly when you control the surrounding event loop.
+    """
     return asyncio.run(
-        _astream_turn(
+        astream_turn(
             harness,
             query,
             thread_id=thread_id,
@@ -162,7 +175,7 @@ async def run_chat_repl(
 
     async def _turn(user_input: str) -> None:
         console.print(Panel(user_input, title="[bold blue]You[/bold blue]", border_style="blue"))
-        await _astream_turn(harness, user_input, thread_id=thread_id, show_trace=show_trace, console=console)
+        await astream_turn(harness, user_input, thread_id=thread_id, show_trace=show_trace, console=console)
         console.print()
 
     if initial_query:

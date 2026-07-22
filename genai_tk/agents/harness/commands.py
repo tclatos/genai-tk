@@ -118,27 +118,39 @@ def register(cli_app: typer.Typer) -> None:
 
         import asyncio
 
+        async def _main() -> None:
+            try:
+                if chat:
+                    from genai_tk.agents.harness.chat_repl import run_chat_repl
+
+                    await run_chat_repl(harness, initial_query=query, show_trace=trace, console=console)
+                else:
+                    from genai_tk.agents.harness.chat_repl import astream_turn
+
+                    assert query is not None  # guaranteed by the `not chat` check above
+                    await astream_turn(
+                        harness,
+                        query,
+                        thread_id=thread_id,
+                        show_trace=trace,
+                        json_output=json_output,
+                        console=console,
+                    )
+            finally:
+                await harness.aclose()
+
         try:
-            if chat:
-                from genai_tk.agents.harness.chat_repl import run_chat_repl
-
-                asyncio.run(run_chat_repl(harness, initial_query=query, show_trace=trace, console=console))
-            else:
-                from genai_tk.agents.harness.chat_repl import stream_turn
-
-                stream_turn(
-                    harness,
-                    query,
-                    thread_id=thread_id,
-                    show_trace=trace,
-                    json_output=json_output,
-                    console=console,
-                )
+            # A single asyncio.run() drives harness creation-adjacent work, the
+            # turn(s), and aclose() on ONE event loop. Splitting these across
+            # separate asyncio.run() calls breaks backends (e.g. AioSandboxBackend)
+            # that bind async resources (HTTP clients, subprocess transports) to
+            # the loop active when the backend started — a later aclose() on a
+            # different loop then fails to actually kill the sandbox container,
+            # silently leaking it (see genai_tk/agents/sandbox/aio_backend.py).
+            asyncio.run(_main())
         except KeyboardInterrupt:
             console.print("\n[yellow]Interrupted.[/yellow]")
             raise typer.Exit(0) from None
-        finally:
-            asyncio.run(harness.aclose())
 
     @cli_app.command("tui")
     def tui(

@@ -3,6 +3,40 @@
 Sandboxes provide isolated, containerised environments for safe code execution.
 All agent frameworks in genai-tk support sandboxes through a unified configuration.
 
+## Terminology — who's who
+
+Several similarly-named projects are involved. They are **not** competing
+alternatives — each plays a distinct role in the stack:
+
+| Name | What it is | Role in genai-tk |
+|------|------------|-------------------|
+| **DeepAgents** (`deepagents` PyPI package) | LangChain's agent framework. Defines the `SandboxBackendProtocol` interface consumed by the `deep` agent profile. Ships only `LocalShellBackend` — no Docker backend of its own. | The interface genai-tk's LangChain harness implements against. |
+| **Alibaba OpenSandbox** (`opensandbox`, `opensandbox-server`, `agent-sandbox` PyPI packages) | An orchestrator SDK + local server that manages Docker container lifecycle and exposes an HTTP client. | Wrapped by genai-tk's [`AioSandboxBackend`](../genai_tk/agents/sandbox/aio_backend.py), genai-tk's own open-source `SandboxBackendProtocol` implementation for the LangChain harness. |
+| **agent-infra/sandbox** ("AIO Sandbox") | The Docker **image** (`ghcr.io/agent-infra/sandbox:latest`, ~13GB) — Chromium, Python, Node.js, a REST shell/file API, and a VNC web viewer. | The container that OpenSandbox starts and manages — the payload, not the orchestrator. |
+| **`opensandbox/execd`** | A small (~114MB) auxiliary image pinned by `opensandbox-server`'s Docker runtime (`[runtime].execd_image` in its TOML config). It runs the lightweight `execd` command/filesystem daemon that `AioSandboxBackend` actually talks HTTP to inside the sandbox container. | Downloaded automatically the first time `opensandbox-server` starts a Docker-backed sandbox — **not something you configure directly**. genai-tk pins its version in [`_OPENSANDBOX_EXECD_IMAGE`](../genai_tk/agents/sandbox/config.py) (currently `opensandbox/execd:v1.0.16`), written into the generated server TOML by `write_server_config()`. |
+| **DeerFlow** (`deerflow-harness`) | A separate agent harness (ByteDance, LangGraph-based). Has its own sandbox provider, `deerflow.community.aio_sandbox:AioSandboxProvider`, which manages Docker containers directly and does **not** go through `opensandbox-server`. | An independent harness with an independent backend implementation. |
+
+genai-tk deliberately **configures both harnesses to use the same
+`ghcr.io/agent-infra/sandbox` image and the same `sandbox.docker.aio` config
+block** (see [Shared sandbox config](#shared-sandbox-config-both-harnesses)
+below) — this is a genai-tk design choice for consistency, not an inherent
+property of DeepAgents or DeerFlow. Each harness is free to use a different
+backend/image; nothing requires them to match. `opensandbox/execd` is
+unrelated to that choice — it's an implementation detail of the LangChain
+path only, pulled by `opensandbox-server` regardless of which AIO image you
+point it at.
+
+```
+deepagents.SandboxBackendProtocol (interface)
+  ← AioSandboxBackend (genai-tk, wraps Alibaba OpenSandbox SDK)
+    ← opensandbox-server (orchestrator, manages Docker)
+      ├─ pulls opensandbox/execd:v1.0.16  (in-container command/file daemon)
+      └─ pulls ghcr.io/agent-infra/sandbox container (the actual sandbox)
+
+deerflow AioSandboxProvider (independent implementation)
+  ← manages ghcr.io/agent-infra/sandbox container directly (no opensandbox-server, no execd image)
+```
+
 ## Sandbox Types
 
 | Type | When to use | Docker required? |
@@ -318,9 +352,37 @@ Use `--sandbox local` instead. `docker` has ~5-10s startup overhead per invocati
 3. Monitor container resources: `docker stats`
 4. Clear session data after rotating secrets
 
+**Q: I see `opensandbox/execd:v1.0.16` in `docker images` — where did that come from?**
+
+`opensandbox-server` pulls it automatically the first time it starts a
+Docker-backed sandbox — it's the in-container command/filesystem daemon that
+`AioSandboxBackend` talks to, separate from the `ghcr.io/agent-infra/sandbox`
+AIO image. You didn't configure it directly; it's pinned in genai-tk via
+`_OPENSANDBOX_EXECD_IMAGE` in
+[`genai_tk/agents/sandbox/config.py`](../genai_tk/agents/sandbox/config.py).
+See [Terminology — who's who](#terminology--whos-who) for the full picture.
+
 ---
 
 ## Implementation reference
 
 See [design/sandbox_backend.md](design/sandbox_backend.md) (if present) for
 internal architecture and the `AioSandboxBackend` protocol implementation.
+
+## Related projects & future considerations
+
+- **Per-harness backends are independent by design.** Nothing requires the
+  LangChain `deep` agent and DeerFlow to share a container image or backend
+  implementation — genai-tk currently points both at
+  `ghcr.io/agent-infra/sandbox` as a deliberate choice for operational
+  consistency (one image to pull/cache, one config block). Swapping either
+  harness to a different backend does not affect the other.
+- **[NVIDIA OpenShell](https://github.com/NVIDIA/OpenShell)** (Apache-2.0) is a
+  policy-enforcing sandbox runtime (Rust gateway + supervisor, Docker/Podman/
+  MicroVM/K8s drivers) built for coding-agent CLIs, with declarative YAML
+  network/filesystem/process egress policies and credential injection that
+  `AioSandboxBackend` does not currently provide. It's alpha software today
+  (single-tenant, "proof-of-life") but worth revisiting as a
+  `SandboxBackendProtocol` implementation once it stabilizes — particularly
+  for use cases needing network egress policy enforcement rather than plain
+  container isolation.

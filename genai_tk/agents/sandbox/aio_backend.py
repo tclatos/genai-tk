@@ -193,7 +193,14 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
 
         logger.debug(f"Starting AIO sandbox via {server_url}")
         create_kwargs: dict[str, Any] = {
-            "timeout": timedelta(seconds=startup_timeout),
+            # `timeout` is the sandbox's MAX LIFETIME (opensandbox default: 600s),
+            # NOT how long to wait for startup — that's `ready_timeout` below.
+            # This backend explicitly kills the sandbox itself in stop()/aclose(),
+            # so pass None ("require explicit cleanup") rather than reusing
+            # `startup_timeout` here: that previously self-destructed every sandbox
+            # ~60s into a session regardless of activity, causing "sandbox not
+            # found" connectivity failures on any turn/conversation longer than that.
+            "timeout": None,
             "ready_timeout": timedelta(seconds=startup_timeout),
             "entrypoint": self.config.entrypoint,
             "env": env,
@@ -386,7 +393,21 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
     async def _run_bash(self, tool_input: dict) -> SandboxToolResult:
         assert self._sandbox is not None
         command: str = tool_input["command"]
-        execution = await self._sandbox.commands.run(command)
+        try:
+            execution = await self._sandbox.commands.run(command)
+        except Exception as exc:
+            # Connectivity errors (execd unreachable — container stopped, idle-evicted,
+            # or opensandbox-server restarted) otherwise propagate as raw httpx/opensandbox
+            # tracebacks through agrep/als/aexecute, which don't catch exceptions like the
+            # file-op methods below do. Convert to a clear, actionable tool error instead.
+            error_msg = (
+                f"Cannot reach the sandbox container to run this command: {exc}. "
+                "The sandbox may have stopped, been idle-evicted, or opensandbox-server "
+                "may have restarted — try 'cli sandbox status' or start a new turn to "
+                "recreate the sandbox."
+            )
+            logger.warning(f"_run_bash connectivity failure: {error_msg}")
+            return SandboxToolResult(tool_name="bash", output="", exit_code=1, error=error_msg)
         output = execution.text
         exit_code = execution.exit_code if execution.exit_code is not None else 0
         return SandboxToolResult(tool_name="bash", output=output, exit_code=exit_code)
@@ -465,7 +486,11 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             ``ExecuteResponse`` with combined output and exit code.
         """
         result = await self._run_bash({"command": command})
-        return ExecuteResponse(output=result.output, exit_code=result.exit_code)
+        # ExecuteResponse has no `error` field — fold any connectivity error into
+        # `output` (with a non-zero exit code) so it's visible to the caller/LLM
+        # instead of being silently dropped.
+        output = result.error or result.output
+        return ExecuteResponse(output=output, exit_code=result.exit_code)
 
     # ------------------------------------------------------------------
     # BackendProtocol — file operations
@@ -602,6 +627,8 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         if glob:
             cmd += f" --include={shlex.quote(glob)}"
         result = await self._run_bash({"command": cmd})
+        if result.error:
+            return GrepResult(error=result.error)
         matches: list[GrepMatch] = []
         for line in result.output.splitlines():
             parts = line.split(":", 2)

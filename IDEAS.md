@@ -4,13 +4,32 @@ Create a just command that takes a path to a directory name as argument and crea
 
 # Hakathon
 
+ok. The goal was to prepare an hackthon for pen-testers leaning agenic AI. 
+
+1/  rename  prjtest  as pentest-demo 
+2/ Write a document (for the teacher) to guide the students. Start with the steps descrived in /home/tcl/prj/genai-tk/IDEAS.md, and add additonal strps to make the created agents run with skills in a sandbox
+2/ push the projet  in a new git hub repo (you can use gh). I will make it private later (so the student won't  cheat....)
+3/ 
+## First step
 
 Create an agent 'pentester'. Use the DeepAgent harness.
-Write a tool factory** exposing nmap/nikto/whatweb/gobuster/ sqlmap as LangChain tools that run as host subprocesses.
-Add these tools to the agent
-Add a CLI command group** (cli pentest ...) to manage the agent
-test the agent with a simple prompt asking for a nmap localhost
-Use skills.
+- Write a tool factory** exposing nmap/nikto/whatweb/gobuster/ sqlmap as LangChain tools that run as host subprocesses.
+- Add these tools to the agent.
+- Add a CLI command group** (cli pentest ...) to manage the agent.
+- test the agent with a simple prompt asking for a nmap localhost.
+- Use skills.
+
+## 2 
+1/ use bkimminich/juice-shop as target for the pentests. Provide CLI commmand (in pentest group) to start/stop the docker image
+2/  Write  a skill to perform  a simple penetration test on juice-shop using tools we have
+3/ test it 
+
+## 3
+We want to use a docker sandbox for the tests. We will use the AIO sandbox called from DeepAgents. 
+This combination has not been fully tested. You might need to update ganai-tk.
+1/ install nmap, nikto, whatweb, gobuster and sqlmap 
+
+
 
 export PRJ=prjtest; rm -rf $PRJ; mkdir $PRJ; cd $PRJ ; uv init; uv add git+https://github.com/tclatos/genai-tk@main; cli init --extra harnessing
 
