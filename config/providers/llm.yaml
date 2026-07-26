@@ -37,18 +37,6 @@ llm:
       providers:
         - fake: parrot
 
-    - model_id: gpt41mini
-      providers:
-        - edenai: openai/gpt-4.1-mini-2025-04-14
-
-    - model_id: haiku
-      providers: 
-        - edenai: anthropic/claude-haiku-4-5
-
-    - model_id: glm_4.7
-      providers:
-        - edenai: amazon/zai.glm-4.7
-
     - model_id: mistral_7b
       providers:
         - custom:  # ChatOpenAI class parameters - see https://python.langchain.com/api_reference/openai/chat_models/langchain_openai.chat_models.base.ChatOpenAI.html

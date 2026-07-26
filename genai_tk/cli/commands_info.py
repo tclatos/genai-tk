@@ -308,12 +308,21 @@ class InfoCommands(CliTopCommand):
             console = Console()
 
             if reload:
-                console.print("[cyan]Reloading models.dev database…[/cyan]")
+                console.print("[cyan]Reloading model catalogues…[/cyan]")
                 get_models_db.invalidate()  # type: ignore[attr-defined]
-                get_models_db().fetch()
+                models_db = get_models_db()
+                models_db.fetch()
+                edenai_updated = models_db.fetch_edenai()
+                edenai_eur_updated = models_db.fetch_edenai(provider_id="edenai-eur")
                 get_models_db.invalidate()  # type: ignore[attr-defined]  # reload from freshly saved file
                 get_models_db()
-                console.print("[green]✓ Database updated.[/green]")
+                console.print("[green]✓ models.dev database updated.[/green]")
+                if edenai_updated:
+                    console.print("[green]✓ EdenAI model catalogue updated.[/green]")
+                else:
+                    console.print("[dim]EdenAI model catalogue skipped (EDENAI_API_KEY is not set).[/dim]")
+                if edenai_eur_updated:
+                    console.print("[green]✓ EdenAI Europe model catalogue updated.[/green]")
 
             if model_id is None:
                 return
@@ -504,9 +513,9 @@ class InfoCommands(CliTopCommand):
                 )
                 left_renderables.append(eff_table)
 
-            # --- Right table: models.dev capabilities ---
+            # --- Right table: model catalogue capabilities ---
             prof_table = Table(
-                title="[bold green]models.dev[/bold green]",
+                title="[bold green]Model catalogue[/bold green]",
                 show_header=True,
                 header_style="bold green",
                 box=None,
@@ -541,8 +550,14 @@ class InfoCommands(CliTopCommand):
                     prof_table.add_row("Cost in ($/M tok)", f"{profile.cost_input}")
                 if profile.cost_output is not None:
                     prof_table.add_row("Cost out ($/M tok)", f"{profile.cost_output}")
+                if profile.regions:
+                    region_display = ", ".join(
+                        region.name if region.code == region.name else f"{region.name} ({region.code})"
+                        for region in profile.regions
+                    )
+                    prof_table.add_row("Regions", region_display)
             else:
-                prof_table.add_row("[dim italic]no entry in models.dev[/dim italic]", "")
+                prof_table.add_row("[dim italic]no catalogue entry[/dim italic]", "")
 
             # --- Middle table: provider info ---
             prov_table = Table(
@@ -605,7 +620,7 @@ class InfoCommands(CliTopCommand):
                 fuzz_table.add_column("Canonical name", style="cyan")
                 fuzz_table.add_column("Score", style="white", width=5)
                 fuzz_table.add_column("", style="green", width=1)
-                for rank, (cname, score) in enumerate(fuzzy_alternatives[:6], start=1):
+                for rank, (cname, score) in enumerate(fuzzy_alternatives[:20], start=1):
                     selected = "[bold green]✓[/bold green]" if cname == resolved_canonical else ""
                     fuzz_table.add_row(str(rank), cname, f"{score:.2f}", selected)
                 console.print(fuzz_table)
@@ -614,7 +629,7 @@ class InfoCommands(CliTopCommand):
             if not profile:
                 console.print()
                 no_profile_text = Text()
-                no_profile_text.append("No entry in models.dev for ", style="yellow")
+                no_profile_text.append("No catalogue entry for ", style="yellow")
                 no_profile_text.append(f"{lc_model_name!r}", style="bold")
                 no_profile_text.append(f" (provider: {lc_provider}). ", style="dim")
                 no_profile_text.append("Run ", style="dim")

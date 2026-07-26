@@ -74,7 +74,8 @@ providers:
     api_base: https://api.eu.edenai.run/v3/llm
     openai_compatible: true
     gateway: true
-    # EdenAI v3 European endpoint: same key as edenai, routes to EU infrastructure
+    # Select with MODEL@edenai-eur to use the EU catalogue and inference endpoint.
+    # The same EDENAI_API_KEY is used for global and EU requests.
 
   openrouter:
     use: langchain_openai.ChatOpenAI

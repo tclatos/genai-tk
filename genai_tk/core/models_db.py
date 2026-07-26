@@ -17,6 +17,7 @@ Example:
 """
 
 import json
+import os
 from pathlib import Path
 
 import httpx
@@ -26,6 +27,15 @@ from pydantic import BaseModel, field_validator
 from genai_tk.utils.singleton import once
 
 MODELS_DEV_URL = "https://models.dev/api.json"
+EDENAI_MODELS_URL = "https://api.edenai.run/v3/models"
+EDENAI_EU_MODELS_URL = "https://api.eu.edenai.run/v3/models"
+EDENAI_API_KEY_ENV_VAR = "EDENAI_API_KEY"
+EDENAI_CACHE_FILENAME = "edenai_models.json"
+EDENAI_EU_CACHE_FILENAME = "edenai_eur_models.json"
+EDENAI_CATALOGUES = {
+    "edenai": (EDENAI_MODELS_URL, EDENAI_CACHE_FILENAME),
+    "edenai-eur": (EDENAI_EU_MODELS_URL, EDENAI_EU_CACHE_FILENAME),
+}
 
 
 def _default_cache_path() -> Path:
@@ -39,6 +49,15 @@ def _default_cache_path() -> Path:
 
 
 _DEFAULT_CACHE_PATH = Path(__file__).parent.parent.parent / "data" / "models_dev.json"
+
+
+class ModelRegion(BaseModel):
+    """Inference region where a model is available."""
+
+    code: str
+    name: str
+
+    model_config = {"frozen": True}
 
 
 class ModelEntry(BaseModel):
@@ -63,6 +82,7 @@ class ModelEntry(BaseModel):
         release_date: ISO date string of initial release
         last_updated: ISO date string of last update
         open_weights: True if model weights are publicly available
+        regions: Inference regions where the model is available
     """
 
     id: str
@@ -83,6 +103,7 @@ class ModelEntry(BaseModel):
     release_date: str | None = None
     last_updated: str | None = None
     open_weights: bool = False
+    regions: list[ModelRegion] = []
 
     model_config = {"frozen": True}
 
@@ -91,6 +112,12 @@ class ModelEntry(BaseModel):
     def zero_to_none(cls, v: int | None) -> int | None:
         """Treat 0 as None (models.dev uses 0 to mean unknown/unlimited)."""
         return None if v == 0 else v
+
+    @field_validator("regions", mode="before")
+    @classmethod
+    def normalize_regions(cls, value: list[dict[str, str] | str] | None) -> list[dict[str, str] | str]:
+        """Normalize string-only provider regions into the structured representation."""
+        return [{"code": region, "name": region} if isinstance(region, str) else region for region in (value or [])]
 
     # ── Capability properties ──────────────────────────────────────────────
 
@@ -155,6 +182,7 @@ class ModelsDb:
         self._providers: dict[str, dict[str, ModelEntry]] = {}  # provider_id → {model_id → entry}
         self._loaded = False
         self._cache_path: Path | None = None
+        self._edenai_cache_paths: dict[str, Path] = {}
 
     # ── Loading / fetching ────────────────────────────────────────────────
 
@@ -169,6 +197,8 @@ class ModelsDb:
         else:
             raw = json.loads(cache_path.read_text(encoding="utf-8"))
             self._build_index(raw)
+        for provider_id, (_url, filename) in EDENAI_CATALOGUES.items():
+            self._load_edenai_models(provider_id, cache_path.with_name(filename))
         self._loaded = True
         return self
 
@@ -189,6 +219,40 @@ class ModelsDb:
         self._cache_path = cache_path
         return self
 
+    def _load_edenai_models(self, provider_id: str, cache_path: Path) -> None:
+        """Merge cached EdenAI models, fetching them only when a key is available."""
+        self._edenai_cache_paths[provider_id] = cache_path
+        if cache_path.exists():
+            self._merge_edenai_models(provider_id, json.loads(cache_path.read_text(encoding="utf-8")))
+        elif os.environ.get(EDENAI_API_KEY_ENV_VAR):
+            self.fetch_edenai(cache_path, provider_id)
+        else:
+            logger.debug(f"EDENAI_API_KEY is not set; skipping {provider_id} model catalogue fetch.")
+
+    def fetch_edenai(self, cache_path: Path | None = None, provider_id: str = "edenai") -> bool:
+        """Fetch and cache an EdenAI model catalogue when an API key is configured."""
+        api_key = os.environ.get(EDENAI_API_KEY_ENV_VAR)
+        if not api_key:
+            logger.debug(f"EDENAI_API_KEY is not set; skipping {provider_id} model catalogue fetch.")
+            return False
+
+        try:
+            models_url, cache_filename = EDENAI_CATALOGUES[provider_id]
+        except KeyError as error:
+            raise ValueError(f"Unknown EdenAI catalogue provider: {provider_id}") from error
+        if cache_path is None:
+            cache_path = self._edenai_cache_paths.get(provider_id) or _default_cache_path().with_name(cache_filename)
+        logger.info(f"Fetching {provider_id} models from {models_url} …")
+        response = httpx.get(models_url, headers={"Authorization": f"Bearer {api_key}"}, timeout=30)
+        response.raise_for_status()
+        raw: dict = response.json()
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+        self._edenai_cache_paths[provider_id] = cache_path
+        self._merge_edenai_models(provider_id, raw)
+        logger.info(f"Saved {len(raw.get('data', []))} {provider_id} models to {cache_path}")
+        return True
+
     # ── Index construction ────────────────────────────────────────────────
 
     def _build_index(self, data: dict) -> None:
@@ -207,6 +271,21 @@ class ModelsDb:
                 entry = self._parse_entry(model_id, provider_id, model_data)
                 self._index[f"{provider_id}/{model_id}"] = entry
                 self._providers[provider_id][model_id] = entry
+
+    def _merge_edenai_models(self, provider_id: str, data: dict) -> None:
+        """Merge the EdenAI `/v3/models` response into the normalized index."""
+        models = data.get("data")
+        if not isinstance(models, list):
+            logger.warning("Ignoring EdenAI model cache with an invalid 'data' field.")
+            return
+
+        edenai_models = self._providers.setdefault(provider_id, {})
+        for model_data in models:
+            if not isinstance(model_data, dict) or not isinstance(model_id := model_data.get("id"), str):
+                continue
+            entry = self._parse_edenai_entry(model_id, provider_id, model_data)
+            self._index[f"{provider_id}/{model_id}"] = entry
+            edenai_models[model_id] = entry
 
     def _parse_entry(self, model_id: str, provider_id: str, data: dict) -> ModelEntry:
         modalities = data.get("modalities") or {}
@@ -231,6 +310,32 @@ class ModelsDb:
             release_date=data.get("release_date") or None,
             last_updated=data.get("last_updated") or None,
             open_weights=bool(data.get("open_weights", False)),
+            regions=list(data.get("regions") or []),
+        )
+
+    def _parse_edenai_entry(self, model_id: str, provider_id: str, data: dict) -> ModelEntry:
+        capabilities = data.get("capabilities") or {}
+        input_modalities = list(capabilities.get("input_modalities") or [])
+        output_modalities = list(capabilities.get("output_modalities") or [])
+        pricing = data.get("pricing") or {}
+        return ModelEntry(
+            id=model_id,
+            name=data.get("model_name") or data.get("name") or model_id,
+            provider_id=provider_id,
+            family=data.get("owned_by") or None,
+            reasoning=bool(capabilities.get("supports_reasoning", capabilities.get("reasoning", False))),
+            tool_call=bool(capabilities.get("supports_function_calling", capabilities.get("tool_calling", False))),
+            structured_output=bool(capabilities.get("supports_response_schema", False)),
+            modalities_input=input_modalities + (["pdf"] if capabilities.get("pdf", False) else []),
+            modalities_output=output_modalities,
+            context=data.get("context_length"),
+            cost_input=(float(pricing["input_cost_per_token"]) * 1_000_000)
+            if pricing.get("input_cost_per_token") is not None
+            else None,
+            cost_output=(float(pricing["output_cost_per_token"]) * 1_000_000)
+            if pricing.get("output_cost_per_token") is not None
+            else None,
+            regions=list(data.get("regions") or []),
         )
 
     # ── Lookup API ────────────────────────────────────────────────────────

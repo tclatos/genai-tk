@@ -113,7 +113,10 @@ class LangChainHarness(BaseHarness):
 
     async def astream(self, message: str, *, thread_id: str | None = None) -> AsyncIterator[StreamEvent]:
         agent = await self._ensure_agent()
-        config: dict[str, Any] = {"configurable": {"thread_id": thread_id or self.default_thread_id}}
+        config: dict[str, Any] = {
+            "configurable": {"thread_id": thread_id or self.default_thread_id},
+            "recursion_limit": self._profile.recursion_limit,
+        }
         # Attach monitoring callbacks (local JSONL log, LangFuse CallbackHandler)
         # so agent runs are traced alongside the env-var/OTEL backends.
         callbacks = get_monitoring_callbacks()

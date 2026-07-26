@@ -53,7 +53,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, compu
 
 from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.core.cache import CacheMethod, LlmCache
-from genai_tk.core.models_db import ModelEntry, get_models_db
+from genai_tk.core.models_db import EDENAI_CATALOGUES, ModelEntry, get_models_db
 from genai_tk.core.providers import (
     PROVIDER_INFO,
     ProviderInfo,
@@ -147,6 +147,58 @@ def _fuzzy_match(query: str, candidates: list[str], n: int = 5, cutoff: float = 
     return scored[:n]
 
 
+def _edenai_fuzzy_match(
+    query: str, candidates: list[str], n: int | None = None, cutoff: float = 0.35
+) -> list[tuple[str, float]]:
+    """Rank EdenAI backends for the same model before neighboring model versions."""
+    max_results = n or len(candidates)
+    query_normalized = _normalize(query)
+    backend_names = sorted({_normalize(candidate.partition("/")[0]) for candidate in candidates}, key=len, reverse=True)
+    selected_backend = next(
+        (backend for backend in backend_names if query_normalized.endswith(backend) and query_normalized != backend),
+        None,
+    )
+    model_query = query_normalized[: -len(selected_backend)] if selected_backend else query_normalized
+    base_scores = [
+        (candidate, difflib.SequenceMatcher(None, model_query, _normalize(candidate.rsplit("/", 1)[-1])).ratio())
+        for candidate in candidates
+    ]
+    selected_model_name, best_base_score = max(base_scores, key=lambda match: match[1], default=("", 0.0))
+    if best_base_score < cutoff:
+        return []
+
+    selected_base = _normalize(selected_model_name.rsplit("/", 1)[-1])
+    same_model = [candidate for candidate in candidates if _normalize(candidate.rsplit("/", 1)[-1]) == selected_base]
+    same_model_scores = [
+        (candidate, difflib.SequenceMatcher(None, query_normalized, _normalize(candidate)).ratio())
+        for candidate in same_model
+    ]
+    same_model_scores.sort(key=lambda match: -match[1])
+    if selected_backend:
+        requested_backend = [
+            match for match in same_model_scores if _normalize(match[0].partition("/")[0]) == selected_backend
+        ]
+        requested_backend = [(candidate, max(score, best_base_score)) for candidate, score in requested_backend]
+        requested_backend_ids = {candidate for candidate, _score in requested_backend}
+        same_model_scores = requested_backend + [
+            match for match in same_model_scores if match[0] not in requested_backend_ids
+        ]
+    other_models = [
+        (
+            candidate,
+            max(
+                difflib.SequenceMatcher(None, query_normalized, _normalize(candidate)).ratio(),
+                difflib.SequenceMatcher(None, selected_base, _normalize(candidate.rsplit("/", 1)[-1])).ratio(),
+            ),
+        )
+        for candidate in candidates
+        if candidate not in same_model
+    ]
+    other_models = [match for match in other_models if match[1] >= cutoff]
+    other_models.sort(key=lambda match: -match[1])
+    return (same_model_scores + other_models)[:max_results]
+
+
 def resolve_model(compact_alias: str, provider_id: str) -> "tuple[str, ModelEntry | None, list[tuple[str, float]]]":
     """Fuzzy-resolve a compact alias to a canonical model name using the models.dev database.
 
@@ -170,6 +222,21 @@ def resolve_model(compact_alias: str, provider_id: str) -> "tuple[str, ModelEntr
     db = get_models_db()
     provider_info = PROVIDER_INFO.get(provider_id)
 
+    if provider_id in EDENAI_CATALOGUES:
+        models = db.provider_models(provider_id)
+        candidates = list(models.keys())
+        if not candidates:
+            raise ValueError(
+                f"Provider '{provider_id}' has no cached model catalogue. "
+                "Set EDENAI_API_KEY and run 'cli info llm-profile --reload'."
+            )
+        matches = _edenai_fuzzy_match(compact_alias, candidates, n=len(candidates))
+        if matches:
+            best_name, _ = matches[0]
+            return best_name, models.get(best_name), matches
+        top3 = [candidate for candidate, _ in _edenai_fuzzy_match(compact_alias, candidates, n=3, cutoff=0)]
+        raise ValueError(f"No model matching '{compact_alias}' for provider '{provider_id}'. Closest: {top3}")
+
     if provider_info and provider_info.gateway:
         # Use openrouter catalogue which covers most vendors in vendor/model format.
         models = db.provider_models("openrouter")
@@ -192,11 +259,16 @@ def resolve_model(compact_alias: str, provider_id: str) -> "tuple[str, ModelEntr
                 f"Provider '{provider_id}' has no entries in the models.dev database. "
                 "Add the model explicitly to llm.yaml as an exception."
             )
-        matches = _fuzzy_match(compact_alias, candidates)
+        matches = (
+            _edenai_fuzzy_match(compact_alias, candidates, n=len(candidates))
+            if provider_id == "edenai"
+            else _fuzzy_match(compact_alias, candidates)
+        )
         if matches:
             best_name, _ = matches[0]
             return best_name, models.get(best_name), matches
-        top3 = [c for c, _ in _fuzzy_match(compact_alias, candidates, n=3, cutoff=0)][:3]
+        matcher = _edenai_fuzzy_match if provider_id == "edenai" else _fuzzy_match
+        top3 = [c for c, _ in matcher(compact_alias, candidates, n=3, cutoff=0)][:3]
         raise ValueError(f"No model matching '{compact_alias}' for provider '{provider_id}'. Closest: {top3}")
 
     else:

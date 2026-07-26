@@ -212,6 +212,15 @@ class AgentProfileConfig(BaseModel):
     subagents: list[dict[str, Any]] = Field(default_factory=list, description="Subagent definitions (deep agents only)")
     features: list[str] = Field(default_factory=list, description="Feature flags shown in the UI")
     examples: list[str] = Field(default_factory=list, description="Example prompts shown in the UI")
+    recursion_limit: int = Field(
+        100,
+        description=(
+            "Max LangGraph steps per turn, passed through as the `recursion_limit` "
+            "run config. LangGraph's own built-in default is 25, which multi-step "
+            "deep agents (planning + several tool calls) can exceed on a single "
+            "non-trivial task, raising GraphRecursionError."
+        ),
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
