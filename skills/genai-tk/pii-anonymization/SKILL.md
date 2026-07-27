@@ -58,7 +58,7 @@ langchain_agents:
         fuzzy_threshold: 85
 ```
 
-Run: `cli agents langchain -p privacy_agent --chat`
+Run: `cli agents run privacy_agent --chat`
 
 **With custom domain entities (companies, products):**
 

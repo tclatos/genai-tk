@@ -18,7 +18,7 @@ Add a new profile key to the closest file under `config/agents/langchain/`:
 
 ```yaml
 langchain_agents:
-  my_agent:                         # profile key used by: cli agents langchain -p my_agent
+  my_agent:                         # profile key used by: cli agents run my_agent
     name: My Agent                  # display name
     type: react                     # react | deep | custom
     llm: default                    # LLM identifier or alias from config/providers/llm.yaml
@@ -65,13 +65,13 @@ def create_tools() -> list:
 
 ```bash
 # List available profiles; use the profile key, not the display name
-uv run cli agents langchain --list
+uv run cli agents list
 
 # Run in chat mode
-uv run cli agents langchain -p my_agent --chat
+uv run cli agents run my_agent --chat
 
 # Run with a single question
-uv run cli agents langchain -p my_agent "What is the weather today?"
+uv run cli agents run my_agent "What is the weather today?"
 ```
 
 ## Agent Types
@@ -135,4 +135,4 @@ deerflow_agents:
     skill_directories: [${paths.project}/skills]
 ```
 
-Run with: `uv run cli agents deerflow --profile Researcher --chat`
+Run with: `uv run cli agents run Researcher --chat`

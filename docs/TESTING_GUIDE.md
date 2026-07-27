@@ -314,10 +314,14 @@ cli test evals                          # deterministic evals only
 cli test evals --real                   # include LLM-judged evals
 cli test evals --deerflow --timeout 360 # DeerFlow evals
 
-# Run tests matching a pattern (across all test directories)
+# Run tests matching a pattern or path (across all test directories)
 cli test select '*deerflow*'
 cli test select 'rag' -v
 cli test select 'embedding or vectorstore' --real
+
+# Run a single file behind an extra gate (path targets run all tests in the file)
+cli test select test_sandbox_backend_integration.py --include-docker
+cli test select tests/integration_tests/agents --docker -v
 
 # Execute Jupyter notebooks as tests (NEW)
 cli test notebooks                              # run all notebooks in configured path

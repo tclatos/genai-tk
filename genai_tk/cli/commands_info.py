@@ -308,12 +308,21 @@ class InfoCommands(CliTopCommand):
             console = Console()
 
             if reload:
-                console.print("[cyan]Reloading models.dev database…[/cyan]")
+                console.print("[cyan]Reloading model catalogues…[/cyan]")
                 get_models_db.invalidate()  # type: ignore[attr-defined]
-                get_models_db().fetch()
+                models_db = get_models_db()
+                models_db.fetch()
+                edenai_updated = models_db.fetch_edenai()
+                edenai_eur_updated = models_db.fetch_edenai(provider_id="edenai-eur")
                 get_models_db.invalidate()  # type: ignore[attr-defined]  # reload from freshly saved file
                 get_models_db()
-                console.print("[green]✓ Database updated.[/green]")
+                console.print("[green]✓ models.dev database updated.[/green]")
+                if edenai_updated:
+                    console.print("[green]✓ EdenAI model catalogue updated.[/green]")
+                else:
+                    console.print("[dim]EdenAI model catalogue skipped (EDENAI_API_KEY is not set).[/dim]")
+                if edenai_eur_updated:
+                    console.print("[green]✓ EdenAI Europe model catalogue updated.[/green]")
 
             if model_id is None:
                 return
@@ -443,6 +452,8 @@ class InfoCommands(CliTopCommand):
             console.print(Rule(f"[bold cyan]{model_id}[/bold cyan]", style="cyan"))
             console.print()
 
+            from genai_tk.core.providers import LAB_INFO
+
             # --- Left table: llm.yaml registry info ---
             reg_table = Table(
                 title="[bold blue]llm.yaml[/bold blue]",
@@ -454,8 +465,11 @@ class InfoCommands(CliTopCommand):
             reg_table.add_column("Field", style="dim", no_wrap=True, min_width=12)
             reg_table.add_column("Value", style="white", min_width=26)
             if llm_info is not None:
+                lab_key = llm_info.effective_lab
+                lab_display = LAB_INFO[lab_key].display_name if lab_key and lab_key in LAB_INFO else (lab_key or "—")
                 reg_table.add_row("ID", f"[cyan]{llm_info.id}[/cyan]")
                 reg_table.add_row("Provider", llm_info.provider)
+                reg_table.add_row("Lab", lab_display)
                 reg_table.add_row("Model", llm_info.model)
                 caps_yaml = ", ".join(llm_info.capabilities) if llm_info.capabilities else "[dim]—[/dim]"
                 reg_table.add_row("Capabilities", caps_yaml)
@@ -464,8 +478,13 @@ class InfoCommands(CliTopCommand):
                     "Context", str(llm_info.context_window) if llm_info.context_window else "[dim]—[/dim]"
                 )
             else:
+                from genai_tk.core.providers import get_lab_for_model
+
+                lab_key = get_lab_for_model(lc_model_name, lc_provider)
+                lab_display = LAB_INFO[lab_key].display_name if lab_key and lab_key in LAB_INFO else (lab_key or "—")
                 reg_table.add_row("ID", f"[dim]{model_id}[/dim]")
                 reg_table.add_row("Provider", lc_provider)
+                reg_table.add_row("Lab", lab_display)
                 reg_table.add_row("Model", lc_model_name)
                 reg_table.add_row("Capabilities", "[dim]—[/dim]")
                 reg_table.add_row("Max tokens", "[dim]—[/dim]")
@@ -494,9 +513,9 @@ class InfoCommands(CliTopCommand):
                 )
                 left_renderables.append(eff_table)
 
-            # --- Right table: models.dev capabilities ---
+            # --- Right table: model catalogue capabilities ---
             prof_table = Table(
-                title="[bold green]models.dev[/bold green]",
+                title="[bold green]Model catalogue[/bold green]",
                 show_header=True,
                 header_style="bold green",
                 box=None,
@@ -531,8 +550,14 @@ class InfoCommands(CliTopCommand):
                     prof_table.add_row("Cost in ($/M tok)", f"{profile.cost_input}")
                 if profile.cost_output is not None:
                     prof_table.add_row("Cost out ($/M tok)", f"{profile.cost_output}")
+                if profile.regions:
+                    region_display = ", ".join(
+                        region.name if region.code == region.name else f"{region.name} ({region.code})"
+                        for region in profile.regions
+                    )
+                    prof_table.add_row("Regions", region_display)
             else:
-                prof_table.add_row("[dim italic]no entry in models.dev[/dim italic]", "")
+                prof_table.add_row("[dim italic]no catalogue entry[/dim italic]", "")
 
             # --- Middle table: provider info ---
             prov_table = Table(
@@ -595,7 +620,7 @@ class InfoCommands(CliTopCommand):
                 fuzz_table.add_column("Canonical name", style="cyan")
                 fuzz_table.add_column("Score", style="white", width=5)
                 fuzz_table.add_column("", style="green", width=1)
-                for rank, (cname, score) in enumerate(fuzzy_alternatives[:6], start=1):
+                for rank, (cname, score) in enumerate(fuzzy_alternatives[:20], start=1):
                     selected = "[bold green]✓[/bold green]" if cname == resolved_canonical else ""
                     fuzz_table.add_row(str(rank), cname, f"{score:.2f}", selected)
                 console.print(fuzz_table)
@@ -604,7 +629,7 @@ class InfoCommands(CliTopCommand):
             if not profile:
                 console.print()
                 no_profile_text = Text()
-                no_profile_text.append("No entry in models.dev for ", style="yellow")
+                no_profile_text.append("No catalogue entry for ", style="yellow")
                 no_profile_text.append(f"{lc_model_name!r}", style="bold")
                 no_profile_text.append(f" (provider: {lc_provider}). ", style="dim")
                 no_profile_text.append("Run ", style="dim")

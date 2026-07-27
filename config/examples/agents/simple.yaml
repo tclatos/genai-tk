@@ -1,13 +1,10 @@
-# Simple React Agents - Demo profiles for basic use cases
-#
-# This file contains lightweight React agents suitable for demonstrations:
-# - simple: basic agent with web search
-# - filesystem: file system manipulation
-# - weather: weather assistant
+# Lightweight ReAct agents — demos and basic use cases.
+# Inheritable fields (type, llm, middlewares, checkpointer, backend, skills…) come
+# from defaults.yaml; override only what differs per profile.
 
-langchain_agents:
-
+agents:
   simple:
+    harness: langchain
     name: "simple"
     type: react
     description: "Simple agents with web search"
@@ -17,6 +14,7 @@ langchain_agents:
         verbose: true
 
   filesystem:
+    harness: langchain
     name: "filesystem"
     type: react
     description: "File system manipulation agent"
@@ -30,12 +28,14 @@ langchain_agents:
       - "What are the configuration files in current directory"
 
   eval_test:
+    harness: langchain
     name: "eval-test"
     type: react
     description: "Minimal profile for evaluation tests — no tools, no LLM (both injected at test time)"
     system_prompt: "You are a helpful assistant."
 
   weather:
+    harness: langchain
     name: "Weather"
     type: react
     description: "Weather assistant with web search"

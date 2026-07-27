@@ -32,8 +32,8 @@ mcp_expose_servers:
       # profile: research        # use a langchain profile (by KEY)
 ```
 
-The `tools` syntax is identical to `langchain.yaml` — a `factory` key plus any
-flat kwargs forwarded to the factory function.
+The `tools` syntax is identical to `config/agents.yaml` — a `factory` key plus
+any flat kwargs forwarded to the factory function.
 
 OmegaConf variables (`${paths.project}`) are resolved against the global config
 before the definitions are loaded.
@@ -77,7 +77,7 @@ MCP tool called `run_<name>` (configurable via `agent.name`). The agent is
 initialised lazily on the first call.
 
 Use `agent.profile` to delegate to a full DeepAgent profile defined in
-`deepagents.yaml`.  Omit it to get a minimal ReAct agent.
+`config/agents.yaml` (a `type: deep` profile).  Omit it to get a minimal ReAct agent.
 
 ## Adding a New Server
 

@@ -56,21 +56,26 @@ def create_my_tools(api_key: str = "") -> list[BaseTool]:
 
 ## Step 2: Register in Agent Profile
 
-In `config/agents/langchain.yaml`, add to your profile's `tools:` list:
+In your project's `config/agents/*.yaml` (or `config/examples/agents/*.yaml` in
+genai-tk itself), add to your profile's `tools:` list under the unified
+`agents:` dict:
 
 ```yaml
-langchain_agents:
+agents:
   my_agent:
+    harness: langchain
+    type: react                # or deep
     tools:
-      # Option A: direct function reference
-      - spec: my_project.tools.my_tool.my_tool
+      # Option A: bare function reference
+      - function: my_project.tools.my_tool.my_tool
 
-      # Option B: factory function (can accept config kwargs)
-      - spec: my_project.tools.my_tool.create_my_tools
-        type: factory
-        kwargs:
-          api_key: ${oc.env:MY_API_KEY,}
+      # Option B: factory function — any extra keys become factory kwargs
+      - factory: my_project.tools.my_tool.create_my_tools
+        api_key: ${oc.env:MY_API_KEY,}
 ```
+
+See `genai_tk/agents/tools/tool_specs.py` for the full `class:` / `function:` /
+`factory:` discriminated spec format.
 
 ## Step 3: Test the Tool Directly
 
@@ -83,7 +88,7 @@ print(result)
 ## Step 4: Test via CLI
 
 ```bash
-cli agents langchain -p my_agent "Use my_tool to process: hello world"
+cli agents run my_agent "Use my_tool to process: hello world"
 ```
 
 ## Best Practices

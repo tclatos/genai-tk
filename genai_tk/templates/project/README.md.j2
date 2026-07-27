@@ -33,7 +33,7 @@ config/
 ├── app_conf.yaml              # Main configuration
 ├── baseline.yaml              # LLM and embeddings defaults
 ├── webapp.yaml                # Web UI settings
-├── agents/                    # Agent profile configs
+├── agents.yaml               # Agent profiles (unified: LangChain + DeerFlow)
 └── providers/                 # LLM provider configs
 ```
 
@@ -51,6 +51,6 @@ config/
 
 ### New Agent Profile
 
-Edit `config/agents/langchain.yaml` to add profiles with tools and MCP servers.
+Edit `config/agents.yaml` to add profiles (LangChain or DeerFlow) with tools and MCP servers.
 
 See the [genai-tk documentation](https://github.com/tclatos/genai-tk) for details.

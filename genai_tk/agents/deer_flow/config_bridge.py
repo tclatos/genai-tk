@@ -136,7 +136,7 @@ def load_skills_from_directories(
         skill_dir = Path(skill_dir_str)
         if not skill_dir.exists():
             msg = f"Skill directory does not exist: {skill_dir}"
-            logger.warning(msg)
+            logger.debug(msg)
             if warnings is not None:
                 warnings.missing_skill_directories.append(msg)
             continue
@@ -406,7 +406,7 @@ def write_deer_flow_config(
                     logger.debug(f"Available {label} skills: {preview}{suffix}")
         else:
             msg = f"Skills directory not found: {skills_path}"
-            logger.warning(msg)
+            logger.debug(msg)
             warnings.missing_skill_directories.append(msg)
 
     _check_external_symlinks(skills_path, sandbox, warnings=warnings)

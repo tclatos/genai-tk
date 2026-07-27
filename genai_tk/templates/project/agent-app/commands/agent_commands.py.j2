@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Annotated, Optional
+from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.table import Table
 
+from genai_tk.agents.harness import TokenEvent, create_harness
+from genai_tk.agents.harness.registry import list_harness_profiles
 from genai_tk.cli.base import CliTopCommand
 
 console = Console()
@@ -22,40 +25,66 @@ class AgentCommands(CliTopCommand):
         return "agent", self.description
 
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
+
+        @cli_app.command("list")
+        def list_profiles() -> None:
+            """List configured agent profiles across every harness."""
+            refs = list_harness_profiles()
+            if not refs:
+                console.print("[yellow]No agent profiles configured.[/yellow]")
+                return
+            table = Table("Key", "Kind", "Harness", "Description")
+            for ref in refs:
+                table.add_row(ref.key, ref.kind, ref.harness, ref.description)
+            console.print(table)
+
         @cli_app.command()
         def chat(
-            query: Annotated[Optional[str], typer.Argument(help="Query to send (omit for interactive mode)")] = None,
-            model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
+            query: Annotated[str | None, typer.Argument(help="Query to send (omit for interactive mode)")] = None,
             profile: Annotated[str, typer.Option("-p", "--profile", help="Agent profile key")] = "default",
+            llm: Annotated[str | None, typer.Option("-m", "--llm", help="LLM identifier override")] = None,
         ) -> None:
-            """Chat with a configured agent profile."""
-            from langchain_core.messages import HumanMessage
-            from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
-            from genai_tk.agents.langchain.factory import create_langchain_agent
-            from genai_tk.config_mgmt.config_mngr import global_config
+            """Chat with a configured agent profile via the unified harness layer.
 
-            cfg = global_config()
+            Works for any profile in ``config/agents.yaml`` (LangChain react/deep/custom
+            or DeerFlow) — the harness is auto-resolved from the profile's ``harness:`` field.
+
+            Examples:
+                cli agent chat "What can you do?"
+                cli agent chat -p research "Summarize recent AI news"
+                cli agent chat -p research --llm gpt_4o@openai
+                cli agent chat            # interactive multi-turn mode
+            """
+            try:
+                harness = create_harness(profile, llm_override=llm)
+            except ValueError as exc:
+                console.print(f"[red]Error:[/red] {exc}")
+                raise typer.Exit(1) from exc
 
             async def _run() -> None:
-                agent_config = load_unified_config()
-                agent_profile = resolve_profile(agent_config, profile)
-                agent = await create_langchain_agent(
-                    agent_profile,
-                    llm_override=model if model != "default" else None,
-                    force_memory_checkpointer=True,
-                )
-                if query:
-                    result = await agent.ainvoke({"messages": [HumanMessage(content=query)]})
-                    last = result["messages"][-1]
-                    console.print(f"\n[bold]{last.content}[/bold]\n")
-                else:
-                    console.print("[cyan]Interactive mode — type 'exit' to quit.[/cyan]\n")
-                    while True:
-                        user_input = typer.prompt("You")
-                        if user_input.lower() in ("exit", "quit", "q"):
-                            break
-                        result = await agent.ainvoke({"messages": [HumanMessage(content=user_input)]})
-                        last = result["messages"][-1]
-                        console.print(f"\n[bold]Agent:[/bold] {last.content}\n")
+                try:
+                    if query:
+                        async for event in harness.astream(query):
+                            if isinstance(event, TokenEvent):
+                                console.print(event.text, end="", highlight=False)
+                        console.print()
+                    else:
+                        console.print("[cyan]Interactive mode — type 'exit' to quit.[/cyan]\n")
+                        while True:
+                            try:
+                                user_input = typer.prompt("You")
+                            except (EOFError, typer.Abort):
+                                break
+                            if user_input.lower() in ("exit", "quit", "q"):
+                                break
+                            async for event in harness.astream(user_input):
+                                if isinstance(event, TokenEvent):
+                                    console.print(event.text, end="", highlight=False)
+                            console.print("\n")
+                finally:
+                    await harness.aclose()
 
-            asyncio.run(_run())
+            try:
+                asyncio.run(_run())
+            except KeyboardInterrupt:
+                console.print("\n[yellow]Interrupted.[/yellow]")

@@ -14,15 +14,16 @@ dependencies = [
     "questionary>=2.0",         # Interactive CLI prompts (template picker)
     "omegaconf>=2.3.0",         # Hierarchical configuration system
     "rich[jupyter]>=13.9.4",    # Rich terminal formatting and progress bars
+    "textual>=0.80",            # Terminal UI framework 
     "universal-pathlib>=0.2.6", # Unified path interface for local/cloud storage
     "python-dotenv>=1.1.1",     # Environment variable management
     "beartype>=0.21.0",         # Runtime type validation
     "devtools>=0.12.2",         # Debug printing and development utilities
+    "bcrypt>=4.0",             # Salted password hashing for basic_auth (webapp)
     "xxhash>=3.6.0",            # Fast non-cryptographic hash functions
-    "pathspec>=1.1.1",          # .gitignore-style file matching (gitwildmatch)
+    "pathspec>=1.0.2,<1.1.1",   # .gitignore-style file matching (gitwildmatch); 1.1.1 ships a broken re2 backend (missing re2_error)
     "httpx>=0.28.0",            # Async HTTP client
     "wrapt>=1.17",              # Transparent function/decorator wrapping
-    "bcrypt>=4.0",             # Salted password hashing for basic_auth (webapp)
     # ============================================
     # LangChain Core Framework
     # ============================================
@@ -47,7 +48,6 @@ dependencies = [
     "openai>=1.80.0",                # Official OpenAI Python client
     "litellm>=1.82.5",               # Unified LLM API (100+ models)
     "mistralai>=1.7.0",              # Official Mistral AI client
-    "fastembed>=0.8.0",              # Fast embedding generation with support for many models
     # ============================================
     # Agent Frameworks (core only — harnessing extras are optional)
     # ============================================
@@ -57,6 +57,7 @@ dependencies = [
     # ============================================
     # NLP & Text Processing (spaCy + models are optional — see [nlp] extra)
     # ============================================
+    "fastembed>=0.8.0",     # Fast embedding generation with support for many models
     "tokenizers>=0.21.0",   # Hugging Face fast tokenizers
     "abbreviations>=0.2.5", # Abbreviation detection and expansion
     "unidecode>=1.3.8",     # ASCII transliteration of Unicode text
@@ -75,6 +76,7 @@ dependencies = [
     "markitdown[pdf, docx, pptx]>=0.1.3", # Convert documents to markdown
     "openpyxl>=3.1.5",                    # Excel file reading and writing
     "chonkie>=1.5.2",                     # Text chunking and splitting library
+    # baml-py is optional — gated by require_feature("baml"); see [baml] extra
     # presidio-analyzer and presidio-anonymizer are optional — see [nlp] extra
     # ============================================
     # Workflow Orchestration
@@ -87,12 +89,13 @@ dependencies = [
     # ============================================
     # Vector Stores & Embeddings (chromadb is optional — see [chromadb] extra)
     # ============================================
+    "py-key-value-aio[disk,filetree,memory]>=0.4.5",
+    "zvec>=0.5.0",
     # ============================================
     # Web Interface (Streamlit is optional — see [streamlit] extra)
     # ============================================
-    "py-key-value-aio[disk,filetree,memory]>=0.4.5",
-    "zvec>=0.5.0",
-    "baml-py==0.223.0",
+
+
 ]
 
 [project.urls]
@@ -116,7 +119,7 @@ harnessing = [
     "agent-sandbox>=0.0.24",     # AIO sandbox HTTP SDK client
     "opensandbox>=0.1.5",        # Container lifecycle manager
     "opensandbox-server>=0.1.7", # OpenSandbox REST server
-    "deerflow-harness",          # DeerFlow harness (installed from git)
+    "deerflow-harness[tui]>=2.1.0",
 ]
 
 # Browser automation
@@ -145,7 +148,7 @@ postgres = [
 streamlit = ["streamlit>=1.49"]
 
 # BAML structured extraction — baml-py ships both the runtime and the baml-cli command
-baml = ["baml-py>=0.89.0"]
+baml = ["baml-py==0.223.0"]
 
 # ChromaDB vector database
 chromadb = ["chromadb>=1.0", "langchain-chroma>=1.0"]
@@ -206,8 +209,6 @@ constraint-dependencies = [
 [tool.uv.sources]
 deerflow-harness = { git = "https://github.com/bytedance/deer-flow", subdirectory = "backend/packages/harness", rev = "main" }
 
-[tool.uv.workspace]
-members = ["prj1"]
 # Note: a patched wheel (without the spurious volcengine-python-sdk dep) lives in vendor/.
 # It can't be referenced here as a path because uv doesn't support .whl file paths for
 # transitive git dependencies. To use the patched wheel instead, run:

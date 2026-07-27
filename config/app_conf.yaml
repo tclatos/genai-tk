@@ -165,7 +165,7 @@ nlp:
 
 :env:
   LOGURU_LEVEL: INFO
-  LANGCHAIN_TRACING_V2: "false"  # Disable LangChain v2 tracing by default (can be enabled in overrides or env)
+  LANGSMITH_TRACING: "false"  # Disable LangChain v2 tracing by default (can be enabled in overrides or env)
 
 
 # Test suite configuration

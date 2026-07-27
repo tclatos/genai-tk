@@ -310,27 +310,26 @@ class TestScaffolderNoIdeFiles:
 
 class TestDeerFlowCLI:
     def test_require_deerflow_installed_succeeds_when_importable(self, monkeypatch):
-        """No exit when harnessing feature reports as available."""
-        from genai_tk.agents.deer_flow import cli_commands
+        """No raise when the harnessing feature reports as available."""
+        from genai_tk.agents.deer_flow import runtime
         from genai_tk.config_mgmt import features
 
         monkeypatch.setattr(features, "is_available", lambda name: True)
 
         # Should not raise
-        cli_commands._require_deer_flow_installed()
+        runtime.require_deer_flow_installed()
 
     def test_require_deerflow_installed_exits_when_not_installed(self, monkeypatch):
-        """Exits with typer.Exit(1) when harnessing feature is not available."""
-        import typer
-
-        from genai_tk.agents.deer_flow import cli_commands
+        """Raises DeerFlowNotInstalledError when the harnessing feature is not available."""
+        from genai_tk.agents.deer_flow import runtime
+        from genai_tk.agents.deer_flow.runtime import DeerFlowNotInstalledError
         from genai_tk.config_mgmt import features
 
         # Patch is_available so it reports harnessing as missing
         monkeypatch.setattr(features, "is_available", lambda name: False)
 
-        with pytest.raises(typer.Exit):
-            cli_commands._require_deer_flow_installed()
+        with pytest.raises(DeerFlowNotInstalledError):
+            runtime.require_deer_flow_installed()
 
     def test_no_deer_flow_path_check_in_require(self):
         """After refactor, require_deer_flow_installed does not check DEER_FLOW_PATH at runtime."""

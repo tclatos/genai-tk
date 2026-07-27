@@ -6,7 +6,7 @@ implementations for securing agent conversations:
 1. **AnonymizationMiddleware** — Detects and redacts PII before reaching the LLM, then restores it in responses
 2. **SensitivityRouterMiddleware** — Routes sensitive conversations to a safer LLM based on content and RAG sources
 
-Both middlewares are thread-isolated (concurrent conversations remain separate), composable, and **harness-neutral** — they run unmodified in both LangChain agents (`cli agents langchain`) and DeerFlow (`cli agents deerflow`), since DeerFlow's embedded client forwards these same `AgentMiddleware` instances to the underlying `DeerFlowClient`. See [Cross-Harness Usage](#cross-harness-usage-deerflow) below.
+Both middlewares are thread-isolated (concurrent conversations remain separate), composable, and **harness-neutral** — they run unmodified in both LangChain and DeerFlow profiles (`cli agents run <profile>`), since DeerFlow's embedded client forwards these same `AgentMiddleware` instances to the underlying `DeerFlowClient`. See [Cross-Harness Usage](#cross-harness-usage-deerflow) below.
 
 > **NLP / spaCy internals:** The Presidio detector, anonymization logic, and sensitivity scorer all live in `genai_tk.extra.nlp`. See [docs/nlp.md](nlp.md) for the full reference on configuration, model management, French support, and the classifier abstraction.
 
@@ -46,10 +46,10 @@ middleware = AnonymizationMiddleware(config=config)
 
 ### YAML Configuration
 
-Add to `config/agents/langchain/simple.yaml`:
+Add to `config/examples/agents/simple.yaml`:
 
 ```yaml
-langchain_agents:
+agents:
   privacy_agent:                    # Profile KEY
     name: "Privacy Agent"           # Display name
     type: react
@@ -68,7 +68,7 @@ langchain_agents:
 
 Then run:
 ```bash
-cli agents langchain -p privacy_agent --chat
+cli agents run privacy_agent --chat
 ```
 
 ### Supported Entity Types
@@ -124,7 +124,7 @@ class MyMiddleware(AnonymizationMiddleware):
 #### YAML Custom Recognizers
 
 ```yaml
-langchain_agents:
+agents:
   privacy_agent_custom:             # Profile KEY
     name: "Privacy Agent (Custom)"
     type: react
@@ -212,7 +212,7 @@ When no `scorer` is passed, the middleware builds one from `config.scorer_class`
 ### YAML Configuration
 
 ```yaml
-langchain_agents:
+agents:
   security_agent:                   # Profile KEY
     name: "Security Agent"          # Display name
     type: react
@@ -294,7 +294,7 @@ agent.invoke(
 from genai_tk.agents.langchain.langchain_agent import LangchainAgent
 
 agent = LangchainAgent(
-    profile_name="PrivacyAgent",  # from langchain.yaml
+    profile_name="PrivacyAgent",  # from config/agents.yaml
 )
 
 result = agent.run("I'm Alice Johnson (alice.j@company.com). Can you look up my record?")
@@ -325,7 +325,7 @@ result = agent.run(
 ### Example 3: Combined Anonymization + Routing
 
 ```yaml
-langchain_agents:
+agents:
   secure_privacy_agent:             # Profile KEY
     name: "Secure Privacy Agent"
     type: react
@@ -393,9 +393,10 @@ arbitrary constructor kwargs), and is instantiated through the same
 LangChain agents — including its `model`/`safe_llm` kwarg resolution via `LlmFactory`.
 
 ```yaml
-# config/agents/deerflow.yaml
-deerflow_agents:
-  - name: "Privacy-Safe Research"
+# config/agents.yaml
+agents:
+  "Privacy-Safe Research":
+    harness: deerflow
     mode: "thinking"
     middlewares:
       - class: genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware
@@ -407,9 +408,6 @@ deerflow_agents:
 ```
 
 ```bash
-uv run cli agents deerflow -p "Privacy-Safe Research" "My email is alice@example.com, research AI safety"
-
-# Or via the unified harness layer (works for LangChain profiles too):
 uv run cli agents run "Privacy-Safe Research" "My email is alice@example.com, research AI safety"
 ```
 

@@ -915,8 +915,8 @@ See [prefect.md](prefect.md) for Prefect server setup and deployed flow patterns
 ### In an agent YAML profile
 
 ```yaml
-# config/agents/langchain/deep.yaml
-langchain_agents:
+# config/examples/agents/deep.yaml
+agents:
   knowledge_agent:                    # Profile KEY
     name: "Knowledge Agent"           # Display name
     type: react

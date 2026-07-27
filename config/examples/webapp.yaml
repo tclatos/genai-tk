@@ -13,3 +13,18 @@ ui:
   navigation:
     demos:
       - demos/hello_agent.py
+
+  # -------------------------------------------------------------------------
+  # Custom navigation (optional).
+  # When both pages_dir and navigation are set, the webapp will load pages
+  # from pages_dir using the structure defined below.
+  # When left unset, only the built-in agent demos are shown.
+  # -------------------------------------------------------------------------
+
+  # pages_dir: genai_blueprint/webapp/pages   # example
+  # navigation:
+  #   demos:
+  #     - genai_tk://demos/agent.py
+  #     - demos/deep_agent.py
+  #   settings:
+  #     - settings/configuration.py

@@ -5,9 +5,9 @@ profiles are presented as one discriminated-union type keyed by the
 ``harness`` field, so :func:`create_harness` and the CLI can do a single
 dict lookup instead of probing two separate config trees.
 
-Recommended canonical source — a single ``agents.yaml`` file (or directory)
-holding every profile under one ``agents:`` top-level dict, optionally with a
-``agent_defaults:`` block (langchain-only inheritable defaults)::
+Canonical source — a directory (or single file) holding every profile under
+one ``agents:`` top-level dict, optionally with a ``agent_defaults:`` block
+(langchain-only inheritable defaults)::
 
     agent_defaults:
       type: react
@@ -26,9 +26,10 @@ holding every profile under one ``agents:`` top-level dict, optionally with a
         mode: pro
         ...
 
-Legacy split form — ``langchain_agents:`` (dict + ``defaults:``) and
-``deerflow_agents:`` (list) — is still supported as a fallback when no
-``agents:`` file is present. New deployments should prefer ``agents.yaml``.
+Resolution order: a project-level ``config/agents.yaml`` / ``config/agents/``
+directory, then the bundled ``config/examples/agents/`` directory. The legacy
+split form (``langchain_agents:`` dict + ``deerflow_agents:`` list) is no
+longer supported.
 """
 
 from __future__ import annotations
@@ -39,13 +40,8 @@ from typing import Annotated, Any, Literal, Union
 from loguru import logger
 from pydantic import BaseModel, Field, TypeAdapter
 
-from genai_tk.agents.deer_flow.profile import DeerFlowProfile, load_deer_flow_profiles
-from genai_tk.agents.langchain.config import (
-    AgentProfileConfig,
-    LangchainAgentsConfig,
-    load_unified_config,
-    resolve_profile,
-)
+from genai_tk.agents.deer_flow.profile import DeerFlowProfile
+from genai_tk.agents.langchain.config import AgentProfileConfig
 from genai_tk.config_mgmt.config_mngr import load_yaml_configs, paths_config
 
 # Single discriminated-union profile model — the discriminator is the
@@ -81,18 +77,24 @@ class AgentDefaultsConfig(BaseModel):
 _adapter = TypeAdapter(AgentProfile)
 
 
+def _contains_yaml_files(path: Path) -> bool:
+    """Return True when *path* is a YAML file or a directory containing YAML files."""
+    if path.is_file():
+        return path.suffix.lower() in {".yaml", ".yml"}
+    if not path.is_dir():
+        return False
+    return any(path.glob("*.yaml")) or any(path.glob("*.yml"))
+
+
 def _resolve_unified_agents_path(config_path: str | None = None) -> Path | None:
-    """Return the path to a unified ``agents.yaml`` file/dir, or ``None``.
+    """Return the path to a unified ``agents:`` file/dir, or ``None``.
 
     Looks for, in order:
-    - ``config_path`` if given explicitly (returned only if it exists),
-    - ``{paths.config}/agents.yaml`` (project-specific single file), or
-    - ``{paths.config}/agents/`` (project-specific directory of files).
-
-    The bundled ``config/examples/agents/agents.yaml`` is a *template* — it is
-    **not** auto-preferred, so existing legacy profile sets under ``langchain_agents:`` /
-    ``deerflow_agents:`` continue to resolve until a user adopts the unified
-    canonical form by creating a project-level ``config/agents.yaml``.
+    - *config_path* if given explicitly (returned only if it exists),
+    - ``{paths.config}/agents.yaml`` (project-specific single file),
+    - ``{paths.config}/agents/`` (project-specific directory of files),
+    - ``{paths.config}/examples/agents/`` (bundled directory of category files),
+    - ``{paths.config}/examples/agents.yaml`` (bundled single file).
     """
     if config_path is not None:
         p = Path(config_path)
@@ -102,8 +104,14 @@ def _resolve_unified_agents_path(config_path: str | None = None) -> Path | None:
     if single.exists():
         return single
     agents_dir = cfg_dir / "agents"
-    if agents_dir.is_dir():
+    if _contains_yaml_files(agents_dir):
         return agents_dir
+    examples_dir = cfg_dir / "examples" / "agents"
+    if _contains_yaml_files(examples_dir):
+        return examples_dir
+    examples_single = cfg_dir / "examples" / "agents.yaml"
+    if _contains_yaml_files(examples_single):
+        return examples_single
     return None
 
 
@@ -144,33 +152,55 @@ def load_agent_profiles(
       (``None`` when absent).
     - *default_profile_key* is the configured default profile key, or ``""``.
 
-    Resolution order:
-    1. A unified ``agents:`` top-level dict (from ``agents.yaml`` or an
-       explicit *config_path*). Defaults block (``agent_defaults:``) is
-       applied to langchain profiles before discriminated-union validation.
-    2. Otherwise, the legacy split sources — LangChain's
-       ``load_unified_config`` and DeerFlow's ``load_deer_flow_profiles`` —
-       are read and flattened into the same dict so callers see one shape.
+    The ``agents:`` top-level dict is read from the resolved file or directory
+    (see :func:`_resolve_unified_agents_path`). The optional ``agent_defaults:``
+    block is applied to ``harness: langchain`` profiles before discriminated-union
+    validation. Returns an empty profile set when no unified source is found.
 
     Args:
         config_path: Optional path to a YAML file/dir holding ``agents:``.
     """
     unified_path = _resolve_unified_agents_path(config_path)
-    if unified_path is not None:
-        return _load_unified_file(unified_path)
-    return _load_legacy_split()
+    if unified_path is None:
+        return {}, None, ""
+    return _load_unified_file(unified_path)
+
+
+def load_langchain_profiles(config_path: str | None = None) -> dict[str, AgentProfileConfig]:
+    """Return all ``harness: langchain`` profiles keyed by slug (defaults applied).
+
+    Convenience wrapper over :func:`load_agent_profiles` for callers that only
+    care about LangChain profiles (the LangChain CLI, ``LangchainAgent``, the
+    ReAct webapp page, the MCP agent tool). Defaults are already merged in.
+    """
+    profiles, _defaults, _ = load_agent_profiles(config_path)
+    return {k: p for k, p in profiles.items() if p.harness == "langchain"}
+
+
+def load_deerflow_profiles(config_path: str | None = None) -> list[DeerFlowProfile]:
+    """Return all ``harness: deerflow`` profiles (fully self-describing).
+
+    Convenience wrapper over :func:`load_agent_profiles` for callers that only
+    care about DeerFlow profiles (the DeerFlow CLI ``--list``, the DeerFlow
+    webapp page, the runtime profile preparation).
+    """
+    profiles, _defaults, _ = load_agent_profiles(config_path)
+    return [p for p in profiles.values() if p.harness == "deerflow"]
 
 
 def _load_unified_file(path: Path) -> tuple[dict[str, Any], AgentDefaultsConfig | None, str]:
     raw = load_yaml_configs(path, "agents")
     if not isinstance(raw, dict):
         raw = {}
-    # Read optional defaults block (may live alongside `agents:`).
+    # Read optional defaults block (may live alongside `agents:` in any file).
     defaults_raw: dict[str, Any] | None = None
-    if path.is_file():
+    try:
         loaded = load_yaml_configs(path, "agent_defaults", model=None)
         if isinstance(loaded, dict):
             defaults_raw = dict(loaded)
+    except Exception:
+        # No `agent_defaults:` key present anywhere — defaults stay None.
+        defaults_raw = None
     defaults = AgentDefaultsConfig.model_validate(defaults_raw) if defaults_raw else None
     default_profile_key = (defaults.default_profile if defaults else "") or ""
 
@@ -181,8 +211,7 @@ def _load_unified_file(path: Path) -> tuple[dict[str, Any], AgentDefaultsConfig 
         if key in {"defaults", "default_profile"}:
             continue
         candidate = dict(val)
-        # Default langchain if discriminator missing (backward-compat for
-        # LangChain-style profiles migrated without an explicit `harness:` key).
+        # Default to langchain when the discriminator is omitted.
         harness = candidate.get("harness", "langchain")
         if harness == "langchain":
             candidate = _apply_langchain_defaults(candidate, defaults)
@@ -192,38 +221,4 @@ def _load_unified_file(path: Path) -> tuple[dict[str, Any], AgentDefaultsConfig 
             profiles[key] = _adapter.validate_python(candidate)
         except Exception as e:
             logger.warning(f"Skipping agent profile '{key}': {e}")
-    return profiles, defaults, default_profile_key
-
-
-def _load_legacy_split() -> tuple[dict[str, Any], AgentDefaultsConfig | None, str]:
-    profiles: dict[str, Any] = {}
-    defaults: AgentDefaultsConfig | None = None
-    default_profile_key = ""
-
-    # LangChain profiles (defaults merged per-resolve_profile, then re-validated
-    # into the union shape as a plain AgentProfileConfig — harness defaults to
-    # langchain so the union discriminator resolves cleanly).
-    try:
-        from genai_tk.agents.langchain.commands import _get_config_path
-
-        lc_cfg: LangchainAgentsConfig = load_unified_config(_get_config_path())
-        default_profile_key = lc_cfg.default_profile
-        for key in lc_cfg.profiles_dict:
-            try:
-                resolved = resolve_profile(lc_cfg, key)
-                profiles[key] = resolved
-            except Exception as e:
-                logger.debug(f"LangChain profile '{key}' skipped: {e}")
-    except Exception as e:
-        logger.debug(f"LangChain profiles unavailable: {e}")
-
-    # DeerFlow profiles (currently a list; key by profile name).
-    try:
-        from genai_tk.agents.deer_flow.runtime import resolve_deerflow_config_path
-
-        for p in load_deer_flow_profiles(resolve_deerflow_config_path()):
-            profiles[p.name] = p
-    except Exception as e:
-        logger.debug(f"DeerFlow profiles unavailable: {e}")
-
     return profiles, defaults, default_profile_key

@@ -54,6 +54,8 @@ class LangChainHarness(BaseHarness):
         llm_override: LLM identifier that takes precedence over ``profile.llm``.
         force_memory_checkpointer: Use an in-process ``MemorySaver`` even if the
             profile specifies ``checkpointer.type: none`` (useful for interactive/chat use).
+        extra_mcp: Additional MCP server names appended to the profile's
+            ``mcp_servers`` (duplicates dropped) before the agent is built.
     """
 
     name = "langchain"
@@ -64,10 +66,12 @@ class LangChainHarness(BaseHarness):
         *,
         llm_override: str | None = None,
         force_memory_checkpointer: bool = False,
+        extra_mcp: list[str] | None = None,
     ) -> None:
         self._profile = profile
         self._llm_override = llm_override
         self._force_memory_checkpointer = force_memory_checkpointer
+        self._extra_mcp = list(extra_mcp or [])
         self._agent: Any = None
 
     async def _ensure_agent(self) -> Any:
@@ -79,9 +83,17 @@ class LangChainHarness(BaseHarness):
 
             # Initialise monitoring backends (LangSmith env vars, LangFuse/OTEL
             # auto-instrumentation, local JSONL handler) before the agent runs.
-            # Without this LANGCHAIN_TRACING_V2 stays "false" and no backend
+            # Without this LANGSMITH_TRACING stays "false" and no backend
             # receives traces from the LangChain harness.
             setup_monitoring()
+
+            # Append any extra MCP servers (deduped) the caller requested.
+            if self._extra_mcp:
+                existing = set(self._profile.mcp_servers)
+                self._profile.mcp_servers = [
+                    *self._profile.mcp_servers,
+                    *(m for m in self._extra_mcp if m not in existing),
+                ]
 
             llm_id = self._llm_override or self._profile.llm or "default"
             apply_harness_trace_metadata(
@@ -101,7 +113,10 @@ class LangChainHarness(BaseHarness):
 
     async def astream(self, message: str, *, thread_id: str | None = None) -> AsyncIterator[StreamEvent]:
         agent = await self._ensure_agent()
-        config: dict[str, Any] = {"configurable": {"thread_id": thread_id or self.default_thread_id}}
+        config: dict[str, Any] = {
+            "configurable": {"thread_id": thread_id or self.default_thread_id},
+            "recursion_limit": self._profile.recursion_limit,
+        }
         # Attach monitoring callbacks (local JSONL log, LangFuse CallbackHandler)
         # so agent runs are traced alongside the env-var/OTEL backends.
         callbacks = get_monitoring_callbacks()

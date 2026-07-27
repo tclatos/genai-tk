@@ -49,12 +49,13 @@ def my_tool(input: str) -> str:
     return f"Result: {input}"
 ```
 
-Reference in an agent profile:
+Reference in an agent profile (`config/agents.yaml`):
 ```yaml
-langchain_agents:
+agents:
   my_agent:
+    harness: langchain
     tools:
-      - spec: {{ package_name }}.tools.my_tool.my_tool
+      - function: {{ package_name }}.tools.my_tool.my_tool
 ```
 
 For a factory-pattern tool:
@@ -75,11 +76,10 @@ def create_my_tools() -> list[BaseTool]:
     return [MyTool()]
 ```
 
-Reference factory in agent profile:
+Reference factory in an agent profile (`config/agents.yaml`):
 ```yaml
 tools:
-  - spec: {{ package_name }}.tools.my_tool.create_my_tools
-    type: factory
+  - factory: {{ package_name }}.tools.my_tool.create_my_tools
 ```
 
 ## LCEL Chains
@@ -127,23 +127,27 @@ ui:
 
 ## Agent Profiles
 
-Add to `config/agents/langchain.yaml`:
+Add to `config/agents.yaml` (unified schema — `harness:` discriminates LangChain vs DeerFlow):
 
 ```yaml
-langchain_agents:
+agent_defaults:
+  default_profile: my_agent
+
+agents:
   my_agent:
+    harness: langchain
     name: "My Agent"
     type: react           # react | deep | custom
     llm: default
     system_prompt: "You are a helpful assistant."
     tools:
-      - spec: web_search
+      - factory: {{ package_name }}.tools.example_tool.create_example_tools
     mcp_servers: []
     skill_directories:
       - ${paths.project}/skills/custom
 ```
 
-Run: `cli agents langchain -p my_agent --chat`
+Run: `cli agents run my_agent --chat` (the unified harness resolves the profile by key — works for DeerFlow profiles too).
 
 ## MCP Servers
 

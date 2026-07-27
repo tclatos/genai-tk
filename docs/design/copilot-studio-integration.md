@@ -89,7 +89,7 @@ from functools import lru_cache
 from microsoft.agents.bot_builder import ActivityHandler, TurnContext, MessageFactory
 from microsoft.agents.core.models import ChannelAccount
 
-from genai_tk.agents.langchain.config import resolve_profile
+from genai_tk.agents.harness.profiles import load_langchain_profiles
 from genai_tk.config_mgmt.config_mngr import global_config
 from genai_blueprint.main.agent_factory import build_agent  # your existing factory
 
@@ -100,8 +100,7 @@ def _cached_agent(profile_key: str):
 
     Only the agent *definition* is cached — session state is injected per turn.
     """
-    config = global_config()
-    profile = resolve_profile(config, profile_key)
+    profile = load_langchain_profiles()[profile_key]
     return build_agent(profile)
 
 

@@ -90,11 +90,19 @@ async def _build_agent(agent_cfg: MCPAgentConfig, extra_tools: list[BaseTool]) -
     from langgraph.checkpoint.memory import MemorySaver
 
     if agent_cfg.profile:
-        from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+        from genai_tk.agents.harness.profiles import load_langchain_profiles
         from genai_tk.agents.langchain.factory import create_langchain_agent
 
-        cfg = load_unified_config()
-        profile = resolve_profile(cfg, agent_cfg.profile)
+        profiles = load_langchain_profiles()
+        key_lower = (agent_cfg.profile or "").lower()
+        profile = profiles.get(agent_cfg.profile) or next(
+            (p for k, p in profiles.items() if k.lower() == key_lower or p.name.lower() == key_lower),
+            None,
+        )
+        if profile is None:
+            raise ValueError(
+                f"Agent profile '{agent_cfg.profile}' not found. Available: {list(profiles.keys())}"
+            )
         return await create_langchain_agent(
             profile,
             llm_override=agent_cfg.llm,

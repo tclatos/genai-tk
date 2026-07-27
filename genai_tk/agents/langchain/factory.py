@@ -5,11 +5,10 @@ Single entry point that dispatches to the correct engine based on
 
 Example:
 ```python
-from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+from genai_tk.agents.harness.profiles import load_langchain_profiles
 from genai_tk.agents.langchain.factory import create_langchain_agent
 
-config = load_unified_config()
-profile = resolve_profile(config, "Research")
+profile = load_langchain_profiles()["research"]
 agent = await create_langchain_agent(profile)
 result = await agent.ainvoke({"messages": [{"role": "user", "content": "Research AI"}]})
 ```

@@ -47,8 +47,7 @@ shown as post-init commands instead), modular structure for tools/skills/chains.
 ```
 config/                           ← copied from genai-tk defaults
   app_conf.yaml                   ← CLI command registry
-  agents/
-    langchain.yaml                ← agent profiles (default + research)
+  agents.yaml                     ← unified agent profiles (default + research)
   providers/
     llm.yaml                      ← LLM model definitions
     embeddings.yaml               ← embedding model definitions
@@ -94,8 +93,8 @@ pyproject.toml                    ← package config with genai-tk dependency
 ### Optional (`--with-deer-flow`)
 
 ```
-config/agents/
-  deerflow.yaml                   ← Deer-flow profiles (chat + research by default)
+config/agents.yaml                ← DeerFlow profiles appended to the unified `agents:` dict
+                                  (chat + research by default)
 
 # In your Python environment:
 # uv add "deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdirectory=backend/packages/harness"
@@ -143,7 +142,7 @@ uv run cli init --with-deer-flow
 Installs `deerflow-harness` package + config profiles. Then:
 
 ```bash
-uv run cli agents deerflow --chat -p "Research Assistant"
+uv run cli agents run "Research Assistant" --chat
 ```
 
 See [docs/deer-flow.md](deer-flow.md) for profiles and advanced usage.
@@ -158,7 +157,7 @@ Installs `agent-sandbox`, `opensandbox`, `opensandbox-server` packages. Then:
 
 ```bash
 opensandbox-server start
-uv run cli agents langchain --sandbox docker "write and run code"
+uv run cli agents run coding "write and run code"   # coding profile has backend: aio_sandbox
 ```
 
 See [docs/sandbox_support.md](sandbox_support.md) for setup and configuration.
@@ -271,7 +270,7 @@ Edit `config/profiles/local/providers/llm.yaml` (or your active profile) and cha
 
 **Q: Can I have multiple agent profiles?**
 
-Yes. Edit `config/agents/langchain.yaml` to add more profiles. Use `cli agents langchain -p <profile>` to select.
+Yes. Edit `config/agents.yaml` to add more profiles. Use `cli agents run <profile>` to select.
 
 **Q: How do I add my own tools?**
 

@@ -1,8 +1,7 @@
 """genai-tk built-in Streamlit webapp entry point.
 
 Provides a minimal web UI for testing agent demos:
-- 🦌 DeerFlow Agent
-- 🤖 Deep Agent
+- 🤖 Agent (unified — LangChain react/deep/custom + DeerFlow profiles)
 
 Run with:
     just webapp
@@ -102,8 +101,7 @@ if _nav_config and _pages_dir_str:
         """Convert a file name to a formatted page title."""
         # Well-known overrides for built-in genai-tk pages
         _KNOWN_TITLES = {
-            "deer_flow_agent": "🦌 DeerFlow Agent",
-            "reAct_agent": "🤖 ReAct Agent",
+            "agent": "🤖 Agent",
             "prefect_workflow_demo": "⚙️ Prefect Workflow Demo",
         }
         try:
@@ -175,8 +173,7 @@ if not pages:
 
     pages = {
         "Agent Demos": [
-            st.Page(page=_demos_dir / "deer_flow_agent.py", title="🦌 DeerFlow Agent"),
-            st.Page(page=_demos_dir / "reAct_agent.py", title="🤖 ReAct Agent"),
+            st.Page(page=_demos_dir / "agent.py", title="🤖 Agent"),
         ],
         "Workflow": [
             st.Page(page=_demos_dir / "prefect_workflow_demo.py", title="⚙️ Prefect Workflow Demo"),

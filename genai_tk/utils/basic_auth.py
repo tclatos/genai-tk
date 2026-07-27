@@ -16,9 +16,14 @@ from __future__ import annotations
 import hashlib
 import secrets
 
-import bcrypt
 import yaml
+from loguru import logger
 from pydantic import BaseModel, ConfigDict
+
+try:
+    import bcrypt
+except ModuleNotFoundError:
+    bcrypt = None
 
 from genai_tk.config_mgmt.config_mngr import global_config
 
@@ -52,6 +57,9 @@ def hash_password(password: str) -> str:
     Returns:
         The bcrypt hash as an ASCII string (e.g. ``$2b$12$...``).
     """
+    if bcrypt is None:
+        msg = "bcrypt is not installed. Install dependencies with `uv sync` (or `uv add bcrypt`)."
+        raise RuntimeError(msg)
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
 
 
@@ -77,6 +85,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     if _is_legacy_sha256(hashed_password):
         legacy = hashlib.sha256(plain_password.encode("utf-8")).hexdigest()
         return secrets.compare_digest(legacy, hashed_password)
+    if bcrypt is None:
+        logger.warning("bcrypt hash encountered but bcrypt is not installed")
+        return False
     try:
         return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("ascii"))
     except (ValueError, TypeError):

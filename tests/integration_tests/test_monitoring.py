@@ -342,7 +342,7 @@ class TestLangSmithBackend:
         try:
             ctx = setup_monitoring()
             assert ctx.is_active("langsmith")
-            assert os.environ.get("LANGCHAIN_TRACING_V2") == "true"
+            assert os.environ.get("LANGSMITH_TRACING") == "true"
 
             from genai_tk.core.factories.llm_factory import get_llm
 

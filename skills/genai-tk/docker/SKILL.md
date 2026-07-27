@@ -119,6 +119,26 @@ Missing dirs are silently skipped. This is intentional.
 sudo usermod -aG docker $USER   # then log out / restart WSL
 ```
 
+## Adding an External Target/Companion Service (Docker Compose)
+
+This is a **different concern** from building your own app image above: use
+this pattern when your agent needs a standalone service running alongside it
+(a database, an observability backend, or a test target it talks to over
+HTTP) — see `deploy/docker-compose.langfuse.yaml` for a real example.
+
+1. Create `deploy/docker-compose.<service>.yaml` — one `services:` entry,
+   pinned `image:`, `container_name:`, `restart: unless-stopped`, published
+   `ports:`, and a `healthcheck:` block.
+2. Add `just <service>-start` / `-stop` / `-status` recipes in the project
+   `justfile` that shell out to `docker compose -f deploy/docker-compose.<service>.yaml up -d|down|ps`.
+   Do not attempt to manage the container lifecycle from Python — the `just`
+   recipes are the single entry point (mirrors `langfuse-server-start/-stop/-status`).
+3. If a CLI needs to verify the service is reachable before running (e.g. an
+   agent that calls it), add an HTTP reachability check function in the
+   owning `CliTopCommand`, not in the tool code.
+
+
+
 ## Recipes Provided
 
 ```

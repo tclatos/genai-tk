@@ -15,6 +15,12 @@
 >   run unmodified in both harnesses.
 > - Profile discriminator: each profile model carries an explicit
 >   `harness: Literal[...]` field instead of merging the two profile schemas.
+> - Command surface further unified: the framework-specific `cli agents langchain`
+>   and `cli agents deerflow` commands were later collapsed into a single
+>   `cli agents run` / `cli agents list` pair (with cross-harness flags
+>   `--chat` / `--mode` / `--sandbox` / `--mcp`), and the two per-framework
+>   Streamlit demo pages were merged into one 🤖 Agent page. See
+>   [docs/harness.md](../harness.md) and [docs/cli.md](../cli.md).
 
 ## Goal
 

@@ -1,10 +1,9 @@
-# Browser Automation Agents - Web Browser and Form Interaction
-#
-# This file contains Deep Agents specialized in autonomous web browser automation,
-# including authenticated access, form filling, and data extraction from websites.
+# Browser Automation Agents — autonomous web browser interaction.
+# Deep agents (type: deep) using sandboxed or host-local Playwright.
 
-langchain_agents:
+agents:
   browser_agent:
+    harness: langchain
     name: "Browser Agent"
     type: deep
     description: "Autonomous web browser agent that navigates websites, fills forms, handles authentication, and extracts data from a real browser running in an AIO sandbox"
@@ -51,6 +50,7 @@ langchain_agents:
   # Best for sites with deep fingerprinting (Enedis, SSO portals)
   # that detect the AIO sandbox environment.
   browser_agent_direct:
+    harness: langchain
     name: "Browser Agent Direct"
     type: deep
     description: "Autonomous web browser agent using host-local Playwright — bypasses sandbox fingerprinting for sites with aggressive bot-detection"

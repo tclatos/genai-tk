@@ -15,7 +15,7 @@ import os
 # Disable LangSmith tracing for all eval tests — avoids noisy rate-limit log
 # messages and unnecessary network calls to the LangSmith API.
 os.environ["LANGSMITH_TRACING"] = "false"
-os.environ["LANGCHAIN_TRACING_V2"] = "false"
+os.environ["LANGSMITH_TRACING"] = "false"
 
 import pytest
 from langchain_core.tools import tool

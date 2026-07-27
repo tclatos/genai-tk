@@ -76,7 +76,7 @@ BRAVE_API_KEY=              # get from https://api.search.brave.com/
 ```bash
 cli mcp list                    # list configured servers
 cli mcp test my_server          # verify connection
-cli agents langchain -p my_agent "search for: Python MCP"
+cli agents run my_agent "search for: Python MCP"
 ```
 
 ## Transport Types

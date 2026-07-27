@@ -10,9 +10,9 @@ Provides two thin functions:
 from __future__ import annotations
 
 import re
+from fnmatch import fnmatch
 from pathlib import Path
 
-import pathspec
 from loguru import logger
 
 
@@ -82,7 +82,25 @@ def resolve_files(
         return []
 
     specs = pathspecs if pathspecs is not None else ["**/*"]
-    spec = pathspec.PathSpec.from_lines("gitignore", specs)
+
+    def _matches_with_fnmatch(rel_path: str) -> bool:
+        # Fallback matcher that preserves include/exclude order semantics.
+        included = False
+        for raw in specs:
+            is_negated = raw.startswith("!")
+            pat = raw[1:] if is_negated else raw
+            if fnmatch(rel_path, pat):
+                included = not is_negated
+        return included
+
+    try:
+        import pathspec
+
+        spec = pathspec.PathSpec.from_lines("gitignore", specs)
+        matches = spec.match_file
+    except Exception as exc:
+        logger.warning("pathspec unavailable ({}), using fnmatch fallback", exc)
+        matches = _matches_with_fnmatch
 
     matched: list[Path] = []
     for path in root.rglob("*"):
@@ -92,7 +110,7 @@ def resolve_files(
             rel = str(path.relative_to(root))
         except ValueError:
             continue
-        if spec.match_file(rel):
+        if matches(rel):
             matched.append(Path(str(path)))
 
     matched.sort()

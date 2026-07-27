@@ -3,25 +3,27 @@
 Loads DeerFlow in-process via ``DEER_FLOW_PATH/backend`` — no LangGraph Server
 or Gateway API processes are required.
 
-Use ``--generate-config`` to export the DeerFlow-native config files and
+Use ``setup_deer_flow_config()`` to export the DeerFlow-native config files and
 launch instructions for the standard DeerFlow frontend/backend stack.
 
 Architecture:
     - profile:         DeerFlowProfile Pydantic model, profile loading
     - embedded_client: In-process DeerFlow adapter + typed streaming events
     - config_bridge:   Generate deer-flow config.yaml and extensions_config.json
-    - cli_commands:    CLI interface (``cli deerflow``)
-    - Streamlit UI:    genai-blueprint/webapp/pages/demos/deer_flow_agent.py
+    - runtime:         build_cli_middlewares / prepare_profile / resolve_model_name
+    - CLI:             ``cli agents run`` / ``cli agents list`` (shared harness layer)
+    - Streamlit UI:    genai_tk/webapp/pages/demos/agent.py
 
 Quickstart:
-    1. Set DEER_FLOW_PATH=/path/to/deer-flow
-    2. ``cli deerflow --list``
-    3. ``cli deerflow -p "Research Assistant" --chat``
+    1. ``cli init --extra harnessing`` (installs deerflow-harness)
+    2. ``cli agents list``
+    3. ``cli agents run "Research Assistant" --chat``
 """
 
 # Lazy import: Defer expensive deer-flow modules (profile, config_bridge, embedded_client)
 # until actually needed. These bring in llm_factory, spacy, embeddings, and other heavy deps.
-# CLI startup only needs the cli_commands module which doesn't require these.
+# CLI startup only needs lightweight modules; heavy deer-flow deps (profile,
+# config_bridge, embedded_client) are lazy-loaded below via __getattr__.
 
 _loaded_modules = {}
 
@@ -36,7 +38,6 @@ def __getattr__(name: str):
         "DeerFlowProfile": "genai_tk.agents.deer_flow.profile",
         "DeerFlowMode": "genai_tk.agents.deer_flow.profile",
         "DeerFlowSandbox": "genai_tk.agents.deer_flow.profile",
-        "load_deer_flow_profiles": "genai_tk.agents.deer_flow.profile",
         "get_available_modes": "genai_tk.agents.deer_flow.profile",
         "get_available_profile_names": "genai_tk.agents.deer_flow.profile",
         "validate_profile_name": "genai_tk.agents.deer_flow.profile",
@@ -82,7 +83,6 @@ __all__ = [
     "DeerFlowProfile",
     "DeerFlowMode",
     "DeerFlowSandbox",
-    "load_deer_flow_profiles",
     "get_available_modes",
     "get_available_profile_names",
     "validate_profile_name",

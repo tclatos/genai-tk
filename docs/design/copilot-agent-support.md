@@ -76,7 +76,7 @@ skills/copilot/add-chain/SKILL.md
 add tools, or set up MCP server integration.
 
 **What it teaches:**
-1. Add a profile to `config/agents/langchain.yaml`
+1. Add a profile to `config/agents.yaml`
 2. Choose the right agent type (`react` / `deep` / `custom`)
 3. Create a custom tool factory in `<package>/tools/`
 
@@ -161,8 +161,8 @@ and Deer-flow, these same skill files can also be _runtime skills_ loaded
 by the agent itself — set `skill_directories` in the agent profile:
 
 ```yaml
-# config/agents/langchain/deep.yaml
-langchain_agents:
+# config/examples/agents/deep.yaml
+agents:
   my_agent:                # Profile KEY
     name: "My Agent"       # Display name
     type: deep

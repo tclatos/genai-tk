@@ -1,48 +1,13 @@
-"""Unified configuration models for LangChain-based agents.
+"""Pydantic models and factories for LangChain-based agent profiles.
 
-This module defines Pydantic models for the unified agent configuration,
-covering all agent types (react, deep, custom). It also provides factory
-functions for checkpointers, backends, and dynamic middleware instantiation.
+Defines the ``harness: langchain`` profile schema (``AgentProfileConfig``) and
+the middleware / backend / checkpointer config models + factories used by
+:func:`genai_tk.agents.langchain.factory.create_langchain_agent`.
 
-Unified config structure in ``langchain.yaml``:
-```yaml
-langchain_agents:
-  defaults:
-    type: react
-    llm: null
-    middlewares:
-      - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
-      type: none
-    backend:
-      type: none          # none | aio_sandbox | class
-    enable_planning: true
-    enable_file_system: true
-    skills:
-      directories:
-        - ${paths.project}/skills
-
-  default_profile: "research"
-
-  research:
-    name: "Research"
-    type: deep
-    llm: "gpt_41@openai"
-    # Use the built-in Docker sandbox backend:
-    backend:
-      type: aio_sandbox
-      opensandbox_server_url: http://localhost:8080
-      startup_timeout: 90.0
-    # Or a custom deepagents-compatible backend:
-    # backend:
-    #   type: class
-    #   class: my_pkg.backends:MyBackend
-    #   kwargs:
-    #     some_option: value
-    middlewares:
-      - class: deepagents.middleware.summarization.SummarizationMiddleware
-        model: "gpt-4.1@openrouter"
-        trigger: ["tokens", 4000]
-```
+Profiles themselves are loaded from the unified ``agents:`` dict by
+:func:`genai_tk.agents.harness.profiles.load_langchain_profiles` (which applies
+the ``agent_defaults`` inheritable block); this module only holds the schema
+and the runtime factories.
 """
 
 from __future__ import annotations
@@ -53,7 +18,7 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.agents.tools.tool_specs import ToolSpec
-from genai_tk.config_mgmt.config_mngr import QualifiedClassName, load_yaml_configs, paths_config
+from genai_tk.config_mgmt.config_mngr import QualifiedClassName
 from genai_tk.config_mgmt.import_utils import ImportResolver
 
 import_from_qualified = ImportResolver.import_from_qualified
@@ -64,9 +29,6 @@ if TYPE_CHECKING:
     from langgraph.checkpoint.base import BaseCheckpointSaver
 
 AgentType = Literal["react", "deep", "custom"]
-
-# Deep-only profile fields - used to warn when set on non-deep agents
-_DEEP_ONLY_FIELDS = ("skill_directories", "subagents")
 
 
 # ============================================================================
@@ -95,6 +57,29 @@ class MiddlewareConfig(BaseModel):
     @property
     def extra_kwargs(self) -> dict[str, Any]:
         return dict(self.model_extra or {})
+
+
+# ----------------------------------------------------------------------------
+# Built-in middleware shorthand registry
+# ----------------------------------------------------------------------------
+
+# Maps a friendly name to a MiddlewareConfig dict (same shape as YAML). Used by
+# ``LangchainAgent(extra_middlewares=[...])`` to apply well-known middlewares by
+# name without spelling out the qualified class path.
+_MIDDLEWARE_REGISTRY: dict[str, dict[str, Any]] = {
+    "AnonymizationMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware",
+        "analyzed_fields": ["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "LOCATION"],
+        "fuzzy_deanonymize": True,
+    },
+    "RichToolCallMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware",
+    },
+    "EmptyResponseRetryMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware",
+        "max_retries": 2,
+    },
+}
 
 
 # ============================================================================
@@ -191,28 +176,16 @@ class CheckpointerConfig(BaseModel):
 
 
 # ============================================================================
-# Skills (deep-agent-specific)
-# ============================================================================
-
-
-class SkillsConfig(BaseModel):
-    """Skills configuration for deep agents."""
-
-    directories: list[str] = []
-    trace_loading: bool = True
-
-
-# ============================================================================
 # Agent profile
 # ============================================================================
 
 
 class AgentProfileConfig(BaseModel):
-    """Unified configuration for a single agent profile.
+    """Configuration for a single ``harness: langchain`` agent profile.
 
-    Covers all agent types (react, deep, custom).
-    Deep-only fields (``skill_directories``, ``subagents``, ``backend``) trigger
-    a console warning when used with ``type: react`` or ``type: custom``.
+    Covers all agent types (react, deep, custom). Deep-only fields
+    (``skill_directories``, ``subagents``, ``backend``) are only used by
+    ``type: deep`` agents and ignored by react/custom profiles.
     """
 
     name: str = Field(..., description="Unique profile name used to select this configuration")
@@ -239,180 +212,17 @@ class AgentProfileConfig(BaseModel):
     subagents: list[dict[str, Any]] = Field(default_factory=list, description="Subagent definitions (deep agents only)")
     features: list[str] = Field(default_factory=list, description="Feature flags shown in the UI")
     examples: list[str] = Field(default_factory=list, description="Example prompts shown in the UI")
+    recursion_limit: int = Field(
+        100,
+        description=(
+            "Max LangGraph steps per turn, passed through as the `recursion_limit` "
+            "run config. LangGraph's own built-in default is 25, which multi-step "
+            "deep agents (planning + several tool calls) can exceed on a single "
+            "non-trivial task, raising GraphRecursionError."
+        ),
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-# ============================================================================
-# Defaults & top-level config
-# ============================================================================
-
-
-class AgentDefaults(BaseModel):
-    """Inheritable defaults applied to every profile that does not override them."""
-
-    type: AgentType = Field("react", description="Default agent type applied to profiles that omit it")
-    llm: str | None = Field(None, description="Default LLM identifier used when a profile does not specify one")
-    middlewares: list[MiddlewareConfig] = Field(default_factory=list, description="Default middleware stack")
-    checkpointer: CheckpointerConfig = Field(
-        default_factory=lambda: CheckpointerConfig.model_validate({"type": "none"}),
-        description="Default checkpointer",
-    )
-    backend: BackendConfig = Field(
-        default_factory=lambda: BackendConfig.model_validate({"type": "none"}),
-        description="Default execution backend",
-    )
-    enable_planning: bool = Field(True, description="Default planning flag for deep agents")
-    enable_file_system: bool = Field(True, description="Default file-system access flag")
-    skills: SkillsConfig = SkillsConfig()
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-_RESERVED_CONFIG_KEYS: frozenset[str] = frozenset({"defaults", "default_profile"})
-
-
-class LangchainAgentsConfig(BaseModel):
-    """Top-level config model for the unified ``langchain.yaml``.
-
-    Agent profiles are defined as named dict entries directly under
-    ``langchain_agents:``, without a ``profiles:`` wrapper::
-
-        langchain_agents:
-          simple:
-            name: "simple"
-            type: react
-          research:
-            name: "Research"
-            type: deep
-    """
-
-    defaults: AgentDefaults = Field(
-        default_factory=lambda: AgentDefaults.model_validate({}),
-        description="Shared defaults inherited by all profiles",
-    )
-    default_profile: str = Field("", description="Dict key of the profile selected when none is specified")
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
-
-    @property
-    def profiles(self) -> list[AgentProfileConfig]:
-        """Agent profiles from named dict entries under ``langchain_agents:``."""
-        return list(self.profiles_dict.values())
-
-    @property
-    def profiles_dict(self) -> dict[str, AgentProfileConfig]:
-        """Agent profiles keyed by their dict key (slug) under ``langchain_agents:``."""
-        result = {}
-        for key, val in (self.model_extra or {}).items():
-            if key not in _RESERVED_CONFIG_KEYS and isinstance(val, dict):
-                result[key] = AgentProfileConfig.model_validate(val)
-        return result
-
-
-# ============================================================================
-# Config loading
-# ============================================================================
-
-
-def load_unified_config(config_path: str | None = None) -> LangchainAgentsConfig:
-    """Load and parse the unified LangChain agents configuration.
-
-    When *config_path* is ``None`` the loader looks for
-    ``{paths.config}/agents/langchain/`` (directory) first, then
-    ``{paths.config}/agents/langchain.yaml`` (single file).  In directory mode
-    all ``*.yaml`` / ``*.yml`` files are deep-merged in alphabetical file order.
-
-    Args:
-        config_path: Explicit path to a YAML file or directory.  ``None`` uses
-            the default location derived from ``paths.config``.
-    """
-    from pathlib import Path
-
-    if config_path is None:
-        agents_dir = paths_config().config / "agents"
-        dir_path = agents_dir / "langchain"
-        path: Path = dir_path if dir_path.is_dir() else agents_dir / "langchain.yaml"
-    else:
-        path = Path(config_path)
-        # When a yaml path is given but missing, fall back to its directory counterpart
-        if path.suffix in (".yaml", ".yml") and not path.is_file():
-            dir_path = path.with_suffix("")
-            if dir_path.is_dir():
-                path = dir_path
-
-    return load_yaml_configs(path, "langchain_agents", model=LangchainAgentsConfig)  # type: ignore[return-value]
-
-
-def resolve_profile(
-    config: LangchainAgentsConfig,
-    key: str,
-    type_override: AgentType | None = None,
-) -> AgentProfileConfig:
-    """Find a profile by its dict key, merge with defaults, warn about incompatibilities.
-
-    Profile fields override defaults (shallow merge per field).  If a profile
-    does not declare ``middlewares`` or ``checkpointer`` the default values are
-    used.
-
-    Args:
-        config: Loaded top-level config.
-        key: Profile dict key (case-insensitive), e.g. ``research``, ``browser_agent``.
-        type_override: If set, overrides the profile's ``type`` field.
-
-    Returns:
-        Resolved ``AgentProfileConfig`` with defaults applied.
-    """
-    from rich.console import Console
-
-    console = Console()
-    key_lower = key.lower()
-    profiles = config.profiles_dict
-    match = profiles.get(key_lower) or next((p for k, p in profiles.items() if k.lower() == key_lower), None)
-    if match is None:
-        available = list(profiles.keys())
-        raise ValueError(f"Profile '{key}' not found. Available: {available}")
-
-    d = config.defaults
-
-    # Merge: profile wins, fall back to defaults
-    resolved = AgentProfileConfig(
-        name=match.name,
-        type=type_override or match.type or d.type,
-        description=match.description,
-        llm=match.llm or d.llm,
-        system_prompt=match.system_prompt,
-        pre_prompt=match.pre_prompt,
-        tools=match.tools,  # list[ToolSpec]
-        mcp_servers=match.mcp_servers,
-        middlewares=match.middlewares if match.middlewares is not None else d.middlewares,
-        checkpointer=match.checkpointer if match.checkpointer is not None else d.checkpointer,
-        backend=match.backend if match.backend is not None else d.backend,
-        skill_directories=match.skill_directories or d.skills.directories,
-        enable_planning=match.enable_planning if "enable_planning" in match.model_fields_set else d.enable_planning,
-        enable_file_system=match.enable_file_system
-        if "enable_file_system" in match.model_fields_set
-        else d.enable_file_system,
-        subagents=match.subagents,
-        features=match.features,
-        examples=match.examples,
-    )
-
-    # Compatibility warnings — only for fields explicitly set on *this* profile,
-    # not for values inherited from defaults.
-    if resolved.type != "deep":
-        warnings: list[str] = []
-        if match.skill_directories:  # explicitly set, not inherited
-            warnings.append(f"skill_directories ({resolved.skill_directories})")
-        if match.subagents:  # explicitly set, not inherited
-            warnings.append("subagents")
-        if match.backend is not None and match.backend.type != "none":  # explicitly set
-            warnings.append(f"backend (type={match.backend.type})")
-        if warnings:
-            console.print(
-                f"[bold yellow]⚠  Profile '{resolved.name}' (type={resolved.type}) has deep-agent-only "
-                f"features that will be ignored: {', '.join(warnings)}.[/bold yellow]"
-            )
-
-    return resolved
 
 
 # ============================================================================

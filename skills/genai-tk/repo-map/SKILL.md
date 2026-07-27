@@ -14,6 +14,7 @@ Read the closest doc first, then inspect the matching implementation paths. Do n
 | Work area | Read first | Then inspect |
 |---|---|---|
 | CLI commands | `docs/cli.md`, `docs/scaffolding.md` | `genai_tk/main/cli.py`, `genai_tk/cli/`, `genai_tk/main/scaffolder.py`, `config/app_conf.yaml` |
+| CLI chat/REPL UX | `genai_tk/agents/harness/chat_repl.py` | `genai_tk/agents/harness/commands.py` (reference usage) |
 | Configuration | `docs/configuration.md` | `genai_tk/utils/config_mngr.py`, `genai_tk/utils/config_exceptions.py`, `config/**/*.yaml` |
 | LLMs, embeddings, cache | `docs/core.md`, `docs/llm-selection.md` | `genai_tk/core/`, `config/providers/`, `tests/unit_tests/core/` |
 | Agents | `docs/agents.md`, `docs/deer-flow.md` | `genai_tk/agents/`, `config/agents/`, `tests/unit_tests/agents/` |

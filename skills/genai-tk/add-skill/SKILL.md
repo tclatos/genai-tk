@@ -61,7 +61,7 @@ Describe exactly when an agent should apply this skill. Be specific:
 
 ```bash
 # Concrete CLI example
-cli agents langchain -p my_agent "use my-skill to do X"
+cli agents run my_agent "use my-skill to do X"
 ```
 
 ## References
@@ -78,10 +78,33 @@ cli skills validate my-skill-name
 
 ### Step 4: Wire to an agent profile
 
-In `config/agents/langchain.yaml`:
+**Important:** skills are only honored at runtime by `harness: langchain,
+type: deep` profiles and by any `harness: deerflow` profile — deepagents'
+`SkillsMiddleware` reads and injects skill content for `type: deep`, and
+DeerFlow's own runtime (`genai_tk/agents/deer_flow/config_bridge.py`) loads
+`skills`/`skill_directories` independently, regardless of `mode`. A
+`harness: langchain, type: react` (or `custom`) profile parses
+`skill_directories` without error but never loads the skill into the model's
+context — see `skills/genai-tk/agent-profiles/SKILL.md` for the full
+comparison. If your skill must be available to the running agent (not just
+to a human/Copilot developer), pick one of:
+
 ```yaml
-langchain_agents:
+# LangChain deep agent
+agents:
   my_agent:
+    harness: langchain
+    type: deep
+    skill_directories:
+      - ${paths.project}/skills/custom
+
+# DeerFlow agent (any mode)
+agents:
+  my_deerflow_agent:
+    harness: deerflow
+    mode: pro
+    skills:
+      - my-skill-name
     skill_directories:
       - ${paths.project}/skills/custom
 ```

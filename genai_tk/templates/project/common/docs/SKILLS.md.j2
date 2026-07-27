@@ -134,11 +134,12 @@ The installed skill is recorded in `skills.yaml` with the git SHA for reproducib
 
 ## Wiring Skills to Agents
 
-In your agent profile (`config/agents/langchain.yaml`):
+In your unified agent profile config (`config/agents.yaml`):
 
 ```yaml
-langchain_agents:
+agents:
   my_agent:
+    harness: langchain
     name: "My Agent"
     type: deep
     llm: default
@@ -147,11 +148,12 @@ langchain_agents:
       - ${paths.project}/skills/community
 ```
 
-For DeerFlow profiles (`config/agents/deerflow.yaml`):
+For DeerFlow profiles (same file, `harness: deerflow`):
 
 ```yaml
-deerflow_agents:
-  - name: Research Agent
+agents:
+  "Research Agent":
+    harness: deerflow
     skill_directories:
       - ${paths.project}/skills/custom
     available_skills:

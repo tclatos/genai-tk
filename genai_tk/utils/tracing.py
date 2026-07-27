@@ -317,7 +317,7 @@ def _setup_langsmith(cfg: MonitoringConfig) -> None:
     os.environ.setdefault("LANGSMITH_PROJECT", project)
     if cfg.langsmith.endpoint:
         os.environ.setdefault("LANGSMITH_ENDPOINT", cfg.langsmith.endpoint)
-    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGSMITH_TRACING"] = "true"
     logger.debug(f"LangSmith tracing enabled → project={os.environ.get('LANGSMITH_PROJECT')}")
 
 

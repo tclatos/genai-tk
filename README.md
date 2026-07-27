@@ -162,13 +162,13 @@ print(response.content)
 
 ```bash
 # ReAct agent — interactive chat
-uv run cli agents langchain --chat
+uv run cli agents run --chat
 
 # Single query with a specific profile (by KEY)
-uv run cli agents langchain -p coding "Explain async generators"
+uv run cli agents run coding "Explain async generators"
 
 # Show all agent profiles and frameworks
-uv run cli agents langchain --list
+uv run cli agents list
 ```
 
 **Python:**
@@ -277,12 +277,11 @@ Test agents interactively without code:
 just webapp          # launches Streamlit on http://localhost:8501
 ```
 
-Three built-in demo pages are included in an **Agents** section:
+One built-in agent demo page is included in an **Agents** section:
 
-- **🦌 DeerFlow Agent** — 2-panel trace + chat, artifacts, streaming
-- **🤖 ReAct Agent** — tool-call trace, MCP servers, slash commands, artifact tab
+- **🤖 Agent** — unified 2-panel trace + chat, artifacts, streaming; `st.pills` filter by kind (React, DeepAgent, DeerFlow) + profile picker across both harnesses
 
-**Downstream projects** (like genai-blueprint) can embed these pages in their
+**Downstream projects** (like genai-blueprint) can embed this page in their
 own navigation using the `genai_tk://` prefix — no copy-pasting, no wrappers:
 
 ```yaml
@@ -291,8 +290,7 @@ ui:
   pages_dir: myapp/webapp/pages
   navigation:
     agents:
-      - genai_tk://demos/deer_flow_agent.py   # served from the installed package
-      - genai_tk://demos/reAct_agent.py
+      - genai_tk://demos/agent.py              # served from the installed package
     demos:
       - demos/my_custom_page.py               # your own page
 ```
@@ -378,9 +376,9 @@ The toolkit ships three agent frameworks, all sharing the same YAML profile syst
 Standard Thought → Action → Observation loop. Good general-purpose default.
 
 ```bash
-cli agents langchain --chat                           # interactive session
-cli agents langchain -p coding "Review this code"    # profile by KEY
-cli agents langchain --list                           # show profiles
+cli agents run --chat                                  # interactive session
+cli agents run coding "Review this code"             # profile by KEY
+cli agents list                                       # show profiles
 ```
 
 ```python
@@ -390,19 +388,19 @@ agent = LangchainAgent("research")
 result = agent.run("Summarise the 2024 GPT-4 technical report")
 ```
 
-Profile in `config/agents/langchain.yaml`:
+Profile in `config/agents.yaml` (unified `agents:` dict — `harness:` defaults to `langchain` when omitted):
 
 ```yaml
-langchain_agents:
-  profiles:
-    - name: Research
-      type: react
-      llm: gpt_41mini@openai
-      tools:
-        - spec: web_search
-      mcp_servers: []
-      checkpointer:
-        type: memory       # memory | postgres | sqlite
+agents:
+  research:                       # profile KEY — used as: cli agents run research
+    name: "Research"              # display name (shown in cli agents list)
+    type: react
+    llm: gpt_41mini@openai
+    tools:
+      - spec: web_search
+    mcp_servers: []
+    checkpointer:
+      type: memory                # memory | postgres | sqlite
 ```
 
 ---
@@ -412,13 +410,14 @@ langchain_agents:
 Extends ReAct with multi-step planning, subagent delegation, and optional Docker sandbox execution. Requires the `deepagents` extra package.
 
 ```bash
-cli agents langchain -p research --chat
+cli agents run research --chat
 ```
 
 ```yaml
-langchain_agents:
+agents:
   research:                             # Profile KEY
     name: "Research"                    # Display name
+    harness: langchain                  # defaults to langchain when omitted
     type: deep
     llm: gpt_41@openai
     enable_planning: true
@@ -446,10 +445,10 @@ No `DEER_FLOW_PATH` env var is needed — `deerflow-harness` is a regular Python
 **Run:**
 
 ```bash
-cli agents deerflow --chat                              # interactive (default profile)
-cli agents deerflow -p research_assistant --trace "Explain quantum key distribution"
-cli agents deerflow -p research_assistant --mode ultra --chat   # full planning + sub-agents
-cli agents deerflow --list                              # show profiles + modes
+cli agents run --chat                                   # interactive (default profile)
+cli agents run research_assistant --trace "Explain quantum key distribution"
+cli agents run research_assistant --mode ultra --chat   # full planning + sub-agents
+cli agents list                                         # show profiles + modes
 ```
 
 **Modes:**
@@ -461,11 +460,13 @@ cli agents deerflow --list                              # show profiles + modes
 | `pro` | ✓ | ✓ | — |
 | `ultra` | ✓ | ✓ | ✓ |
 
-**Profile** in `config/agents/deerflow.yaml`:
+**Profile** in `config/agents.yaml` (same unified `agents:` dict, `harness: deerflow`):
 
 ```yaml
-deerflow_agents:
-  - name: Research Assistant
+agents:
+  "Research Assistant":         # profile key — used as: cli agents run "Research Assistant"
+    harness: deerflow
+    name: "Research Assistant"
     mode: pro
     llm: gpt_41@openai          # optional; falls back to server default
     mcp_servers: [tavily-mcp]
@@ -526,8 +527,8 @@ cli sandbox start
 cli sandbox pull
 
 # Use with any agent
-cli agents langchain  -p research --sandbox docker "Write and run a Python script"
-cli agents deerflow   -p research_assistant --sandbox docker --chat
+cli agents run research "Write and run a Python script"            # LangChain deep profile (backend: aio_sandbox)
+cli agents run research_assistant --sandbox docker --chat          # DeerFlow --sandbox override
 ```
 
 The sandbox provides Chromium (VNC at `localhost:8080/vnc`), Python, Node.js, and a REST shell/file API. Skill directories are mount-inserted automatically.
@@ -554,8 +555,8 @@ mcp_servers_config:
 ```
 
 ```bash
-cli agents deerflow -p research_assistant --mcp math_server "…"
-cli agents langchain -p research --mcp custom_server "…"
+cli agents run research_assistant --mcp math_server "…"
+cli agents run research --mcp custom_server "…"
 ```
 
 See [docs/mcp-servers.md](docs/mcp-servers.md) for the full reference.
@@ -668,9 +669,8 @@ config/
 ├── providers/
 │   ├── llm.yaml            # LLM model declarations
 │   └── embeddings.yaml     # Embeddings model declarations
-└── agents/
-    ├── langchain.yaml      # LangChain agent profiles (ReAct / Deep / Custom)
-    └── deerflow.yaml       # Deer-flow profiles + skills + sandbox config
+├── agents.yaml             # unified agent profiles (agents: dict; harness: langchain|deerflow)
+└── deerflow.yaml           # DeerFlow runtime settings (skills, general, default_profile)
 ```
 
 Environment variables in `.env` override config values at any level.  
@@ -693,9 +693,9 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | **Agents** | CLI | Python | Docs |
 |---|---|---|---|
 | Unified harness | `cli agents run` / `cli agents list` | `create_harness()` | [docs/agents.md](docs/agents.md#harness-layer-agentsharness) |
-| ReAct agent | `cli agents langchain` | `LangchainAgent` | [docs/agents.md](docs/agents.md) |
-| Deep agent | `cli agents langchain -p <deep>` | `LangchainAgent` (deep) | [docs/agents.md](docs/agents.md) |
-| DeerFlow | `cli agents deerflow` | `EmbeddedDeerFlowClient` | [docs/deer-flow.md](docs/deer-flow.md) |
+| ReAct agent | `cli agents run <key>` | `LangchainAgent` | [docs/agents.md](docs/agents.md) |
+| Deep agent | `cli agents run <deep>` | `LangchainAgent` (deep) | [docs/agents.md](docs/agents.md) |
+| DeerFlow | `cli agents run <key>` | `EmbeddedDeerFlowClient` | [docs/deer-flow.md](docs/deer-flow.md) |
 | Skills | — | `skill_directories:` in config | [AGENTS.md](AGENTS.md#skills) |
 | Docker sandbox | `cli sandbox` | `SandboxBackend` | [docs/sandbox_support.md](docs/sandbox_support.md) |
 | MCP servers | `cli mcpserver` | `McpClient` | [docs/mcp-servers.md](docs/mcp-servers.md) |
@@ -713,7 +713,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | NLP / PII / spaCy | — | `genai_tk.extra.nlp` | [docs/nlp.md](docs/nlp.md) |
 | Configuration | `cli init` | `global_config()` | [docs/configuration.md](docs/configuration.md) |
 | Project scaffolding | `cli init --name` | `ProjectScaffolder` | [docs/scaffolding.md](docs/scaffolding.md) |
-| Copilot Agent support | `cli init` | — | [docs/copilot-agent-support.md](docs/copilot-agent-support.md) |
+| Copilot Agent support | `cli init` | — | [docs/design/copilot-agent-support.md](docs/design/copilot-agent-support.md) |
 | CLI extension | — | `CliTopCommand` | [docs/cli.md](docs/cli.md) |
 | Streamlit webapp | `just webapp` | `genai_tk.webapp` | [docs/webapp.md](docs/webapp.md) |
 | Testing | `cli test` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |

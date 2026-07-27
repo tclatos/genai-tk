@@ -264,6 +264,38 @@ def _get_checkpointer_db_path() -> Path:
     return kv_dir / "deerflow_checkpoints.db"
 
 
+def _build_checkpointer():
+    """Build a DeerFlow checkpointer, preferring SQLite and falling back to memory.
+
+    Returns a ``SqliteSaver`` bound to the genai-tk checkpointer DB path when
+    ``langgraph-checkpoint-sqlite`` is installed, otherwise an in-process
+    ``MemorySaver`` (with a warning that multi-turn state is ephemeral). Shared
+    by :class:`EmbeddedDeerFlowClient` and the TUI launcher so both honour the
+    same persistence path.
+    """
+    try:
+        import sqlite3
+
+        from langgraph.checkpoint.sqlite import SqliteSaver  # type: ignore[import]
+
+        db_path = _get_checkpointer_db_path()
+        # Create connection directly — from_conn_string() is a context
+        # manager whose generator would close the connection on GC.
+        conn = sqlite3.connect(str(db_path), check_same_thread=False)
+        checkpointer = SqliteSaver(conn)
+        logger.debug(f"Using SqliteSaver checkpointer at {db_path}")
+    except ImportError:
+        from langgraph.checkpoint.memory import MemorySaver  # type: ignore[import]
+
+        checkpointer = MemorySaver()
+        logger.warning(
+            "langgraph-checkpoint-sqlite not installed — using in-memory checkpointer. "
+            "Multi-turn state will be lost when the process exits. "
+            "Install with: uv add langgraph-checkpoint-sqlite"
+        )
+    return checkpointer
+
+
 # ---------------------------------------------------------------------------
 # Compatibility checks
 # ---------------------------------------------------------------------------
@@ -281,6 +313,21 @@ def _check_deer_flow_compatibility() -> None:
             "#subdirectory=backend/packages/harness'  "
             "or run: cli init --with-deer-flow"
         )
+
+
+def _prepare_deer_flow_environment() -> None:
+    """Apply the DeerFlow in-process patches and run the install-compat check.
+
+    Consolidates the four side-effecting calls needed before constructing a
+    ``DeerFlowClient`` — print suppression, stdlib-log suppression, the
+    explicit-config caching fix, and the one-shot ``deerflow-harness``
+    importability warning. Called by :class:`EmbeddedDeerFlowClient` and the
+    TUI launcher so both environments are patched identically.
+    """
+    _patch_deer_flow_print()
+    _suppress_deer_flow_logging()
+    _patch_deer_flow_config_caching()
+    _check_deer_flow_compatibility()
 
 
 # ---------------------------------------------------------------------------
@@ -321,31 +368,8 @@ class EmbeddedDeerFlowClient:
             available_skills: Optional set of skill names to make available.
                 ``None`` means all discovered skills are available (default).
         """
-        _patch_deer_flow_print()
-        _suppress_deer_flow_logging()
-        _patch_deer_flow_config_caching()
-        _check_deer_flow_compatibility()
-
-        try:
-            import sqlite3
-
-            from langgraph.checkpoint.sqlite import SqliteSaver  # type: ignore[import]
-
-            db_path = _get_checkpointer_db_path()
-            # Create connection directly — from_conn_string() is a context
-            # manager whose generator would close the connection on GC.
-            conn = sqlite3.connect(str(db_path), check_same_thread=False)
-            checkpointer = SqliteSaver(conn)
-            logger.debug(f"Using SqliteSaver checkpointer at {db_path}")
-        except ImportError:
-            from langgraph.checkpoint.memory import MemorySaver  # type: ignore[import]
-
-            checkpointer = MemorySaver()
-            logger.warning(
-                "langgraph-checkpoint-sqlite not installed — using in-memory checkpointer. "
-                "Multi-turn state will be lost when the process exits. "
-                "Install with: uv add langgraph-checkpoint-sqlite"
-            )
+        _prepare_deer_flow_environment()
+        checkpointer = _build_checkpointer()
 
         try:
             from deerflow.client import DeerFlowClient as _DeerFlowClient  # type: ignore[import]

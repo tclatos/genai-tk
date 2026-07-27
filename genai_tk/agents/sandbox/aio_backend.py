@@ -1,10 +1,14 @@
-"""AioSandboxBackend — deepagents BackendProtocol backed by OpenSandbox + agent-infra/sandbox.
+"""AioSandboxBackend — deepagents BackendProtocol backed by OpenSandbox.
 
 Uses an OpenSandbox server to manage the container lifecycle (dynamic port
-allocation, concurrent sandboxes) and ``agent_sandbox.AsyncSandbox`` as the
-HTTP client for shell/file operations.
+allocation, concurrent sandboxes) and the native ``opensandbox.Sandbox``
+command/filesystem services (the in-container ``execd`` daemon) for shell
+and file operations.
 
-Prerequisites: ``uv add opensandbox agent-sandbox`` and ``opensandbox-server`` running.
+The agent speaks to the execd daemon (``opensandbox/execd``) that the
+``opensandbox`` bootstrap injects into the sandbox container — NOT to the
+OpenSandbox Lifecycle API that the same bootstrap exposes on port 8080.
+Prerequisites: ``uv add opensandbox`` and ``opensandbox-server`` running.
 
 Example:
     ```python
@@ -32,9 +36,7 @@ from deepagents.backends.protocol import (  # noqa: E402
     EditResult,
     ExecuteResponse,
     FileDownloadResponse,
-    FileInfo,
     FileUploadResponse,
-    GlobResult,
     GrepMatch,
     GrepResult,
     LsResult,
@@ -48,7 +50,7 @@ from pydantic import BaseModel, Field, PrivateAttr  # noqa: E402
 from genai_tk.agents.sandbox.models import DockerAioSettings  # noqa: E402
 
 if TYPE_CHECKING:
-    from agent_sandbox import AsyncSandbox
+    from opensandbox import Sandbox
 
 
 _SUPPORTED_TOOLS = frozenset({"bash", "ls", "read_file", "write_file", "str_replace"})
@@ -68,18 +70,17 @@ class SandboxToolResult(BaseModel):
 
 
 class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
-    """deepagents ``SandboxBackendProtocol`` backed by OpenSandbox + ``agent_sandbox.AsyncSandbox``.
+    """deepagents ``SandboxBackendProtocol`` backed by OpenSandbox.
 
     Lifecycle is managed by an OpenSandbox server; the ``a*`` protocol methods
-    are async-native and communicate via the agent-sandbox HTTP client.
+    are async-native and communicate with the in-container execd daemon through
+    the ``opensandbox`` SDK's command and filesystem services.
     """
 
     config: DockerAioSettings = Field(default_factory=DockerAioSettings)
 
-    _client: AsyncSandbox | None = None
-    _sandbox: object | None = None
+    _sandbox: Sandbox | None = None
     _server_proc: object | None = None
-    _base_url: str = PrivateAttr(default="")
     _instance_id: str = PrivateAttr(default_factory=lambda: uuid.uuid4().hex[:12])
     _extra_volumes: list = PrivateAttr(default_factory=list)  # runtime-added VolumeMountConfig items
 
@@ -162,7 +163,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
     # ------------------------------------------------------------------
 
     async def start(self) -> None:
-        """Create the sandbox via OpenSandbox and wait until healthy.
+        """Create the sandbox via OpenSandbox and wait until the execd is healthy.
 
         Auto-starts ``opensandbox-server`` if it is not already reachable.
         """
@@ -170,39 +171,19 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         from urllib.parse import urlparse  # noqa: PLC0415
 
         try:
-            import httpx  # noqa: PLC0415
-            from agent_sandbox import AsyncSandbox  # noqa: PLC0415
             from opensandbox import Sandbox  # noqa: PLC0415
             from opensandbox.config import ConnectionConfig  # noqa: PLC0415
         except ImportError as exc:
             from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
 
             require_feature("harnessing", context="AioSandboxBackend.start")
-            raise RuntimeError("unexpected") from exc  # require_feature already raised
+            raise RuntimeError("unexpected") from exc
 
         server_url = self.config.opensandbox_server_url
         self._server_proc = await self._ensure_server(server_url)
         parsed = urlparse(server_url)
         conn_config = ConnectionConfig(domain=parsed.netloc or server_url, protocol=parsed.scheme or "http")
         startup_timeout = self.config.startup_timeout
-
-        async def _health_check(sbx: object) -> bool:
-            try:
-                ep = await sbx.get_endpoint(8080)  # type: ignore[attr-defined]
-            except Exception:
-                return False
-            url = f"http://{ep.endpoint}/v1/shell/sessions"
-            deadline = asyncio.get_event_loop().time() + startup_timeout
-            async with httpx.AsyncClient(trust_env=False) as hc:
-                while True:
-                    try:
-                        if (await hc.get(url, timeout=2.0)).status_code < 500:
-                            return True
-                    except Exception:
-                        pass
-                    if asyncio.get_event_loop().time() > deadline:
-                        return False
-                    await asyncio.sleep(1.0)
 
         # Build volume mounts from config + runtime additions
         volumes = self._build_volumes()
@@ -212,44 +193,44 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
 
         logger.debug(f"Starting AIO sandbox via {server_url}")
         create_kwargs: dict[str, Any] = {
-            "timeout": timedelta(seconds=startup_timeout),
+            # `timeout` is the sandbox's MAX LIFETIME (opensandbox default: 600s),
+            # NOT how long to wait for startup — that's `ready_timeout` below.
+            # This backend explicitly kills the sandbox itself in stop()/aclose(),
+            # so pass None ("require explicit cleanup") rather than reusing
+            # `startup_timeout` here: that previously self-destructed every sandbox
+            # ~60s into a session regardless of activity, causing "sandbox not
+            # found" connectivity failures on any turn/conversation longer than that.
+            "timeout": None,
+            "ready_timeout": timedelta(seconds=startup_timeout),
             "entrypoint": self.config.entrypoint,
             "env": env,
             "connection_config": conn_config,
-            "health_check": _health_check,
         }
         if volumes:
             create_kwargs["volumes"] = volumes
             logger.info(f"Mounting {len(volumes)} volume(s) into sandbox")
+        # Let the SDK run its default health check (ping the execd daemon).
         self._sandbox = await Sandbox.create(self.config.image, **create_kwargs)
-        endpoint = await self._sandbox.get_endpoint(8080)  # type: ignore[attr-defined]
-        self._base_url = f"http://{endpoint.endpoint}"
-        self._client = AsyncSandbox(
-            base_url=self._base_url, httpx_client=httpx.AsyncClient(trust_env=False, timeout=120)
-        )
-        logger.info(f"AioSandbox ready at {self._base_url}")
-        logger.info(f"VNC (visual debug): {self._base_url}/vnc/index.html?autoconnect=true")
+        logger.info(f"AioSandbox ready (sandbox id={self._sandbox.id})")
 
     async def stop(self) -> None:
         """Kill the sandbox and stop the server if we started it."""
-        if self._client is not None:
-            try:
-                await self._client.httpx_client.aclose()  # type: ignore[union-attr]
-            except Exception:
-                pass
-        self._client = None
         if self._sandbox is not None:
             sbx, self._sandbox = self._sandbox, None
             try:
-                await sbx.kill()  # type: ignore[attr-defined]
+                await sbx.kill()  # type: ignore[union-attr]
             except Exception as exc:
                 logger.debug(f"sandbox kill (non-critical): {exc}")
+            try:
+                await sbx.close()  # type: ignore[union-attr]
+            except Exception as exc:
+                logger.debug(f"sandbox close (non-critical): {exc}")
             logger.info("AioSandbox stopped")
         if self._server_proc is not None:
             proc, self._server_proc = self._server_proc, None
             proc.terminate()  # type: ignore[attr-defined]
             try:
-                await asyncio.wait_for(proc.wait(), timeout=5.0)  # type: ignore[attr-defined]
+                await asyncio.wait_for(proc.wait(), timeout=5.0)  # type: ignore[arg-type]
             except asyncio.TimeoutError:
                 proc.kill()  # type: ignore[attr-defined]
             # Clean up the PID file we wrote during _ensure_server
@@ -260,22 +241,10 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
     def detach(self) -> None:
         """Release all references without killing processes or containers.
 
-        Used by ``--keep-sandbox`` to prevent asyncio’s subprocess transport
+        Used by ``--keep-sandbox`` to prevent asyncio's subprocess transport
         ``__del__`` from sending SIGKILL to the opensandbox-server on exit.
         The server PID file is preserved so ``cli sandbox stop`` still works.
         """
-        # Close the httpx client — we don't need it
-        if self._client is not None:
-            try:
-                import asyncio as _aio
-
-                loop = _aio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(self._client.httpx_client.aclose())  # type: ignore[union-attr]
-            except Exception:
-                pass
-        self._client = None
-
         # Detach the asyncio subprocess transport so __del__ won't kill the server.
         # The actual OS process survives because we used start_new_session=True.
         if self._server_proc is not None:
@@ -286,7 +255,6 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
 
         # Release the sandbox reference without killing the container.
         self._sandbox = None
-        self._connected = False  # type: ignore[attr-defined]
         logger.info("AioSandbox detached — server and container left running")
 
     async def _ensure_server(self, server_url: str) -> object | None:
@@ -300,10 +268,11 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         import shutil  # noqa: PLC0415
         import subprocess  # noqa: PLC0415
         import sys  # noqa: PLC0415
-        import tempfile  # noqa: PLC0415
         from urllib.parse import urlparse as _urlparse  # noqa: PLC0415
 
         import httpx  # noqa: PLC0415
+
+        from genai_tk.agents.sandbox.config import write_server_config  # noqa: PLC0415
 
         check_url = f"{server_url}/v1/sandboxes"
         try:
@@ -327,20 +296,11 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         # instances (or non-default ports) don't collide with the default 8080.
         _parsed_url = _urlparse(server_url)
         _server_port = _parsed_url.port or 8080
-        _tmp_cfg = tempfile.NamedTemporaryFile(mode="w", suffix=".toml", delete=False)
-        try:
-            _tmp_cfg.write(
-                f'[server]\nhost = "127.0.0.1"\nport = {_server_port}\n\n'
-                '[runtime]\ntype = "docker"\nexecd_image = "opensandbox/execd:v1.0.16"\n'
-            )
-            _tmp_cfg.flush()
-            _tmp_cfg_path = _tmp_cfg.name
-        finally:
-            _tmp_cfg.close()
+        _tmp_cfg_path = write_server_config(_server_port)
 
         # OPENSANDBOX_INSECURE_SERVER=YES bypasses the interactive confirmation
         # prompt that fires when api_key is empty (non-interactive safe path).
-        _server_env = {**os.environ, "OPENSANDBOX_INSECURE_SERVER": "YES", "SANDBOX_CONFIG_PATH": _tmp_cfg_path}
+        _server_env = {**os.environ, "OPENSANDBOX_INSECURE_SERVER": "YES", "SANDBOX_CONFIG_PATH": str(_tmp_cfg_path)}
 
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -403,7 +363,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         Returns:
             ``SandboxToolResult`` with ``output``, ``exit_code``, and optional ``error``.
         """
-        if self._client is None:
+        if self._sandbox is None:
             raise RuntimeError("Backend not started — use 'async with AioSandboxBackend()' or call start() first")
         if tool_name not in _SUPPORTED_TOOLS:
             raise ValueError(f"Unsupported tool '{tool_name}'. Available: {sorted(_SUPPORTED_TOOLS)}")
@@ -431,58 +391,79 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
     # ------------------------------------------------------------------
 
     async def _run_bash(self, tool_input: dict) -> SandboxToolResult:
-        assert self._client is not None
+        assert self._sandbox is not None
         command: str = tool_input["command"]
-        resp = await self._client.shell.exec_command(command=command)
-        result = resp.data
-        output = (result.output or "") if result else ""
-        exit_code = result.exit_code if result and result.exit_code is not None else 0
+        try:
+            execution = await self._sandbox.commands.run(command)
+        except Exception as exc:
+            # Connectivity errors (execd unreachable — container stopped, idle-evicted,
+            # or opensandbox-server restarted) otherwise propagate as raw httpx/opensandbox
+            # tracebacks through agrep/als/aexecute, which don't catch exceptions like the
+            # file-op methods below do. Convert to a clear, actionable tool error instead.
+            error_msg = (
+                f"Cannot reach the sandbox container to run this command: {exc}. "
+                "The sandbox may have stopped, been idle-evicted, or opensandbox-server "
+                "may have restarted — try 'cli sandbox status' or start a new turn to "
+                "recreate the sandbox."
+            )
+            logger.warning(f"_run_bash connectivity failure: {error_msg}")
+            return SandboxToolResult(tool_name="bash", output="", exit_code=1, error=error_msg)
+        output = execution.text
+        exit_code = execution.exit_code if execution.exit_code is not None else 0
         return SandboxToolResult(tool_name="bash", output=output, exit_code=exit_code)
 
     async def _run_ls(self, tool_input: dict) -> SandboxToolResult:
-        assert self._client is not None
         path: str = tool_input.get("path", self.config.work_dir)
-        resp = await self._client.file.list_path(path=path, include_size=True, show_hidden=True)
-        result = resp.data
-        if result and result.files:
-            lines = [f.path + (f"  ({f.size}B)" if f.size is not None else "") for f in result.files]
-            output = "\n".join(lines)
-        else:
-            output = ""
-        return SandboxToolResult(tool_name="ls", output=output)
+        result = await self._run_bash({"command": f"ls -1pA {shlex.quote(path)} 2>/dev/null"})
+        return SandboxToolResult(tool_name="ls", output=result.output, exit_code=result.exit_code)
 
     async def _run_read_file(self, tool_input: dict) -> SandboxToolResult:
-        assert self._client is not None
+        assert self._sandbox is not None
         file_path: str = tool_input["path"]
-        resp = await self._client.file.read_file(file=file_path)
-        result = resp.data
-        content = result.content if result else ""
+        content = await self._sandbox.files.read_file(file_path)
         return SandboxToolResult(tool_name="read_file", output=content)
 
     async def _run_write_file(self, tool_input: dict) -> SandboxToolResult:
-        assert self._client is not None
+        assert self._sandbox is not None
         file_path: str = tool_input["path"]
         content: str = tool_input["content"]
-        await self._client.file.write_file(file=file_path, content=content)
+        await self._sandbox.files.write_file(file_path, content)
         return SandboxToolResult(tool_name="write_file", output=f"Written: {file_path}")
 
     async def _run_str_replace(self, tool_input: dict) -> SandboxToolResult:
-        assert self._client is not None
+        assert self._sandbox is not None
         file_path: str = tool_input["path"]
         old_str: str = tool_input["old_str"]
         new_str: str = tool_input["new_str"]
-        resp = await self._client.file.replace_in_file(file=file_path, old_str=old_str, new_str=new_str)
-        result = resp.data
-        if result and (result.replaced_count or 0) > 0:
+        try:
+            original = await self._sandbox.files.read_file(file_path)
+        except Exception as exc:
             return SandboxToolResult(
                 tool_name="str_replace",
-                output=f"Replaced {result.replaced_count}x in: {file_path}",
+                output="",
+                exit_code=1,
+                error=f"Cannot read {file_path}: {exc}",
+            )
+        count = original.count(old_str)
+        if count == 0:
+            return SandboxToolResult(
+                tool_name="str_replace",
+                output="",
+                exit_code=1,
+                error=f"String not found in {file_path}",
+            )
+        try:
+            await self._sandbox.files.write_file(file_path, original.replace(old_str, new_str))
+        except Exception as exc:
+            return SandboxToolResult(
+                tool_name="str_replace",
+                output="",
+                exit_code=1,
+                error=f"Cannot write {file_path}: {exc}",
             )
         return SandboxToolResult(
             tool_name="str_replace",
-            output="",
-            exit_code=1,
-            error=f"String not found in {file_path}",
+            output=f"Replaced {count}x in: {file_path}",
         )
 
     # ------------------------------------------------------------------
@@ -505,14 +486,18 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             ``ExecuteResponse`` with combined output and exit code.
         """
         result = await self._run_bash({"command": command})
-        return ExecuteResponse(output=result.output, exit_code=result.exit_code)
+        # ExecuteResponse has no `error` field — fold any connectivity error into
+        # `output` (with a non-zero exit code) so it's visible to the caller/LLM
+        # instead of being silently dropped.
+        output = result.error or result.output
+        return ExecuteResponse(output=output, exit_code=result.exit_code)
 
     # ------------------------------------------------------------------
     # BackendProtocol — file operations
     # ------------------------------------------------------------------
 
     async def als(self, path: str) -> LsResult:
-        """List directory contents with metadata.
+        """List directory contents (direct children only).
 
         Args:
             path: Absolute path to the directory.
@@ -520,18 +505,19 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         Returns:
             ``LsResult`` with ``entries`` on success or ``error`` on failure.
         """
-        assert self._client is not None
-        resp = await self._client.file.list_path(path=path, include_size=True, show_hidden=True)
-        data = resp.data
-        if not data or not data.files:
-            return LsResult(entries=[])
-        infos: list[FileInfo] = []
-        for f in data.files:
-            info: FileInfo = {"path": f.path}
-            if f.is_directory:
+        result = await self._run_bash({"command": f"ls -1pA {shlex.quote(path)} 2>/dev/null"})
+        if result.exit_code != 0 and not result.output:
+            return LsResult(error=result.error or f"ls failed: {path}")
+        infos: list[dict[str, Any]] = []
+        for line in result.output.splitlines():
+            name = line.strip()
+            if not name:
+                continue
+            is_dir = name.endswith("/")
+            name = name.rstrip("/")
+            info: dict[str, Any] = {"path": str(Path(path) / name)}
+            if is_dir:
                 info["is_dir"] = True
-            if f.size is not None:
-                info["size"] = f.size
             infos.append(info)
         return LsResult(entries=infos)
 
@@ -548,11 +534,9 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         Returns:
             ``ReadResult`` with ``file_data`` on success or ``error`` on failure.
         """
-        assert self._client is not None
+        assert self._sandbox is not None
         try:
-            resp = await self._client.file.read_file(file=file_path)
-            data = resp.data
-            content = (data.content or "") if data else ""
+            content = await self._sandbox.files.read_file(file_path)
         except Exception as exc:
             return ReadResult(error=f"Error: {exc}")
         lines = content.splitlines(keepends=True)
@@ -570,12 +554,12 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         Returns:
             ``WriteResult`` with ``path`` on success or ``error`` on failure.
         """
-        assert self._client is not None
+        assert self._sandbox is not None
         check = await self._run_bash({"command": f"test -e {shlex.quote(file_path)} && echo EXISTS || echo ABSENT"})
         if "EXISTS" in check.output:
             return WriteResult(error=f"File already exists: {file_path}")
         try:
-            await self._client.file.write_file(file=file_path, content=content)
+            await self._sandbox.files.write_file(file_path, content)
             return WriteResult(path=file_path)
         except Exception as exc:
             return WriteResult(error=str(exc))
@@ -585,7 +569,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         file_path: str,
         old_string: str,
         new_string: str,
-        replace_all: bool = False,
+        replace_all: bool = False,  # noqa: FBT001, FBT002
     ) -> EditResult:
         """Replace ``old_string`` with ``new_string`` in an existing file.
 
@@ -598,11 +582,9 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         Returns:
             ``EditResult`` with ``path`` and ``occurrences`` on success, or ``error``.
         """
-        assert self._client is not None
+        assert self._sandbox is not None
         try:
-            resp = await self._client.file.read_file(file=file_path)
-            data = resp.data
-            original = (data.content or "") if data else ""
+            original = await self._sandbox.files.read_file(file_path)
         except Exception as exc:
             return EditResult(error=f"Cannot read {file_path}: {exc}")
 
@@ -618,7 +600,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             occurrences = 1
 
         try:
-            await self._client.file.write_file(file=file_path, content=updated)
+            await self._sandbox.files.write_file(file_path, updated)
         except Exception as exc:
             return EditResult(error=f"Cannot write {file_path}: {exc}")
 
@@ -645,6 +627,8 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         if glob:
             cmd += f" --include={shlex.quote(glob)}"
         result = await self._run_bash({"command": cmd})
+        if result.error:
+            return GrepResult(error=result.error)
         matches: list[GrepMatch] = []
         for line in result.output.splitlines():
             parts = line.split(":", 2)
@@ -657,7 +641,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             return GrepResult(error=f"grep error: {result.output.strip()}")
         return GrepResult(matches=matches)
 
-    async def aglob(self, pattern: str, path: str = "/") -> GlobResult:
+    async def aglob(self, pattern: str, path: str = "/"):  # type: ignore[override]
         """Find files matching a glob pattern.
 
         Args:
@@ -667,18 +651,17 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         Returns:
             ``GlobResult`` with ``matches`` (list of ``FileInfo``) on success.
         """
-        py_cmd = (
-            "import glob, os, sys; "
-            f"results = glob.glob({pattern!r}, root_dir={path!r}, recursive=True); "
-            f"[print(os.path.join({path!r}, r)) for r in sorted(results)]"
-        )
-        cmd = f"python3 -c {shlex.quote(py_cmd)}"
-        result = await self._run_bash({"command": cmd})
-        infos: list[FileInfo] = []
-        for line in result.output.splitlines():
-            line = line.strip()
-            if line:
-                infos.append(FileInfo(path=line))
+        from deepagents.backends.protocol import GlobResult  # noqa: PLC0415
+        from opensandbox.models.filesystem import SearchEntry  # noqa: PLC0415
+
+        assert self._sandbox is not None
+        entries = await self._sandbox.files.search(SearchEntry(path=path, pattern=pattern))
+        infos: list[dict[str, Any]] = []
+        for e in entries:
+            info: dict[str, Any] = {"path": e.path}
+            if e.size is not None:
+                info["size"] = e.size
+            infos.append(info)
         return GlobResult(matches=infos)
 
     async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
@@ -690,12 +673,12 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         Returns:
             List of ``FileUploadResponse`` objects in the same order as input.
         """
-        assert self._client is not None
+        assert self._sandbox is not None
         responses: list[FileUploadResponse] = []
         for file_path, content in files:
             try:
                 text = content.decode("utf-8")
-                await self._client.file.write_file(file=file_path, content=text)
+                await self._sandbox.files.write_file(file_path, text)
                 responses.append(FileUploadResponse(path=file_path))
             except Exception as exc:
                 logger.warning(f"upload_files failed for {file_path}: {exc}")
@@ -711,13 +694,11 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         Returns:
             List of ``FileDownloadResponse`` in the same order as input.
         """
-        assert self._client is not None
+        assert self._sandbox is not None
         responses: list[FileDownloadResponse] = []
         for file_path in paths:
             try:
-                resp = await self._client.file.read_file(file=file_path)
-                data = resp.data
-                content = ((data.content or "").encode("utf-8")) if data else b""
+                content = await self._sandbox.files.read_bytes(file_path)
                 responses.append(FileDownloadResponse(path=file_path, content=content))
             except Exception as exc:
                 logger.warning(f"download_files failed for {file_path}: {exc}")

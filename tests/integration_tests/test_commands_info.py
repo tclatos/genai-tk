@@ -1,10 +1,14 @@
 """Integration tests for InfoCommands CLI."""
 
+from unittest.mock import patch
+
 import pytest
 import typer
 from typer.testing import CliRunner
 
 from genai_tk.cli.commands_info import InfoCommands
+from genai_tk.core.factories.llm_factory import LlmFactory
+from genai_tk.core.models_db import ModelsDb
 
 
 @pytest.fixture
@@ -97,6 +101,74 @@ class TestLlmProfileCommand:
     def test_llm_list_command(self, info_app, runner) -> None:
         result = runner.invoke(info_app, ["info", "models"])
         assert result.exit_code == 0
+
+    @pytest.mark.parametrize(
+        ("model_id", "selected_route"),
+        [
+            ("glm-5.2@edenai", "scaleway/glm-5.2"),
+            ("glm-5.2-cloudflare@edenai", "cloudflare/@cf/zai-org/glm-5.2"),
+            ("glm-5.2-scaleway@edenai-eur", "scaleway/glm-5.2"),
+        ],
+    )
+    def test_llm_profile_resolves_edenai_models(self, info_app, runner, model_id, selected_route) -> None:
+        """EdenAI profiles show every route for the selected model before GLM-5.1."""
+        db = ModelsDb()
+        db._build_index({})
+        db._merge_edenai_models(
+            "edenai",
+            {
+                "data": [
+                    {
+                        "id": "scaleway/glm-5.2",
+                        "capabilities": {"supports_reasoning": True, "supports_response_schema": True},
+                        "regions": [{"code": "eu", "name": "Europe"}],
+                    },
+                    {
+                        "id": "nebius/zai-org/GLM-5.2",
+                        "capabilities": {},
+                        "regions": [{"code": "us", "name": "United States"}],
+                    },
+                    {
+                        "id": "cloudflare/@cf/zai-org/glm-5.2",
+                        "capabilities": {},
+                        "regions": [{"code": "global", "name": "Global"}],
+                    },
+                    {"id": "scaleway/glm-5.1", "capabilities": {}},
+                ]
+            }
+        )
+        db._merge_edenai_models(
+            "edenai-eur",
+            {
+                "data": [
+                    {
+                        "id": "scaleway/glm-5.2",
+                        "capabilities": {"supports_reasoning": True},
+                        "regions": [{"code": "eu", "name": "Europe"}],
+                    },
+                    {"id": "qwen/glm-5.2", "capabilities": {}},
+                ]
+            },
+        )
+
+        with (
+            patch("genai_tk.core.models_db.get_models_db", return_value=db),
+            patch("genai_tk.core.factories.llm_factory.get_models_db", return_value=db),
+            patch.object(LlmFactory, "known_items_dict", return_value={}),
+        ):
+            result = runner.invoke(info_app, ["info", "llm-profile", model_id])
+
+        assert result.exit_code == 0
+        assert selected_route in result.stdout
+        if model_id.endswith("@edenai-eur"):
+            assert "qwen/glm-5.2" in result.stdout
+            assert "nebius/zai-org/GLM-5.2" not in result.stdout
+        else:
+            assert result.stdout.index("scaleway/glm-5.2") < result.stdout.index("scaleway/glm-5.1")
+            assert result.stdout.index("nebius/zai-org/GLM-5.2") < result.stdout.index("scaleway/glm-5.1")
+            assert result.stdout.index("cloudflare/@cf/zai-org/glm-5.2") < result.stdout.index("scaleway/glm-5.1")
+        if model_id == "glm-5.2-cloudflare@edenai":
+            assert "Low-confidence resolution" not in result.stdout
 
 
 class TestMainCliLoadCommands:

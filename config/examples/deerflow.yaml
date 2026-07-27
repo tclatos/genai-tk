@@ -1,0 +1,74 @@
+# Deer-flow runtime settings (not agent profiles).
+#
+# DeerFlow agent PROFILES now live under the unified `config/examples/agents/`
+# tree (see `deerflow.yaml` there) keyed by profile name with `harness: deerflow`.
+# This file holds only the DeerFlow-runtime settings that config_bridge.py reads
+# from the merged config via OmegaConf (`deerflow.skills.*`, `deerflow.general.*`,
+# `deerflow.default_profile`, `deerflow.recursion_limit`).
+#
+# It is picked up by the `:merge:` patterns in app_conf.yaml.
+#
+# SANDBOX MODES (per-profile `sandbox:` field):
+#   docker:  Full Docker sandbox — code runs in an isolated container.
+#            Requires Docker running + 'agent-sandbox' package installed.
+#            Files are written to /mnt/user-data/outputs/ inside the container
+#            and volume-mounted back to the host at ~/.deer-flow/threads/{id}/user-data/outputs/.
+#   local:   Lightweight local sandbox. No Docker containers. Commands run directly
+#            on the host via subprocess. Simpler but less isolated.
+#
+# When generating files (PowerPoint, documents, etc.), prefer `sandbox: docker`
+# for proper isolation and predictable output paths.
+
+deerflow:
+  # Skills configuration
+  # IMPORTANT: the FIRST entry is volume-mounted into the Docker sandbox at
+  # container_path.  It must contain real files (not symlinks to external paths)
+  # because Docker bind-mounts cannot follow out-of-tree symlinks.
+  # ${paths.project}/ext/deer-flow/skills contains the bundled public skills with
+  # real files.  Project-specific custom skills in skills/custom/ are also listed
+  # below for skill-discovery (enabling) but are NOT auto-mounted in Docker.
+  skills:
+    directories:
+      - ${paths.project}/ext/deer-flow/skills  # Docker mount — real files, no external symlinks
+#      - ${paths.project}/skills/custom          # Custom project skills (enabling only, not Docker-mounted)
+
+    container_path: /mnt/skills
+    trace_loading: true
+
+  default_profile: "Research Assistant"
+
+  # Max LangGraph recursion steps per run.
+  # Native Deer-flow frontend uses 1000 to support complex multi-tool workflows.
+  recursion_limit: 1000
+
+  # ----------------------------------------------------------------------------
+  # General deer-flow config settings (copied verbatim into generated config.yaml)
+  # ----------------------------------------------------------------------------
+  general:
+    title:
+      enabled: true
+      max_words: 6
+      max_chars: 60
+      model_name: null
+
+    summarization:
+      enabled: true
+      model_name: null
+      trigger:
+        - type: tokens
+          value: 15564
+      keep:
+        type: messages
+        value: 10
+      trim_tokens_to_summarize: 15564
+      summary_prompt: null
+
+    memory:
+      enabled: true
+      storage_path: .deer-flow/memory.json
+      debounce_seconds: 30
+      model_name: null
+      max_facts: 100
+      fact_confidence_threshold: 0.7
+      injection_enabled: true
+      max_injection_tokens: 2000

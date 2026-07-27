@@ -74,7 +74,8 @@ providers:
     api_base: https://api.eu.edenai.run/v3/llm
     openai_compatible: true
     gateway: true
-    # EdenAI v3 European endpoint: same key as edenai, routes to EU infrastructure
+    # Select with MODEL@edenai-eur to use the EU catalogue and inference endpoint.
+    # The same EDENAI_API_KEY is used for global and EU requests.
 
   openrouter:
     use: langchain_openai.ChatOpenAI
@@ -158,6 +159,101 @@ providers:
     openai_compatible: false
     gateway: true
     # LiteLLM handles provider routing; model is in LiteLLM format
+
+# ─────────────────────────────────────────────────────────────────────────────
+# AI Labs — model creators, independent of the provider/API used to access them.
+#
+# vendor_prefixes: prefixes found in gateway model IDs (e.g. "meta-llama/llama-…")
+# model_patterns:  case-insensitive substrings matched against the bare model name
+# direct_provider: optional provider key whose entire model catalogue belongs to
+#                  this lab (saves pattern matching for single-lab providers)
+# ─────────────────────────────────────────────────────────────────────────────
+labs:
+  openai:
+    display_name: OpenAI
+    vendor_prefixes: [openai]
+    model_patterns: [gpt, o1, o3, o4, codex, whisper, davinci, babbage, curie]
+    direct_provider: openai
+
+  anthropic:
+    display_name: Anthropic
+    vendor_prefixes: [anthropic]
+    model_patterns: [claude, haiku, sonnet, opus]
+    direct_provider: anthropic
+
+  google:
+    display_name: Google DeepMind
+    vendor_prefixes: [google]
+    model_patterns: [gemini, palm, bard, gemma]
+
+  meta:
+    display_name: Meta AI
+    vendor_prefixes: [meta-llama, meta]
+    model_patterns: [llama]
+
+  mistral:
+    display_name: Mistral AI
+    vendor_prefixes: [mistralai]
+    model_patterns: [mistral, mixtral, codestral, mathstral, pixtral, ministral]
+    direct_provider: mistral
+
+  deepseek:
+    display_name: DeepSeek
+    vendor_prefixes: [deepseek]
+    model_patterns: [deepseek]
+    direct_provider: deepseek
+
+  xai:
+    display_name: xAI
+    vendor_prefixes: [x-ai, xai]
+    model_patterns: [grok]
+
+  qwen:
+    display_name: Alibaba / Qwen
+    vendor_prefixes: [qwen, alibaba, qwen-coder]
+    model_patterns: [qwen]
+
+  microsoft:
+    display_name: Microsoft
+    vendor_prefixes: [microsoft]
+    model_patterns: [phi]
+
+  amazon:
+    display_name: Amazon
+    vendor_prefixes: [amazon]
+    model_patterns: [nova, titan]
+
+  cohere:
+    display_name: Cohere
+    vendor_prefixes: [cohere]
+    model_patterns: [command, aya, c4ai]
+
+  nvidia:
+    display_name: NVIDIA
+    vendor_prefixes: [nvidia]
+    model_patterns: [nemotron, llama-3]
+
+  moonshotai:
+    display_name: Moonshot AI
+    vendor_prefixes: [moonshotai]
+    model_patterns: [kimi, moonshot]
+
+  ibm:
+    display_name: IBM
+    vendor_prefixes: [ibm-granite]
+    model_patterns: [granite]
+
+  groq:
+    display_name: Groq (inference)
+    vendor_prefixes: []
+    model_patterns: []
+    direct_provider: groq
+
+  together:
+    display_name: Together AI
+    vendor_prefixes: [together]
+    model_patterns: []
+    direct_provider: together
 
   # NOT TESTED:
   bedrock:

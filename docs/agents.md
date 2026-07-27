@@ -11,44 +11,42 @@ The `agents` module provides agent implementations including LangChain-based age
 The LangChain agent module uses a **unified configuration system** supporting three agent types:
 
 - **ReAct** - Standard reasoning agent with tool use loops
-- **Deep** - Advanced reasoning with planning and subagents (requires `deepagents` package; run via `cli agents langchain`)
+- **Deep** - Advanced reasoning with planning and subagents (requires `deepagents` package; run via `cli agents run <profile>`)
 - **Custom** - Functional API-based custom agent from scratch
 
 All agent types are managed through a single configuration interface with sensible defaults and profile-based customization.
 
 ### Configuration System
 
-Agent profiles use **dict-keyed structure** where the key is used to select the profile from the CLI (e.g., `-p research`).
+Agent profiles live under one **unified `agents:` dict** — both LangChain (`react` | `deep` | `custom`) and DeerFlow profiles — discriminated by a `harness:` field on each profile. The dict key is the profile slug used to select it from the CLI (e.g., `cli agents run research`).
 
-**Config Files:** `config/agents/langchain/defaults.yaml`, `simple.yaml`, `deep.yaml`, `browser.yaml`, `text2sql.yaml`
+**Config directory:** `config/examples/agents/` — category files (`defaults.yaml`, `simple.yaml`, `deep.yaml`, `browser.yaml`, `text2sql.yaml`, `deerflow.yaml`) merged into one `agents:` dict.
 
-**defaults.yaml** — Global defaults and settings:
+**defaults.yaml** — inheritable defaults for `harness: langchain` profiles:
 ```yaml
-langchain_agents:
-  # Global defaults applied to all profiles
-  defaults:
-    type: react                          # default: react | deep | custom
-    llm: null                            # null = use default from config
-    enable_planning: true                # for deep agents only
-    enable_file_system: true             # for deep agents only
-    tools: []                            # default tools
-    middlewares: []                      # middleware pipeline
-    checkpointer:
-      type: none                         # none | memory | postgres
-    backend:
-      type: none                         # none | aio_sandbox | class
-    mcp_servers: []                      # model context protocol servers
-    skills:
-      directories: []                    # skill search directories
-
-  # Default profile key to use when none specified
-  default_profile: "simple"
+agent_defaults:
+  type: react                          # default: react | deep | custom
+  llm: null                            # null = use default from config
+  enable_planning: true                # for deep agents only
+  enable_file_system: true             # for deep agents only
+  middlewares:                         # default middleware pipeline
+    - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+  checkpointer:
+    type: none                         # none | memory | class
+  backend:
+    type: none                         # none | aio_sandbox | class
+  skills:
+    directories:                       # skill search directories
+      - ${paths.project}/skills
+  default_profile: "simple"            # profile selected when -p is omitted
 ```
+
+DeerFlow profiles are fully self-describing and do **not** inherit from `agent_defaults`. When a LangChain profile omits `harness:`, it defaults to `langchain`.
 
 **deep.yaml** — Deep agent profiles:
 ```yaml
-langchain_agents:
-  # Profile key: "research" (used as: cli agents langchain -p research)
+agents:
+  # Profile key: "research" (used as: cli agents run research)
   research:
     name: "Research"                     # Display name (for list output)
     type: deep
@@ -104,9 +102,9 @@ Standard reasoning agent using the ReAct pattern: Thought → Action → Observa
 
 **Best for:** General-purpose tasks, straightforward reasoning
 
-**Configuration (config/agents/langchain/simple.yaml):**
+**Configuration (config/examples/agents/simple.yaml):**
 ```yaml
-langchain_agents:
+agents:
   # Profile key: "simple"
   simple:
     name: "Simple"
@@ -119,11 +117,10 @@ langchain_agents:
 
 **Usage:**
 ```python
-from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+from genai_tk.agents.harness.profiles import load_langchain_profiles
 from genai_tk.agents.langchain.factory import create_langchain_agent
 
-config = load_unified_config()
-profile = resolve_profile(config, "simple")  # Profile KEY, not name
+profile = load_langchain_profiles()["simple"]  # Profile KEY, not name
 agent = await create_langchain_agent(profile)
 
 # Single query
@@ -150,9 +147,9 @@ Advanced reasoning agent with planning, subagents, and execution backends. Requi
 
 **Best for:** Complex multi-step tasks, research, analysis
 
-**Configuration (config/agents/langchain/deep.yaml):**
+**Configuration (config/examples/agents/deep.yaml):**
 ```yaml
-langchain_agents:
+agents:
   # Profile key: "research"
   research:
     name: "Research"
@@ -178,7 +175,7 @@ langchain_agents:
 - `aio_sandbox` - Docker sandbox (requires opensandbox running)
 - `class` - Custom backend class
 
-**Note:** Deep agents require the `deepagents` library (optional dependency). There is no separate `deepagent` CLI — use `cli agents langchain -p <profile>` where the profile has `type: deep`.
+**Note:** Deep agents require the `deepagents` library (optional dependency). There is no separate `deepagent` CLI — use `cli agents run <profile>` where the profile has `type: deep`.
 
 #### Custom Agent
 
@@ -188,7 +185,7 @@ Functional API-based agent built with LangGraph's Functional API for maximum cus
 
 **Configuration:**
 ```yaml
-langchain_agents:
+agents:
   custom:  # Profile key
     name: "Custom"
     type: custom
@@ -313,46 +310,50 @@ agent = await create_langchain_agent(
 
 ### CLI Interface
 
+One `cli agents run` command covers every profile (LangChain react/deep/custom
+and DeerFlow); `cli agents list` lists them all.
+
 **Interactive Shell:**
 ```bash
-# Use default profile with interactive chat
-cli agents langchain --chat
+# Default profile with interactive chat
+cli agents run --chat
 
-# Use specific profile (by KEY, not name)
-cli agents langchain -p research --chat
+# Specific profile (by KEY) with chat
+cli agents run research --chat
 
-# Single query with specific profile
-cli agents langchain -p coding "List Python files"
+# Single query with a specific profile
+cli agents run coding "List Python files"
 ```
 
 **Single-Shot Queries:**
 ```bash
-# Default profile, single query
-cli agents langchain "What is machine learning?"
-
-# Override agent type
-cli agents langchain -p simple --type react "Tell me a joke"
+# Default profile, query via stdin
+echo "What is machine learning?" | cli agents run
 
 # Override LLM
-cli agents langchain -p research --llm gpt_4o@openai "Research AI"
+cli agents run research --llm gpt_4o@openai "Research AI"
+
+# DeerFlow reasoning mode / sandbox overrides
+cli agents run "Research Assistant" --mode ultra "Research AI"
+cli agents run coding --sandbox docker "Refactor my code"
 
 # List available profiles
-cli agents langchain --list
+cli agents list
 ```
 
-**Shell Mode:**
+**Shell Mode (programmatic):**
 ```python
 from genai_tk.agents.langchain.agent_cli import run_langchain_agent_shell
 
-# Start interactive agent shell
-await run_langchain_agent_shell()
+# Start interactive agent shell for a LangchainAgent
+await run_langchain_agent_shell(agent)
 ```
 
 ## SmolAgents removed
 
-SmolAgents (`cli agents smol`) has been removed. Use LangChain agents
-(`cli agents langchain`) or DeerFlow (`cli agents deerflow`) instead — both
-now share one harness layer (see below).
+SmolAgents (`cli agents smol`) has been removed. Use `cli agents run <profile>`
+for any agent — LangChain (react/deep/custom) and DeerFlow now share one
+harness layer and one command (see below).
 
 ## Harness Layer (`agents.harness`)
 
@@ -365,8 +366,8 @@ maintaining parallel CLI/UI code paths per framework.
 ```python
 from genai_tk.agents.harness import BaseHarness, TokenEvent, ToolCallEvent, create_harness
 
-harness = create_harness("research")   # resolves "research" across BOTH
-                                        # langchain_agents and deerflow_agents
+harness = create_harness("research")   # resolves "research" across all
+                                        # harnesses via load_agent_profiles()
 async for event in harness.astream("What is RAG?"):
     if isinstance(event, TokenEvent):
         print(event.text, end="", flush=True)
@@ -395,14 +396,14 @@ Event kinds (`genai_tk.agents.harness.events`): `TokenEvent`, `NodeEvent`,
 
 **Profile discriminator:** every profile carries an explicit `harness` field
 (`AgentProfileConfig.harness` = `"langchain"`, `DeerFlowProfile.harness` =
-`"deerflow"`). `create_harness(key)` and `list_harness_profiles()` search both
-config trees by key and dispatch to the matching adapter — no YAML changes
-needed.
+`"deerflow"`). `create_harness(key)` and `list_harness_profiles()` look the key
+up in one unified profile dict (loaded by `load_agent_profiles()`) and dispatch
+to the matching adapter — no YAML changes needed.
 
-**CLI:** `cli agents run <profile> "<query>"` and `cli agents list` work
-across both harnesses. Framework-specific commands (`cli agents langchain`,
-`cli agents deerflow`) remain for flags unique to one runtime (sandbox, mode,
-`--chat` REPL, etc.) — see [cli.md](cli.md).
+**CLI:** `cli agents run <profile> "<query>"` and `cli agents list` are the
+single entry points and work across both harnesses. Cross-harness flags on
+`run` (`--chat`, `--mode`, `--sandbox`, `--mcp`) cover framework-specific
+behaviour — see [cli.md](cli.md).
 
 **Middleware is shared, not adapted.** Since DeerFlow's embedded client
 already forwards LangChain `AgentMiddleware` instances to the underlying
@@ -410,25 +411,25 @@ already forwards LangChain `AgentMiddleware` instances to the underlying
 `SensitivityRouterMiddleware` classes run unmodified in DeerFlow profiles —
 see [middleware-pii-and-routing.md](middleware-pii-and-routing.md).
 
-**Streamlit:** both demo pages (`reAct_agent.py`, `deer_flow_agent.py`) render
-through the shared `genai_tk.webapp.ui_components.harness_workbench` module
-(trace phase cards, chat transcript, artifact gallery) driven by the same
-event stream — see [webapp.md](webapp.md).
+**Streamlit:** the unified `🤖 Agent` demo page (`agent.py`) renders through
+the shared `genai_tk.webapp.ui_components.harness_workbench` module (trace
+phase cards, chat transcript, artifact gallery) driven by the same event
+stream — see [webapp.md](webapp.md).
 
 ## Common Patterns
 
 ### Pattern 1: Profile-Based Agent Selection
 
 ```python
-from genai_tk.agents.langchain.config import load_unified_config, resolve_profile
+from genai_tk.agents.harness.profiles import load_langchain_profiles
 from genai_tk.agents.langchain.factory import create_langchain_agent
 
-# Load configuration
-config = load_unified_config()
+# Load all LangChain profiles (agent_defaults already applied)
+profiles = load_langchain_profiles()
 
 # Select profile (by KEY, e.g., from CLI, environment, or hardcoded)
 profile_key = "research"  # or get from args
-profile = resolve_profile(config, profile_key)
+profile = profiles[profile_key]
 
 # Create and use agent
 agent = await create_langchain_agent(profile)
@@ -494,7 +495,9 @@ agent = await create_langchain_agent(profile)
 
 ## Configuration
 
-Agent profiles live in `config/agents/langchain.yaml`.
+Agent profiles live under one unified `agents:` dict, resolved from a project
+`config/agents.yaml` (or `config/agents/` directory), falling back to the
+bundled `config/examples/agents/` category files.
 See [docs/configuration.md](configuration.md) for the full configuration reference including environments, `.env` loading, and how to add new profiles.
 
 ## Debugging
@@ -509,14 +512,16 @@ agent = await create_langchain_agent(profile, details=True)
 
 **Trace Tool Calls:**
 ```bash
-cli agents langchain -p Research "Your query" --trace
+cli agents run research "Your query" --trace
 ```
 
 **Inspect Configuration:**
 ```python
-from genai_tk.agents.langchain.config import load_unified_config
-config = load_unified_config()
-print(config.model_dump_json(indent=2))
+from genai_tk.agents.harness.profiles import load_langchain_profiles
+
+profiles = load_langchain_profiles()
+print(list(profiles.keys()))
+print(profiles["research"].model_dump_json(indent=2))
 ```
 
 ## Testing LangchainAgent

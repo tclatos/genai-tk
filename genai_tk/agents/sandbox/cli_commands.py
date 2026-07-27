@@ -19,7 +19,7 @@ Usage:
     ```
 
 Once ``cli sandbox start`` and ``cli sandbox pull`` have been run, every
-subsequent ``cli agents langchain --sandbox docker`` invocation skips the
+subsequent sandbox-backed ``cli agents run`` invocation skips the
 ~1 s server startup *and* benefits from a locally cached Docker image,
 reducing total startup overhead by 20-30 s.
 """
@@ -35,6 +35,8 @@ from genai_tk.cli.base import CliTopCommand
 
 # PID file written by ``start`` and removed by ``stop``
 _DEFAULT_PID_FILE = Path.home() / ".cache" / "genai-tk" / "opensandbox-server.pid"
+# Generated minimal server config written by ``start`` and removed by ``stop``.
+_DEFAULT_SERVER_CFG = Path.home() / ".cache" / "genai-tk" / "opensandbox-server.toml"
 
 
 def _find_server_binary() -> str:
@@ -129,14 +131,19 @@ class SandboxCommands(CliTopCommand):
         ) -> None:
             """Start the opensandbox-server as a background daemon.
 
-            The server keeps running after this command exits, so every
-            subsequent ``cli agents langchain --sandbox docker`` call
-            reuses it and skips its ~1 s startup.
+            Launches the server with a generated config bound to the requested
+            port (from ``--url`` or ``sandbox.yaml``) plus the
+            ``OPENSANDBOX_INSECURE_SERVER`` flag, so it boots non-interactively
+            without depending on ``~/.sandbox.toml``. The daemon outlives this
+            CLI process; stop it with ``cli sandbox stop``.
             """
             import asyncio
+            import os
             import subprocess
+            import time
+            from urllib.parse import urlparse
 
-            from genai_tk.agents.sandbox.config import get_docker_aio_settings
+            from genai_tk.agents.sandbox.config import get_docker_aio_settings, write_server_config
 
             pid_path = Path(pid_file)
             server_url = config_url or get_docker_aio_settings().opensandbox_server_url
@@ -163,22 +170,29 @@ class SandboxCommands(CliTopCommand):
 
             pid_path.parent.mkdir(parents=True, exist_ok=True)
 
+            # Generate a minimal config bound to the requested port and boot with
+            # OPENSANDBOX_INSECURE_SERVER so the server starts without a TTY (the
+            # default empty-api-key config otherwise blocks on a confirmation).
+            port = urlparse(server_url).port or 8080
+            cfg_path = write_server_config(port, path=_DEFAULT_SERVER_CFG)
+            server_env = {**os.environ, "OPENSANDBOX_INSECURE_SERVER": "YES", "SANDBOX_CONFIG_PATH": str(cfg_path)}
+
             # Launch detached so it outlives this CLI process
             proc = subprocess.Popen(
                 [binary],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
+                env=server_env,
             )
             pid_path.write_text(str(proc.pid))
             console.print(f"[green]opensandbox-server started[/green] (pid {proc.pid})")
             console.print(f"[dim]PID file: {pid_path}[/dim]")
+            console.print(f"[dim]Config:    {cfg_path}[/dim]")
             console.print(f"[dim]Listening at: {server_url}[/dim]")
 
-            # Wait up to 10 s for the server to become HTTP-reachable
-            import time
-
-            deadline = time.monotonic() + 10
+            # Wait up to 15 s for the server to become HTTP-reachable.
+            deadline = time.monotonic() + 15
             ready = False
             while time.monotonic() < deadline:
                 if asyncio.run(_check_server_http(server_url)):
@@ -188,9 +202,22 @@ class SandboxCommands(CliTopCommand):
 
             if ready:
                 console.print("[green]Server is ready.[/green]")
+                console.print("[yellow]Tip:[/yellow] run [cyan]cli sandbox pull[/cyan] to pre-pull the Docker image.")
             else:
-                console.print("[yellow]Server started but not yet responding — it may still be initialising.[/yellow]")
-            console.print("[yellow]Tip:[/yellow] run [cyan]cli sandbox pull[/cyan] to pre-pull the Docker image.")
+                # Didn't come up — terminate and surface a clear error.
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                pid_path.unlink(missing_ok=True)
+                console.print(f"[red]opensandbox-server did not become healthy within 15s at {server_url}.[/red]")
+                console.print(f"[dim]Config: {cfg_path}[/dim]")
+                console.print(
+                    "[yellow]Inspect stderr by running the binary directly in a terminal:[/yellow] "
+                    "[cyan]opensandbox-server[/cyan]"
+                )
+                raise typer.Exit(1)
 
         @cli_app.command("stop")
         def stop(
@@ -203,11 +230,13 @@ class SandboxCommands(CliTopCommand):
             pid = _read_pid(pid_path)
             if pid is None:
                 console.print("[yellow]No PID file found — nothing to stop.[/yellow]")
+                _DEFAULT_SERVER_CFG.unlink(missing_ok=True)
                 return
 
             if not _is_pid_alive(pid):
                 console.print(f"[yellow]Process {pid} is not running.[/yellow]")
                 pid_path.unlink(missing_ok=True)
+                _DEFAULT_SERVER_CFG.unlink(missing_ok=True)
                 return
 
             import os
@@ -219,6 +248,7 @@ class SandboxCommands(CliTopCommand):
                 console.print(f"[yellow]Process {pid} already gone.[/yellow]")
             finally:
                 pid_path.unlink(missing_ok=True)
+                _DEFAULT_SERVER_CFG.unlink(missing_ok=True)
 
         @cli_app.command("status")
         def status(
@@ -347,7 +377,7 @@ class SandboxCommands(CliTopCommand):
         ) -> None:
             """Pre-pull the configured Docker sandbox image.
 
-            Pulls the image so that the first ``cli agents langchain --sandbox docker``
+            Pulls the image so that the first sandbox-backed ``cli agents run``
             invocation does not stall waiting for the image download.
             """
             import subprocess

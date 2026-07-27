@@ -1,51 +1,16 @@
 """Unit tests for genai_tk.agents.langchain.config."""
 
-from pathlib import Path
-from typing import Any
-
 import pytest
-import yaml
 
 from genai_tk.agents.langchain.config import (
-    AgentDefaults,
     AgentProfileConfig,
     BackendConfig,
     CheckpointerConfig,
-    LangchainAgentsConfig,
     MiddlewareConfig,
     create_backend,
     create_checkpointer,
     instantiate_middlewares,
-    load_unified_config,
-    resolve_profile,
 )
-
-# ---------------------------------------------------------------------------
-# Fixtures / helpers
-# ---------------------------------------------------------------------------
-
-MINIMAL_YAML: dict[str, Any] = {
-    "langchain_agents": {
-        "defaults": {"type": "react"},
-        "default_profile": "simple",
-        "simple": {"name": "simple", "type": "react", "llm": "parrot_local@fake", "tools": [], "mcp_servers": []},
-        "deep_one": {
-            "name": "deep_one",
-            "type": "deep",
-            "llm": "gpt41@openai",
-            "tools": [],
-            "mcp_servers": [],
-            "skill_directories": ["/skills"],
-        },
-    }
-}
-
-
-def _write_yaml(tmp_path: Path, data: dict[str, Any]) -> Path:
-    cfg_file = tmp_path / "langchain.yaml"
-    cfg_file.write_text(yaml.dump(data))
-    return cfg_file
-
 
 # ---------------------------------------------------------------------------
 # MiddlewareConfig
@@ -92,190 +57,19 @@ class TestCheckpointerConfig:
 
 
 # ---------------------------------------------------------------------------
-# AgentDefaults / LangchainAgentsConfig
+# AgentProfileConfig
 # ---------------------------------------------------------------------------
 
 
-class TestLangchainAgentsConfig:
-    def test_empty_defaults(self) -> None:
-        defaults = AgentDefaults()
-        assert defaults.type == "react"
-        assert defaults.middlewares == []
-        assert defaults.checkpointer.type == "none"
-
+class TestAgentProfileConfig:
     def test_profile_validation(self) -> None:
         profile = AgentProfileConfig(name="test", type="react")
         assert profile.name == "test"
         assert profile.type == "react"
 
-    def test_config_from_dict(self) -> None:
-        cfg = LangchainAgentsConfig.model_validate(MINIMAL_YAML["langchain_agents"])
-        assert cfg.default_profile == "simple"
-        assert len(cfg.profiles) == 2
-        names = {p.name for p in cfg.profiles}
-        assert "simple" in names
-        assert any(p.type == "deep" for p in cfg.profiles)
-
-
-# ---------------------------------------------------------------------------
-# load_unified_config
-# ---------------------------------------------------------------------------
-
-
-class TestLoadUnifiedConfig:
-    def test_loads_minimal_yaml(self, tmp_path: Path) -> None:
-        cfg_file = _write_yaml(tmp_path, MINIMAL_YAML)
-        cfg = load_unified_config(str(cfg_file))
-        assert isinstance(cfg, LangchainAgentsConfig)
-        assert len(cfg.profiles) == 2
-
-    def test_default_profile_name(self, tmp_path: Path) -> None:
-        cfg_file = _write_yaml(tmp_path, MINIMAL_YAML)
-        cfg = load_unified_config(str(cfg_file))
-        assert cfg.default_profile == "simple"
-
-    def test_file_not_found(self, tmp_path: Path) -> None:
-        from genai_tk.config_mgmt.config_exceptions import ConfigFileError
-
-        with pytest.raises(ConfigFileError, match="file not found"):
-            load_unified_config(str(tmp_path / "nonexistent.yaml"))
-
-    def test_missing_section_raises(self, tmp_path: Path) -> None:
-        from genai_tk.config_mgmt.config_exceptions import ConfigKeyNotFoundError
-
-        bad_yaml = {"other_section": {}}
-        cfg_file = _write_yaml(tmp_path, bad_yaml)
-        with pytest.raises(ConfigKeyNotFoundError, match="langchain_agents"):
-            load_unified_config(str(cfg_file))
-
-    def test_defaults_parsed(self, tmp_path: Path) -> None:
-        data = {
-            "langchain_agents": {
-                "defaults": {"type": "deep", "llm": "gpt41@openai"},
-                "default_profile": "d",
-                "d": {"name": "d"},
-            }
-        }
-        cfg_file = _write_yaml(tmp_path, data)
-        cfg = load_unified_config(str(cfg_file))
-        assert cfg.defaults.type == "deep"
-        assert cfg.defaults.llm == "gpt41@openai"
-
-    def test_middleware_in_defaults(self, tmp_path: Path) -> None:
-        data = {
-            "langchain_agents": {
-                "defaults": {"middlewares": [{"class": "mod.RichMiddleware"}]},
-                "default_profile": "",
-            }
-        }
-        cfg_file = _write_yaml(tmp_path, data)
-        cfg = load_unified_config(str(cfg_file))
-        assert len(cfg.defaults.middlewares) == 1
-        assert cfg.defaults.middlewares[0].class_path == "mod.RichMiddleware"
-
-
-# ---------------------------------------------------------------------------
-# resolve_profile
-# ---------------------------------------------------------------------------
-
-
-class TestResolveProfile:
-    def _make_config(self, tmp_path: Path) -> LangchainAgentsConfig:
-        cfg_file = _write_yaml(tmp_path, MINIMAL_YAML)
-        return load_unified_config(str(cfg_file))
-
-    def test_finds_profile_by_name(self, tmp_path: Path) -> None:
-        cfg = self._make_config(tmp_path)
-        profile = resolve_profile(cfg, "simple")
-        assert profile.name == "simple"
-
-    def test_case_insensitive_match(self, tmp_path: Path) -> None:
-        cfg = self._make_config(tmp_path)
-        profile = resolve_profile(cfg, "SIMPLE")
-        assert profile.name == "simple"
-
-    def test_profile_not_found_raises(self, tmp_path: Path) -> None:
-        cfg = self._make_config(tmp_path)
-        with pytest.raises(ValueError, match="'unknown' not found"):
-            resolve_profile(cfg, "unknown")
-
-    def test_default_llm_inherited(self, tmp_path: Path) -> None:
-        data = {
-            "langchain_agents": {
-                "defaults": {"llm": "default_llm@fake"},
-                "default_profile": "p",
-                "p": {"name": "p"},  # no llm set
-            }
-        }
-        cfg_file = _write_yaml(tmp_path, data)
-        cfg = load_unified_config(str(cfg_file))
-        profile = resolve_profile(cfg, "p")
-        assert profile.llm == "default_llm@fake"
-
-    def test_profile_llm_overrides_default(self, tmp_path: Path) -> None:
-        data = {
-            "langchain_agents": {
-                "defaults": {"llm": "default_llm@fake"},
-                "default_profile": "p",
-                "p": {"name": "p", "llm": "profile_llm@fake"},
-            }
-        }
-        cfg_file = _write_yaml(tmp_path, data)
-        cfg = load_unified_config(str(cfg_file))
-        profile = resolve_profile(cfg, "p")
-        assert profile.llm == "profile_llm@fake"
-
-    def test_type_override(self, tmp_path: Path) -> None:
-        cfg = self._make_config(tmp_path)
-        profile = resolve_profile(cfg, "simple", type_override="custom")
-        assert profile.type == "custom"
-
-    def test_middleware_inherited(self, tmp_path: Path) -> None:
-        data = {
-            "langchain_agents": {
-                "defaults": {"middlewares": [{"class": "mod.DefaultMiddleware"}]},
-                "default_profile": "p",
-                "p": {"name": "p"},  # no middlewares
-            }
-        }
-        cfg_file = _write_yaml(tmp_path, data)
-        cfg = load_unified_config(str(cfg_file))
-        profile = resolve_profile(cfg, "p")
-        assert len(profile.middlewares) == 1
-        assert profile.middlewares[0].class_path == "mod.DefaultMiddleware"
-
-    def test_profile_middleware_overrides_default(self, tmp_path: Path) -> None:
-        data = {
-            "langchain_agents": {
-                "defaults": {"middlewares": [{"class": "mod.DefaultMiddleware"}]},
-                "default_profile": "p",
-                "p": {"name": "p", "middlewares": [{"class": "mod.ProfileMiddleware"}]},
-            }
-        }
-        cfg_file = _write_yaml(tmp_path, data)
-        cfg = load_unified_config(str(cfg_file))
-        profile = resolve_profile(cfg, "p")
-        assert len(profile.middlewares) == 1
-        assert profile.middlewares[0].class_path == "mod.ProfileMiddleware"
-
-    def test_deep_field_on_react_emits_warning(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
-        data = {
-            "langchain_agents": {
-                "defaults": {},
-                "default_profile": "p",
-                "p": {"name": "p", "type": "react", "skill_directories": ["/skills"]},
-            }
-        }
-        cfg_file = _write_yaml(tmp_path, data)
-        cfg = load_unified_config(str(cfg_file))
-        resolve_profile(cfg, "p")
-        # Rich prints to its own console, but at minimum no exception should be raised
-
-    def test_deep_fields_allowed_on_deep_type(self, tmp_path: Path) -> None:
-        cfg_file = _write_yaml(tmp_path, MINIMAL_YAML)
-        cfg = load_unified_config(str(cfg_file))
-        profile = resolve_profile(cfg, "deep_one")
-        assert "/skills" in profile.skill_directories
+    def test_harness_discriminator(self) -> None:
+        profile = AgentProfileConfig(name="test")
+        assert profile.harness == "langchain"
 
 
 # ---------------------------------------------------------------------------
@@ -383,83 +177,9 @@ class TestBackendConfig:
         assert cfg.extra_kwargs["opensandbox_server_url"] == "http://myserver:8080"
         assert cfg.extra_kwargs["startup_timeout"] == 120.0
 
-    def test_agent_defaults_has_none_backend(self) -> None:
-        defaults = AgentDefaults()
-        assert defaults.backend.type == "none"
-
     def test_profile_backend_defaults_to_none(self) -> None:
         profile = AgentProfileConfig(name="test")
         assert profile.backend is None  # None means "inherit from defaults"
-
-
-# ---------------------------------------------------------------------------
-# resolve_profile — backend inheritance
-# ---------------------------------------------------------------------------
-
-
-class TestResolveProfileBackend:
-    def _make_config_with_backend(
-        self, tmp_path: Path, default_backend: dict, profile_backend: dict | None
-    ) -> LangchainAgentsConfig:
-        profile_data: dict = {"name": "p", "type": "deep"}
-        if profile_backend is not None:
-            profile_data["backend"] = profile_backend
-        data = {
-            "langchain_agents": {
-                "defaults": {"backend": default_backend},
-                "default_profile": "p",
-                "p": profile_data,
-            }
-        }
-        cfg_file = tmp_path / "langchain.yaml"
-        import yaml
-
-        cfg_file.write_text(yaml.dump(data))
-        return load_unified_config(str(cfg_file))
-
-    def test_backend_inherited_from_defaults(self, tmp_path: Path) -> None:
-        cfg = self._make_config_with_backend(
-            tmp_path, {"type": "aio_sandbox", "opensandbox_server_url": "http://myserver:8080"}, None
-        )
-        profile = resolve_profile(cfg, "p")
-        assert profile.backend is not None
-        assert profile.backend.type == "aio_sandbox"
-        assert profile.backend.extra_kwargs.get("opensandbox_server_url") == "http://myserver:8080"
-
-    def test_profile_backend_overrides_default(self, tmp_path: Path) -> None:
-        cfg = self._make_config_with_backend(
-            tmp_path,
-            {"type": "aio_sandbox"},
-            {"type": "class", "class": "my_pkg.MyBackend"},
-        )
-        profile = resolve_profile(cfg, "p")
-        assert profile.backend is not None
-        assert profile.backend.type == "class"
-        assert profile.backend.class_path == "my_pkg.MyBackend"
-
-    def test_backend_none_in_default_and_profile(self, tmp_path: Path) -> None:
-        cfg = self._make_config_with_backend(tmp_path, {"type": "none"}, None)
-        profile = resolve_profile(cfg, "p")
-        assert profile.backend is not None
-        assert profile.backend.type == "none"
-
-    def test_non_deep_profile_with_backend_triggers_warning(self, tmp_path: Path) -> None:
-        """No exception; a Rich warning is printed but the profile is resolved."""
-        data = {
-            "langchain_agents": {
-                "defaults": {},
-                "default_profile": "p",
-                "p": {"name": "p", "type": "react", "backend": {"type": "aio_sandbox"}},
-            }
-        }
-        import yaml
-
-        cfg_file = tmp_path / "langchain.yaml"
-        cfg_file.write_text(yaml.dump(data))
-        cfg = load_unified_config(str(cfg_file))
-        profile = resolve_profile(cfg, "p")  # must not raise
-        assert profile.backend is not None
-        assert profile.backend.type == "aio_sandbox"
 
 
 # ---------------------------------------------------------------------------
