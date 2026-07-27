@@ -51,7 +51,11 @@ async def get_alerts(state: str) -> str:
 
 @mcp.tool()
 async def get_forecast(latitude: float, longitude: float) -> str:
-    """Get weather forecast for a location given by latitude and longitude in the USA."""
+    """Get weather forecast for a location given by latitude and longitude in the USA.
+    args :
+        latitude : float : Latitude of the location in degrees between -90.0 and +90.0
+        longitude : float : Longitude of the location
+    """
     points_url = f"{NWS_API_BASE}/points/{latitude},{longitude}"
     points_data = await make_nws_request(points_url)
     if not points_data:

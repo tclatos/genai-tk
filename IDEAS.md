@@ -1,3 +1,28 @@
+# Simplify Integration
+/home/tcl/prj/genai-tk/docs/design/deepagents-deerflow-langgraph-unification.md
+
+# Pydantic
+Replace @dataclass  by pydantic object
+# TOC
+
+We want to implement commands and Prefect tasks to create a table of content (TOC) from a Markdown document, and tools for agents
+Inspiration is : 
+- https://pageindex.ai/blog/pageindex-intro 
+- https://github.com/VectifyAI/PageIndex/blob/main/pageindex/page_index_md.py
+- https://github.com/VectifyAI/PageIndex/blob/main/examples/agentic_vectorless_rag_demo.py 
+
+
+ Take inspiration of PageIndex parameters, but use our own convention to select the LLM, the class, etc. 
+
+One difference with pageindex-intro  is that we want to create TOC from several Markdown files (typically in a  dir or a zip ), like in genai_tk/workflow/prefect/flows/merge_markdown_flow.py
+
+
+
+
+First implement in genai-tk a simple workfow callable from 'cli workflow run' to create TOC from fiven markdown files. 
+/home/tcl/prj/genai-tk/genai_tk/workflow
+
+Then integrate it in ...
 
 
 # More Harness
@@ -56,21 +81,6 @@ use https://github.com/chonkie-inc/tokie
 (can remove tokenizers  - 3MB)
 
 
-# TOC
-
-We want to implement commands and Prefect tasks to create a table of content (TOC) from a Markdown document. 
-Inspiration is : 
-- https://pageindex.ai/blog/pageindex-intro 
-- https://github.com/VectifyAI/PageIndex/blob/main/pageindex/page_index_md.py
-- https://github.com/VectifyAI/PageIndex/blob/main/examples/agentic_vectorless_rag_demo.py 
-
-
- Take inspiration of PageIndex parameters, use our own convention to select the LLM, the class, etc. 
-
-First implement in genai-tk a simple workfow callable from 'cli workflow run' to create TOC from fiven markdown files. 
-/home/tcl/prj/genai-tk/genai_tk/workflow
-
-Then integrate it in ...
 
 # Anonymimisation / LLM Routing demo
 Create a Streamlit app that demonstrate features 
