@@ -1,0 +1,26 @@
+{
+  "auth_page": {
+    "url": "https://wac.das.myatos.net/portal/auth.jsp",
+    "title": "Atos SSO"
+  },
+  "portal_page": {
+    "url": "https://nextgen.myatos.net/sap/flp",
+    "title": "MyAtos"
+  },
+  "login_form": {
+    "das_id_input": "input[name='dasId'], input[placeholder*='DAS'], input[type='text']:first-of-type",
+    "password_input": "input[name='password'], input[type='password']",
+    "auth_code_input": "input[name='authCode'], input[placeholder*='AUTH']",
+    "auth_button": "button:has-text('AUTH'), button[type='submit']"
+  },
+  "portal_elements": {
+    "home_page": "a:has-text('Page d\\'accueil'), a:has-text('Home')",
+    "my_tasks": "a:has-text('My Tasks'), a:has-text('Mes tâches')",
+    "general_apps": "div:has-text('General Apps')",
+    "modify_page": "button:has-text('Modifier la page'), button:has-text('Edit')"
+  },
+  "error_messages": {
+    "auth_unsuccessful": "text=Authentication Unsuccessful",
+    "invalid_credentials": "text=credentials that you provide are valid"
+  }
+}

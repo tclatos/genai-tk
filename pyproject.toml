@@ -376,3 +376,6 @@ exclude_also = [
 
 [project.scripts]
 cli = "genai_tk.main.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["browser_control*"]

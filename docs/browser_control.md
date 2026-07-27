@@ -126,7 +126,7 @@ uv run cli agents langchain -p "Browser Agent" --keep-sandbox --chat "..."
 
 ## Credential Security
 
-`browser_fill_credential` is the **only** way to enter credentials:
+`browser_fill_credential` is one of the way to enter credentials:
 
 ```
 agent → browser_fill_credential(selector="#email", credential_env="ENEDIS_USERNAME")

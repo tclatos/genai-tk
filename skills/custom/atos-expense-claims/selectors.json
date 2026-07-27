@@ -1,0 +1,47 @@
+{
+  "description": "CSS selectors for Atos MyAtos Expense Claims navigation",
+  "portal_home": {
+    "expense_claims_link": "a:has-text(\"Note de frais\")",
+    "home_link": "a:has-text(\"Page d'accueil\")",
+    "my_applications_section": "div:has-text(\"Mes applications\")",
+    "general_apps_section": "div:has-text(\"General Apps\")",
+    "my_tasks_section": "div:has-text(\"My Tasks\")"
+  },
+  "expense_claims_page": {
+    "page_title": "h1:has-text(\"My expenses\")",
+    "page_subtitle": "h2:has-text(\"My expenses\")",
+    "page_header": "div:has-text(\"Poste de travail personne en déplacement\")"
+  },
+  "navigation": {
+    "back_to_home": "a:has-text(\"Page d'accueil\")",
+    "menu_button": "button[aria-label*='menu']",
+    "user_profile": "div[class*='profile']"
+  },
+  "urls": {
+    "portal_home": "https://nextgen.myatos.net/sap/flp#Shell-home",
+    "portal_base": "https://nextgen.myatos.net/sap/flp",
+    "expense_claims": "https://nextgen.myatos.net/sap/flp#Expense-claim"
+  },
+  "wait_conditions": {
+    "portal_load": {
+      "load_state": "domcontentloaded",
+      "timeout_ms": 5000
+    },
+    "expense_claims_load": {
+      "load_state": "networkidle",
+      "timeout_ms": 5000
+    }
+  },
+  "verification": {
+    "portal_indicators": [
+      "MyAtos",
+      "Page d'accueil",
+      "Mes applications"
+    ],
+    "expense_claims_indicators": [
+      "My expenses",
+      "Poste de travail personne en déplacement",
+      "Expense-claim"
+    ]
+  }
+}

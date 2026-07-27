@@ -1,0 +1,144 @@
+"""Example CLI commands — demonstrates core genai-tk patterns.
+
+Registered in config/app_conf.yaml under ``cli.commands``.
+Run ``cli example --help`` to see available sub-commands.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Annotated
+
+import typer
+from rich.console import Console
+
+from genai_tk.cli.base import CliTopCommand
+
+console = Console()
+
+
+class ExampleCommands(CliTopCommand):
+    """Example commands showcasing genai-tk capabilities."""
+
+    description: str = "Example commands (joke, chain, agent, deerflow)"
+
+    def get_description(self) -> tuple[str, str]:
+        return "example", self.description
+
+    def register_sub_commands(self, cli_app: typer.Typer) -> None:
+        @cli_app.command()
+        def joke(
+            topic: Annotated[str, typer.Argument(help="Topic for the joke")] = "programming",
+            model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
+        ) -> None:
+            """Ask the LLM to tell a joke — simplest possible LLM call."""
+            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.prompts import def_prompt
+
+            llm = get_llm(model)
+            prompt = def_prompt(user="Tell me a short, funny joke about {topic}.")
+            chain = prompt | llm
+            result = chain.invoke({"topic": topic})
+            console.print(f"\n[bold]{result.content}[/bold]\n")
+
+        @cli_app.command()
+        def chain(
+            topic: Annotated[str, typer.Argument(help="Topic for the joke chain")] = "AI engineers",
+            model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
+        ) -> None:
+            """Run a LangChain LCEL chain — demonstrates prompt | llm | parser composition."""
+            from langchain_core.output_parsers import StrOutputParser
+
+            from genai_tk.core.llm_factory import get_llm
+            from genai_tk.core.prompts import def_prompt
+
+            llm = get_llm(model)
+            prompt = def_prompt(
+                system="You are a witty comedian who tells short jokes.",
+                user="Tell me a joke about {topic}. Then explain why it is funny in one sentence.",
+            )
+            joke_chain = prompt | llm | StrOutputParser()
+            result = joke_chain.invoke({"topic": topic})
+            console.print(f"\n{result}\n")
+
+        @cli_app.command()
+        def agent(
+            question: Annotated[str, typer.Argument(help="Question for the agent")] = "What is the capital of France?",
+            model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
+        ) -> None:
+            """Run a ReAct agent — demonstrates tool-calling with LangGraph."""
+            from langchain_core.messages import HumanMessage
+            from langgraph.prebuilt import create_react_agent
+
+            from genai_tk.core.llm_factory import get_llm
+
+            llm = get_llm(model)
+
+            # A minimal tool for demonstration
+            from langchain_core.tools import tool
+
+            @tool
+            def calculator(expression: str) -> str:
+                """Evaluate a math expression. Use Python syntax, e.g. '2 + 2' or '3 ** 4'."""
+                try:
+                    result = eval(expression, {"__builtins__": {}})  # noqa: S307
+                    return str(result)
+                except Exception as e:
+                    return f"Error: {e}"
+
+            agent = create_react_agent(llm, tools=[calculator])
+            console.print(f"[cyan]Agent thinking...[/cyan]\n")
+            result = agent.invoke({"messages": [HumanMessage(content=question)]})
+            last_msg = result["messages"][-1]
+            console.print(f"[bold]{last_msg.content}[/bold]\n")
+
+        @cli_app.command()
+        def deerflow(
+            question: Annotated[str, typer.Argument(help="Research question")] = "What are the latest advances in AI agents?",
+            model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
+        ) -> None:
+            """Run a DeerFlow research agent — demonstrates multi-step research with planning."""
+            import uuid
+
+            try:
+                from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
+                from genai_tk.agents.deer_flow.embedded_client import (
+                    EmbeddedDeerFlowClient,
+                    ErrorEvent,
+                    NodeEvent,
+                    TokenEvent,
+                )
+            except ImportError:
+                console.print(
+                    "[red]DeerFlow not installed.[/red] Run [bold]cli init --deer-flow[/bold] first."
+                )
+                raise typer.Exit(1)
+
+            console.print(f"[cyan]DeerFlow researching:[/cyan] {question}\n")
+
+            model_name = None if model == "default" else model
+            # mcp_server_names=[] disables all MCP tools for this simple example
+            config_path, _ext_path, _warnings = setup_deer_flow_config(
+                mcp_server_names=[],
+                sandbox="local",
+                selected_llm=model_name,
+            )
+            client = EmbeddedDeerFlowClient(config_path=config_path, model_name=model_name)
+
+            async def _run() -> None:
+                prev_len = 0
+                async for event in client.stream_message(str(uuid.uuid4()), question, mode="flash"):
+                    if isinstance(event, NodeEvent):
+                        print(f"\n\033[2m▶ {event.node}\033[0m", flush=True)
+                        prev_len = 0
+                    elif isinstance(event, TokenEvent) and event.data:
+                        # data is cumulative — print only the new suffix
+                        new_text = event.data[prev_len:]
+                        if new_text:
+                            print(new_text, end="", flush=True)
+                        prev_len = len(event.data)
+                    elif isinstance(event, ErrorEvent):
+                        raise RuntimeError(f"DeerFlow error: {event.message!r}")
+                print()  # final newline
+
+            asyncio.run(_run())

@@ -512,6 +512,59 @@ class BrowserDiagnoseTool(_BrowserTool):
         return "\n".join(parts)[:4000]
 
 
+class BrowserWaitForUserTool(_BrowserTool):
+    name: str = "browser_wait_for_user"
+    description: str = (
+        "Pause and wait for the user to complete a manual action in the browser "
+        "(e.g. entering credentials, solving a CAPTCHA, completing SSO login). "
+        "The tool polls the page every few seconds and returns once the URL changes "
+        "(indicating a redirect after login) or the maximum wait time is reached. "
+        "Use this when the user needs to interact with the browser manually."
+    )
+
+    def _run(self, message: str = "", timeout_seconds: int = 120, poll_interval_seconds: int = 5) -> str:
+        return asyncio.get_event_loop().run_until_complete(
+            self._arun(message=message, timeout_seconds=timeout_seconds, poll_interval_seconds=poll_interval_seconds)
+        )
+
+    async def _arun(
+        self,
+        message: str = "",
+        timeout_seconds: int = 120,
+        poll_interval_seconds: int = 5,
+        **kwargs: Any,
+    ) -> str:
+        await self._ensure_connected()
+        page = self.session.page
+        initial_url = page.url
+        display_msg = message or "Waiting for user to complete action in the browser..."
+        from loguru import logger  # noqa: PLC0415
+
+        logger.info("⏳ {} (timeout={}s, polling every {}s)", display_msg, timeout_seconds, poll_interval_seconds)
+
+        elapsed = 0
+        while elapsed < timeout_seconds:
+            await asyncio.sleep(poll_interval_seconds)
+            elapsed += poll_interval_seconds
+            try:
+                current_url = page.url
+            except Exception:
+                return f"Browser connection lost after {elapsed}s while waiting."
+            if current_url != initial_url:
+                return (
+                    f"Page URL changed after {elapsed}s.\n"
+                    f"Old URL: {initial_url}\n"
+                    f"New URL: {current_url}\n"
+                    + await _page_summary(self.session)
+                )
+
+        return (
+            f"Timeout reached ({timeout_seconds}s) — URL did not change.\n"
+            f"Current URL: {page.url}\n"
+            + await _page_summary(self.session)
+        )
+
+
 # Registry for easy access
 ALL_BROWSER_TOOLS: list[type[_BrowserTool]] = [
     BrowserNavigateTool,
@@ -522,6 +575,7 @@ ALL_BROWSER_TOOLS: list[type[_BrowserTool]] = [
     BrowserReadPageTool,
     BrowserScrollTool,
     BrowserWaitTool,
+    BrowserWaitForUserTool,
     BrowserSaveCookiesTool,
     BrowserLoadCookiesTool,
     BrowserGetLogsTool,

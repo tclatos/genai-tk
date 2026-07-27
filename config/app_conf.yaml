@@ -199,4 +199,4 @@ cli:
     - genai_tk.cli.commands_skills.SkillsCommands
     - genai_tk.main.cli.register_commands
     - genai_tk.cli.commands_monitoring.MonitoringCommands
-
+    - browser_control.commands.example_commands.ExampleCommands

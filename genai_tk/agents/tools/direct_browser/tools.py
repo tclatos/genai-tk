@@ -40,10 +40,19 @@ async def _page_summary(session: DirectBrowserSession, max_text: int = 2000) -> 
 async def _human_type(session: DirectBrowserSession, selector: str, text: str) -> None:
     page = session.page
     delay = session.config.slow_type_ms
-    await page.click(selector)
-    await page.fill(selector, "")
-    for char in text:
-        await page.type(selector, char, delay=delay + random.randint(-15, 15))
+    timeout = session.config.default_timeout_ms
+    locator = page.locator(selector).first
+    await locator.wait_for(state="visible", timeout=timeout)
+    await locator.scroll_into_view_if_needed(timeout=timeout)
+    await locator.click(timeout=timeout)
+    # Clear existing content — try fill first, fall back to select-all+delete
+    try:
+        await locator.fill("", timeout=5000)
+    except Exception:
+        await page.keyboard.press("Control+a")
+        await page.keyboard.press("Backspace")
+    # Type with human-like delays
+    await locator.press_sequentially(text, delay=delay)
 
 
 # ---------------------------------------------------------------------------
@@ -147,15 +156,19 @@ class BrowserClickTool(_BrowserTool):
 class BrowserTypeTool(_BrowserTool):
     name: str = "browser_type"
     description: str = (
-        "Type text into a form field identified by CSS selector. "
+        "Type text into a visible form field identified by CSS selector. "
+        "The element must be visible on screen. Use specific selectors like "
+        "input[name='username'], input.txt-answer-box, textarea#comment — avoid generic 'input'. "
         "Uses human-like typing delays. For credentials, use browser_fill_credential instead. "
-        "Do NOT use this to type into search engines — use browser_navigate to a search URL instead."
+        "To submit after typing, set press_enter=true."
     )
 
-    def _run(self, selector: str = "", text: str = "") -> str:
-        return asyncio.get_event_loop().run_until_complete(self._arun(selector=selector, text=text))
+    def _run(self, selector: str = "", text: str = "", press_enter: bool = False) -> str:
+        return asyncio.get_event_loop().run_until_complete(
+            self._arun(selector=selector, text=text, press_enter=press_enter)
+        )
 
-    async def _arun(self, selector: str = "", text: str = "") -> str:
+    async def _arun(self, selector: str = "", text: str = "", press_enter: bool = False) -> str:
         if not selector:
             return "Error: 'selector' argument is required."
         if not text:
@@ -163,6 +176,9 @@ class BrowserTypeTool(_BrowserTool):
         await self._ensure_connected()
         try:
             await _human_type(self.session, selector, text)
+            if press_enter:
+                await self.session.page.keyboard.press("Enter")
+                await asyncio.sleep(0.5)
         except Exception as exc:
             return f"Typing failed on '{selector}': {exc}"
         return f"Typed into '{selector}' successfully."
@@ -456,6 +472,59 @@ class BrowserDiagnoseTool(_BrowserTool):
         return "\n".join(parts)[:4000]
 
 
+class BrowserWaitForUserTool(_BrowserTool):
+    name: str = "browser_wait_for_user"
+    description: str = (
+        "Pause and wait for the user to complete a manual action in the browser "
+        "(e.g. entering credentials, solving a CAPTCHA, completing SSO login). "
+        "The tool polls the page every few seconds and returns once the URL changes "
+        "(indicating a redirect after login) or the maximum wait time is reached. "
+        "Use this when the user needs to interact with the browser manually."
+    )
+
+    def _run(self, message: str = "", timeout_seconds: int = 120, poll_interval_seconds: int = 5) -> str:
+        return asyncio.get_event_loop().run_until_complete(
+            self._arun(message=message, timeout_seconds=timeout_seconds, poll_interval_seconds=poll_interval_seconds)
+        )
+
+    async def _arun(
+        self,
+        message: str = "",
+        timeout_seconds: int = 120,
+        poll_interval_seconds: int = 5,
+        **kwargs: Any,
+    ) -> str:
+        await self._ensure_connected()
+        page = self.session.page
+        initial_url = page.url
+        display_msg = message or "Waiting for user to complete action in the browser..."
+        from loguru import logger  # noqa: PLC0415
+
+        logger.info("⏳ {} (timeout={}s, polling every {}s)", display_msg, timeout_seconds, poll_interval_seconds)
+
+        elapsed = 0
+        while elapsed < timeout_seconds:
+            await asyncio.sleep(poll_interval_seconds)
+            elapsed += poll_interval_seconds
+            try:
+                current_url = page.url
+            except Exception:
+                return f"Browser connection lost after {elapsed}s while waiting."
+            if current_url != initial_url:
+                return (
+                    f"Page URL changed after {elapsed}s.\n"
+                    f"Old URL: {initial_url}\n"
+                    f"New URL: {current_url}\n"
+                    + await _page_summary(self.session)
+                )
+
+        return (
+            f"Timeout reached ({timeout_seconds}s) — URL did not change.\n"
+            f"Current URL: {page.url}\n"
+            + await _page_summary(self.session)
+        )
+
+
 ALL_BROWSER_TOOLS: list[type[_BrowserTool]] = [
     BrowserNavigateTool,
     BrowserClickTool,
@@ -465,6 +534,7 @@ ALL_BROWSER_TOOLS: list[type[_BrowserTool]] = [
     BrowserReadPageTool,
     BrowserScrollTool,
     BrowserWaitTool,
+    BrowserWaitForUserTool,
     BrowserSaveCookiesTool,
     BrowserLoadCookiesTool,
     BrowserGetLogsTool,
