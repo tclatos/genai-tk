@@ -108,6 +108,7 @@ def register(cli_app: typer.Typer) -> None:
             harness = create_harness(
                 profile_key,
                 llm_override=llm,
+                force_memory_checkpointer=chat,
                 mode_override=mode,
                 sandbox_override=sandbox,
                 extra_mcp=list(mcp) if mcp else None,

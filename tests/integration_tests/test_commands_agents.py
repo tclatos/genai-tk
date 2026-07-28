@@ -102,6 +102,16 @@ class TestRunCommand:
         assert kwargs.get("sandbox_override") == "docker"
         assert "tavily-mcp" in (kwargs.get("extra_mcp") or [])
 
+    def test_run_chat_forces_in_memory_checkpointer(self, agents_app, runner, monkeypatch) -> None:
+        async def no_repl(*args, **kwargs) -> None:
+            return None
+
+        monkeypatch.setattr("genai_tk.agents.harness.chat_repl.run_chat_repl", no_repl)
+        with patch("genai_tk.agents.harness.create_harness", return_value=_FakeHarness()) as mock_ch:
+            result = runner.invoke(agents_app, ["agents", "run", "simple", "--chat"])
+        assert result.exit_code == 0
+        assert mock_ch.call_args.kwargs["force_memory_checkpointer"] is True
+
     def test_run_unknown_profile_exits_one(self, agents_app, runner) -> None:
         with patch("genai_tk.agents.harness.create_harness", side_effect=ValueError("not found")):
             result = runner.invoke(agents_app, ["agents", "run", "ghost", "hi"])

@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from genai_tk.agents.harness import TokenEvent, create_harness
+from genai_tk.agents.harness import create_harness
 from genai_tk.agents.harness.registry import list_harness_profiles
 from genai_tk.cli.base import CliTopCommand
 
@@ -56,7 +56,7 @@ class AgentCommands(CliTopCommand):
                 cli agent chat            # interactive multi-turn mode
             """
             try:
-                harness = create_harness(profile, llm_override=llm)
+                harness = create_harness(profile, llm_override=llm, force_memory_checkpointer=True)
             except ValueError as exc:
                 console.print(f"[red]Error:[/red] {exc}")
                 raise typer.Exit(1) from exc
@@ -64,23 +64,13 @@ class AgentCommands(CliTopCommand):
             async def _run() -> None:
                 try:
                     if query:
-                        async for event in harness.astream(query):
-                            if isinstance(event, TokenEvent):
-                                console.print(event.text, end="", highlight=False)
-                        console.print()
+                        from genai_tk.agents.harness.chat_repl import astream_turn
+
+                        await astream_turn(harness, query, console=console)
                     else:
-                        console.print("[cyan]Interactive mode — type 'exit' to quit.[/cyan]\n")
-                        while True:
-                            try:
-                                user_input = typer.prompt("You")
-                            except (EOFError, typer.Abort):
-                                break
-                            if user_input.lower() in ("exit", "quit", "q"):
-                                break
-                            async for event in harness.astream(user_input):
-                                if isinstance(event, TokenEvent):
-                                    console.print(event.text, end="", highlight=False)
-                            console.print("\n")
+                        from genai_tk.agents.harness.chat_repl import run_chat_repl
+
+                        await run_chat_repl(harness, console=console)
                 finally:
                     await harness.aclose()
 
