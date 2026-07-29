@@ -60,11 +60,22 @@ class BaseHarness(ABC):
     async def list_models(self) -> list[HarnessModel]: ...                                # default: []
     async def list_skills(self) -> list[HarnessSkill]: ...                                # default: []
     async def aclose(self) -> None: ...                                                   # default: no-op
+    async def get_graph(self) -> Pregel | Any: ...                                        # NotImplementedError by default
+    async def get_checkpointer(self) -> BaseCheckpointSaver | None: ...                    # NotImplementedError by default
 ```
 
 An abstract base class was chosen over a `Protocol` so that `arun()` and the
 default introspection methods can be implemented once and inherited by both
 adapters, rather than duplicated.
+
+`get_graph()` / `get_checkpointer()` expose the underlying compiled LangGraph
+graph for introspection (e.g. `isinstance` checks, graph visualisation).
+`LangChainHarness` returns its real, production graph — the same object
+`astream()` drives. `DeerFlowHarness` returns a **best-effort** graph built via
+a minimal, un-traced config (no Langfuse/authorization wiring): DeerFlow's
+graph construction is private and deeply coupled to tracing/authorization
+setup performed by `DeerFlowClient.stream()`, so this accessor is for
+inspection only — it must never be used to drive an actual conversation turn.
 
 ### Adapters
 
@@ -73,13 +84,13 @@ adapters, rather than duplicated.
   `"v2"`) so `react`, `deep` (DeepAgents SDK), and `custom` profiles all stream
   uniformly — they are all compiled LangGraph graphs under the hood.
 - **`DeerFlowHarness`** (`genai_tk.agents.harness.deerflow_harness`) — wraps
-  `EmbeddedDeerFlowClient`. Translates DeerFlow's own event dataclasses
-  (`TokenEvent`, `NodeEvent`, `ToolCallEvent`, …, defined in
-  `genai_tk.agents.deer_flow.embedded_client`) into the canonical harness
-  events. DeerFlow's own dataclasses are unchanged internally — the
-  translation happens only at the harness boundary — so the unified
-  `cli agents run` command and the DeerFlow Streamlit page's lower-level
-  helpers keep working as-is.
+  `EmbeddedDeerFlowClient`. `EmbeddedDeerFlowClient.stream_message()` already
+  yields the **canonical harness events** directly (`genai_tk.agents.harness.events`)
+  — there is no separate translation step at the harness boundary any more.
+  DeerFlow's own event types were unified with the canonical ones (previously
+  a parallel dataclass hierarchy translated at the harness boundary), so the
+  unified `cli agents run` command and the DeerFlow Streamlit page's
+  lower-level helpers keep working as-is.
 
 ### Registry (`genai_tk.agents.harness.registry`)
 
@@ -200,13 +211,17 @@ Custom, DeerFlow) and a profile selector picks one across both harnesses.
 
 ## DeepAgents ↔ DeerFlow Event Parity
 
-Both adapters emit the same canonical event vocabulary, including `NodeEvent`
-(graph phase became active). DeerFlow emits planner/researcher/coder/reporter
-phase events natively; `LangChainHarness` derives `NodeEvent`s from LangGraph's
-`on_chain_start` events for `deep` (DeepAgents SDK) profiles — internal
-plumbing node names (`LangGraph`, `agent`, `tools`, `model`,
-`should_continue`) and the root graph invocation are filtered out so only
-meaningful phases surface in the Streamlit workbench's left rail.
+Both adapters emit the same canonical event vocabulary. DeerFlow emits
+planner/researcher/coder/reporter phase events natively only through its own
+TUI (upstream `deerflow.tui`, unrelated to `EmbeddedDeerFlowClient`); the
+embedded client's public `stream()` API does not subscribe to LangGraph's
+node-level stream mode, so `DeerFlowHarness` cannot currently surface
+`NodeEvent`s (this is a known gap, not a bug — see the design note below).
+`LangChainHarness` derives `NodeEvent`s from LangGraph's `on_chain_start`
+events for `deep` (DeepAgents SDK) profiles — internal plumbing node names
+(`LangGraph`, `agent`, `tools`, `model`, `should_continue`) and the root graph
+invocation are filtered out so only meaningful phases surface in the
+Streamlit workbench's left rail.
 
 `ArtifactEvent` is currently only emitted by `DeerFlowHarness`; DeepAgents
 artifacts remain inside `ToolResultEvent`s until a richer shared detection is

@@ -1431,7 +1431,7 @@ wheels = [
 [[package]]
 name = "deerflow-harness"
 version = "2.1.0"
-source = { git = "https://github.com/bytedance/deer-flow?subdirectory=backend%2Fpackages%2Fharness&rev=main#795af20a6b79b22fd9e95f674554605c5bfb6cdc" }
+source = { git = "https://github.com/bytedance/deer-flow?subdirectory=backend%2Fpackages%2Fharness&rev=795af20a6b79b22fd9e95f674554605c5bfb6cdc#795af20a6b79b22fd9e95f674554605c5bfb6cdc" }
 dependencies = [
     { name = "agent-client-protocol" },
     { name = "agent-sandbox" },
@@ -2137,7 +2137,7 @@ requires-dist = [
     { name = "chromadb", marker = "extra == 'chromadb'", specifier = ">=1.0" },
     { name = "ddgs", specifier = ">=9.7.0" },
     { name = "deepagents", marker = "extra == 'harnessing'", specifier = ">=0.4" },
-    { name = "deerflow-harness", extras = ["tui"], marker = "extra == 'harnessing'", git = "https://github.com/bytedance/deer-flow?subdirectory=backend%2Fpackages%2Fharness&rev=main" },
+    { name = "deerflow-harness", extras = ["tui"], marker = "extra == 'harnessing'", git = "https://github.com/bytedance/deer-flow?subdirectory=backend%2Fpackages%2Fharness&rev=795af20a6b79b22fd9e95f674554605c5bfb6cdc" },
     { name = "devtools", specifier = ">=0.12.2" },
     { name = "en-core-web-lg", marker = "extra == 'nlp'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" },
     { name = "en-core-web-sm", marker = "extra == 'nlp'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },

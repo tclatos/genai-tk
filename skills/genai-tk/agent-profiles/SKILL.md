@@ -8,6 +8,7 @@ description: Build or modify LangChain, DeepAgent, DeerFlow profiles, agent tool
 ## Read First
 
 - `docs/agents.md`
+- `docs/harness.md`
 - `docs/deer-flow.md`
 - `docs/middleware-pii-and-routing.md`
 - `genai_tk/agents/langchain/config.py`
@@ -77,9 +78,8 @@ backend, or runtime skill injection.
 | LangChain profiles and factory | `genai_tk/agents/langchain/` |
 | Middleware | `genai_tk/agents/langchain/middleware/` |
 | Tool specs and factories | `genai_tk/agents/tools/` |
-| SmolAgents CLI | `genai_tk/agents/smolagents/` |
 | DeerFlow bridge | `genai_tk/agents/deer_flow/` |
-| DeepAgent CLI bridge | `genai_tk/agents/deepagent_cli/` |
+| Shared harness layer (`BaseHarness`, `create_harness`, canonical events) | `genai_tk/agents/harness/` |
 | Sandbox backend | `genai_tk/agents/sandbox/`, `genai_tk/agents/langchain/sandbox_backend.py` |
 
 ## Change Workflow

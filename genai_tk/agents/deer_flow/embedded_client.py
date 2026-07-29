@@ -8,8 +8,10 @@ Install deerflow-harness as a proper uv dependency (see cli init --with-deer-flo
 A ``SqliteSaver`` checkpointer at ``data/kv_store/deerflow_checkpoints.db`` keeps
 multi-turn state within a session.
 
-Also defines the typed streaming event dataclasses (``TokenEvent``, ``NodeEvent``,
-``ToolCallEvent``, ``ToolResultEvent``, ``ErrorEvent``) that the CLI consumes.
+Streams the canonical harness event model (:mod:`genai_tk.agents.harness.events`)
+directly — ``TokenEvent``, ``NodeEvent``, ``ToolCallEvent``, ``ToolResultEvent``,
+``ErrorEvent``, ``ClarificationEvent`` — so callers (CLI, harness, tests) work with
+a single event vocabulary shared with the LangChain harness.
 
 Usage:
     ```python
@@ -19,7 +21,7 @@ Usage:
     thread_id = "my-session"
     async for event in client.stream_message(thread_id, "What is RAG?", mode="pro"):
         if isinstance(event, TokenEvent):
-            print(event.data, end="", flush=True)
+            print(event.text, end="", flush=True)
 
     # Access any upstream DeerFlowClient API directly:
     print(client.client.list_skills())
@@ -37,12 +39,19 @@ import re
 import threading
 import warnings
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
+from genai_tk.agents.harness.events import (
+    ClarificationEvent,
+    ErrorEvent,
+    NodeEvent,
+    TokenEvent,
+    ToolCallEvent,
+    ToolResultEvent,
+)
 from genai_tk.utils.singleton import once
 
 # Suppress Pydantic serialization warnings emitted by LangGraph's checkpointer
@@ -66,77 +75,11 @@ for _var in ("no_proxy", "NO_PROXY"):
         os.environ[_var] = f"{existing},{_NO_PROXY_HOSTS}" if existing else _NO_PROXY_HOSTS
 
 # ---------------------------------------------------------------------------
-# Typed events yielded by stream_message()
+# Typed events yielded by stream_message() — these ARE the canonical harness
+# events (genai_tk.agents.harness.events), re-exported here for backward
+# compatible import paths. No local translation/dataclass hierarchy: this
+# module is the single source of DeerFlow streaming events.
 # ---------------------------------------------------------------------------
-
-
-@dataclass
-class TokenEvent:
-    """Full AI response text for a completed message."""
-
-    kind: str = "token"
-    data: str = ""
-
-
-@dataclass
-class NodeEvent:
-    """A graph node became active (Planner, Researcher, Coder, Reporter …)."""
-
-    kind: str = "node"
-    node: str = ""
-    state: dict = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        if self.state is None:
-            self.state = {}
-
-
-@dataclass
-class ToolCallEvent:
-    """The model is calling a tool."""
-
-    kind: str = "tool_call"
-    tool_name: str = ""
-    args: dict = None  # type: ignore[assignment]
-    call_id: str = ""
-
-    def __post_init__(self) -> None:
-        if self.args is None:
-            self.args = {}
-
-
-@dataclass
-class ToolResultEvent:
-    """A tool returned a result."""
-
-    kind: str = "tool_result"
-    tool_name: str = ""
-    content: str = ""
-    call_id: str = ""
-
-
-@dataclass
-class ErrorEvent:
-    """The run produced an error."""
-
-    kind: str = "error"
-    message: str = ""
-
-
-@dataclass
-class ClarificationEvent:
-    """DeerFlow paused and is asking the user a clarifying question.
-
-    The agent has called ``ask_clarification`` and halted.  The caller should
-    display ``question`` to the user, collect a reply, and send it as the next
-    message on the same ``thread_id``.
-    """
-
-    kind: str = "clarification"
-    question: str = ""
-    clarification_type: str = "missing_info"
-    context: str = ""
-
 
 # Union type alias matching the HTTP client's public API
 StreamEvent = TokenEvent | NodeEvent | ToolCallEvent | ToolResultEvent | ErrorEvent | ClarificationEvent
@@ -535,6 +478,51 @@ class EmbeddedDeerFlowClient:
                 yield translated
 
     # ------------------------------------------------------------------
+    # Graph / checkpointer introspection (best-effort — NOT the streaming path)
+    # ------------------------------------------------------------------
+
+    def get_checkpointer(self) -> Any:
+        """Return the checkpointer this client built and passed into ``DeerFlowClient``.
+
+        Unlike the compiled graph, the checkpointer is **not** a private upstream
+        detail — ``EmbeddedDeerFlowClient.__init__`` constructs it and hands it to
+        ``DeerFlowClient(checkpointer=...)``, so genai-tk already owns it.
+        """
+        return self._checkpointer
+
+    def get_graph(
+        self,
+        *,
+        model_name: str | None = None,
+        thinking_enabled: bool = True,
+        is_plan_mode: bool = False,
+        subagent_enabled: bool = False,
+    ) -> Any:
+        """Return the compiled LangGraph graph for introspection (e.g. ``isinstance``
+        checks, graph visualisation) — **not** the production streaming path.
+
+        This calls the private ``DeerFlowClient._ensure_agent(config)`` with a
+        minimal ``config`` (no tracing/Langfuse/authorization wiring, unlike
+        ``DeerFlowClient.stream()``). The returned graph is real and correctly
+        built for the given mode flags, but running it directly bypasses the
+        trace-correlation and authorization-context setup that
+        ``stream_message()`` performs — do not use this for actual turns.
+
+        See ``tests/unit_tests/agents/deer_flow/test_upstream_contract.py`` for
+        the contract guarding this private surface.
+        """
+        config: dict[str, Any] = {
+            "configurable": {
+                "model_name": model_name or self._client._model_name,  # noqa: SLF001
+                "thinking_enabled": thinking_enabled,
+                "is_plan_mode": is_plan_mode,
+                "subagent_enabled": subagent_enabled,
+            }
+        }
+        self._client._ensure_agent(config)  # noqa: SLF001 — see docstring; guarded by contract test
+        return self._client._agent  # noqa: SLF001
+
+    # ------------------------------------------------------------------
     # Skills / memory / MCP delegation
     # ------------------------------------------------------------------
 
@@ -599,7 +587,7 @@ def _translate_event(ev: Any) -> list[StreamEvent]:
             results: list[StreamEvent] = []
             content = data.get("content", "")
             if content:
-                results.append(TokenEvent(data=content))
+                results.append(TokenEvent(text=content))
             for tc in data.get("tool_calls", []):
                 results.append(
                     ToolCallEvent(

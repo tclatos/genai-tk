@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING, Any
 
 from genai_tk.agents.harness.events import (
     ErrorEvent,
@@ -22,6 +23,10 @@ from genai_tk.agents.harness.events import (
     StreamEvent,
     TokenEvent,
 )
+
+if TYPE_CHECKING:
+    from langgraph.checkpoint.base import BaseCheckpointSaver
+    from langgraph.pregel import Pregel
 
 
 class BaseHarness(ABC):
@@ -86,3 +91,21 @@ class BaseHarness(ABC):
     async def aclose(self) -> None:
         """Release any resources held by this harness session (sandboxes, connections)."""
         return None
+
+    async def get_graph(self) -> Pregel | Any:
+        """Return the underlying compiled LangGraph graph for this harness session.
+
+        Lazily builds the agent/graph if it has not been constructed yet (same
+        laziness as :meth:`astream`). For :class:`~.deerflow_harness.DeerFlowHarness`
+        the returned graph reflects the currently resolved configuration
+        (model, mode, subagents, ...); it may be rebuilt on the next call if
+        that configuration changes.
+
+        Raises:
+            NotImplementedError: If the harness does not expose a graph.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not expose a compiled graph")
+
+    async def get_checkpointer(self) -> BaseCheckpointSaver | None:
+        """Return the checkpointer backing this harness session's graph, if any."""
+        raise NotImplementedError(f"{type(self).__name__} does not expose a checkpointer")

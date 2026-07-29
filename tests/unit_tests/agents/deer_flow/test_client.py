@@ -143,7 +143,7 @@ def test_translate_ai_text_yields_token_event() -> None:
     result = _translate_event(ev)
     assert len(result) == 1
     assert isinstance(result[0], TokenEvent)
-    assert result[0].data == "Hello!"
+    assert result[0].text == "Hello!"
 
 
 def test_translate_ai_tool_call_yields_tool_call_event() -> None:
@@ -235,7 +235,7 @@ def test_mode_flags_unknown_defaults_to_flash() -> None:
 def test_token_event_defaults() -> None:
     ev = TokenEvent()
     assert ev.kind == "token"
-    assert ev.data == ""
+    assert ev.text == ""
 
 
 def test_node_event_state_default() -> None:

@@ -73,11 +73,20 @@ an MCP client configuration:
 ## Agent Tool
 
 When `agent.enabled: true` is set, all resolved tools are bundled into a single
-MCP tool called `run_<name>` (configurable via `agent.name`). The agent is
-initialised lazily on the first call.
+MCP tool called `run_<name>` (configurable via `agent.name`). The tool's
+harness is initialised lazily on the first call and cached across subsequent
+calls (rebuilding a sandbox-backed DeepAgent per call would be expensive).
 
-Use `agent.profile` to delegate to a full DeepAgent profile defined in
-`config/agents.yaml` (a `type: deep` profile).  Omit it to get a minimal ReAct agent.
+Use `agent.profile` to delegate to any profile in the unified `agents:` dict —
+`type: deep`/`react`/`custom` (LangChain) or a DeerFlow profile, resolved via
+`create_harness()`. Omit it to get a minimal ad-hoc ReAct agent over the
+server's own resolved tools.
+
+The tool returns a structured result — `{text, thread_id, error}` — rather
+than a bare string. Each call gets its own isolated `thread_id` (a fresh UUID)
+so concurrent MCP sessions never share conversation state; pass back a
+previous call's `thread_id` explicitly to continue that conversation on the
+next call.
 
 ## Adding a New Server
 

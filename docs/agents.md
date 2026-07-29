@@ -381,6 +381,7 @@ async for event in harness.astream("What is RAG?"):
 | `arun(message, thread_id=None)` | Concrete — consumes the stream, returns concatenated text |
 | `list_threads()` / `list_models()` / `list_skills()` | Optional harness introspection |
 | `aclose()` | Release resources (sandbox containers, connections) |
+| `get_graph()` / `get_checkpointer()` | Compiled LangGraph graph / checkpointer, for introspection |
 
 Event kinds (`genai_tk.agents.harness.events`): `TokenEvent`, `NodeEvent`,
 `ToolCallEvent`, `ToolResultEvent`, `ArtifactEvent`, `ClarificationEvent`,
@@ -390,9 +391,13 @@ Event kinds (`genai_tk.agents.harness.events`): `TokenEvent`, `NodeEvent`,
 
 - `LangChainHarness` — wraps `create_langchain_agent()`; works for `react`,
   `deep` (DeepAgents SDK), and `custom` profiles via LangGraph's
-  `astream_events()`.
-- `DeerFlowHarness` — wraps `EmbeddedDeerFlowClient`; translates DeerFlow's
-  own event dataclasses into the same canonical types.
+  `astream_events()`. `get_graph()` returns the real, production graph.
+- `DeerFlowHarness` — wraps `EmbeddedDeerFlowClient`, which now yields the
+  canonical harness events directly (no separate translation step).
+  `get_graph()` is best-effort/introspection-only — DeerFlow's real graph
+  construction is tightly coupled to private tracing/authorization setup, so
+  the accessor never drives production streaming; see
+  [harness.md](harness.md#baseharness-abstract-base-class) for details.
 
 **Profile discriminator:** every profile carries an explicit `harness` field
 (`AgentProfileConfig.harness` = `"langchain"`, `DeerFlowProfile.harness` =

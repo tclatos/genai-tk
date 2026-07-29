@@ -73,6 +73,7 @@ def create_harness(
     mode_override: str | None = None,
     sandbox_override: str | None = None,
     extra_mcp: list[str] | None = None,
+    extra_tools: list | None = None,
 ) -> BaseHarness:
     """Resolve a profile key against the unified profile dict and build its harness.
 
@@ -89,6 +90,8 @@ def create_harness(
             ignored for LangChain (sandbox stays profile-backend-driven).
         extra_mcp: Additional MCP server names appended to the profile's servers
             (both harnesses; duplicates dropped).
+        extra_tools: LangChain-only; additional tools appended on top of the
+            profile's own tools. Ignored (with a warning) for DeerFlow profiles.
 
     Returns:
         A ready-to-stream :class:`BaseHarness` instance.
@@ -107,10 +110,13 @@ def create_harness(
             llm_override=llm_override,
             force_memory_checkpointer=force_memory_checkpointer,
             extra_mcp=extra,
+            extra_tools=extra_tools,
         )
     if profile.harness == "deerflow":
         from genai_tk.agents.harness.deerflow_harness import DeerFlowHarness
 
+        if extra_tools:
+            logger.warning(f"extra_tools is not supported for DeerFlow profiles — ignoring for '{key}'")
         return DeerFlowHarness(
             profile.name,
             llm_override=llm_override,

@@ -49,11 +49,12 @@ mcp_servers:
 
 ## Step 3: Reference in Agent Profile
 
-In `config/agents/langchain.yaml`:
+In the unified `agents:` dict (`config/agents.yaml` or `config/agents/`):
 
 ```yaml
-langchain_agents:
+agents:
   my_agent:
+    harness: langchain            # langchain | deerflow
     mcp_servers:
       - my_server
       - my_python_server
@@ -98,7 +99,7 @@ my_server:
 | Concern | Path |
 |---------|------|
 | MCP config | `config/mcp_servers.yaml` |
-| MCP CLI commands | `genai_tk/cli/commands_mcp.py` |
+| MCP CLI commands | `genai_tk/mcp/cli_commands.py` |
 | MCP docs | `docs/mcp-servers.md` |
 | Example server | `examples/mcp_server/server.py` |
-| Agent profiles | `config/agents/langchain.yaml` |
+| Agent profiles | `config/agents.yaml` / `config/agents/` (unified `agents:` dict) |

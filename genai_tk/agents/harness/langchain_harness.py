@@ -56,6 +56,8 @@ class LangChainHarness(BaseHarness):
             profile specifies ``checkpointer.type: none`` (useful for interactive/chat use).
         extra_mcp: Additional MCP server names appended to the profile's
             ``mcp_servers`` (duplicates dropped) before the agent is built.
+        extra_tools: Additional LangChain tools appended on top of the profile's
+            own tools (e.g. tools a hosting MCP server already exposes).
     """
 
     name = "langchain"
@@ -67,11 +69,13 @@ class LangChainHarness(BaseHarness):
         llm_override: str | None = None,
         force_memory_checkpointer: bool = False,
         extra_mcp: list[str] | None = None,
+        extra_tools: list[Any] | None = None,
     ) -> None:
         self._profile = profile
         self._llm_override = llm_override
         self._force_memory_checkpointer = force_memory_checkpointer
         self._extra_mcp = list(extra_mcp or [])
+        self._extra_tools = list(extra_tools or [])
         self._agent: Any = None
 
     async def _ensure_agent(self) -> Any:
@@ -108,6 +112,7 @@ class LangChainHarness(BaseHarness):
                 self._profile,
                 llm_override=self._llm_override,
                 force_memory_checkpointer=self._force_memory_checkpointer,
+                extra_tools=self._extra_tools or None,
             )
         return self._agent
 
@@ -141,6 +146,15 @@ class LangChainHarness(BaseHarness):
         stop = getattr(backend, "stop", None)
         if callable(stop):
             await stop()
+
+    async def get_graph(self) -> Any:
+        """Return the compiled LangGraph graph backing this harness (built lazily)."""
+        return await self._ensure_agent()
+
+    async def get_checkpointer(self) -> Any:
+        """Return the graph's checkpointer, if one was configured for the profile."""
+        agent = await self._ensure_agent()
+        return getattr(agent, "checkpointer", None)
 
 
 def _translate_langchain_event(

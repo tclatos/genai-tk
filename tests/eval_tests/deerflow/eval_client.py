@@ -99,8 +99,8 @@ class DeerFlowEvalClient:
         tid = thread_id or str(uuid.uuid4())
         last_text = ""
         async for event in self._client.stream_message(tid, query, mode=self._mode):
-            if isinstance(event, TokenEvent) and event.data:
-                last_text = event.data
+            if isinstance(event, TokenEvent) and event.text:
+                last_text = event.text
             elif isinstance(event, ErrorEvent):
                 raise RuntimeError(f"DeerFlow stream error (arun): {event.message!r}")
         return strip_reasoning_markers(last_text)
@@ -165,8 +165,8 @@ class DeerFlowEvalClient:
                         "name": event.tool_name,
                     }
                 )
-            elif isinstance(event, TokenEvent) and event.data:
-                text_parts.append(event.data)
+            elif isinstance(event, TokenEvent) and event.text:
+                text_parts.append(event.text)
             elif isinstance(event, ErrorEvent):
                 raise RuntimeError(f"DeerFlow stream error (trajectory): {event.message!r}")
 

@@ -75,7 +75,7 @@ async def test_stream_message_yields_token_events(embedded_client) -> None:
 
     tokens = [e for e in events if isinstance(e, TokenEvent)]
     assert len(tokens) >= 1, f"Expected TokenEvent(s), got: {[type(e).__name__ for e in events]}"
-    full_text = "".join(e.data for e in tokens)
+    full_text = "".join(e.text for e in tokens)
     assert len(full_text.strip()) > 0
 
 
@@ -94,7 +94,7 @@ async def test_stream_message_produces_nonempty_response(embedded_client) -> Non
         errors = "; ".join(e.message or "(empty)" for e in events)
         pytest.skip(f"DeerFlow agent returned only error(s) — likely infrastructure/LLM issue: {errors}")
 
-    text = "".join(e.data for e in events if isinstance(e, TokenEvent))
+    text = "".join(e.text for e in events if isinstance(e, TokenEvent))
     assert len(text.strip()) > 0
 
 

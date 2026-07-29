@@ -1,9 +1,10 @@
 """DeerFlow harness adapter — wraps :class:`EmbeddedDeerFlowClient` behind the
 shared :class:`BaseHarness` interface.
 
-Translates DeerFlow's own typed events (defined in
-``genai_tk.agents.deer_flow.embedded_client``) into the canonical harness
-event model so callers do not need to special-case DeerFlow vs. LangChain.
+``EmbeddedDeerFlowClient.stream_message`` already yields the canonical harness
+event model (:mod:`genai_tk.agents.harness.events`) directly, so this adapter
+does not translate — it forwards events as-is and appends the final
+:class:`EndEvent`.
 """
 
 from __future__ import annotations
@@ -17,16 +18,11 @@ from loguru import logger
 from genai_tk.agents.deer_flow.profile import DeerFlowProfile
 from genai_tk.agents.harness.base import BaseHarness
 from genai_tk.agents.harness.events import (
-    ClarificationEvent,
     EndEvent,
     ErrorEvent,
     HarnessModel,
     HarnessSkill,
-    NodeEvent,
     StreamEvent,
-    TokenEvent,
-    ToolCallEvent,
-    ToolResultEvent,
 )
 
 
@@ -121,7 +117,7 @@ class DeerFlowHarness(BaseHarness):
         assert profile is not None
         tid = thread_id or "harness-default"
         try:
-            async for raw_event in client.stream_message(
+            async for event in client.stream_message(
                 tid,
                 message,
                 model_name=self._model_name,
@@ -129,9 +125,7 @@ class DeerFlowHarness(BaseHarness):
                 subagent_enabled=profile.subagent_enabled,
                 plan_mode=profile.plan_mode,
             ):
-                translated = _translate_deerflow_event(raw_event)
-                if translated is not None:
-                    yield translated
+                yield event
         except Exception as exc:
             logger.opt(exception=True).warning(f"DeerFlowHarness stream error: {exc}")
             yield ErrorEvent(message=str(exc))
@@ -147,21 +141,23 @@ class DeerFlowHarness(BaseHarness):
             HarnessSkill(name=s.get("name", ""), enabled=bool(s.get("enabled", True))) for s in client.list_skills()
         ]
 
+    async def get_graph(self) -> Any:
+        """Return the compiled LangGraph graph for introspection (best-effort).
 
-def _translate_deerflow_event(ev: Any) -> StreamEvent | None:
-    """Translate one DeerFlow embedded-client event into a harness event."""
-    from genai_tk.agents.deer_flow import embedded_client as _dfc
+        See :meth:`EmbeddedDeerFlowClient.get_graph` — this bypasses the
+        tracing/Langfuse/authorization wiring that ``astream`` performs via
+        ``DeerFlowClient.stream()``. Use for ``isinstance`` checks or
+        inspection only, not to drive a production turn.
+        """
+        client = await self._ensure_client()
+        profile = self._profile
+        assert profile is not None
+        return client.get_graph(
+            model_name=self._model_name,
+            subagent_enabled=profile.subagent_enabled,
+            is_plan_mode=profile.plan_mode,
+        )
 
-    if isinstance(ev, _dfc.TokenEvent):
-        return TokenEvent(text=ev.data)
-    if isinstance(ev, _dfc.NodeEvent):
-        return NodeEvent(node=ev.node, state=ev.state)
-    if isinstance(ev, _dfc.ToolCallEvent):
-        return ToolCallEvent(tool_name=ev.tool_name, args=ev.args, call_id=ev.call_id)
-    if isinstance(ev, _dfc.ToolResultEvent):
-        return ToolResultEvent(tool_name=ev.tool_name, content=ev.content, call_id=ev.call_id)
-    if isinstance(ev, _dfc.ClarificationEvent):
-        return ClarificationEvent(question=ev.question, clarification_type=ev.clarification_type, context=ev.context)
-    if isinstance(ev, _dfc.ErrorEvent):
-        return ErrorEvent(message=ev.message)
-    return None
+    async def get_checkpointer(self) -> Any:
+        client = await self._ensure_client()
+        return client.get_checkpointer()

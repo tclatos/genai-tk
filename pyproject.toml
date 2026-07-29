@@ -207,7 +207,11 @@ constraint-dependencies = [
 ]
 
 [tool.uv.sources]
-deerflow-harness = { git = "https://github.com/bytedance/deer-flow", subdirectory = "backend/packages/harness", rev = "main" }
+# Pinned to a tested commit (not `rev = "main"`) because genai-tk's harness layer
+# reaches into private DeerFlowClient internals (`_agent`, `_checkpointer`) — see
+# tests/unit_tests/agents/test_deerflow_contract.py. Bump deliberately and re-run
+# that contract test before moving the pin.
+deerflow-harness = { git = "https://github.com/bytedance/deer-flow", subdirectory = "backend/packages/harness", rev = "795af20a6b79b22fd9e95f674554605c5bfb6cdc" }
 
 # Note: a patched wheel (without the spurious volcengine-python-sdk dep) lives in vendor/.
 # It can't be referenced here as a path because uv doesn't support .whl file paths for

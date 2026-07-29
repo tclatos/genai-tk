@@ -1,9 +1,11 @@
-"""Unit tests for harness event translation (LangChain + DeerFlow adapters)."""
+"""Unit tests for harness event translation (LangChain + DeerFlow adapters).
+
+DeerFlow's ``EmbeddedDeerFlowClient.stream_message`` now yields the canonical
+harness events directly (no separate translation step) — see
+``tests/unit_tests/agents/deer_flow/test_client.py`` for its event-shape tests.
+"""
 
 from genai_tk.agents.harness.events import (
-    ClarificationEvent,
-    ErrorEvent,
-    NodeEvent,
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
@@ -67,23 +69,3 @@ def test_translate_chat_model_end_yields_usage_event() -> None:
 
 def test_translate_unknown_event_returns_empty_list() -> None:
     assert _translate_langchain_event({"event": "on_chain_start", "data": {}}) == []
-
-
-def test_deerflow_translation_maps_all_event_kinds() -> None:
-    from genai_tk.agents.deer_flow import embedded_client as dfc
-    from genai_tk.agents.harness.deerflow_harness import _translate_deerflow_event
-
-    assert _translate_deerflow_event(dfc.TokenEvent(data="hi")) == TokenEvent(text="hi")
-    assert _translate_deerflow_event(dfc.NodeEvent(node="planner", state={"a": 1})) == NodeEvent(
-        node="planner", state={"a": 1}
-    )
-    assert _translate_deerflow_event(
-        dfc.ToolCallEvent(tool_name="search", args={"q": "x"}, call_id="1")
-    ) == ToolCallEvent(tool_name="search", args={"q": "x"}, call_id="1")
-    assert _translate_deerflow_event(
-        dfc.ToolResultEvent(tool_name="search", content="result", call_id="1")
-    ) == ToolResultEvent(tool_name="search", content="result", call_id="1")
-    assert _translate_deerflow_event(dfc.ClarificationEvent(question="which one?")) == ClarificationEvent(
-        question="which one?"
-    )
-    assert _translate_deerflow_event(dfc.ErrorEvent(message="boom")) == ErrorEvent(message="boom")
