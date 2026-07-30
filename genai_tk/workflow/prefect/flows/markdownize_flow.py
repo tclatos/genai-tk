@@ -15,7 +15,7 @@ Typical usage::
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,7 +75,7 @@ class MistralOCRBatchProcessor:
         """
         import os
 
-        from mistralai.client import Mistral
+        from mistralai import Mistral
 
         api_key = os.environ.get("MISTRAL_API_KEY")
         if not api_key:
@@ -318,8 +318,21 @@ def _prepare_files(
     files: Iterable[Path],
     cache: ManifestCache,
     force: bool,
+    already_processed: Callable[[str], bool] | None = None,
+    code_version: str | None = None,
 ) -> tuple[list[_FileToProcess], int]:
-    """Prepare files for processing, skipping unchanged entries in the cache."""
+    """Prepare files for processing, skipping unchanged entries in the cache.
+
+    When ``already_processed`` is supplied it is consulted with each file's
+    content hash first: returning True means a downstream store (e.g. a graph
+    DB) already holds the converted output, so the file is skipped even if the
+    local manifest cache is cold. This lets a caller inject a persistence-aware
+    skip check without this module depending on that store.
+
+    ``code_version`` (e.g. the ``pdf_converter`` backend) is stored alongside
+    the content fingerprint; a mismatch invalidates the cache even when the
+    source file itself is unchanged, so switching converters triggers reprocessing.
+    """
     from genai_tk.utils.hashing import buffer_digest
 
     to_process: list[_FileToProcess] = []
@@ -333,7 +346,12 @@ def _prepare_files(
             logger.error(f"Error reading {path}: {exc}")
             continue
 
-        if cache.is_fresh(str(path), fingerprint=content_hash, force=force):
+        if not force and already_processed is not None and already_processed(content_hash):
+            skipped += 1
+            logger.info(f"Skipping already-processed file (store hit): {path}")
+            continue
+
+        if cache.is_fresh(str(path), fingerprint=content_hash, force=force, code_version=code_version):
             skipped += 1
             logger.info(f"Skipping unchanged file: {path}")
             continue
@@ -458,6 +476,7 @@ def markdownize_flow(
     batch_size: int = 5,
     force: bool = False,
     pdf_converter: str = "markitdown",
+    already_processed: Callable[[str], bool] | None = None,
 ) -> MarkdownizeManifest:
     """Run markdownize as a Prefect flow.
 
@@ -471,6 +490,9 @@ def markdownize_flow(
         pdf_converter: Backend for PDF files -- ``"markitdown"`` (default),
             ``"mistral"``, or ``"edgeparse"``.  All other formats always use
             markitdown.
+        already_processed: Optional callback taking a file's content hash and
+            returning True when a downstream store already holds its converted
+            output, so the file can be skipped without a manifest entry.
 
     Returns:
         Updated manifest with processing results.
@@ -513,7 +535,9 @@ def markdownize_flow(
     cache = ManifestCache.load(manifest_path)
 
     files = [Path(p) for p in file_paths if _is_markdownize_compatible(Path(p))]
-    to_process, skipped = _prepare_files(files, cache, force=force)
+    to_process, skipped = _prepare_files(
+        files, cache, force=force, already_processed=already_processed, code_version=pdf_converter
+    )
 
     if skipped:
         logger.info(f"Skipped {skipped} unchanged files based on manifest")
@@ -571,6 +595,7 @@ def markdownize_flow(
             cache.record_success(
                 key=source_path,
                 fingerprint=file_hash,
+                code_version=pdf_converter,
                 outputs={"output_path": relative_output_path},
             )
 
