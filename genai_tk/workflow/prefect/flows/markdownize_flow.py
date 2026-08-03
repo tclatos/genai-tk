@@ -30,6 +30,34 @@ from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_file
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
 
+def _normalize_markdown(content: str) -> str:
+    """Collapse excessive blank lines and normalize whitespace.
+
+    Reduces sequences of 3+ blank lines to 1, and strips trailing whitespace
+    from each line (common in PDF conversions).
+    """
+    import re
+
+    # Strip trailing whitespace from each line
+    lines = [line.rstrip() for line in content.splitlines(keepends=False)]
+    # Collapse 3+ consecutive blank lines to 1
+    text = "\n".join(lines)
+    text = re.sub(r"\n\n\n+", "\n\n", text)
+    return text
+
+
+_ORIGIN_COMMENT_PREFIX = "<!-- source:"
+
+
+def _origin_comment(source_path: Path) -> str:
+    """HTML-comment header recording the original file a Markdown file was converted from.
+
+    Read back by `genai_graph.kg.query.markdown_tree_tui` to let the TUI offer opening the
+    original document (PDF/DOCX/...) alongside the converted Markdown. Invisible when rendered.
+    """
+    return f"{_ORIGIN_COMMENT_PREFIX} {source_path.resolve()} -->\n\n"
+
+
 class MarkdownizeManifestEntry(BaseModel):
     """A single markdown conversion entry in the manifest."""
 
@@ -299,6 +327,7 @@ class MistralOCRBatchProcessor:
             content_parts.append("\n\n")
 
         content = "".join(content_parts)
+        content = _origin_comment(source_path) + _normalize_markdown(content)
         markdown_path.write_text(content, encoding="utf-8")
         logger.success(f"Saved OCR output to {markdown_path}")
 
@@ -453,6 +482,7 @@ async def _process_single_file_task(
             raise
 
     # Save markdown content
+    content = _origin_comment(upath) + _normalize_markdown(content)
     output_file.write_text(content, encoding="utf-8")
     logger.success(f"Wrote markdown to {output_file}")
 
