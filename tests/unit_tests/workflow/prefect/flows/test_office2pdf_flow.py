@@ -1,4 +1,4 @@
-"""Unit tests for the ``ppt2pdf`` Prefect flow.
+"""Unit tests for the ``office2pdf`` Prefect flow.
 
 LibreOffice is invoked via :mod:`subprocess` — a true external boundary — so
 ``subprocess.run`` is the only thing faked.  The real ``_convert_with_libreoffice``
@@ -13,22 +13,22 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import genai_tk.workflow.prefect.flows.ppt2pdf_flow as ppt2pdf_module
+import genai_tk.workflow.prefect.flows.office2pdf_flow as office2pdf_module
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
-from genai_tk.workflow.prefect.flows.ppt2pdf_flow import (
+from genai_tk.workflow.prefect.flows.office2pdf_flow import (
     SUPPORTED_EXTENSIONS,
     _chunked,
     _convert_with_libreoffice,
     _FileToProcess,
-    _is_ppt_compatible,
+    _is_office_convertible,
     _prepare_files,
     _process_single_file_task,
     _TaskResult,
-    ppt2pdf_flow,
+    office2pdf_flow,
 )
 
 # ---------------------------------------------------------------------------
-# _is_ppt_compatible
+# _is_office_convertible
 # ---------------------------------------------------------------------------
 
 
@@ -36,8 +36,8 @@ from genai_tk.workflow.prefect.flows.ppt2pdf_flow import (
     ("suffix", "expected"),
     [(s, True) for s in SUPPORTED_EXTENSIONS] + [(".pdf", False), (".docx", False), (".txt", False)],
 )
-def test_is_ppt_compatible(suffix: str, expected: bool) -> None:
-    assert _is_ppt_compatible(Path(f"file{suffix}")) is expected
+def test_is_office_convertible(suffix: str, expected: bool) -> None:
+    assert _is_office_convertible(Path(f"file{suffix}")) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +131,7 @@ def test_convert_with_libreoffice_success(tmp_path: Path, monkeypatch: pytest.Mo
     src = tmp_path / "deck.pptx"
     src.write_bytes(b"fake")
     out_dir = tmp_path / "out"
-    monkeypatch.setattr(ppt2pdf_module.subprocess, "run", _fake_run_writing_pdf(out_dir, "deck"))
+    monkeypatch.setattr(office2pdf_module.subprocess, "run", _fake_run_writing_pdf(out_dir, "deck"))
 
     result = _convert_with_libreoffice(src, out_dir)
     assert result == out_dir / "deck.pdf"
@@ -143,7 +143,7 @@ def test_convert_with_libreoffice_nonzero_return_raises(tmp_path: Path, monkeypa
     src.write_bytes(b"fake")
     out_dir = tmp_path / "out"
     monkeypatch.setattr(
-        ppt2pdf_module.subprocess, "run", _fake_run_writing_pdf(out_dir, "deck", returncode=1, stderr="boom")
+        office2pdf_module.subprocess, "run", _fake_run_writing_pdf(out_dir, "deck", returncode=1, stderr="boom")
     )
 
     with pytest.raises(RuntimeError, match="LibreOffice conversion failed"):
@@ -163,7 +163,7 @@ def test_convert_with_libreoffice_missing_output_raises(tmp_path: Path, monkeypa
         m.stderr = ""
         return m
 
-    monkeypatch.setattr(ppt2pdf_module.subprocess, "run", _run)
+    monkeypatch.setattr(office2pdf_module.subprocess, "run", _run)
     with pytest.raises(RuntimeError, match="Expected output file not found"):
         _convert_with_libreoffice(src, out_dir)
 
@@ -176,7 +176,7 @@ def test_convert_with_libreoffice_timeout_raises(tmp_path: Path, monkeypatch: py
     def _run(cmd, capture_output=False, text=False, timeout=None):  # noqa: ANN001
         raise subprocess.TimeoutExpired(cmd=cmd, timeout=timeout)
 
-    monkeypatch.setattr(ppt2pdf_module.subprocess, "run", _run)
+    monkeypatch.setattr(office2pdf_module.subprocess, "run", _run)
     with pytest.raises(RuntimeError, match="timed out"):
         _convert_with_libreoffice(src, out_dir)
 
@@ -194,7 +194,7 @@ def test_process_single_file_task_success(tmp_path: Path, monkeypatch: pytest.Mo
     ppt.write_bytes(b"fake")
     out_dir = tmp_path / "out"
 
-    monkeypatch.setattr(ppt2pdf_module.subprocess, "run", _fake_run_writing_pdf(out_dir, "deck"))
+    monkeypatch.setattr(office2pdf_module.subprocess, "run", _fake_run_writing_pdf(out_dir, "deck"))
 
     file_info = _FileToProcess(path=ppt, content_hash="h")
     result = _process_single_file_task(file_info, output_dir=str(out_dir), root_dir=str(src))
@@ -222,7 +222,7 @@ def test_process_single_file_task_failure_returns_failed_result(
         m.stderr = "cannot open"
         return m
 
-    monkeypatch.setattr(ppt2pdf_module.subprocess, "run", _run)
+    monkeypatch.setattr(office2pdf_module.subprocess, "run", _run)
 
     file_info = _FileToProcess(path=ppt, content_hash="h")
     result = _process_single_file_task(file_info, output_dir=str(out_dir), root_dir=str(src))
@@ -233,39 +233,39 @@ def test_process_single_file_task_failure_returns_failed_result(
 
 
 # ---------------------------------------------------------------------------
-# ppt2pdf_flow — smoke runs
+# office2pdf_flow — smoke runs
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.fake_models
-def test_ppt2pdf_flow_no_files_returns_empty_cache(tmp_path: Path) -> None:
+def test_office2pdf_flow_no_files_returns_empty_cache(tmp_path: Path) -> None:
     src = tmp_path / "src"
     src.mkdir()
     (src / "notes.txt").write_text("not a ppt")
 
-    result = ppt2pdf_flow(base_dir=str(src), output_dir=str(tmp_path / "out"))
+    result = office2pdf_flow(base_dir=str(src), output_dir=str(tmp_path / "out"))
     assert isinstance(result, ManifestCache)
     assert result.records == {}
 
 
 @pytest.mark.fake_models
-def test_ppt2pdf_flow_nonexistent_base_dir(tmp_path: Path) -> None:
-    result = ppt2pdf_flow(base_dir=str(tmp_path / "missing"), output_dir=str(tmp_path / "out"))
+def test_office2pdf_flow_nonexistent_base_dir(tmp_path: Path) -> None:
+    result = office2pdf_flow(base_dir=str(tmp_path / "missing"), output_dir=str(tmp_path / "out"))
     assert isinstance(result, ManifestCache)
     assert result.records == {}
 
 
 @pytest.mark.fake_models
-def test_ppt2pdf_flow_converts_and_records_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_office2pdf_flow_converts_and_records_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     src = tmp_path / "src"
     src.mkdir()
     ppt = src / "deck.pptx"
     ppt.write_bytes(b"fake ppt")
     out_dir = tmp_path / "out"
 
-    monkeypatch.setattr(ppt2pdf_module.subprocess, "run", _fake_run_writing_pdf(out_dir, "deck"))
+    monkeypatch.setattr(office2pdf_module.subprocess, "run", _fake_run_writing_pdf(out_dir, "deck"))
 
-    result = ppt2pdf_flow(base_dir=str(src), output_dir=str(out_dir), batch_size=1)
+    result = office2pdf_flow(base_dir=str(src), output_dir=str(out_dir), batch_size=1)
 
     assert isinstance(result, ManifestCache)
     assert str(ppt) in result.records
@@ -275,7 +275,7 @@ def test_ppt2pdf_flow_converts_and_records_manifest(tmp_path: Path, monkeypatch:
 
 
 @pytest.mark.fake_models
-def test_ppt2pdf_flow_all_files_cached_returns_without_converting(
+def test_office2pdf_flow_all_files_cached_returns_without_converting(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     src = tmp_path / "src"
@@ -295,7 +295,7 @@ def test_ppt2pdf_flow_all_files_cached_returns_without_converting(
     def _boom(*args, **kwargs):  # noqa: ANN002
         raise AssertionError("should not convert a cached file")
 
-    monkeypatch.setattr(ppt2pdf_module.subprocess, "run", _boom)
+    monkeypatch.setattr(office2pdf_module.subprocess, "run", _boom)
 
-    result = ppt2pdf_flow(base_dir=str(src), output_dir=str(out_dir), force=False)
+    result = office2pdf_flow(base_dir=str(src), output_dir=str(out_dir), force=False)
     assert str(ppt) in result.records

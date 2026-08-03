@@ -1,9 +1,21 @@
 """Prefect-powered markdown conversion for various file formats.
 
-Converts documents (PDF, DOCX, PPTX, etc.) to Markdown.  Three backends:
+Converts documents (PDF, DOCX, PPTX, etc.) to Markdown.  Three PDF backends:
 - ``markitdown`` (default): PDF, DOCX, PPTX, images
 - ``mistral``: Mistral OCR API, PDFs only (falls back to markitdown)
 - ``edgeparse``: fast Rust engine, PDFs only (falls back to markitdown)
+
+Excel (``.xlsx``/``.xls``) files use a separate ``excel_converter`` selector:
+- ``md_parser`` (default): deterministic conversion via ``md-spreadsheet-parser``
+  (empty rows/columns dropped, no NaN, merged headers forward-filled) --
+  good for regular, well-formed sheets.
+- ``markitdown``: legacy pandas-based conversion (NaN cells, no merged-header
+  handling) -- kept only for backward comparison.
+
+For irregular/messy Excel sheets (scattered titles, multiple tables per sheet),
+convert to PDF first with ``office2pdf_flow`` and then run this flow with
+``pdf_converter="mistral"`` on the resulting PDFs -- the same two-step pattern
+already used for PowerPoint decks.
 
 Typical usage::
 
@@ -400,12 +412,65 @@ def _is_markdownize_compatible(file_path: Path) -> bool:
     return suffix in (markitdown_formats | ocr_formats)
 
 
+def _grid_cell(value: Any) -> str:
+    """Stringify a raw openpyxl cell value, mapping None to an empty string."""
+    return "" if value is None else str(value)
+
+
+def _drop_empty_rows_and_cols(grid: list[list[str]]) -> list[list[str]]:
+    """Remove fully-blank rows/columns and pad ragged rows to a common width."""
+    rows = [row for row in grid if any(cell.strip() for cell in row)]
+    if not rows:
+        return []
+    width = max(len(row) for row in rows)
+    rows = [row + [""] * (width - len(row)) for row in rows]
+    keep_cols = [i for i in range(width) if any(row[i].strip() for row in rows)]
+    return [[row[i] for i in keep_cols] for row in rows]
+
+
+def _split_leading_title(grid: list[list[str]]) -> tuple[str | None, list[list[str]]]:
+    """Rescue a title row (a single filled cell above a wider header row) from the header."""
+    first_row = grid[0]
+    filled = [cell for cell in first_row if cell.strip()]
+    if len(grid) > 1 and len(filled) == 1 and sum(bool(cell.strip()) for cell in grid[1]) > 1:
+        return filled[0], grid[1:]
+    return None, grid
+
+
+def _excel_to_markdown_md_parser(path: Path) -> str:
+    """Convert an .xlsx/.xls file to Markdown via ``md-spreadsheet-parser``.
+
+    One section per worksheet: empty rows/columns are dropped, a leading title
+    row is promoted to a heading, and merged header cells are forward-filled.
+    """
+    import openpyxl
+    from md_spreadsheet_parser import ExcelParsingSchema, parse_excel
+
+    schema = ExcelParsingSchema(header_rows=1, fill_merged_headers=True)
+    workbook = openpyxl.load_workbook(path, data_only=True)
+    parts: list[str] = []
+
+    for worksheet in workbook.worksheets:
+        grid = [[_grid_cell(cell) for cell in row] for row in worksheet.iter_rows(values_only=True)]
+        grid = _drop_empty_rows_and_cols(grid)
+        if not grid:
+            continue
+
+        title, grid = _split_leading_title(grid)
+        heading = f"## {worksheet.title}" + (f"\n\n### {title}" if title else "")
+        table = parse_excel(grid, schema)
+        parts.append(f"{heading}\n\n{table.to_markdown()}\n")
+
+    return "\n".join(parts)
+
+
 @task
 async def _process_single_file_task(
     file_info: _FileToProcess,
     output_dir: str,
     root_dir: str,
     pdf_converter: str = "markitdown",
+    excel_converter: str = "md_parser",
 ) -> tuple[str, str]:  # (source_path, relative_output_path)
     """Process a single file and save markdown output.
 
@@ -467,6 +532,14 @@ async def _process_single_file_task(
         except Exception as e:
             logger.warning(f"Mistral OCR failed for {upath.name}: {str(e)}. Falling back to markitdown.")
 
+    # Try md-spreadsheet-parser for Excel files if selected
+    elif excel_converter == "md_parser" and upath.suffix.lower() in (".xlsx", ".xls"):
+        try:
+            logger.info(f"Processing {upath.name} with md-spreadsheet-parser")
+            content = _excel_to_markdown_md_parser(upath)
+        except Exception as e:
+            logger.warning(f"md-spreadsheet-parser failed for {upath.name}: {str(e)}. Falling back to markitdown.")
+
     # Use markitdown (default or fallback)
     if content is None:
         try:
@@ -506,6 +579,7 @@ def markdownize_flow(
     batch_size: int = 5,
     force: bool = False,
     pdf_converter: str = "markitdown",
+    excel_converter: str = "md_parser",
     already_processed: Callable[[str], bool] | None = None,
 ) -> MarkdownizeManifest:
     """Run markdownize as a Prefect flow.
@@ -520,6 +594,11 @@ def markdownize_flow(
         pdf_converter: Backend for PDF files -- ``"markitdown"`` (default),
             ``"mistral"``, or ``"edgeparse"``.  All other formats always use
             markitdown.
+        excel_converter: Backend for ``.xlsx``/``.xls`` files -- ``"md_parser"``
+            (default, deterministic ``md-spreadsheet-parser`` conversion) or
+            ``"markitdown"`` (legacy pandas-based conversion).  For irregular
+            sheets, prefer converting to PDF with ``office2pdf_flow`` first and
+            running this flow with ``pdf_converter="mistral"`` instead.
         already_processed: Optional callback taking a file's content hash and
             returning True when a downstream store already holds its converted
             output, so the file can be skipped without a manifest entry.
@@ -557,6 +636,7 @@ def markdownize_flow(
 
     logger.info(f"Discovered {len(file_paths)} files to process")
 
+    resolved_base = resolve_config_path(base_dir)
     resolved_output = resolve_config_path(output_dir)
     output_upath = Path(resolved_output)
     output_upath.mkdir(parents=True, exist_ok=True)
@@ -564,9 +644,10 @@ def markdownize_flow(
     manifest_path = output_upath / "manifest.json"
     cache = ManifestCache.load(manifest_path)
 
+    code_version = f"{pdf_converter}:{excel_converter}"
     files = [Path(p) for p in file_paths if _is_markdownize_compatible(Path(p))]
     to_process, skipped = _prepare_files(
-        files, cache, force=force, already_processed=already_processed, code_version=pdf_converter
+        files, cache, force=force, already_processed=already_processed, code_version=code_version
     )
 
     if skipped:
@@ -608,8 +689,9 @@ def markdownize_flow(
             _process_single_file_task.submit(
                 file_info,
                 output_dir=str(output_upath),
-                root_dir=resolved_output,
+                root_dir=resolved_base,
                 pdf_converter=pdf_converter,
+                excel_converter=excel_converter,
             )
             for file_info in batch
         ]
@@ -625,7 +707,7 @@ def markdownize_flow(
             cache.record_success(
                 key=source_path,
                 fingerprint=file_hash,
-                code_version=pdf_converter,
+                code_version=code_version,
                 outputs={"output_path": relative_output_path},
             )
 

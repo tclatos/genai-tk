@@ -480,7 +480,7 @@ uv run cli tools markdownize ./input ./output --recursive
 uv run cli tools markdownize ./pdfs ./output --mistral-ocr
 
 # Convert presentations to PDF
-uv run cli tools ppt2pdf ./slides ./pdfs --recursive
+uv run cli tools office2pdf ./slides ./pdfs --recursive
 ```
 
 ## Advanced Patterns

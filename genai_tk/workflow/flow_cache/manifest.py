@@ -1,7 +1,7 @@
 """Shared manifest-based incremental processing cache.
 
 Consolidates the per-flow manifest implementations that previously existed
-separately in ``ppt2pdf_flow``, ``markdownize_flow``, ``baml_flow``,
+separately in ``office2pdf_flow``, ``markdownize_flow``, ``baml_flow``,
 ``anonymize_flow``, and ``rag_flow``.
 
 Usage

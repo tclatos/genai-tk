@@ -270,7 +270,7 @@ uv run cli tools markdownize ./pdfs ./output --mistral-ocr
 uv run cli tools markdownize ./input_dir ./output_dir --force
 
 # Convert PowerPoint files to PDF
-uv run cli tools ppt2pdf ./slides ./pdfs --recursive
+uv run cli tools office2pdf ./slides ./pdfs --recursive
 
 # GPT Researcher
 uv run cli tools gpt-researcher "Latest AI trends 2025"

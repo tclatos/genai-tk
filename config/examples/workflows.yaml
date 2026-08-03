@@ -68,9 +68,9 @@ workflows:
     params:
       base_dir: {required: true}
 
-  ppt2pdf:
-    description: "Convert PowerPoint files to PDF"
-    run: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
+  office2pdf:
+    description: "Convert Office documents (PowerPoint, Excel) to PDF via LibreOffice"
+    run: genai_tk.workflow.prefect.flows.office2pdf_flow.office2pdf_flow
     defaults:
       batch_size: 5
     params:
@@ -80,7 +80,7 @@ workflows:
       docs:
         base_dir: "${paths.data_root}/presentations"
         output_dir: "${paths.data_root}/pdfs"
-        pathspecs: ["**/*.pptx", "**/*.ppt", "**/*.odp"]
+        pathspecs: ["**/*.pptx", "**/*.ppt", "**/*.odp", "**/*.xlsx", "**/*.xls"]
 
   # ---------------------------------------------------------------------------
   # RAG ingestion workflows

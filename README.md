@@ -611,7 +611,7 @@ Ships with ready-to-use flows:
 | Flow | Purpose | CLI |
 |------|---------|-----|
 | **markdownize** | PDF → Markdown + OCR | `cli tools markdownize` |
-| **ppt2pdf** | PowerPoint → PDF | `cli tools ppt2pdf` |
+| **office2pdf** | Office docs (PPT/Excel) → PDF | `cli tools office2pdf` |
 | **baml** | Structured extraction | `cli baml run` |
 | **rag** | RAG indexing + retrieval | `cli rag add-files` |
 
@@ -734,7 +734,7 @@ genai_tk/
 │   ├── langchain/ # Unified ReAct / Deep / Custom agents + middleware
 │   └── deer_flow/ # DeerFlow embedded client + CLI
 ├── workflow/      # ETL orchestration: Prefect flows, RAG, loaders, retrievers
-│   ├── prefect/   # run helpers + flows/ (markdownize, ppt2pdf, rag, baml)
+│   ├── prefect/   # run helpers + flows/ (markdownize, office2pdf, rag, baml)
 │   ├── rag/       # chunkers, RAG CLI commands
 │   ├── loaders/   # Markdown loader, Mistral OCR loader
 │   └── retrievers/ # BM25, ZeroEntropy

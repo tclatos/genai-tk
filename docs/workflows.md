@@ -91,7 +91,7 @@ Run `cli workflow list` to see all of them with their presets.
 | Workflow | Description | Key Defaults |
 |----------|-------------|--------------|
 | `markdownize` | Convert PDF/DOCX/PPTX/ODP → Markdown | `batch_size: 5`, `pdf_converter: mistral` |
-| `ppt2pdf` | Convert PPT/PPTX/ODP → PDF via LibreOffice | `pathspecs: ["**/*.pptx", "**/*.ppt", "**/*.odp"]` |
+| `office2pdf` | Convert PPT/PPTX/ODP/XLSX/XLS → PDF via LibreOffice | `pathspecs: ["**/*.pptx", "**/*.ppt", "**/*.odp", "**/*.xlsx", "**/*.xls"]` |
 | `rag_ingest` | Chunk, embed, and upsert documents into vector store | `force: false` |
 | `baml_extract` | Structured extraction from Markdown via BAML | `function_name: required` |
 | `anonymize` | PII anonymization with Presidio | `base_dir: required` |
@@ -251,7 +251,7 @@ workflows:
       batch_size: 5
     pipeline:
       - id: ppt_to_pdf
-        run: ppt2pdf              # Name of another workflow (sub-workflow)
+        run: office2pdf              # Name of another workflow (sub-workflow)
         with:
           base_dir: "${paths.data_root}/ppts"
           output_dir: "${paths.data_root}/pdfs"
@@ -742,7 +742,7 @@ workflows:
     description: "End-to-end document pipeline"
     pipeline:
       - id: ppt_to_pdf
-        run: ppt2pdf
+        run: office2pdf
         with:
           base_dir: "${paths.data_root}/ppts"
           output_dir: "${paths.data_root}/pdfs"
@@ -766,9 +766,9 @@ workflows:
 
 ```yaml
 workflows:
-  ppt2pdf:
-    description: "Convert PowerPoint files to PDF"
-    run: genai_tk.workflow.prefect.flows.ppt2pdf_flow.ppt2pdf_flow
+  office2pdf:
+    description: "Convert Office documents (PowerPoint, Excel) to PDF"
+    run: genai_tk.workflow.prefect.flows.office2pdf_flow.office2pdf_flow
     defaults:
       batch_size: 5
     params:
@@ -784,8 +784,8 @@ workflows:
 ```
 
 ```bash
-uv run cli workflow run ppt2pdf/marketing
-uv run cli workflow run ppt2pdf/engineering --force
+uv run cli workflow run office2pdf/marketing
+uv run cli workflow run office2pdf/engineering --force
 ```
 
 ### Library Workflow (Parameterized Sub-Step)
@@ -973,7 +973,7 @@ uv run python -c "from genai_tk.workflow.prefect.flows.markdownize_flow import m
 
 `config/workflows.yaml` (auto-loaded):
 - `markdownize` — PDF/DOCX/PPTX → Markdown; preset `docs`
-- `ppt2pdf` — PPT → PDF; preset `docs`
+- `office2pdf` — PPT/Excel → PDF; preset `docs`
 - `rag_ingest` — ingest files into vector store; preset `docs`
 - `anonymize` — PII removal; preset `docs`
 - `anonymize_and_ingest` — pipeline: anonymize → RAG ingest
@@ -1058,7 +1058,7 @@ uv run cli workflow run baml_to_table/default \
 ### genai-graph Examples
 
 - `config/workflows/graph_construction.yaml` — `kg_build` (library), `one_rainbow`, `stratnav_subset_rainbow_crm` (3-level composition)
-- `config/workflows/data_injection.yaml` — `ppt2pdf_documents`, `markdownize_documents`, `full_kg_pipeline`
+- `config/workflows/data_injection.yaml` — `office2pdf_documents`, `markdownize_documents`, `full_kg_pipeline`
 - `genai_graph/orchestration/workflow_steps.py` — `@workflow`-decorated `kg_build_step` and `kg_create_step`
 
 **Subflow naming:** `kg_build_step` uses `create_kg_flow.with_options(flow_run_name=f"kg:{kg_name}/{factory_short}")`

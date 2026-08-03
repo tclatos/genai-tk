@@ -202,7 +202,7 @@ Current docs index:
 | `docs/extra.md` | Non-pipeline tooling: agent graphs, NLP, BAML, image analysis, KV store, PgVector |
 | `docs/nlp.md` | NLP package (`extra.nlp`): spaCy engine, model manager, preprocessing, PII detection, anonymization, classifiers, French support |
 | `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, all retriever types, CLI, Prefect flow, agent tools |
-| `docs/prefect.md` | Prefect flows in `workflow/prefect/flows/` — markdownize, ppt2pdf, rag, baml |
+| `docs/prefect.md` | Prefect flows in `workflow/prefect/flows/` — markdownize, office2pdf, rag, baml |
 | `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |
 | `docs/workflows.md` | YAML-driven task orchestration — defining workflows, profiles, CLI integration, multi-step pipelines |
 | `docs/prefect.md` | Prefect flows — ephemeral vs. server mode, available flows, writing new flows, workflow engine integration |

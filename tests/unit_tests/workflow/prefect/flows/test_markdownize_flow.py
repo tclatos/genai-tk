@@ -183,6 +183,86 @@ def test_process_single_file_task_preserves_subdir_structure(tmp_path: Path) -> 
 
 
 # ---------------------------------------------------------------------------
+# Excel conversion (md-spreadsheet-parser)
+# ---------------------------------------------------------------------------
+
+
+def _write_messy_workbook(path: Path) -> None:
+    """Write an .xlsx with a merged title row, a blank spacer row, and empty cells."""
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Sales"
+    ws["A1"] = "Sales Report"
+    ws.merge_cells("A1:C1")
+    ws["A3"] = "Region"
+    ws["B3"] = "Jan"
+    ws["C3"] = "Feb"
+    ws["A4"] = "North"
+    ws["B4"] = 100
+    ws["A5"] = "South"
+    ws["C5"] = 80
+    wb.save(path)
+
+
+def test_excel_to_markdown_md_parser_no_nan_and_title_rescued(tmp_path: Path) -> None:
+    from genai_tk.workflow.prefect.flows.markdownize_flow import _excel_to_markdown_md_parser
+
+    src = tmp_path / "sample.xlsx"
+    _write_messy_workbook(src)
+
+    content = _excel_to_markdown_md_parser(src)
+
+    assert "NaN" not in content
+    assert "### Sales Report" in content
+    assert "## Sales" in content
+    assert "| Region | Jan | Feb |" in content
+
+
+@pytest.mark.fake_models
+def test_process_single_file_task_routes_xlsx_through_md_parser(tmp_path: Path) -> None:
+    src = tmp_path / "sample.xlsx"
+    _write_messy_workbook(src)
+    out = tmp_path / "out"
+
+    file_info = _FileToProcess(path=src, content_hash="h")
+    source, relative_output = asyncio.run(
+        _process_single_file_task.fn(file_info, str(out), str(tmp_path), excel_converter="md_parser")
+    )
+
+    assert source == str(src)
+    written = out / relative_output
+    content = written.read_text(encoding="utf-8")
+    assert "NaN" not in content
+    assert "### Sales Report" in content
+
+
+@pytest.mark.fake_models
+def test_process_single_file_task_xlsx_falls_back_to_markitdown_on_parser_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import genai_tk.workflow.prefect.flows.markdownize_flow as markdownize_module
+
+    def _boom(path: Path) -> str:
+        raise ValueError("boom")
+
+    monkeypatch.setattr(markdownize_module, "_excel_to_markdown_md_parser", _boom)
+
+    src = tmp_path / "sample.xlsx"
+    _write_messy_workbook(src)
+    out = tmp_path / "out"
+
+    file_info = _FileToProcess(path=src, content_hash="h")
+    source, relative_output = asyncio.run(
+        _process_single_file_task.fn(file_info, str(out), str(tmp_path), excel_converter="md_parser")
+    )
+
+    assert source == str(src)
+    assert (out / relative_output).exists()
+
+
+# ---------------------------------------------------------------------------
 # markdownize_flow — smoke runs
 # ---------------------------------------------------------------------------
 

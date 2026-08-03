@@ -1,9 +1,14 @@
-"""Prefect-powered PowerPoint to PDF conversion using LibreOffice.
+"""Prefect-powered Office document to PDF conversion using LibreOffice.
+
+Converts PowerPoint/Impress (PPT, PPTX, ODP) and Excel (XLSX, XLS) files to PDF.
+The resulting PDFs can then be fed to ``markdownize_flow`` (e.g. with
+``pdf_converter="mistral"``) for higher-quality OCR-based Markdown extraction
+on documents that are too irregular for direct conversion.
 
 Typical usage::
 
-    uv run cli workflow run ppt2pdf \\
-        --pathspec '**/*.pptx' --to ./pdfs
+    uv run cli workflow run office2pdf \\
+        --pathspec '**/*.pptx' --pathspec '**/*.xlsx' --to ./pdfs
 """
 
 from __future__ import annotations
@@ -21,7 +26,7 @@ from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_file
 from genai_tk.utils.hashing import buffer_digest
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
-SUPPORTED_EXTENSIONS = {".ppt", ".pptx", ".odp"}
+SUPPORTED_EXTENSIONS = {".ppt", ".pptx", ".odp", ".xlsx", ".xls"}
 
 
 @dataclass(slots=True)
@@ -67,8 +72,8 @@ def _prepare_files(
     return to_process, skipped
 
 
-def _is_ppt_compatible(file_path: Path) -> bool:
-    """Check if file is a PowerPoint-compatible format."""
+def _is_office_convertible(file_path: Path) -> bool:
+    """Check if file is a LibreOffice-convertible format."""
     suffix = file_path.suffix.lower()
     return suffix in SUPPORTED_EXTENSIONS
 
@@ -140,7 +145,7 @@ def _process_single_file_task(
     output_dir: str,
     root_dir: str,
 ) -> _TaskResult:
-    """Process a single PowerPoint file and convert to PDF.
+    """Process a single Office file (PPT/ODP/XLSX) and convert to PDF.
 
     Returns a TaskResult indicating success or failure.
     """
@@ -185,8 +190,8 @@ def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
         yield items[i : i + size]
 
 
-@flow(name="ppt2pdf", task_runner=ThreadPoolTaskRunner())  # type: ignore[call-arg]
-def ppt2pdf_flow(
+@flow(name="office2pdf", task_runner=ThreadPoolTaskRunner())  # type: ignore[call-arg]
+def office2pdf_flow(
     base_dir: str,
     output_dir: str,
     *,
@@ -194,13 +199,13 @@ def ppt2pdf_flow(
     batch_size: int = 5,
     force: bool = False,
 ) -> ManifestCache:
-    """Run PowerPoint to PDF conversion as a Prefect flow.
+    """Run Office document to PDF conversion as a Prefect flow.
 
     Args:
         base_dir: Root directory to walk.  Supports ``${paths.*}`` config vars.
         output_dir: Directory to write PDF files and manifest.
         pathspecs: Gitwildmatch patterns (``!`` prefix = exclude).  Defaults to
-            ``["**/*.ppt", "**/*.pptx", "**/*.odp"]``.
+            ``["**/*.ppt", "**/*.pptx", "**/*.odp", "**/*.xlsx", "**/*.xls"]``.
         batch_size: Number of files to process concurrently per batch.
         force: Reprocess files even if unchanged in manifest.
 
@@ -208,16 +213,17 @@ def ppt2pdf_flow(
         Updated manifest with processing results.
     """
     if pathspecs is None:
-        pathspecs = ["**/*.ppt", "**/*.pptx", "**/*.odp"]
+        pathspecs = ["**/*.ppt", "**/*.pptx", "**/*.odp", "**/*.xlsx", "**/*.xls"]
 
     file_paths = resolve_files(base_dir, pathspecs=pathspecs)
 
     if not file_paths:
-        logger.warning("No PowerPoint files found to process")
+        logger.warning("No convertible Office files found to process")
         return ManifestCache()
 
     logger.info("Discovered {} files to process", len(file_paths))
 
+    resolved_base = resolve_config_path(base_dir)
     resolved_output = resolve_config_path(output_dir)
     output_upath = Path(resolved_output)
     output_upath.mkdir(parents=True, exist_ok=True)
@@ -225,7 +231,7 @@ def ppt2pdf_flow(
     manifest_path = output_upath / "manifest.json"
     cache = ManifestCache.load(manifest_path)
 
-    files = [Path(p) for p in file_paths if _is_ppt_compatible(Path(p))]
+    files = [Path(p) for p in file_paths if _is_office_convertible(Path(p))]
     to_process, skipped = _prepare_files(files, cache, force=force)
 
     if skipped:
@@ -245,7 +251,7 @@ def ppt2pdf_flow(
             _process_single_file_task.submit(
                 file_info,
                 output_dir=str(output_upath),
-                root_dir=resolved_output,
+                root_dir=resolved_base,
             )
             for file_info in batch
         ]

@@ -91,7 +91,7 @@ This creates two issues:
 For example:
 
 - `markdownize_flow` has its own Prefect task runner and batching model;
-- `ppt2pdf_flow` has its own manifest and parallel file conversion logic;
+- `office2pdf_flow` has its own manifest and parallel file conversion logic;
 - `rag_file_ingestion_flow` has its own batching and submission model.
 
 So concurrency is fragmented across flows instead of being expressed at the workflow level.
@@ -103,7 +103,7 @@ The workflow models already define `cache` and `materialization`, but those conc
 Instead, each flow reimplements its own version of incremental processing:
 
 - markdownize maintains one manifest shape;
-- ppt2pdf maintains another;
+- office2pdf maintains another;
 - anonymization maintains another;
 - BAML extraction maintains another;
 - RAG ingestion uses vector-store-specific dedup logic.
@@ -341,7 +341,7 @@ A local Prefect flow executed as a subflow.
 
 Best for:
 
-- existing flows such as markdownize, ppt2pdf, BAML extraction, and RAG ingestion;
+- existing flows such as markdownize, office2pdf, BAML extraction, and RAG ingestion;
 - larger multi-task step implementations.
 
 ### `workflow`
@@ -715,7 +715,7 @@ The redesign should be rolled out in stages.
 Priority candidates:
 
 - markdownize;
-- ppt2pdf;
+- office2pdf;
 - anonymize;
 - BAML extraction;
 - RAG ingestion.

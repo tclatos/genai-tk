@@ -22,7 +22,7 @@ Both approaches share the same **local Prefect server** managed by `cli prefect`
 | Flow | CLI trigger | Description |
 |------|-------------|-------------|
 | `markdownize_flow` | `cli tools markdownize` | Convert PDF / DOCX / PPTX → Markdown |
-| `ppt2pdf_flow` | `cli tools ppt2pdf` | Convert PPT / PPTX / ODP → PDF via LibreOffice |
+| `office2pdf_flow` | `cli tools office2pdf` | Convert PPT / PPTX / ODP / XLSX / XLS → PDF via LibreOffice |
 | `rag_file_ingestion_flow` | `cli rag add-files` | Chunk, embed, and upsert documents into vector store |
 | `baml_extraction_flow` | `cli baml extract` | Run BAML structured extraction on Markdown files |
 
@@ -108,15 +108,54 @@ A **manifest file** (`manifest.json`) in the output directory tracks which sourc
 been converted and their content hashes, enabling **incremental processing** — only new or
 changed files are re-processed on subsequent runs.
 
+Excel (`.xlsx`/`.xls`) files use a separate `excel_converter` selector, independent of
+`pdf_converter`:
+
+| Value | Behavior |
+|-------|----------|
+| `md_parser` (default) | Deterministic conversion via `md-spreadsheet-parser`: empty rows/columns dropped, no `NaN`, merged header cells forward-filled. Good for regular, well-formed sheets. |
+| `markitdown` | Legacy pandas-based conversion. Kept only for comparison — produces `NaN` for empty cells and does not handle merged headers. |
+
+For irregular sheets (scattered titles, multiple tables per sheet), convert to PDF first with
+`office2pdf_flow` (below) and then run `markdownize` with `pdf_converter=mistral` on the
+resulting PDFs — the same two-step pattern already used for PowerPoint decks.
+
+#### Markdownize Profiles
+
+Rather than passing `pdf_converter`/`excel_converter` individually everywhere, define named
+profiles once and reference them by name:
+
+```yaml
+# any auto-scanned config YAML
+markdownize_profiles:
+  default:
+    pdf_converter: markitdown
+    excel_converter: md_parser
+  mistral:
+    pdf_converter: mistral
+    excel_converter: md_parser
+```
+
+```python
+from genai_tk.config_mgmt.markdownize_config import get_markdownize_profile
+
+profile = get_markdownize_profile("mistral")
+markdownize_flow(base_dir=..., output_dir=..., pdf_converter=profile.pdf_converter,
+                  excel_converter=profile.excel_converter)
+```
+
+`get_markdownize_profile("default")` falls back to the model's built-in defaults
+(`markitdown` / `md_parser`) even when no `markdownize_profiles` section is configured.
+
 ---
 
-### PPT → PDF (`ppt2pdf_flow`)
+### Office documents → PDF (`office2pdf_flow`)
 
-Converts PowerPoint/Impress files to PDF via LibreOffice headless.
+Converts PowerPoint/Impress and Excel files to PDF via LibreOffice headless.
 
 ```bash
-uv run cli tools ppt2pdf ./slides ./pdfs
-uv run cli tools ppt2pdf ./slides ./pdfs --recursive --force
+uv run cli tools office2pdf ./slides ./pdfs
+uv run cli tools office2pdf ./slides ./pdfs --recursive --force
 ```
 
 Requires LibreOffice: `sudo apt-get install libreoffice` or equivalent.
