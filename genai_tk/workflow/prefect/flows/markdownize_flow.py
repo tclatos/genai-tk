@@ -1,27 +1,29 @@
-"""Prefect-powered markdown conversion for various file formats.
+"""Prefect-powered Markdown conversion driven by a single ``markdownize`` profile.
 
-Converts documents (PDF, DOCX, PPTX, etc.) to Markdown.  Three PDF backends:
-- ``markitdown`` (default): PDF, DOCX, PPTX, images
-- ``mistral``: Mistral OCR API, PDFs only (falls back to markitdown)
-- ``edgeparse``: fast Rust engine, PDFs only (falls back to markitdown)
+One call — :func:`markdownize_flow` — converts a directory of mixed Office / PDF /
+image documents to Markdown. Callers pick a **profile** (``fast`` / ``medium`` /
+``best`` — see :mod:`genai_tk.config_mgmt.markdownize_config`) instead of wiring
+low-level converter flags; the profile decides, per source-document family, how
+each file becomes Markdown:
 
-Excel (``.xlsx``/``.xls``) files use a separate ``excel_converter`` selector:
-- ``md_parser`` (default): deterministic conversion via ``md-spreadsheet-parser``
-  (empty rows/columns dropped, no NaN, merged headers forward-filled) --
-  good for regular, well-formed sheets.
-- ``markitdown``: legacy pandas-based conversion (NaN cells, no merged-header
-  handling) -- kept only for backward comparison.
-
-For irregular/messy Excel sheets (scattered titles, multiple tables per sheet),
-convert to PDF first with ``office2pdf_flow`` and then run this flow with
-``pdf_converter="mistral"`` on the resulting PDFs -- the same two-step pattern
-already used for PowerPoint decks.
+- PowerPoint / Word can go straight through ``markitdown`` or ``via_pdf``
+  (LibreOffice → PDF → OCR). The ``via_pdf`` hop is an internal detail.
+- Spreadsheets add a deterministic ``md_parser`` option (``md-spreadsheet-parser``:
+  empty rows/columns dropped, no ``NaN``, merged headers forward-filled).
+- Every PDF — native *and* the ones produced by ``via_pdf`` — is turned into
+  Markdown by the profile's ``pdf_converter`` (``mistral`` / ``markitdown`` /
+  ``edgeparse``). When it is ``mistral``, *all* PDFs are sent in a single Mistral
+  batch job, which is cheaper than per-file OCR.
 
 Typical usage::
 
-    uv run cli workflow run markdownize \\
-        --pathspec '**/*.pdf' --pathspec '!**/*_draft*' \\
-        --to ./output
+    uv run cli workflow run markdownize --set base_dir=./docs --set output_dir=./md
+
+Programmatic::
+
+    from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
+
+    markdownize_flow(base_dir="./docs", output_dir="./md", profile="medium")
 """
 
 from __future__ import annotations
@@ -39,7 +41,19 @@ from prefect.task_runners import ConcurrentTaskRunner  # type: ignore[attr-defin
 from pydantic import BaseModel, Field
 
 from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_files
+from genai_tk.config_mgmt.markdownize_config import MarkdownizeProfile, get_markdownize_profile
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
+from genai_tk.workflow.prefect.flows.office2pdf_flow import (
+    _convert_with_libreoffice,
+    ensure_libreoffice_available,
+)
+
+# Source-document families and how markdownize_flow routes each suffix.
+PPT_EXTS = {".ppt", ".pptx", ".odp"}
+DOC_EXTS = {".doc", ".docx", ".odt", ".rtf"}
+EXCEL_EXTS = {".xls", ".xlsx", ".ods"}
+IMAGE_EXTS = {".jpeg", ".jpg", ".png", ".gif", ".bmp"}
+DIRECT_MARKITDOWN_EXTS = {".html", ".htm", ".csv", ".json"}
 
 
 def _normalize_markdown(content: str) -> str:
@@ -89,30 +103,17 @@ class MarkdownizeManifest(BaseModel):
 
 
 class MistralOCRBatchProcessor:
-    """Batch processor for Mistral OCR with asset downloads."""
+    """Submit PDFs to Mistral's OCR *batch* API and return Markdown text per file.
 
-    def __init__(self, batch_size: int = 10):
-        """Initialize batch processor.
+    Batching every PDF into a single job is markedly cheaper than per-file OCR
+    calls, at the cost of polling until the job finishes.
+    """
 
-        Args:
-            batch_size: Number of files to process per batch job
-        """
+    def __init__(self, batch_size: int = 100):
         self.batch_size = batch_size
 
-    async def process_batch(
-        self,
-        file_paths: list[Path],
-        output_dir: Path,
-    ) -> dict[str, dict[str, str]]:
-        """Process PDF files in batch using Mistral OCR API.
-
-        Args:
-            file_paths: List of PDF files to process
-            output_dir: Output directory for markdown and assets
-
-        Returns:
-            Dictionary mapping source paths to output metadata (markdown_path, assets)
-        """
+    async def process_batch(self, file_paths: list[Path]) -> dict[str, str]:
+        """Return a mapping of ``str(pdf_path)`` to its extracted Markdown text."""
         import os
 
         from mistralai import Mistral
@@ -122,27 +123,12 @@ class MistralOCRBatchProcessor:
             raise EnvironmentError("Environment variable 'MISTRAL_API_KEY' not found")
 
         client = Mistral(api_key=api_key)
-        results: dict[str, dict[str, str]] = {}
-
-        # Process files in batches
-        for batch_start in range(0, len(file_paths), self.batch_size):
-            batch_files = file_paths[batch_start : batch_start + self.batch_size]
-            logger.info(f"Processing batch of {len(batch_files)} files with Mistral OCR")
-
-            # Prepare batch JSONL
-            batch_requests = []
-            for idx, file_path in enumerate(batch_files):
-                request = self._prepare_batch_request(file_path, idx)
-                batch_requests.append(request)
-
-            # Upload batch file and process
-            try:
-                batch_results = await self._submit_and_poll_batch(client, batch_requests, batch_files, output_dir)
-                results.update(batch_results)
-            except Exception as e:
-                logger.error(f"Batch processing failed: {e}")
-                raise
-
+        results: dict[str, str] = {}
+        for start in range(0, len(file_paths), self.batch_size):
+            batch_files = file_paths[start : start + self.batch_size]
+            logger.info(f"Submitting Mistral OCR batch of {len(batch_files)} PDF(s)")
+            requests = [self._prepare_batch_request(p, i) for i, p in enumerate(batch_files)]
+            results.update(await self._submit_and_poll_batch(client, requests, batch_files))
         return results
 
     def _prepare_batch_request(self, file_path: Path, index: int) -> str:
@@ -173,41 +159,25 @@ class MistralOCRBatchProcessor:
         client,
         batch_requests: list[str],
         file_paths: list[Path],
-        output_dir: Path,
-    ) -> dict[str, dict[str, str]]:
-        """Submit batch job and poll for completion.
-
-        Args:
-            client: Mistral client
-            batch_requests: List of JSONL-formatted requests
-            file_paths: Corresponding file paths
-            output_dir: Output directory for results
-
-        Returns:
-            Dictionary of results
-        """
+    ) -> dict[str, str]:
+        """Submit one batch job, poll until done, and return per-PDF Markdown text."""
         import os
         import tempfile
 
-        results: dict[str, dict[str, str]] = {}
+        results: dict[str, str] = {}
 
-        # Create temporary batch file
         with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             for request in batch_requests:
                 f.write(request + "\n")
             batch_file_path = f.name
 
         try:
-            # Upload batch file
-            logger.info("Uploading batch file to Mistral API")
             with open(batch_file_path, "rb") as f:
                 batch_data = client.files.upload(
                     file={"file_name": os.path.basename(batch_file_path), "content": f},
                     purpose="batch",
                 )
 
-            # Create batch job
-            logger.info("Creating batch job for OCR processing")
             job = client.batch.jobs.create(
                 input_files=[batch_data.id],
                 model="mistral-ocr-latest",
@@ -215,20 +185,15 @@ class MistralOCRBatchProcessor:
                 metadata={"job_type": "pdf_ocr_batch"},
             )
 
-            # Poll for completion
-            logger.info(f"Polling batch job {job.id} for completion")
-            job_completed = await self._poll_job(client, job.id)
+            logger.info(f"Polling Mistral batch job {job.id} for completion")
+            if not await self._poll_job(client, job.id):
+                raise RuntimeError("Mistral OCR batch job failed to complete")
 
-            if not job_completed:
-                raise RuntimeError("Batch job failed to complete")
-
-            # Download and process results
             retrieved_job = client.batch.jobs.get(job_id=job.id)
             if retrieved_job.output_file:
-                results = await self._process_batch_results(client, retrieved_job.output_file, file_paths, output_dir)
+                results = self._parse_results(client, retrieved_job.output_file, file_paths)
 
         finally:
-            # Clean up temp file
             if os.path.exists(batch_file_path):
                 os.remove(batch_file_path)
 
@@ -263,90 +228,39 @@ class MistralOCRBatchProcessor:
         logger.error(f"Batch job {job_id} did not complete within timeout")
         return False
 
-    async def _process_batch_results(
-        self,
-        client,
-        output_file_id: str,
-        file_paths: list[Path],
-        output_dir: Path,
-    ) -> dict[str, dict[str, str]]:
-        """Process batch results and save outputs.
-
-        Args:
-            client: Mistral client
-            output_file_id: ID of output file from batch job
-            file_paths: Corresponding source file paths
-            output_dir: Output directory for results
-
-        Returns:
-            Dictionary mapping source paths to output info
-        """
+    def _parse_results(self, client, output_file_id: str, file_paths: list[Path]) -> dict[str, str]:
+        """Download the batch output and return ``str(pdf_path) -> Markdown text``."""
         import json
 
         from mistralai.models import OCRResponse
 
-        results: dict[str, dict[str, str]] = {}
+        results: dict[str, str] = {}
 
-        logger.info("Downloading batch results from Mistral API")
+        logger.info("Downloading Mistral batch results")
         output_stream = client.files.download(file_id=output_file_id)
         response_content = output_stream.read().decode("utf-8")
 
-        # Parse JSONL response
         for line in response_content.strip().split("\n"):
             if not line:
                 continue
-
             result = json.loads(line)
-            custom_id = int(result["custom_id"])
-            file_path = file_paths[custom_id]
-
-            # Extract OCR response from batch result
+            file_path = file_paths[int(result["custom_id"])]
             response_body = result.get("response", {}).get("body", {})
             try:
                 ocr_response = OCRResponse.model_validate(response_body)
-                markdown_path = await self._save_ocr_output(file_path, ocr_response, output_dir)
-                results[str(file_path)] = {"markdown_path": markdown_path}
+                results[str(file_path)] = _ocr_response_to_markdown(ocr_response)
             except Exception as e:
-                logger.error(f"Failed to process OCR result for {file_path.name}: {e}")
+                logger.error(f"Failed to parse OCR result for {file_path.name}: {e}")
 
         return results
 
-    async def _save_ocr_output(
-        self,
-        source_path: Path,
-        ocr_response,
-        output_dir: Path,
-    ) -> str:
-        """Save OCR output as markdown.
 
-        Args:
-            source_path: Source PDF path
-            ocr_response: OCR response from Mistral
-            output_dir: Output directory
-
-        Returns:
-            Path to saved markdown file
-        """
-        # Determine output markdown path
-        markdown_filename = source_path.stem + ".md"
-        markdown_path = output_dir / markdown_filename
-
-        # Convert OCR response to markdown
-        content_parts = []
-        for page in ocr_response.pages:
-            content_parts.append(f"## Page {page.index + 1}\n\n")
-            content_parts.append(page.markdown)
-            content_parts.append("\n\n")
-
-        content = "".join(content_parts)
-        content = _origin_comment(source_path) + _normalize_markdown(content)
-        markdown_path.write_text(content, encoding="utf-8")
-        logger.success(f"Saved OCR output to {markdown_path}")
-
-        # TODO: Download and save linked assets (JPEG, HTML) from ocr_response
-        # This requires implementing asset download logic from Mistral API
-
-        return str(markdown_path)
+def _ocr_response_to_markdown(ocr_response) -> str:
+    """Join a Mistral OCR response's pages into a single Markdown string."""
+    parts: list[str] = []
+    for page in ocr_response.pages:
+        parts.append(f"## Page {page.index + 1}\n\n{page.markdown}\n\n")
+    return "".join(parts)
 
 
 @dataclass(slots=True)
@@ -370,9 +284,9 @@ def _prepare_files(
     local manifest cache is cold. This lets a caller inject a persistence-aware
     skip check without this module depending on that store.
 
-    ``code_version`` (e.g. the ``pdf_converter`` backend) is stored alongside
+    ``code_version`` (the markdownize profile fingerprint) is stored alongside
     the content fingerprint; a mismatch invalidates the cache even when the
-    source file itself is unchanged, so switching converters triggers reprocessing.
+    source file itself is unchanged, so switching profiles triggers reprocessing.
     """
     from genai_tk.utils.hashing import buffer_digest
 
@@ -403,13 +317,27 @@ def _prepare_files(
 
 
 def _is_markdownize_compatible(file_path: Path) -> bool:
-    """Check if file is compatible with any supported converter."""
+    """Check if file is one of the supported source-document formats."""
     suffix = file_path.suffix.lower()
-    # markitdown formats
-    markitdown_formats = {".pdf", ".docx", ".pptx", ".xlsx", ".xls", ".html", ".htm", ".csv", ".json"}
-    # Image formats (markitdown only)
-    ocr_formats = {".jpeg", ".jpg", ".png", ".gif", ".bmp"}
-    return suffix in (markitdown_formats | ocr_formats)
+    return suffix in (PPT_EXTS | DOC_EXTS | EXCEL_EXTS | IMAGE_EXTS | DIRECT_MARKITDOWN_EXTS | {".pdf"})
+
+
+def _route_for(file_path: Path, profile: MarkdownizeProfile) -> str:
+    """Return the conversion route for a file under a profile.
+
+    Routes: ``via_pdf`` (LibreOffice → PDF → pdf_converter), ``pdf`` (native PDF
+    → pdf_converter), ``md_parser`` (spreadsheet parser), or ``markitdown``.
+    """
+    suffix = file_path.suffix.lower()
+    if suffix in PPT_EXTS:
+        return "via_pdf" if profile.ppt_converter == "via_pdf" else "markitdown"
+    if suffix in DOC_EXTS:
+        return "via_pdf" if profile.doc_converter == "via_pdf" else "markitdown"
+    if suffix in EXCEL_EXTS:
+        return profile.excel_converter  # via_pdf | markitdown | md_parser
+    if suffix == ".pdf":
+        return "pdf"
+    return "markitdown"
 
 
 def _grid_cell(value: Any) -> str:
@@ -464,102 +392,90 @@ def _excel_to_markdown_md_parser(path: Path) -> str:
     return "\n".join(parts)
 
 
-@task
-async def _process_single_file_task(
-    file_info: _FileToProcess,
-    output_dir: str,
-    root_dir: str,
-    pdf_converter: str = "markitdown",
-    excel_converter: str = "md_parser",
-) -> tuple[str, str]:  # (source_path, relative_output_path)
-    """Process a single file and save markdown output.
+def _markitdown_text(path: Path) -> str:
+    """Convert any markitdown-supported file to Markdown text."""
+    from markitdown import MarkItDown
 
-    Returns a tuple of (source_path, manifest_entry).
-    """
-    upath = file_info.path
-    logger.info(f"Processing file: {upath}")
+    return MarkItDown().convert(str(path)).text_content
 
-    output_upath = Path(output_dir)
 
-    # Preserve directory structure: compute relative path from root_dir to source file
-    root_dir_path = Path(root_dir)
+def _edgeparse_text(path: Path) -> str | None:
+    """Convert a PDF with edgeparse, returning None (to trigger fallback) on failure."""
     try:
-        relative_source_path = upath.relative_to(root_dir_path)
+        import edgeparse
+
+        return edgeparse.convert(str(path), format="markdown")
+    except Exception as e:
+        logger.warning(f"edgeparse failed for {path.name}: {e}. Falling back to markitdown.")
+        return None
+
+
+def _convert_text(path: Path, route: str, pdf_converter: str) -> str:
+    """Convert a single file to Markdown text for a non-Mistral route.
+
+    ``route`` is one of ``md_parser`` / ``pdf`` / ``markitdown``. The ``pdf``
+    route honours ``pdf_converter`` (``edgeparse`` with markitdown fallback, or
+    ``markitdown``); Mistral PDFs are handled in the flow via the batch API.
+    """
+    if route == "md_parser":
+        try:
+            return _excel_to_markdown_md_parser(path)
+        except Exception as e:
+            logger.warning(f"md-spreadsheet-parser failed for {path.name}: {e}. Falling back to markitdown.")
+            return _markitdown_text(path)
+    if route == "pdf" and pdf_converter == "edgeparse":
+        text = _edgeparse_text(path)
+        if text is not None:
+            return text
+    return _markitdown_text(path)
+
+
+def _output_paths(original: Path, root_dir: Path, output_dir: Path) -> tuple[Path, Path]:
+    """Return (relative, absolute) Markdown output paths preserving directory structure.
+
+    The output filename embeds the source extension: ``review.xlsx`` → ``review_xlsx.md``.
+    """
+    try:
+        rel = original.relative_to(root_dir)
     except ValueError:
-        # If file is not under root_dir, use just the filename
-        relative_source_path = Path(upath.name)
+        rel = Path(original.name)
+    new_name = f"{rel.stem}_{rel.suffix.lstrip('.')}.md"
+    rel_out = rel.parent / new_name
+    return rel_out, output_dir / rel_out
 
-    # Change extension to .md and maintain directory structure
-    # Include the original file extension in the output filename: review.xlsx → review_xlsx.md
-    stem = relative_source_path.stem
-    suffix = relative_source_path.suffix.lstrip(".")
-    new_name = f"{stem}_{suffix}.md"
-    relative_output_path = relative_source_path.parent / new_name
-    output_file = output_upath / relative_output_path
 
-    # Ensure parent directories exist
+def _write_markdown(output_file: Path, original: Path, content: str) -> None:
+    """Write normalized Markdown with an origin comment pointing at the source file."""
     output_file.parent.mkdir(parents=True, exist_ok=True)
-
-    content = None
-
-    # Try edgeparse for PDFs if selected
-    if pdf_converter == "edgeparse" and upath.suffix.lower() == ".pdf":
-        try:
-            import edgeparse
-
-            logger.info(f"Processing {upath.name} with edgeparse")
-            content = edgeparse.convert(str(upath), format="markdown")
-        except Exception as e:
-            logger.warning(f"edgeparse failed for {upath.name}: {str(e)}. Falling back to markitdown.")
-
-    # Try Mistral OCR for PDFs if selected
-    elif pdf_converter == "mistral" and upath.suffix.lower() == ".pdf":
-        try:
-            from genai_tk.workflow.loaders.mistral_ocr import mistral_ocr as mistral_ocr_func
-
-            logger.info(f"Processing {upath.name} with Mistral OCR")
-            ocr_response = mistral_ocr_func(upath, use_cache=False)
-
-            # Convert OCR response to markdown
-            content_parts = []
-            for page in ocr_response.pages:
-                content_parts.append(f"## Page {page.index + 1}\n\n")
-                content_parts.append(page.markdown)
-                content_parts.append("\n\n")
-
-            content = "".join(content_parts)
-
-        except Exception as e:
-            logger.warning(f"Mistral OCR failed for {upath.name}: {str(e)}. Falling back to markitdown.")
-
-    # Try md-spreadsheet-parser for Excel files if selected
-    elif excel_converter == "md_parser" and upath.suffix.lower() in (".xlsx", ".xls"):
-        try:
-            logger.info(f"Processing {upath.name} with md-spreadsheet-parser")
-            content = _excel_to_markdown_md_parser(upath)
-        except Exception as e:
-            logger.warning(f"md-spreadsheet-parser failed for {upath.name}: {str(e)}. Falling back to markitdown.")
-
-    # Use markitdown (default or fallback)
-    if content is None:
-        try:
-            from markitdown import MarkItDown
-
-            logger.info(f"Processing {upath.name} with markitdown")
-            md = MarkItDown()
-            result = md.convert(str(upath))
-            content = result.text_content
-
-        except Exception as e:
-            logger.error(f"Failed to convert {upath.name}: {str(e)}")
-            raise
-
-    # Save markdown content
-    content = _origin_comment(upath) + _normalize_markdown(content)
-    output_file.write_text(content, encoding="utf-8")
+    output_file.write_text(_origin_comment(original) + _normalize_markdown(content), encoding="utf-8")
     logger.success(f"Wrote markdown to {output_file}")
 
-    return str(upath), str(relative_output_path)
+
+@task(log_prints=False)
+def _libreoffice_task(src: str, pdf_root: str, root_dir: str) -> tuple[str, str]:
+    """Convert one Office file to PDF, preserving structure. Returns (src, pdf_path)."""
+    src_path = Path(src)
+    try:
+        rel = src_path.relative_to(Path(root_dir))
+    except ValueError:
+        rel = Path(src_path.name)
+    pdf = _convert_with_libreoffice(src_path, Path(pdf_root) / rel.parent)
+    return src, str(pdf)
+
+
+@task(log_prints=False)
+def _convert_file_task(
+    original_src: str,
+    convert_src: str,
+    route: str,
+    out_abs: str,
+    rel_out: str,
+    pdf_converter: str,
+) -> tuple[str, str]:
+    """Convert one file (``convert_src``) to Markdown and write it. Returns (original_src, rel_out)."""
+    text = _convert_text(Path(convert_src), route, pdf_converter)
+    _write_markdown(Path(out_abs), Path(original_src), text)
+    return original_src, rel_out
 
 
 def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
@@ -570,35 +486,95 @@ def _chunked[T](items: list[T], size: int) -> Iterable[list[T]]:
         yield items[i : i + size]
 
 
+def _ocr_pdfs_with_mistral(
+    pdf_items: list[tuple[_FileToProcess, str]],
+    root_dir: str,
+    output_dir: Path,
+) -> list[tuple[str, str]]:
+    """OCR every PDF in one Mistral batch job, writing Markdown at each original's path."""
+    pdf_paths = [Path(pdf) for _, pdf in pdf_items]
+    try:
+        texts = asyncio.run(MistralOCRBatchProcessor().process_batch(pdf_paths))
+    except Exception as e:
+        logger.warning(f"Mistral batch OCR failed ({e}); falling back to markitdown for PDFs.")
+        texts = {}
+
+    results: list[tuple[str, str]] = []
+    for file_info, pdf in pdf_items:
+        rel_out, out_abs = _output_paths(file_info.path, Path(root_dir), output_dir)
+        text = texts.get(str(pdf))
+        if text is None:
+            logger.info(f"markitdown fallback for {Path(pdf).name}")
+            text = _markitdown_text(Path(pdf))
+        _write_markdown(out_abs, file_info.path, text)
+        results.append((str(file_info.path), str(rel_out)))
+    return results
+
+
+def _manifest_from_cache(cache: ManifestCache) -> MarkdownizeManifest:
+    """Build a :class:`MarkdownizeManifest` view of the current cache records."""
+    return MarkdownizeManifest(
+        entries={
+            k: MarkdownizeManifestEntry(
+                source_hash=rec.fingerprint,
+                output_path=rec.outputs.get("output_path", ""),
+                processed_at=rec.processed_at,
+            )
+            for k, rec in cache.records.items()
+        }
+    )
+
+
+def _publish_summary(manifest: MarkdownizeManifest, processed_keys: set[str], skipped: int) -> None:
+    """Publish a best-effort Prefect artifact summarising the conversion run."""
+    try:
+        from prefect.artifacts import create_markdown_artifact
+
+        lines = [
+            "# Markdownize Summary",
+            "",
+            f"**Processed:** {len(processed_keys)}  |  **Skipped (cached):** {skipped}",
+            "",
+        ]
+        if processed_keys:
+            lines += ["## Converted files", "", "| Source file | Output |", "|-------------|--------|"] + [
+                f"| `{Path(k).name}` | `{v.output_path}` |" for k, v in manifest.entries.items() if k in processed_keys
+            ]
+        cached = [k for k in manifest.entries if k not in processed_keys]
+        if cached:
+            lines += ["", "## Cached (skipped)", ""] + [f"- `{Path(k).name}`" for k in cached]
+        create_markdown_artifact("\n".join(lines), key="markdownize-summary")
+    except Exception:
+        pass  # Artifacts are best-effort; never block the return value.
+
+
 @flow(name="markdownize", task_runner=ConcurrentTaskRunner())  # type: ignore[call-arg]
 def markdownize_flow(
     base_dir: str,
     output_dir: str,
     *,
+    profile: str | MarkdownizeProfile = "default",
     pathspecs: list[str] | None = None,
     batch_size: int = 5,
     force: bool = False,
-    pdf_converter: str = "markitdown",
-    excel_converter: str = "md_parser",
     already_processed: Callable[[str], bool] | None = None,
 ) -> MarkdownizeManifest:
-    """Run markdownize as a Prefect flow.
+    """Convert a directory of documents to Markdown using a markdownize profile.
 
     Args:
         base_dir: Root directory to walk.  Supports ``${paths.*}`` config vars.
-        output_dir: Directory to write markdown files and manifest.
+        output_dir: Directory to write Markdown files and the manifest.
+        profile: A :class:`MarkdownizeProfile` or the name of one (``fast`` /
+            ``medium`` / ``best`` / ``default``, or a key configured under
+            ``markdownize_profiles``).  The profile decides, per source-document
+            family, whether to convert directly (markitdown / md_parser) or
+            ``via_pdf`` (LibreOffice → PDF), and which ``pdf_converter`` turns
+            every PDF into Markdown.  When ``pdf_converter`` is ``mistral`` all
+            PDFs are sent in a single, cheaper Mistral batch job.
         pathspecs: Gitwildmatch patterns (``!`` prefix = exclude).  Defaults to
-            common document extensions.
-        batch_size: Number of files to process concurrently per batch.
-        force: Reprocess files even if unchanged in manifest.
-        pdf_converter: Backend for PDF files -- ``"markitdown"`` (default),
-            ``"mistral"``, or ``"edgeparse"``.  All other formats always use
-            markitdown.
-        excel_converter: Backend for ``.xlsx``/``.xls`` files -- ``"md_parser"``
-            (default, deterministic ``md-spreadsheet-parser`` conversion) or
-            ``"markitdown"`` (legacy pandas-based conversion).  For irregular
-            sheets, prefer converting to PDF with ``office2pdf_flow`` first and
-            running this flow with ``pdf_converter="mistral"`` instead.
+            all supported document extensions.
+        batch_size: Number of files converted concurrently per batch.
+        force: Reprocess files even if unchanged in the manifest.
         already_processed: Optional callback taking a file's content hash and
             returning True when a downstream store already holds its converted
             output, so the file can be skipped without a manifest entry.
@@ -610,22 +586,13 @@ def markdownize_flow(
 
     install_loguru_prefect_bridge()
 
+    resolved_profile = profile if isinstance(profile, MarkdownizeProfile) else get_markdownize_profile(profile)
+    logger.info(f"Markdownize profile: {resolved_profile.fingerprint()}")
+
     if pathspecs is None:
         pathspecs = [
-            "**/*.pdf",
-            "**/*.docx",
-            "**/*.pptx",
-            "**/*.xlsx",
-            "**/*.xls",
-            "**/*.html",
-            "**/*.htm",
-            "**/*.csv",
-            "**/*.json",
-            "**/*.jpg",
-            "**/*.jpeg",
-            "**/*.png",
-            "**/*.gif",
-            "**/*.bmp",
+            f"**/*{ext}"
+            for ext in sorted(PPT_EXTS | DOC_EXTS | EXCEL_EXTS | IMAGE_EXTS | DIRECT_MARKITDOWN_EXTS | {".pdf"})
         ]
 
     file_paths = resolve_files(base_dir, pathspecs=pathspecs)
@@ -644,7 +611,7 @@ def markdownize_flow(
     manifest_path = output_upath / "manifest.json"
     cache = ManifestCache.load(manifest_path)
 
-    code_version = f"{pdf_converter}:{excel_converter}"
+    code_version = resolved_profile.fingerprint()
     files = [Path(p) for p in file_paths if _is_markdownize_compatible(Path(p))]
     to_process, skipped = _prepare_files(
         files, cache, force=force, already_processed=already_processed, code_version=code_version
@@ -655,98 +622,80 @@ def markdownize_flow(
 
     if not to_process:
         logger.info("No files left to process after manifest filtering")
-        manifest = MarkdownizeManifest(
-            entries={
-                k: MarkdownizeManifestEntry(
-                    source_hash=rec.fingerprint,
-                    output_path=rec.outputs.get("output_path", ""),
-                    processed_at=rec.processed_at,
-                )
-                for k, rec in cache.records.items()
-            }
-        )
-        try:
-            from prefect.artifacts import create_markdown_artifact
-
-            lines = [
-                "# Markdownize Summary",
-                "",
-                f"**All {skipped} file(s) served from cache — nothing to reprocess.**",
-                "",
-            ]
-            lines += ["| Cached file | Output |", "|-------------|--------|"] + [
-                f"| `{Path(k).name}` | `{v.output_path}` |" for k, v in manifest.entries.items()
-            ]
-            create_markdown_artifact("\n".join(lines), key="markdownize-summary")
-        except Exception:
-            pass
+        manifest = _manifest_from_cache(cache)
+        _publish_summary(manifest, processed_keys=set(), skipped=skipped)
         return manifest
 
     logger.info(f"Processing {len(to_process)} files")
 
-    for batch in _chunked(to_process, batch_size):
-        futures = [
-            _process_single_file_task.submit(
-                file_info,
-                output_dir=str(output_upath),
-                root_dir=resolved_base,
-                pdf_converter=pdf_converter,
-                excel_converter=excel_converter,
-            )
-            for file_info in batch
-        ]
+    routes = {str(fi.path): _route_for(fi.path, resolved_profile) for fi in to_process}
+    results: list[tuple[str, str]] = []
 
-        for future in futures:
-            result = future.result()  # type: ignore[misc]
-            if asyncio.iscoroutine(result):
-                source_path, relative_output_path = asyncio.run(result)  # type: ignore[misc]
-            else:
-                source_path, relative_output_path = result  # type: ignore[misc]
+    # 1. LibreOffice-convert every 'via_pdf' file to an intermediate PDF.
+    via_pdf_files = [fi for fi in to_process if routes[str(fi.path)] == "via_pdf"]
+    pdf_source: dict[str, str] = {}
+    if via_pdf_files:
+        ensure_libreoffice_available()
+        pdf_root = output_upath / "_via_pdf"
+        logger.info(f"Converting {len(via_pdf_files)} document(s) to PDF via LibreOffice")
+        for batch in _chunked(via_pdf_files, batch_size):
+            futures = [_libreoffice_task.submit(str(fi.path), str(pdf_root), resolved_base) for fi in batch]
+            for future in futures:
+                src, pdf = future.result()  # type: ignore[misc]
+                pdf_source[src] = pdf
 
-            file_hash = next((f.content_hash for f in to_process if str(f.path) == source_path), "")
-            cache.record_success(
-                key=source_path,
-                fingerprint=file_hash,
-                code_version=code_version,
-                outputs={"output_path": relative_output_path},
+    # 2. Native PDFs join the same PDF pipeline as-is.
+    for fi in to_process:
+        if routes[str(fi.path)] == "pdf":
+            pdf_source[str(fi.path)] = str(fi.path)
+
+    # 3. Turn every PDF (native + via_pdf) into Markdown with the profile's pdf_converter.
+    pdf_items = [(fi, pdf_source[str(fi.path)]) for fi in to_process if str(fi.path) in pdf_source]
+    if pdf_items:
+        if resolved_profile.pdf_converter == "mistral":
+            results.extend(_ocr_pdfs_with_mistral(pdf_items, resolved_base, output_upath))
+        else:
+            for batch in _chunked(pdf_items, batch_size):
+                futures = []
+                for fi, pdf in batch:
+                    rel_out, out_abs = _output_paths(fi.path, Path(resolved_base), output_upath)
+                    futures.append(
+                        _convert_file_task.submit(
+                            str(fi.path), pdf, "pdf", str(out_abs), str(rel_out), resolved_profile.pdf_converter
+                        )
+                    )
+                results.extend(f.result() for f in futures)  # type: ignore[misc]
+
+    # 4. Direct conversions: md_parser spreadsheets + markitdown for everything else.
+    direct_files = [fi for fi in to_process if routes[str(fi.path)] in ("md_parser", "markitdown")]
+    for batch in _chunked(direct_files, batch_size):
+        futures = []
+        for fi in batch:
+            rel_out, out_abs = _output_paths(fi.path, Path(resolved_base), output_upath)
+            futures.append(
+                _convert_file_task.submit(
+                    str(fi.path),
+                    str(fi.path),
+                    routes[str(fi.path)],
+                    str(out_abs),
+                    str(rel_out),
+                    resolved_profile.pdf_converter,
+                )
             )
+        results.extend(f.result() for f in futures)  # type: ignore[misc]
+
+    for source_path, relative_output_path in results:
+        file_hash = next((f.content_hash for f in to_process if str(f.path) == source_path), "")
+        cache.record_success(
+            key=source_path,
+            fingerprint=file_hash,
+            code_version=code_version,
+            outputs={"output_path": relative_output_path},
+        )
 
     cache.save(manifest_path)
-    logger.success(f"Conversion completed. {len(to_process)} files processed, {skipped} skipped.")
+    logger.success(f"Conversion completed. {len(results)} files processed, {skipped} skipped.")
 
-    manifest = MarkdownizeManifest(
-        entries={
-            k: MarkdownizeManifestEntry(
-                source_hash=rec.fingerprint,
-                output_path=rec.outputs.get("output_path", ""),
-                processed_at=rec.processed_at,
-            )
-            for k, rec in cache.records.items()
-        }
-    )
-
-    # Publish a Prefect artifact summarising the conversion results.
-    try:
-        from prefect.artifacts import create_markdown_artifact
-
-        lines = [
-            "# Markdownize Summary",
-            "",
-            f"**Processed:** {len(to_process)}  |  **Skipped (cached):** {skipped}",
-            "",
-        ]
-        if to_process:
-            lines += ["## Converted files", "", "| Source file | Output |", "|-------------|--------|"] + [
-                f"| `{Path(k).name}` | `{v.output_path}` |"
-                for k, v in manifest.entries.items()
-                if any(str(f.path) == k for f in to_process)
-            ]
-        if skipped:
-            lines += ["", "## Cached (skipped)", ""] + [
-                f"- `{Path(k).name}`" for k in manifest.entries if not any(str(f.path) == k for f in to_process)
-            ]
-        create_markdown_artifact("\n".join(lines), key="markdownize-summary")
-    except Exception:
-        pass  # Artifacts are best-effort; never block the return value.
-
+    manifest = _manifest_from_cache(cache)
+    _publish_summary(manifest, processed_keys={src for src, _ in results}, skipped=skipped)
     return manifest

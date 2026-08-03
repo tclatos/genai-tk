@@ -43,10 +43,10 @@ workflows:
   # ---------------------------------------------------------------------------
 
   markdownize:
-    description: "Convert documents (PDF/DOCX/PPTX) to Markdown format"
+    description: "Convert documents (PDF/DOCX/PPTX/XLSX/images) to Markdown"
     run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
     defaults:
-      pdf_converter: mistral
+      profile: medium
       batch_size: 5
       base_dir: "${paths.data_root}"
       output_dir: "${paths.data_root}/markdown"
@@ -59,6 +59,10 @@ workflows:
         base_dir: "${paths.data_root}/documents"
         output_dir: "${paths.data_root}/markdown"
         pathspecs: ["**/*.pdf", "**/*.docx", "**/*.pptx"]
+      fast:
+        profile: fast
+      best:
+        profile: best
 
   merge_markdown:
     description: "Merge all Markdown files in a directory into a single MERGED.md"

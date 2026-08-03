@@ -17,6 +17,7 @@ import genai_tk.workflow.prefect.flows.office2pdf_flow as office2pdf_module
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 from genai_tk.workflow.prefect.flows.office2pdf_flow import (
     SUPPORTED_EXTENSIONS,
+    LibreOfficeNotFoundError,
     _chunked,
     _convert_with_libreoffice,
     _FileToProcess,
@@ -24,8 +25,31 @@ from genai_tk.workflow.prefect.flows.office2pdf_flow import (
     _prepare_files,
     _process_single_file_task,
     _TaskResult,
+    ensure_libreoffice_available,
+    is_libreoffice_available,
     office2pdf_flow,
 )
+
+# ---------------------------------------------------------------------------
+# libreoffice availability
+# ---------------------------------------------------------------------------
+
+
+def test_is_libreoffice_available_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(office2pdf_module.shutil, "which", lambda name: "/usr/bin/libreoffice")
+    assert is_libreoffice_available() is True
+
+
+def test_is_libreoffice_available_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(office2pdf_module.shutil, "which", lambda name: None)
+    assert is_libreoffice_available() is False
+
+
+def test_ensure_libreoffice_available_raises_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(office2pdf_module.shutil, "which", lambda name: None)
+    with pytest.raises(LibreOfficeNotFoundError, match="LibreOffice"):
+        ensure_libreoffice_available()
+
 
 # ---------------------------------------------------------------------------
 # _is_office_convertible

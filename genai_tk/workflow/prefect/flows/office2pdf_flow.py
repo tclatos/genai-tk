@@ -13,6 +13,7 @@ Typical usage::
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -27,6 +28,29 @@ from genai_tk.utils.hashing import buffer_digest
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
 SUPPORTED_EXTENSIONS = {".ppt", ".pptx", ".odp", ".xlsx", ".xls"}
+
+
+class LibreOfficeNotFoundError(RuntimeError):
+    """Raised when a LibreOffice-based conversion is requested but the binary is missing."""
+
+
+def is_libreoffice_available() -> bool:
+    """Return True when a ``libreoffice`` (or ``soffice``) binary is on the PATH."""
+    return shutil.which("libreoffice") is not None or shutil.which("soffice") is not None
+
+
+def ensure_libreoffice_available() -> None:
+    """Raise a clear, actionable error when LibreOffice is required but not installed."""
+    if is_libreoffice_available():
+        return
+    raise LibreOfficeNotFoundError(
+        "LibreOffice is required for 'via_pdf' / office2pdf conversion but was not found on PATH.\n"
+        "Install it and retry, e.g.:\n"
+        "  - Debian/Ubuntu:  sudo apt-get install -y libreoffice\n"
+        "  - macOS (brew):   brew install --cask libreoffice\n"
+        "  - Fedora:         sudo dnf install -y libreoffice\n"
+        "Or choose the 'fast' markdownize profile, which uses no LibreOffice."
+    )
 
 
 @dataclass(slots=True)
@@ -212,6 +236,8 @@ def office2pdf_flow(
     Returns:
         Updated manifest with processing results.
     """
+    ensure_libreoffice_available()
+
     if pathspecs is None:
         pathspecs = ["**/*.ppt", "**/*.pptx", "**/*.odp", "**/*.xlsx", "**/*.xls"]
 

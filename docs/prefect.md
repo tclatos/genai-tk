@@ -74,93 +74,38 @@ The PID file is stored at `<paths.data_root>/.prefect/prefect.pid` (or
 
 ### Document-to-Markdown (`markdownize_flow`)
 
-Converts documents in a directory to Markdown using `markitdown` or Mistral OCR.
+Converts a directory of mixed documents (PDF, Word, PowerPoint, Excel, images) to
+Markdown in a single call. Callers pick a **profile** (`fast` / `medium` / `best`)
+rather than individual converter flags.
 
 ```bash
-# Basic conversion (PDF, DOCX, PPTX, …)
-uv run cli tools markdownize ./docs ./output
-
-# Recursive, force re-conversion
-uv run cli tools markdownize ./docs ./output --recursive --force
-
-# Use Mistral OCR for better PDF quality (requires MISTRAL_API_KEY)
-uv run cli tools markdownize ./pdfs ./output --mistral-ocr --batch-size 5
-
-# Filter by file pattern
-uv run cli tools markdownize ./docs ./output \
-    --include '*.pdf' --include '*.docx' --exclude '*_draft*'
-```
-
-**Supports:** PDF, DOCX, PPTX, ODP, XLSX, HTML, images (PNG/JPEG/WEBP).
-
-**Key options:**
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--recursive` | false | Recurse into sub-directories |
-| `--force` | false | Re-convert already-converted files |
-| `--mistral-ocr` | false | Use Mistral batch OCR API instead of markitdown |
-| `--batch-size N` | 10 | Files per Mistral OCR batch job |
-| `--include PATTERN` | all | Glob patterns to include (repeatable) |
-| `--exclude PATTERN` | none | Glob patterns to exclude (repeatable) |
-
-A **manifest file** (`manifest.json`) in the output directory tracks which source files have
-been converted and their content hashes, enabling **incremental processing** — only new or
-changed files are re-processed on subsequent runs.
-
-Excel (`.xlsx`/`.xls`) files use a separate `excel_converter` selector, independent of
-`pdf_converter`:
-
-| Value | Behavior |
-|-------|----------|
-| `md_parser` (default) | Deterministic conversion via `md-spreadsheet-parser`: empty rows/columns dropped, no `NaN`, merged header cells forward-filled. Good for regular, well-formed sheets. |
-| `markitdown` | Legacy pandas-based conversion. Kept only for comparison — produces `NaN` for empty cells and does not handle merged headers. |
-
-For irregular sheets (scattered titles, multiple tables per sheet), convert to PDF first with
-`office2pdf_flow` (below) and then run `markdownize` with `pdf_converter=mistral` on the
-resulting PDFs — the same two-step pattern already used for PowerPoint decks.
-
-#### Markdownize Profiles
-
-Rather than passing `pdf_converter`/`excel_converter` individually everywhere, define named
-profiles once and reference them by name:
-
-```yaml
-# any auto-scanned config YAML
-markdownize_profiles:
-  default:
-    pdf_converter: markitdown
-    excel_converter: md_parser
-  mistral:
-    pdf_converter: mistral
-    excel_converter: md_parser
+uv run cli workflow run markdownize --set base_dir=./docs --set output_dir=./md
+uv run cli workflow run markdownize --preset fast --set base_dir=./docs --set output_dir=./md
 ```
 
 ```python
-from genai_tk.config_mgmt.markdownize_config import get_markdownize_profile
+from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
 
-profile = get_markdownize_profile("mistral")
-markdownize_flow(base_dir=..., output_dir=..., pdf_converter=profile.pdf_converter,
-                  excel_converter=profile.excel_converter)
+markdownize_flow(base_dir="./docs", output_dir="./md", profile="medium")
 ```
 
-`get_markdownize_profile("default")` falls back to the model's built-in defaults
-(`markitdown` / `md_parser`) even when no `markdownize_profiles` section is configured.
+A `manifest.json` in the output directory tracks content hashes for incremental
+processing. See **[markdownize.md](markdownize.md)** for the full profile reference,
+requirements (LibreOffice / `MISTRAL_API_KEY`), and customisation.
 
 ---
 
 ### Office documents → PDF (`office2pdf_flow`)
 
-Converts PowerPoint/Impress and Excel files to PDF via LibreOffice headless.
+Converts PowerPoint/Impress and Excel files to PDF via LibreOffice headless. Reused
+internally by the markdownize `via_pdf` path, but also runnable standalone.
 
 ```bash
-uv run cli tools office2pdf ./slides ./pdfs
-uv run cli tools office2pdf ./slides ./pdfs --recursive --force
+uv run cli workflow run office2pdf --set base_dir=./slides --set output_dir=./pdfs
 ```
 
-Requires LibreOffice: `sudo apt-get install libreoffice` or equivalent.
-
-Uses a `ThreadPoolTaskRunner` to convert multiple files in parallel.
+Requires LibreOffice: `sudo apt-get install libreoffice` or equivalent. Uses a
+`ThreadPoolTaskRunner` to convert multiple files in parallel.
 
 ---
 

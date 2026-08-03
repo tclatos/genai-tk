@@ -7,22 +7,23 @@ Covers the helpers, the manifest models, the single-file conversion task (via
 
 from __future__ import annotations
 
-import asyncio
 import json
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
+from genai_tk.config_mgmt.markdownize_config import MarkdownizeProfile
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 from genai_tk.workflow.prefect.flows.markdownize_flow import (
     MarkdownizeManifest,
     MarkdownizeManifestEntry,
     _chunked,
-    _FileToProcess,
+    _convert_file_task,
     _is_markdownize_compatible,
+    _output_paths,
     _prepare_files,
-    _process_single_file_task,
+    _route_for,
     markdownize_flow,
 )
 
@@ -147,18 +148,36 @@ def test_markdownize_manifest_empty_serialises() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _process_single_file_task (markitdown on JSON — local conversion)
+# _route_for
+# ---------------------------------------------------------------------------
+
+
+def test_route_for_uses_profile_per_family() -> None:
+    profile = MarkdownizeProfile(
+        ppt_converter="via_pdf", doc_converter="markitdown", excel_converter="md_parser", pdf_converter="mistral"
+    )
+    assert _route_for(Path("deck.pptx"), profile) == "via_pdf"
+    assert _route_for(Path("memo.docx"), profile) == "markitdown"
+    assert _route_for(Path("sheet.xlsx"), profile) == "md_parser"
+    assert _route_for(Path("scan.pdf"), profile) == "pdf"
+    assert _route_for(Path("photo.png"), profile) == "markitdown"
+
+
+# ---------------------------------------------------------------------------
+# _convert_file_task (markitdown / md_parser — local conversion)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.fake_models
-def test_process_single_file_task_converts_json_to_markdown(tmp_path: Path) -> None:
+def test_convert_file_task_converts_json_to_markdown(tmp_path: Path) -> None:
     src = tmp_path / "data.json"
     src.write_text('{"name": "Ada", "age": 30}', encoding="utf-8")
     out = tmp_path / "out"
 
-    file_info = _FileToProcess(path=src, content_hash="h")
-    source, relative_output = asyncio.run(_process_single_file_task.fn(file_info, str(out), str(tmp_path)))
+    rel_out, out_abs = _output_paths(src, tmp_path, out)
+    source, relative_output = _convert_file_task.fn(
+        str(src), str(src), "markitdown", str(out_abs), str(rel_out), "markitdown"
+    )
 
     assert source == str(src)
     assert relative_output == "data_json.md"
@@ -168,14 +187,16 @@ def test_process_single_file_task_converts_json_to_markdown(tmp_path: Path) -> N
 
 
 @pytest.mark.fake_models
-def test_process_single_file_task_preserves_subdir_structure(tmp_path: Path) -> None:
+def test_convert_file_task_preserves_subdir_structure(tmp_path: Path) -> None:
     (tmp_path / "docs").mkdir()
     src = tmp_path / "docs" / "data.csv"
     src.write_text("name,age\nAda,30\n", encoding="utf-8")
     out = tmp_path / "out"
 
-    file_info = _FileToProcess(path=src, content_hash="h")
-    source, relative_output = asyncio.run(_process_single_file_task.fn(file_info, str(out), str(tmp_path)))
+    rel_out, out_abs = _output_paths(src, tmp_path, out)
+    source, relative_output = _convert_file_task.fn(
+        str(src), str(src), "markitdown", str(out_abs), str(rel_out), "markitdown"
+    )
 
     assert source == str(src)
     assert relative_output == str(Path("docs") / "data_csv.md")
@@ -221,14 +242,14 @@ def test_excel_to_markdown_md_parser_no_nan_and_title_rescued(tmp_path: Path) ->
 
 
 @pytest.mark.fake_models
-def test_process_single_file_task_routes_xlsx_through_md_parser(tmp_path: Path) -> None:
+def test_convert_file_task_routes_xlsx_through_md_parser(tmp_path: Path) -> None:
     src = tmp_path / "sample.xlsx"
     _write_messy_workbook(src)
     out = tmp_path / "out"
 
-    file_info = _FileToProcess(path=src, content_hash="h")
-    source, relative_output = asyncio.run(
-        _process_single_file_task.fn(file_info, str(out), str(tmp_path), excel_converter="md_parser")
+    rel_out, out_abs = _output_paths(src, tmp_path, out)
+    source, relative_output = _convert_file_task.fn(
+        str(src), str(src), "md_parser", str(out_abs), str(rel_out), "markitdown"
     )
 
     assert source == str(src)
@@ -239,7 +260,7 @@ def test_process_single_file_task_routes_xlsx_through_md_parser(tmp_path: Path) 
 
 
 @pytest.mark.fake_models
-def test_process_single_file_task_xlsx_falls_back_to_markitdown_on_parser_error(
+def test_convert_file_task_xlsx_falls_back_to_markitdown_on_parser_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import genai_tk.workflow.prefect.flows.markdownize_flow as markdownize_module
@@ -253,9 +274,9 @@ def test_process_single_file_task_xlsx_falls_back_to_markitdown_on_parser_error(
     _write_messy_workbook(src)
     out = tmp_path / "out"
 
-    file_info = _FileToProcess(path=src, content_hash="h")
-    source, relative_output = asyncio.run(
-        _process_single_file_task.fn(file_info, str(out), str(tmp_path), excel_converter="md_parser")
+    rel_out, out_abs = _output_paths(src, tmp_path, out)
+    source, relative_output = _convert_file_task.fn(
+        str(src), str(src), "md_parser", str(out_abs), str(rel_out), "markitdown"
     )
 
     assert source == str(src)
@@ -306,17 +327,24 @@ def test_markdownize_flow_all_cached_returns_without_reprocessing(
     out = tmp_path / "out"
     out.mkdir()
 
+    from genai_tk.config_mgmt.markdownize_config import get_markdownize_profile
     from genai_tk.utils.hashing import buffer_digest
 
+    code_version = get_markdownize_profile("default").fingerprint()
     cache = ManifestCache.load(out / "manifest.json")
-    cache.record_success(key=str(f), fingerprint=buffer_digest(f.read_bytes()), outputs={"output_path": "data_json.md"})
+    cache.record_success(
+        key=str(f),
+        fingerprint=buffer_digest(f.read_bytes()),
+        code_version=code_version,
+        outputs={"output_path": "data_json.md"},
+    )
     cache.save(out / "manifest.json")
 
     # If the flow reprocesses, markitdown runs — prevent it to prove caching works.
     def _boom(*args, **kwargs):  # noqa: ANN002
         raise AssertionError("should not reconvert a cached file")
 
-    monkeypatch.setattr("genai_tk.workflow.prefect.flows.markdownize_flow.MarkItDown", _boom, raising=False)
+    monkeypatch.setattr("genai_tk.workflow.prefect.flows.markdownize_flow._markitdown_text", _boom, raising=False)
 
     manifest = markdownize_flow(base_dir=str(src), output_dir=str(out), force=False)
     assert str(f) in manifest.entries

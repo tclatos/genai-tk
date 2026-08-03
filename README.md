@@ -610,14 +610,14 @@ Ships with ready-to-use flows:
 
 | Flow | Purpose | CLI |
 |------|---------|-----|
-| **markdownize** | PDF → Markdown + OCR | `cli tools markdownize` |
-| **office2pdf** | Office docs (PPT/Excel) → PDF | `cli tools office2pdf` |
+| **markdownize** | Documents → Markdown (profile-driven) | `cli workflow run markdownize` |
+| **office2pdf** | Office docs (PPT/Excel) → PDF | `cli workflow run office2pdf` |
 | **baml** | Structured extraction | `cli baml run` |
 | **rag** | RAG indexing + retrieval | `cli rag add-files` |
 
 All flows run **in-process** with an ephemeral Prefect client — no Prefect server needed.
 
-See [docs/workflows.md](docs/workflows.md) and [docs/prefect.md](docs/prefect.md) for full reference.
+See [docs/markdownize.md](docs/markdownize.md), [docs/workflows.md](docs/workflows.md) and [docs/prefect.md](docs/prefect.md) for full reference.
 
 ---
 
