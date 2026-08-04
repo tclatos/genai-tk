@@ -40,7 +40,7 @@ YAML spec, the engine computes a deterministic fingerprint of the step's
 resolved inputs and checks :class:`~genai_tk.workflow.flow_cache.manifest.ManifestCache`
 before submitting the step task.  Fresh steps are skipped entirely; stale or
 new steps are executed and their results recorded in the manifest.
-The ``force`` / ``force_rebuild`` values flag bypasses this check.
+The ``force_stage`` value bypasses this check when set.
 """
 
 from __future__ import annotations
@@ -231,7 +231,7 @@ def flow_from_yaml(
         YAML = '''
         workflows:
           greet:
-            run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+            run: genai_tk.workflow.markdownize.markdownize_flow
             defaults:
               base_dir: /data/pdfs
               output_dir: /data/md
@@ -338,7 +338,7 @@ def compute_step_fingerprint(step_id: str, step_inputs: dict[str, Any]) -> str:
         step_id: Unique step identifier.
         step_inputs: Fully-resolved input dict passed to the step callable.
             Keys listed in :data:`FINGERPRINT_EXCLUDE_KEYS` are ignored so that
-            control flags (``force_rebuild``, ``delete_first`` …) do not
+            control flags (``force_stage``, ``delete_first`` …) do not
             produce a different fingerprint between force and normal runs.
 
     Returns:
@@ -356,8 +356,7 @@ def compute_step_fingerprint(step_id: str, step_inputs: dict[str, Any]) -> str:
 #: remains usable on subsequent non-force runs.
 FINGERPRINT_EXCLUDE_KEYS: frozenset[str] = frozenset(
     {
-        "force",
-        "force_rebuild",
+        "force_stage",
         "delete_first",
     }
 )
@@ -382,7 +381,9 @@ def _build_prefect_flow(
 
     sorted_steps = topological_sort(compiled.steps)
     step_map: dict[str, CompiledStep] = {s.id: s for s in compiled.steps}
-    force: bool = bool(compiled.values.get("force") or compiled.values.get("force_rebuild"))
+    # Any staged --force bypasses the generic per-step Prefect result cache; the
+    # requested stage itself decides which document/KG caches it invalidates.
+    force: bool = compiled.values.get("force_stage") is not None
 
     # Pre-build all step tasks outside the flow function so they are defined
     # at module scope relative to the flow (important for Prefect serialisation).

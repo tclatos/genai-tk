@@ -270,8 +270,7 @@ class PrefectFlowFactory(BaseModel):
     def get(self):
         return self.flow_factory()
 
-    def flow_factory(self):
-        ...
+    def flow_factory(self): ...
 ```
 
 This follows the same broad pattern used elsewhere in the toolkit: resolve configuration, normalize it, then expose a `get()` method that returns the executable runtime object.
@@ -403,7 +402,7 @@ steps:
   - id: markdownize
     invoke:
       kind: flow
-      target: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+      target: genai_tk.workflow.markdownize.markdownize_flow
     wait_for:
       - ppt_to_pdf
     with:

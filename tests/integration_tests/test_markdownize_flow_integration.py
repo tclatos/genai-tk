@@ -4,11 +4,12 @@ from pathlib import Path
 
 import pytest
 
-import genai_tk.workflow.prefect.flows.markdownize_flow as mod
-from genai_tk.workflow.prefect.flows.markdownize_flow import (
+import genai_tk.workflow.markdownize.flow as mod
+from genai_tk.workflow.markdownize.flow import (
     MarkdownizeManifest,
     markdownize_flow,
 )
+from genai_tk.workflow.sources import ResolvedSourceFile
 
 # These tests drive ``markdownize_flow.fn(...)`` directly (bypassing the @flow
 # decorator) for deterministic stubbed execution, so Prefect artifact creation
@@ -44,21 +45,24 @@ def test_markdownize_flow_creates_manifest(tmp_path, monkeypatch) -> None:
         return _FakeFuture((original_src, rel_out))
 
     monkeypatch.setattr(mod._convert_file_task, "submit", fake_submit)
-    monkeypatch.setattr(mod, "resolve_files", lambda *args, **kwargs: [str(p) for p in input_dir.iterdir()])
+    monkeypatch.setattr(
+        mod,
+        "resolve_sources",
+        lambda *args, **kwargs: [ResolvedSourceFile(path=p, root=input_dir) for p in input_dir.iterdir()],
+    )
 
     manifest = markdownize_flow.fn(
-        base_dir=str(input_dir),
-        output_dir=str(output_dir),
+        sources=str(input_dir),
+        md_output_dir=str(output_dir),
         pathspecs=["**/*.pdf"],
         batch_size=1,
-        force=False,
         profile="fast",
     )
 
     assert isinstance(manifest, MarkdownizeManifest)
     assert len(manifest.entries) == 1
 
-    manifest_path = Path(output_dir) / "manifest.json"
+    manifest_path = Path(output_dir) / ".cache" / "manifest.json"
     assert manifest_path.exists()
 
 
@@ -82,26 +86,28 @@ def test_markdownize_flow_skips_unchanged(tmp_path, monkeypatch) -> None:
         return _FakeFuture((original_src, rel_out))
 
     monkeypatch.setattr(mod._convert_file_task, "submit", fake_submit)
-    monkeypatch.setattr(mod, "resolve_files", lambda *args, **kwargs: [str(p) for p in input_dir.iterdir()])
+    monkeypatch.setattr(
+        mod,
+        "resolve_sources",
+        lambda *args, **kwargs: [ResolvedSourceFile(path=p, root=input_dir) for p in input_dir.iterdir()],
+    )
 
     # First run: file is processed and manifest is written
     markdownize_flow.fn(
-        base_dir=str(input_dir),
-        output_dir=str(output_dir),
+        sources=str(input_dir),
+        md_output_dir=str(output_dir),
         pathspecs=["**/*.pdf"],
         batch_size=1,
-        force=False,
         profile="fast",
     )
     assert call_count == 1
 
     # Second run on same unchanged file: should be skipped via manifest
     markdownize_flow.fn(
-        base_dir=str(input_dir),
-        output_dir=str(output_dir),
+        sources=str(input_dir),
+        md_output_dir=str(output_dir),
         pathspecs=["**/*.pdf"],
         batch_size=1,
-        force=False,
         profile="fast",
     )
     assert call_count == 1, "Unchanged file should be skipped on rerun"

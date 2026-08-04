@@ -18,7 +18,7 @@ uv run cli workflow run markdownize --preset best  --set base_dir=./docs --set o
 ```
 
 ```python
-from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
+from genai_tk.workflow.markdownize import markdownize_flow
 
 markdownize_flow(base_dir="./docs", output_dir="./md", profile="medium")
 ```
@@ -41,9 +41,9 @@ built in and always available — no configuration required:
 `default` is an alias for `medium`.
 
 ```python
-from genai_tk.config_mgmt.markdownize_config import get_markdownize_profile
+from genai_tk.workflow.markdownize import get_markdownize_profile
 
-profile = get_markdownize_profile("best")   # -> MarkdownizeProfile(...)
+profile = get_markdownize_profile("best")  # -> MarkdownizeProfile(...)
 markdownize_flow(base_dir="./docs", output_dir="./md", profile="best")
 ```
 

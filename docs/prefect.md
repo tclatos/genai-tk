@@ -84,7 +84,7 @@ uv run cli workflow run markdownize --preset fast --set base_dir=./docs --set ou
 ```
 
 ```python
-from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
+from genai_tk.workflow.markdownize import markdownize_flow
 
 markdownize_flow(base_dir="./docs", output_dir="./md", profile="medium")
 ```
@@ -160,16 +160,19 @@ from prefect import flow, task
 # Ensure server is up (no-op if already running, auto-starts if auto_start: true)
 server = prefect_server()
 server.ensure_running()
-server.configure_api_url()   # sets PREFECT_API_URL in the current process
+server.configure_api_url()  # sets PREFECT_API_URL in the current process
+
 
 @task
 def process_item(item: str) -> str:
     return item.upper()
 
+
 @flow(name="my-custom-flow")
 def my_flow(items: list[str]) -> list[str]:
     futures = [process_item.submit(item) for item in items]
     return [f.result() for f in futures]
+
 
 # Execute — run is visible in the Prefect UI (http://localhost:4200)
 results = my_flow(items=["hello", "world"])
@@ -179,7 +182,7 @@ results = my_flow(items=["hello", "world"])
 
 ```python
 from genai_tk.utils.prefect_server import prefect_server
-from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow
+from genai_tk.workflow.markdownize import markdownize_flow
 from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
 
 server = prefect_server()
@@ -234,7 +237,7 @@ from genai_tk.workflow import PrefectFlowFactory
 
 # Resolve + compile from config by workflow name / preset
 factory = PrefectFlowFactory.from_profile("markdownize/docs", values={"batch_size": 10})
-results = factory.run()                              # execute immediately
+results = factory.run()  # execute immediately
 factory.serve(name="nightly-markdownize", cron="0 2 * * *")  # or serve
 ```
 
@@ -250,7 +253,7 @@ YAML = """
 workflows:
   convert_docs:
     description: "PDF → Markdown"
-    run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+    run: genai_tk.workflow.markdownize.markdownize_flow
     defaults:
       base_dir: /data/pdfs
       output_dir: /data/md
@@ -258,7 +261,7 @@ workflows:
 """
 
 flow = flow_from_yaml(YAML)
-flow()   # execute — visible in the Prefect UI
+flow()  # execute — visible in the Prefect UI
 ```
 
 Multi-step, from a file:
@@ -298,10 +301,7 @@ def convert_file(src: Path, dest: Path) -> str:
 def uppercase_flow(input_dir: str, output_dir: str) -> list[str]:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
-    futures = [
-        convert_file.submit(src, out / src.name)
-        for src in Path(input_dir).glob("*.txt")
-    ]
+    futures = [convert_file.submit(src, out / src.name) for src in Path(input_dir).glob("*.txt")]
     return [f.result() for f in futures]
 
 

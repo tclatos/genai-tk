@@ -16,7 +16,8 @@ Per-family converter choices:
 - ``pdf_converter`` — how PDFs (native *and* the ones produced by ``via_pdf``)
   become Markdown: ``mistral``, ``markitdown``, or ``edgeparse``.
 
-Built-in profiles (always available, no configuration required):
+Built-in profiles (always available, no configuration required) are shipped in
+``genai_tk/default_config/markdownize.yaml``:
 
 - ``fast`` — everything local: ``markitdown`` + ``md_parser``.
 - ``medium`` — Office via LibreOffice → Mistral OCR, spreadsheets via ``md_parser``.
@@ -31,9 +32,11 @@ from __future__ import annotations
 
 from typing import Literal
 
+import yaml
 from pydantic import BaseModel
 
 from genai_tk.config_mgmt.config_mngr import global_config
+from genai_tk.utils.singleton import once
 
 PptConverter = Literal["via_pdf", "markitdown"]
 DocConverter = Literal["via_pdf", "markitdown"]
@@ -56,28 +59,26 @@ class MarkdownizeProfile(BaseModel):
         return f"{self.ppt_converter}:{self.doc_converter}:{self.excel_converter}:{self.pdf_converter}"
 
 
-BUILTIN_PROFILES: dict[str, MarkdownizeProfile] = {
-    "fast": MarkdownizeProfile(
-        ppt_converter="markitdown",
-        doc_converter="markitdown",
-        excel_converter="md_parser",
-        pdf_converter="markitdown",
-    ),
-    "medium": MarkdownizeProfile(
-        ppt_converter="via_pdf",
-        doc_converter="via_pdf",
-        excel_converter="md_parser",
-        pdf_converter="mistral",
-    ),
-    "best": MarkdownizeProfile(
-        ppt_converter="via_pdf",
-        doc_converter="via_pdf",
-        excel_converter="via_pdf",
-        pdf_converter="mistral",
-    ),
-}
-
 DEFAULT_PROFILE = "medium"
+
+
+@once
+def _builtin_profiles() -> dict[str, MarkdownizeProfile]:
+    """Load the packaged fast/medium/best profiles from default_config/markdownize.yaml."""
+    from importlib.resources import files as _pkg_files
+
+    try:
+        src = _pkg_files("genai_tk") / "default_config" / "markdownize.yaml"
+        yaml_text = src.read_text(encoding="utf-8")
+    except Exception:
+        # Fallback for editable installs where the symlink may not resolve via importlib
+        from pathlib import Path
+
+        config_path = Path(__file__).parent.parent.parent / "default_config" / "markdownize.yaml"
+        yaml_text = config_path.read_text(encoding="utf-8")
+
+    data = yaml.safe_load(yaml_text)
+    return {name: MarkdownizeProfile.model_validate(raw) for name, raw in data["markdownize_profiles"].items()}
 
 
 def get_markdownize_profile(name: str = "default") -> MarkdownizeProfile:
@@ -97,15 +98,16 @@ def get_markdownize_profile(name: str = "default") -> MarkdownizeProfile:
     Example:
         ```python
         profile = get_markdownize_profile("medium")
-        markdownize_flow(base_dir=..., output_dir=..., profile=profile)
+        markdownize_flow(sources=..., md_output_dir=..., profile=profile)
         ```
     """
+    builtin = _builtin_profiles()
     configured = global_config().section_dict("markdownize_profiles", MarkdownizeProfile, inject_name=False)
     if name in configured:
         return configured[name]
-    if name in BUILTIN_PROFILES:
-        return BUILTIN_PROFILES[name]
+    if name in builtin:
+        return builtin[name]
     if name == "default":
-        return BUILTIN_PROFILES[DEFAULT_PROFILE]
-    available = sorted(set(configured) | set(BUILTIN_PROFILES) | {"default"})
+        return builtin[DEFAULT_PROFILE]
+    available = sorted(set(configured) | set(builtin) | {"default"})
     raise KeyError(f"Unknown markdownize profile '{name}'. Available: {available}")

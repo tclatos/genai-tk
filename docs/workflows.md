@@ -129,10 +129,12 @@ Any Python callable works.  If you're using a Prefect `@flow`:
 from prefect import flow, task
 from pathlib import Path
 
+
 @task
 def process(src: Path, dest: Path) -> str:
     dest.write_text(src.read_text().upper())
     return str(dest)
+
 
 @flow(name="uppercase-files")
 def uppercase_flow(base_dir: str, output_dir: str) -> list[str]:
@@ -217,7 +219,7 @@ A workflow lives inside the top-level `workflows:` key in any YAML file auto-sca
 workflows:
   markdownize:
     description: "Convert documents to Markdown"
-    run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+    run: genai_tk.workflow.markdownize.markdownize_flow
     defaults:
       pdf_converter: mistral
       batch_size: 5
@@ -539,15 +541,15 @@ Register a Python callable as a named workflow without YAML.
 ```python
 from genai_tk.workflow import workflow
 
+
 # Full form — explicit name and description:
 @workflow(name="my_step", description="My Python step")
-def my_step(input_dir: str, output_dir: str, batch_size: int = 5) -> dict:
-    ...
+def my_step(input_dir: str, output_dir: str, batch_size: int = 5) -> dict: ...
+
 
 # Shorthand — uses function name as the registration key:
 @workflow
-def markdownize(base_dir: str, output_dir: str) -> dict:
-    ...
+def markdownize(base_dir: str, output_dir: str) -> dict: ...
 ```
 
 **What it does:** the decorator registers the function in the module-level
@@ -578,9 +580,11 @@ in YAML pipeline steps.
 # genai_graph/orchestration/workflow_steps.py
 from genai_tk.workflow.registry import workflow
 
+
 @workflow(name="kg_build", description="Build a KG from a single graph factory config", hidden=True)
 def kg_build_step(*, graph: dict, kg_name: str = "inline", delete_first: bool = False) -> dict:
     from genai_graph.orchestration.flows import create_kg_flow
+
     ...
     result = create_kg_flow.with_options(flow_run_name=f"kg:{kg_name}")(config_name=kg_name)
     return {"config_name": kg_name, "total_processed": result.stats.total_processed}
@@ -722,7 +726,7 @@ workflows:
 
   markdownize:
     description: "Convert documents to Markdown"
-    run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+    run: genai_tk.workflow.markdownize.markdownize_flow
     defaults:
       pdf_converter: mistral
       batch_size: 5
@@ -835,14 +839,14 @@ workflows:
   resilient_pipeline:
     pipeline:
       - id: try_ocr
-        run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+        run: genai_tk.workflow.markdownize.markdownize_flow
         with:
           pdf_converter: mistral
         execution:
           on_failure: skip          # Mistral API down? Skip and continue
 
       - id: fallback_ocr
-        run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+        run: genai_tk.workflow.markdownize.markdownize_flow
         with:
           pdf_converter: markitdown
         execution:
@@ -854,6 +858,7 @@ workflows:
 ```python
 # myproject/steps.py
 from genai_tk.workflow import workflow
+
 
 @workflow(
     name="kg_build",
@@ -868,6 +873,7 @@ def kg_build_step(
     inline: bool = False,
 ) -> dict:
     from myproject.flows import my_kg_flow
+
     run_fn = my_kg_flow.fn if inline else my_kg_flow.with_options(flow_run_name=f"kg:{kg_name}")
     result = run_fn(config_name=kg_name, delete_first=delete_first)
     return {"config_name": kg_name, "total_processed": result.stats.total_processed}
@@ -916,9 +922,11 @@ workflows:
 ```python
 from prefect import flow, task
 
+
 @task
 def process_file(path: str) -> str:
     return path.upper()
+
 
 @flow
 def my_flow(input_dir: str, output_dir: str, batch_size: int = 10) -> dict:
@@ -962,7 +970,7 @@ YAML or in `config/app_conf.yaml`.
 Verify the dotted path is correct:
 
 ```bash
-uv run python -c "from genai_tk.workflow.prefect.flows.markdownize_flow import markdownize_flow"
+uv run python -c "from genai_tk.workflow.markdownize import markdownize_flow"
 ```
 
 ---

@@ -5,20 +5,20 @@ from __future__ import annotations
 import pytest
 
 from genai_tk.config_mgmt.config_mngr import global_config
-from genai_tk.config_mgmt.markdownize_config import (
-    BUILTIN_PROFILES,
+from genai_tk.workflow.markdownize.config import (
     MarkdownizeProfile,
+    _builtin_profiles,
     get_markdownize_profile,
 )
 
 
 def test_default_resolves_to_medium() -> None:
-    assert get_markdownize_profile("default") == BUILTIN_PROFILES["medium"]
+    assert get_markdownize_profile("default") == _builtin_profiles()["medium"]
 
 
 @pytest.mark.parametrize("name", ["fast", "medium", "best"])
 def test_builtin_profiles_available_without_config(name: str) -> None:
-    assert get_markdownize_profile(name) == BUILTIN_PROFILES[name]
+    assert get_markdownize_profile(name) == _builtin_profiles()[name]
 
 
 def test_fast_profile_is_all_local() -> None:

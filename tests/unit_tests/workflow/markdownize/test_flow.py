@@ -13,19 +13,22 @@ from pathlib import Path
 
 import pytest
 
-from genai_tk.config_mgmt.markdownize_config import MarkdownizeProfile
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
-from genai_tk.workflow.prefect.flows.markdownize_flow import (
+from genai_tk.workflow.markdownize.config import MarkdownizeProfile
+from genai_tk.workflow.markdownize.flow import (
     MarkdownizeManifest,
     MarkdownizeManifestEntry,
     _chunked,
     _convert_file_task,
+    markdownize_flow,
+)
+from genai_tk.workflow.markdownize.routing import (
     _is_markdownize_compatible,
     _output_paths,
     _prepare_files,
     _route_for,
-    markdownize_flow,
 )
+from genai_tk.workflow.sources import ResolvedSourceFile
 
 # ---------------------------------------------------------------------------
 # _is_markdownize_compatible
@@ -50,7 +53,8 @@ from genai_tk.workflow.prefect.flows.markdownize_flow import (
         (".gif", True),
         (".bmp", True),
         (".txt", False),
-        (".md", False),
+        (".md", True),
+        (".markdown", True),
         (".mp3", False),
     ],
 )
@@ -85,7 +89,7 @@ def test_prepare_files_new_file_queued(tmp_path: Path) -> None:
     f.write_bytes(b"%PDF fake")
     cache = ManifestCache()
 
-    to_process, skipped = _prepare_files([f], cache, force=False)
+    to_process, skipped = _prepare_files([ResolvedSourceFile(path=f, root=tmp_path)], cache, force=False)
     assert len(to_process) == 1
     assert skipped == 0
     assert to_process[0].path == f
@@ -99,7 +103,7 @@ def test_prepare_files_fresh_file_skipped(tmp_path: Path) -> None:
 
     cache.record_success(key=str(f), fingerprint=buffer_digest(f.read_bytes()), outputs={"output_path": "a_pdf.md"})
 
-    to_process, skipped = _prepare_files([f], cache, force=False)
+    to_process, skipped = _prepare_files([ResolvedSourceFile(path=f, root=tmp_path)], cache, force=False)
     assert to_process == []
     assert skipped == 1
 
@@ -112,14 +116,16 @@ def test_prepare_files_force_reprocesses_fresh(tmp_path: Path) -> None:
 
     cache.record_success(key=str(f), fingerprint=buffer_digest(f.read_bytes()), outputs={})
 
-    to_process, skipped = _prepare_files([f], cache, force=True)
+    to_process, skipped = _prepare_files([ResolvedSourceFile(path=f, root=tmp_path)], cache, force=True)
     assert len(to_process) == 1
     assert skipped == 0
 
 
 def test_prepare_files_skips_unreadable(tmp_path: Path) -> None:
     cache = ManifestCache()
-    to_process, skipped = _prepare_files([tmp_path / "missing.pdf"], cache, force=False)
+    to_process, skipped = _prepare_files(
+        [ResolvedSourceFile(path=tmp_path / "missing.pdf", root=tmp_path)], cache, force=False
+    )
     assert to_process == []
     assert skipped == 0
 
@@ -228,7 +234,7 @@ def _write_messy_workbook(path: Path) -> None:
 
 
 def test_excel_to_markdown_md_parser_no_nan_and_title_rescued(tmp_path: Path) -> None:
-    from genai_tk.workflow.prefect.flows.markdownize_flow import _excel_to_markdown_md_parser
+    from genai_tk.workflow.markdownize.excel import _excel_to_markdown_md_parser
 
     src = tmp_path / "sample.xlsx"
     _write_messy_workbook(src)
@@ -263,12 +269,12 @@ def test_convert_file_task_routes_xlsx_through_md_parser(tmp_path: Path) -> None
 def test_convert_file_task_xlsx_falls_back_to_markitdown_on_parser_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import genai_tk.workflow.prefect.flows.markdownize_flow as markdownize_module
+    import genai_tk.workflow.markdownize.converters as converters_module
 
     def _boom(path: Path) -> str:
         raise ValueError("boom")
 
-    monkeypatch.setattr(markdownize_module, "_excel_to_markdown_md_parser", _boom)
+    monkeypatch.setattr(converters_module, "_excel_to_markdown_md_parser", _boom)
 
     src = tmp_path / "sample.xlsx"
     _write_messy_workbook(src)
@@ -295,7 +301,7 @@ def test_markdownize_flow_no_files_returns_empty_manifest(tmp_path: Path) -> Non
     (src / "notes.txt").write_text("not supported", encoding="utf-8")
     out = tmp_path / "out"
 
-    manifest = markdownize_flow(base_dir=str(src), output_dir=str(out))
+    manifest = markdownize_flow(sources=str(src), md_output_dir=str(out))
     assert isinstance(manifest, MarkdownizeManifest)
     assert manifest.entries == {}
 
@@ -307,13 +313,26 @@ def test_markdownize_flow_converts_and_writes_manifest(tmp_path: Path) -> None:
     (src / "data.json").write_text('{"name": "Ada", "age": 30}', encoding="utf-8")
     out = tmp_path / "out"
 
-    manifest = markdownize_flow(base_dir=str(src), output_dir=str(out), batch_size=1)
+    manifest = markdownize_flow(sources=str(src), md_output_dir=str(out), batch_size=1)
 
     assert isinstance(manifest, MarkdownizeManifest)
     assert len(manifest.entries) == 1
-    assert (out / "manifest.json").exists()
+    assert (out / ".cache" / "manifest.json").exists()
     assert (out / "data_json.md").exists()
     assert "Ada" in (out / "data_json.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.fake_models
+def test_markdownize_flow_copies_existing_markdown(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "readme.md").write_text("# Hello\n", encoding="utf-8")
+    out = tmp_path / "out"
+
+    manifest = markdownize_flow(sources=str(src), md_output_dir=str(out), batch_size=1)
+
+    assert len(manifest.entries) == 1
+    assert (out / "readme.md").read_text(encoding="utf-8") == "# Hello\n"
 
 
 @pytest.mark.fake_models
@@ -325,26 +344,27 @@ def test_markdownize_flow_all_cached_returns_without_reprocessing(
     f = src / "data.json"
     f.write_text('{"name": "Ada"}', encoding="utf-8")
     out = tmp_path / "out"
-    out.mkdir()
+    cache_dir = out / ".cache"
+    cache_dir.mkdir(parents=True)
 
-    from genai_tk.config_mgmt.markdownize_config import get_markdownize_profile
     from genai_tk.utils.hashing import buffer_digest
+    from genai_tk.workflow.markdownize.config import get_markdownize_profile
 
     code_version = get_markdownize_profile("default").fingerprint()
-    cache = ManifestCache.load(out / "manifest.json")
+    cache = ManifestCache.load(cache_dir / "manifest.json")
     cache.record_success(
         key=str(f),
         fingerprint=buffer_digest(f.read_bytes()),
         code_version=code_version,
         outputs={"output_path": "data_json.md"},
     )
-    cache.save(out / "manifest.json")
+    cache.save(cache_dir / "manifest.json")
 
     # If the flow reprocesses, markitdown runs — prevent it to prove caching works.
     def _boom(*args, **kwargs):  # noqa: ANN002
         raise AssertionError("should not reconvert a cached file")
 
-    monkeypatch.setattr("genai_tk.workflow.prefect.flows.markdownize_flow._markitdown_text", _boom, raising=False)
+    monkeypatch.setattr("genai_tk.workflow.markdownize.converters._markitdown_text", _boom, raising=False)
 
-    manifest = markdownize_flow(base_dir=str(src), output_dir=str(out), force=False)
+    manifest = markdownize_flow(sources=str(src), md_output_dir=str(out))
     assert str(f) in manifest.entries

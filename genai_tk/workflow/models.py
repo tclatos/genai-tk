@@ -95,7 +95,7 @@ class WorkflowDefV2(BaseModel):
 
         workflows:
           markdownize:
-            run: genai_tk.workflow.prefect.flows...markdownize_flow
+            run: genai_tk.workflow.markdownize.markdownize_flow
             defaults:
               batch_size: 5
             presets:
@@ -186,4 +186,4 @@ class ResolvedWorkflowInvocation(BaseModel):
     values: dict[str, Any] = Field(default_factory=dict)
     step_overrides: dict[str, Any] = Field(default_factory=dict)
     cli_overrides: dict[str, Any] = Field(default_factory=dict)
-    force: bool = False
+    force_stage: str | None = None

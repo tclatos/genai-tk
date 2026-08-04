@@ -575,7 +575,7 @@ Define workflows as compositions of **steps** with dependencies, templates, and 
 # config/workflows.yaml
 step_templates:
   markdownize_step:
-    uses: genai_tk.workflow.prefect.flows.markdownize_flow
+    uses: genai_tk.workflow.markdownize.markdownize_flow
     inputs:
       root_dir: "${params.input_dir}"
       output_dir: "${params.output_dir}"

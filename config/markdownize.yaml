@@ -1,0 +1,19 @@
+# Built-in markdownize profiles (packaged with genai_tk, loaded via importlib.resources).
+# Projects may add or override profiles under a top-level `markdownize_profiles` config key;
+# those entries take precedence over the built-ins of the same name.
+markdownize_profiles:
+  fast:
+    ppt_converter: markitdown
+    doc_converter: markitdown
+    excel_converter: md_parser
+    pdf_converter: markitdown
+  medium:
+    ppt_converter: via_pdf
+    doc_converter: via_pdf
+    excel_converter: md_parser
+    pdf_converter: mistral
+  best:
+    ppt_converter: via_pdf
+    doc_converter: via_pdf
+    excel_converter: via_pdf
+    pdf_converter: mistral

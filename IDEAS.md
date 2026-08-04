@@ -1,6 +1,44 @@
 # Simplify Integration
 /home/tcl/prj/genai-tk/docs/design/deepagents-deerflow-langgraph-unification.md
 
+# Unified markdownize + doctree ingestion (implemented)
+
+`markdownize_flow` now accepts a mix of directories, `.zip` archives, and individual
+files (raw Office/PDF/images, or pre-existing Markdown — copied through unchanged) in
+one call. Intermediates (unzipped archives, `via_pdf` PDFs, the manifest) live under
+`cache_dir` (defaults to `<md_output_dir>/.cache`); only clean Markdown lands in
+`md_output_dir`. A single ordered `--force <stage>` (`unzip < pdf < md < parquet <
+graph < embed < all`) replaces the old `--force` bool / `--remarkdownize` — forcing a
+stage re-runs it and everything downstream.
+
+```bash
+# Markdownize a zip of raw RFQ documents directly — no separate unzip/office2pdf step
+uv run cli workflow run markdownize --set sources=./RFQ.zip --set md_output_dir=./out/md
+
+# genai-graph's doctree build always markdownizes first, then ingests into the tree DB
+cli doctree build ./RFQ.zip --db ./data/kg/tree.db --profile fast
+
+# Re-run just the Markdown conversion (and everything downstream of it)
+cli doctree build ./RFQ.zip --db ./data/kg/tree.db --force md
+
+# Re-parse the graph only, reusing the cached Markdown (no reconversion)
+cli doctree build ./RFQ.zip --db ./data/kg/tree.db --force graph
+```
+
+Programmatic:
+
+```python
+from genai_tk.workflow.markdownize import markdownize_flow
+
+manifest = markdownize_flow(
+    sources=["./RFQ.zip", "./extra_notes.md"],  # zip + a pre-existing Markdown file
+    md_output_dir="./out/md",
+    profile="fast",
+)
+```
+
+See `docs/markdownize.md`, `docs/workflows.md`, and `genai_tk/workflow/force.py`.
+
 # Pydantic
 Replace @dataclass  by pydantic object
 # TOC

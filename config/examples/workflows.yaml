@@ -28,7 +28,8 @@
 # CLI usage:
 #   cli workflow run markdownize                     # use defaults
 #   cli workflow run markdownize/rainbow             # named preset
-#   cli workflow run markdownize --set base_dir=/x   # ad-hoc override
+#   cli workflow run markdownize --set sources=/x    # ad-hoc override
+#   cli workflow run markdownize --force md          # re-run markdown conversion
 #   cli workflow list                                # all workflows + presets
 #   cli workflow show markdownize                    # inspect DAG + params
 #
@@ -43,21 +44,22 @@ workflows:
   # ---------------------------------------------------------------------------
 
   markdownize:
-    description: "Convert documents (PDF/DOCX/PPTX/XLSX/images) to Markdown"
-    run: genai_tk.workflow.prefect.flows.markdownize_flow.markdownize_flow
+    description: "Convert directories/zips/files (PDF/DOCX/PPTX/XLSX/images/pre-existing Markdown) to Markdown"
+    run: genai_tk.workflow.markdownize.markdownize_flow
     defaults:
       profile: medium
       batch_size: 5
-      base_dir: "${paths.data_root}"
-      output_dir: "${paths.data_root}/markdown"
+      sources: "${paths.data_root}"
+      md_output_dir: "${paths.data_root}/markdown"
+      cache_dir: null
       pathspecs: null
     params:
-      base_dir: {required: true}
-      output_dir: {required: true}
+      sources: {required: true}
+      md_output_dir: {required: true}
     presets:
       docs:
-        base_dir: "${paths.data_root}/documents"
-        output_dir: "${paths.data_root}/markdown"
+        sources: "${paths.data_root}/documents"
+        md_output_dir: "${paths.data_root}/markdown"
         pathspecs: ["**/*.pdf", "**/*.docx", "**/*.pptx"]
       fast:
         profile: fast
@@ -77,13 +79,14 @@ workflows:
     run: genai_tk.workflow.prefect.flows.office2pdf_flow.office2pdf_flow
     defaults:
       batch_size: 5
+      cache_dir: null
     params:
-      base_dir: {required: true}
-      output_dir: {required: true}
+      sources: {required: true}
+      pdf_output_dir: {required: true}
     presets:
       docs:
-        base_dir: "${paths.data_root}/presentations"
-        output_dir: "${paths.data_root}/pdfs"
+        sources: "${paths.data_root}/presentations"
+        pdf_output_dir: "${paths.data_root}/pdfs"
         pathspecs: ["**/*.pptx", "**/*.ppt", "**/*.odp", "**/*.xlsx", "**/*.xls"]
 
   # ---------------------------------------------------------------------------
@@ -164,8 +167,9 @@ workflows:
     description: "Extract structured data from files (Markdown/PDF) using BAML"
     run: genai_tk.workflow.prefect.flows.baml_flow.baml_structured_extraction_flow
     with:
-      base_dir: "${values.base_dir}"
-      output_dir: "${values.output_dir}"
+      sources: "${values.sources}"
+      json_output_dir: "${values.json_output_dir}"
+      cache_dir: "${values.cache_dir}"
       pathspecs: "${values.pathspecs}"
       batch_size: "${values.batch_size}"
       function_name: "${values.function_name}"
@@ -176,15 +180,16 @@ workflows:
       function_name: ExtractRainbow
       config_name: default
       llm: default
+      cache_dir: null
       pathspecs: ["**/*.md"]
     params:
-      base_dir: {required: true}
-      output_dir: {required: true}
+      sources: {required: true}
+      json_output_dir: {required: true}
       function_name: {required: true}
     presets:
       default:
-        base_dir: "${paths.data_root}"
-        output_dir: "${paths.data_root}/structured"
+        sources: "${paths.data_root}"
+        json_output_dir: "${paths.data_root}/structured"
         pathspecs: ["**/*.md"]
         function_name: ExtractRainbow
 
@@ -234,8 +239,8 @@ workflows:
       - id: extract
         run: baml_extract
         with:
-          base_dir: "${values.base_dir}"
-          output_dir: "${values.structured_dir}"
+          sources: "${values.sources}"
+          json_output_dir: "${values.structured_dir}"
           function_name: "${values.function_name}"
           config_name: "${values.config_name}"
           llm: "${values.llm}"
@@ -261,13 +266,13 @@ workflows:
       keys: null
       sheet_name: Sheet1
     params:
-      base_dir: {required: true}
+      sources: {required: true}
       structured_dir: {required: true}
       output_file: {required: true}
       function_name: {required: true}
     presets:
       default:
-        base_dir: "${paths.data_root}"
+        sources: "${paths.data_root}"
         structured_dir: "${paths.data_root}/structured"
         output_file: "${paths.data_root}/table.csv"
         function_name: ExtractRainbow
