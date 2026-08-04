@@ -12,8 +12,11 @@ each file becomes Markdown:
 - PowerPoint / Word can go straight through ``markitdown`` or ``via_pdf``
   (LibreOffice → PDF → OCR, staged under ``cache_dir/pdf/``). The ``via_pdf``
   hop is an internal detail.
-- Spreadsheets add a deterministic ``md_parser`` option (``md-spreadsheet-parser``:
-  empty rows/columns dropped, no ``NaN``, merged headers forward-filled).
+- Spreadsheets add a deterministic ``messy_xls_parser`` option (see
+  :mod:`genai_tk.workflow.markdownize.excel`): merged title/banner cells and
+  grouped multi-row headers are recovered, stacked and side-by-side tables in
+  the same sheet are split apart, free-text/legend blocks are kept as prose,
+  and dates/percentages/numbers are formatted from the cell's actual value.
 - Every PDF — native *and* the ones produced by ``via_pdf`` — is turned into
   Markdown by the profile's ``pdf_converter`` (``mistral`` / ``markitdown`` /
   ``edgeparse``). When it is ``mistral``, *all* PDFs are sent in a single Mistral
@@ -175,7 +178,7 @@ def markdownize_flow(
         profile: A :class:`MarkdownizeProfile` or the name of one (``fast`` /
             ``medium`` / ``best`` / ``default``, or a key configured under
             ``markdownize_profiles``).  The profile decides, per source-document
-            family, whether to convert directly (markitdown / md_parser) or
+            family, whether to convert directly (markitdown / messy_xls_parser) or
             ``via_pdf`` (LibreOffice → PDF), and which ``pdf_converter`` turns
             every PDF into Markdown.  When ``pdf_converter`` is ``mistral`` all
             PDFs are sent in a single, cheaper Mistral batch job.
@@ -284,8 +287,8 @@ def markdownize_flow(
                     )
                 results.extend(f.result() for f in futures)  # type: ignore[misc]
 
-    # 4. Direct conversions: md_parser spreadsheets + markitdown for everything else.
-    direct_files = [fi for fi in to_process if routes[str(fi.path)] in ("md_parser", "markitdown")]
+    # 4. Direct conversions: messy_xls_parser spreadsheets + markitdown for everything else.
+    direct_files = [fi for fi in to_process if routes[str(fi.path)] in ("messy_xls_parser", "markitdown")]
     for batch in _chunked(direct_files, batch_size):
         futures = []
         for fi in batch:

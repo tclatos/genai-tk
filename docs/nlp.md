@@ -44,7 +44,7 @@ All NLP consumers (Presidio, BM25, preprocessing) fall back to these defaults wh
 from genai_tk.extra.nlp.config import NlpConfig, nlp_config
 
 cfg: NlpConfig = nlp_config()
-print(cfg.default_language)          # "en"
+print(cfg.default_language)  # "en"
 print(cfg.get_model_for_language("fr"))  # "fr_core_news_sm"
 ```
 
@@ -59,8 +59,8 @@ print(cfg.get_model_for_language("fr"))  # "fr_core_news_sm"
 ```python
 from genai_tk.extra.nlp import get_nlp
 
-nlp = get_nlp()                        # uses NlpConfig defaults
-nlp_fr = get_nlp(language="fr")        # French model from config
+nlp = get_nlp()  # uses NlpConfig defaults
+nlp_fr = get_nlp(language="fr")  # French model from config
 nlp_lg = get_nlp(model="en_core_web_lg")  # explicit model override
 ```
 
@@ -106,8 +106,8 @@ tokens = default_preprocessing_func("The quick brown fox")
 # → ["The", "quick", "brown", "fox"]
 
 # Lemmatization + stop-word removal (requires nlp extra)
-preprocess = get_spacy_preprocess_fn()                          # NlpConfig defaults
-preprocess_fr = get_spacy_preprocess_fn(language="fr")         # French
+preprocess = get_spacy_preprocess_fn()  # NlpConfig defaults
+preprocess_fr = get_spacy_preprocess_fn(language="fr")  # French
 preprocess_custom = get_spacy_preprocess_fn(
     model="en_core_web_lg",
     more_stop_words=["foo", "bar"],
@@ -141,9 +141,9 @@ entities: list[DetectedEntity] = detector.detect("Call John at john@acme.com")
 ```python
 config = PresidioDetectorConfig(
     analyzed_fields=["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD"],
-    language="fr",           # None → NlpConfig.default_language
-    spacy_model=None,        # None → NlpConfig.models[language]
-    enable_spacy=True,       # False → pattern-only mode (no NER, faster)
+    language="fr",  # None → NlpConfig.default_language
+    spacy_model=None,  # None → NlpConfig.models[language]
+    enable_spacy=True,  # False → pattern-only mode (no NER, faster)
     score_threshold=0.4,
     custom_recognizers=[
         CustomRecognizerConfig(
@@ -236,6 +236,7 @@ The `anonymize_files_flow` Prefect flow (`genai_tk.workflow.prefect.flows.anonym
 ```python
 from genai_tk.extra.nlp.classifiers.base import TextClassifier, ClassificationResult
 
+
 class MyClassifier:
     def classify(self, text: str) -> ClassificationResult:
         score = ...
@@ -264,25 +265,27 @@ The built-in hybrid sensitivity scorer combines five detection strategies:
 ```python
 from genai_tk.extra.nlp.classifiers import DefaultSensitivityScorer, DefaultScorerConfig
 
-scorer = DefaultSensitivityScorer()                          # default config
-result = scorer.classify("My email is john@example.com")    # TextClassifier protocol
-result = scorer.assess("My email is john@example.com")      # legacy alias
+scorer = DefaultSensitivityScorer()  # default config
+result = scorer.classify("My email is john@example.com")  # TextClassifier protocol
+result = scorer.assess("My email is john@example.com")  # legacy alias
 
-print(result.is_sensitive)       # True
-print(result.score)              # 0.28
-print(result.level)              # "medium"
-print(result.labels)             # ["regex", "presidio"]
+print(result.is_sensitive)  # True
+print(result.score)  # 0.28
+print(result.level)  # "medium"
+print(result.labels)  # ["regex", "presidio"]
 print(result.detected_entities)  # [DetectedEntity(...)]
 ```
 
 #### Custom config
 
 ```python
-scorer = DefaultSensitivityScorer(DefaultScorerConfig(
-    sensitivity_threshold=0.50,       # raise the bar
-    entity_weights={"CREDIT_CARD": 0.5, "EMAIL_ADDRESS": 0.3},
-    banwords=["internal only", "do not distribute"],
-))
+scorer = DefaultSensitivityScorer(
+    DefaultScorerConfig(
+        sensitivity_threshold=0.50,  # raise the bar
+        entity_weights={"CREDIT_CARD": 0.5, "EMAIL_ADDRESS": 0.3},
+        banwords=["internal only", "do not distribute"],
+    )
+)
 ```
 
 #### Use in middleware
@@ -306,8 +309,8 @@ retriever:
 ```python
 from genai_tk.core.factories.retriever_factory import BM25RetrieverConfig
 
-cfg = BM25RetrieverConfig(preprocessing="spacy")   # spacy_model=None → uses NlpConfig
-print(cfg.resolve_spacy_model())                   # "en_core_web_sm"
+cfg = BM25RetrieverConfig(preprocessing="spacy")  # spacy_model=None → uses NlpConfig
+print(cfg.resolve_spacy_model())  # "en_core_web_sm"
 ```
 
 ---
@@ -365,6 +368,7 @@ from genai_tk.config_mgmt.features import is_available
 
 if is_available("nlp"):
     from genai_tk.extra.nlp import get_nlp
+
     nlp = get_nlp()
 ```
 

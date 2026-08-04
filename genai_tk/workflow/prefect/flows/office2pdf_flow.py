@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -105,6 +106,9 @@ def _is_office_convertible(file_path: Path) -> bool:
 def _convert_with_libreoffice(input_path: Path, output_dir: Path) -> Path:
     """Convert a file to PDF using LibreOffice in headless mode.
 
+    Each conversion is isolated with its own temporary user profile directory
+    to avoid lock-file race conditions when multiple conversions run concurrently.
+
     Args:
         input_path: Path to the input PowerPoint file
         output_dir: Directory to write the PDF output
@@ -118,49 +122,56 @@ def _convert_with_libreoffice(input_path: Path, output_dir: Path) -> Path:
     # Ensure output directory exists
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Build LibreOffice command
-    cmd = [
-        "libreoffice",
-        "--headless",
-        "--convert-to",
-        "pdf",
-        "--outdir",
-        str(output_dir),
-        str(input_path),
-    ]
+    # Create an isolated temporary profile directory for this LibreOffice invocation.
+    # This prevents lock-file race conditions when multiple concurrent conversions
+    # try to access LibreOffice's default ~/.config/libreoffice/ directory.
+    with tempfile.TemporaryDirectory(prefix="libreoffice_profile_") as temp_profile_dir:
+        # Build LibreOffice command with profile isolation
+        cmd = [
+            "libreoffice",
+            "--headless",
+            f"-env:UserInstallation=file://{temp_profile_dir}",
+            "--convert-to",
+            "pdf",
+            "--outdir",
+            str(output_dir),
+            str(input_path),
+        ]
 
-    logger.debug("Running LibreOffice command: {}", " ".join(cmd))
+        logger.debug("Running LibreOffice command: {}", " ".join(cmd))
 
-    # LibreOffice creates PDF with same stem name
-    expected_output = output_dir / f"{input_path.stem}.pdf"
+        # LibreOffice creates PDF with same stem name
+        expected_output = output_dir / f"{input_path.stem}.pdf"
 
-    try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=300,  # 5 minute timeout per file
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=300,  # 5 minute timeout per file
+            )
 
-        # Log stdout/stderr for debugging
-        if result.stdout:
-            logger.debug("LibreOffice stdout: {}", result.stdout)
-        if result.stderr:
-            logger.debug("LibreOffice stderr: {}", result.stderr)
+            # Log stdout/stderr for debugging
+            if result.stdout:
+                logger.debug("LibreOffice stdout: {}", result.stdout)
+            if result.stderr:
+                logger.debug("LibreOffice stderr: {}", result.stderr)
 
-        if result.returncode != 0:
-            error_msg = result.stderr or result.stdout or f"Return code {result.returncode}"
-            raise RuntimeError(f"LibreOffice conversion failed: {error_msg}")
+            if result.returncode != 0:
+                error_msg = result.stderr or result.stdout or f"Return code {result.returncode}"
+                raise RuntimeError(f"LibreOffice conversion failed: {error_msg}")
 
-        # Check output file exists (LibreOffice may return 0 even on failure)
-        if not expected_output.exists():
-            error_info = result.stderr or result.stdout or "No output produced"
-            raise RuntimeError(f"Expected output file not found: {expected_output}. LibreOffice output: {error_info}")
+            # Check output file exists (LibreOffice may return 0 even on failure)
+            if not expected_output.exists():
+                error_info = result.stderr or result.stdout or "No output produced"
+                raise RuntimeError(
+                    f"Expected output file not found: {expected_output}. LibreOffice output: {error_info}"
+                )
 
-        return expected_output
+            return expected_output
 
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(f"LibreOffice conversion timed out for {input_path}") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"LibreOffice conversion timed out for {input_path}") from exc
 
 
 @task(log_prints=False)

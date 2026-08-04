@@ -126,9 +126,7 @@ Use `markdown-it-py` with the CommonMark preset + GFM tables + strikethrough. No
 
 1. **Initialize parser:**
    ```python
-   md = MarkdownIt("commonmark", {"html": True, "linkify": True}) \
-       .enable("table") \
-       .enable("strikethrough")
+   md = MarkdownIt("commonmark", {"html": True, "linkify": True}).enable("table").enable("strikethrough")
    ```
 
 2. **Parse with line tracking:**
@@ -161,21 +159,22 @@ Use `markdown-it-py` with the CommonMark preset + GFM tables + strikethrough. No
 ```python
 @dataclass
 class FlatNode:
-    title:    str
-    level:    int
+    title: str
+    level: int
     line_num: int
     end_line: int
-    text:     str
+    text: str
+
 
 @dataclass
 class LinkRecord:
     src_section_line: int
-    href:             str
-    link_text:        str
-    link_type:        str    # "inline" | "reference" | "wikilink" | "external"
+    href: str
+    link_text: str
+    link_type: str  # "inline" | "reference" | "wikilink" | "external"
 
-def parse_markdown(raw: str) -> tuple[list[FlatNode], list[LinkRecord]]:
-    ...
+
+def parse_markdown(raw: str) -> tuple[list[FlatNode], list[LinkRecord]]: ...
 ```
 
 ---
@@ -230,19 +229,16 @@ async def ingest_file(client, md_path: str) -> str:
     # 4. LLM summaries (optional)
     if client.config.add_summaries:
         tree = await generate_summaries(tree, client.llm)
-    doc_description = (
-        await generate_doc_description(tree, client.llm)
-        if client.config.add_doc_description else ""
-    )
+    doc_description = await generate_doc_description(tree, client.llm) if client.config.add_doc_description else ""
 
     # 5. Resolve cross-doc links
     resolved_links = resolve_link_targets(links, client.storage, abs_path)
 
     # 6. Persist to Kuzu
     client.storage.delete_document(doc_id)  # clean slate if re-ingesting
-    client.storage.upsert_document(doc_id, doc_name, doc_description,
-                                   abs_path, file_hash, raw.count("\n") + 1,
-                                   client.config.default_tags)
+    client.storage.upsert_document(
+        doc_id, doc_name, doc_description, abs_path, file_hash, raw.count("\n") + 1, client.config.default_tags
+    )
     client.storage.upsert_tree(doc_id, tree)
     client.storage.upsert_links(resolved_links)
     return doc_id
@@ -372,6 +368,7 @@ RULES:
 ```python
 from agents import Agent, Runner, function_tool
 
+
 def create_agent(client: MarkdownKnowledgeTreeClient) -> Agent:
     @function_tool
     def list_documents() -> str:
@@ -430,11 +427,13 @@ def query(client: MarkdownKnowledgeTreeClient, question: str) -> str:
 
 ```python
 class MarkdownKnowledgeTreeClient:
-    def __init__(self,
-                 workspace: str = "data/mdktree",
-                 llm_model: str = "gpt-4o-mini",
-                 retrieve_model: str = "gpt-4o-2024-11-20",
-                 config: Config | None = None):
+    def __init__(
+        self,
+        workspace: str = "data/mdktree",
+        llm_model: str = "gpt-4o-mini",
+        retrieve_model: str = "gpt-4o-2024-11-20",
+        config: Config | None = None,
+    ):
         self.workspace = Path(workspace).expanduser()
         self.workspace.mkdir(parents=True, exist_ok=True)
         self.llm = llm_model
@@ -471,6 +470,7 @@ Ingests a directory of Markdown files into a Kuzu graph store,
 then answers questions using an LLM agent that walks the tree
 structure — no vector embeddings required.
 """
+
 from mdktree import MarkdownKnowledgeTreeClient
 
 if __name__ == "__main__":

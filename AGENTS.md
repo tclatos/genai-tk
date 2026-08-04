@@ -54,6 +54,7 @@ Use **Pydantic v2** for all structured data — DTOs, configs, API models, resul
 ```python
 from pydantic import BaseModel, Field
 
+
 class Result(BaseModel):
     status: str
     count: int

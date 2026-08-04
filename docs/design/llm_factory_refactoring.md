@@ -186,6 +186,7 @@ myprovider:
 ```python
 if provider == "myprovider":
     from langchain_myprovider import ChatMyProvider
+
     return ChatMyProvider(
         model=self.info.model,
         api_key=api_key,

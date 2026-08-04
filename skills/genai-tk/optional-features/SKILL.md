@@ -76,7 +76,7 @@ from genai_tk.config_mgmt.features import require_feature
 
 require_feature("my-feature", context="cli agents my-command")
 
-from some_package import SomeClass   # safe: require_feature raises before this line
+from some_package import SomeClass  # safe: require_feature raises before this line
 ```
 
 ### Inside a class method or function (lazy — preferred)
@@ -111,9 +111,11 @@ Use the `@pytest.mark.requires_feature` marker — registered automatically by `
 ```python
 import pytest
 
+
 @pytest.mark.requires_feature("my-feature")
 def test_my_feature_does_something():
     from some_package import SomeClass
+
     result = SomeClass().run()
     assert result is not None
 ```
@@ -163,9 +165,9 @@ SKIPPED — Optional feature 'harnessing' not installed — run: uv sync --extra
 ```python
 from genai_tk.config_mgmt.features import available_features, missing_features, is_available
 
-print(available_features())   # ['baml', 'browser', 'chromadb', ...]
-print(missing_features())     # ['harnessing', 'nlp', ...]
-print(is_available("baml"))   # True / False
+print(available_features())  # ['baml', 'browser', 'chromadb', ...]
+print(missing_features())  # ['harnessing', 'nlp', ...]
+print(is_available("baml"))  # True / False
 ```
 
 ---

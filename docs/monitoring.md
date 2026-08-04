@@ -423,10 +423,7 @@ from genai_tk.utils.tracing import setup_monitoring
 
 setup_monitoring()  # Configures LiteLLM callbacks
 
-response = litellm.completion(
-    model="gpt-4o",
-    messages=[{"role": "user", "content": "Hello"}]
-)
+response = litellm.completion(model="gpt-4o", messages=[{"role": "user", "content": "Hello"}])
 ```
 
 ### BAML
@@ -443,7 +440,7 @@ log_llm_call(
     response="...",
     tokens_in=100,
     tokens_out=50,
-    latency_ms=250
+    latency_ms=250,
 )
 ```
 
@@ -476,8 +473,9 @@ log_llm_call(
 4. **Check callbacks are being passed to LLM:**
    ```python
    from genai_tk.utils.tracing import get_monitoring_callbacks
+
    cbs = get_monitoring_callbacks()
-   print('Callbacks:', cbs)
+   print("Callbacks:", cbs)
    ```
    Should list the active handlers.
 
@@ -511,12 +509,8 @@ llm.invoke(
     input,
     config={
         "callbacks": get_monitoring_callbacks(),
-        "metadata": {
-            "user_id": "user-123",
-            "session": "session-456",
-            "custom_field": "value"
-        }
-    }
+        "metadata": {"user_id": "user-123", "session": "session-456", "custom_field": "value"},
+    },
 )
 ```
 
@@ -527,9 +521,11 @@ Only certain spans are exported. Use `should_export_span` to customize:
 ```python
 from genai_tk.utils.tracing import setup_monitoring
 
+
 def my_filter(span):
     # Export only generation spans with cost > $0.01
     return span.attributes.get("gen_ai.usage.output_token_count", 0) > 50
+
 
 setup_monitoring()  # Then customize in your app code
 ```

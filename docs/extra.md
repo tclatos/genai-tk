@@ -36,9 +36,7 @@ checkpointer = MemorySaver()
 agent = create_custom_react_agent(llm, tools, checkpointer)
 
 # Use agent
-result = agent.invoke({
-    "messages": [{"role": "user", "content": "Your query"}]
-})
+result = agent.invoke({"messages": [{"role": "user", "content": "Your query"}]})
 ```
 
 **When to Use:**
@@ -77,9 +75,7 @@ db = SQLDatabase.from_uri("sqlite:///./data.db")
 agent = create_sql_querying_graph(llm=get_llm(), db=db)
 
 # Query database naturally
-result = agent.invoke({
-    "messages": [{"role": "user", "content": "How many users signed up last month?"}]
-})
+result = agent.invoke({"messages": [{"role": "user", "content": "How many users signed up last month?"}]})
 ```
 
 **Common Patterns:**
@@ -89,15 +85,13 @@ from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph
 
 examples = [
     {"query": "How many users?", "sql": "SELECT COUNT(*) FROM users"},
-    {"query": "Top products", "sql": "SELECT product_id, COUNT(*) as count FROM orders GROUP BY product_id ORDER BY count DESC LIMIT 5"}
+    {
+        "query": "Top products",
+        "sql": "SELECT product_id, COUNT(*) as count FROM orders GROUP BY product_id ORDER BY count DESC LIMIT 5",
+    },
 ]
 
-graph = create_sql_querying_graph(
-    llm=get_llm(),
-    db=db,
-    examples=examples,
-    top_k=10
-)
+graph = create_sql_querying_graph(llm=get_llm(), db=db, examples=examples, top_k=10)
 ```
 
 ### ReAct with Structured Output (`react_agent_structured_output.py`)
@@ -113,26 +107,21 @@ ReAct agent that outputs validated Pydantic models instead of free-form text.
 **Usage:**
 ```python
 from pydantic import BaseModel
-from genai_tk.extra.graphs.react_agent_structured_output import (
-    create_react_structured_output_graph
-)
+from genai_tk.extra.graphs.react_agent_structured_output import create_react_structured_output_graph
+
 
 class ResearchResult(BaseModel):
     """Research findings."""
+
     title: str
     key_points: list[str]
     sources: list[str]
     confidence: float
 
-agent = create_react_structured_output_graph(
-    llm=get_llm(),
-    tools=tools,
-    out_model_class=ResearchResult
-)
 
-result = agent.invoke({
-    "messages": [{"role": "user", "content": "Research AI trends"}]
-})
+agent = create_react_structured_output_graph(llm=get_llm(), tools=tools, out_model_class=ResearchResult)
+
+result = agent.invoke({"messages": [{"role": "user", "content": "Research AI trends"}]})
 
 # result.output is validated ResearchResult instance
 print(result.output.title)
@@ -249,9 +238,9 @@ See **[docs/nlp.md](nlp.md)** for the complete reference.
 **Quick import:**
 ```python
 from genai_tk.extra.nlp import (
-    get_nlp,                    # spaCy Language object
-    get_spacy_preprocess_fn,    # BM25 preprocessing
-    PresidioDetector,           # PII detection
+    get_nlp,  # spaCy Language object
+    get_spacy_preprocess_fn,  # BM25 preprocessing
+    PresidioDetector,  # PII detection
     PresidioDetectorConfig,
     DetectedEntity,
     CustomRecognizerConfig,
@@ -277,7 +266,13 @@ For ETL/batch use, configure the `anonymize` workflow — see [workflows.md](wor
 
 ```python
 from faker import Faker
-from genai_tk.extra.nlp import AnonymizationConfig, CustomRecognizerConfig, PresidioDetector, PresidioDetectorConfig, anonymize_text
+from genai_tk.extra.nlp import (
+    AnonymizationConfig,
+    CustomRecognizerConfig,
+    PresidioDetector,
+    PresidioDetectorConfig,
+    anonymize_text,
+)
 
 config = PresidioDetectorConfig(
     analyzed_fields=["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD"],
@@ -317,10 +312,7 @@ from genai_tk.core.factories.llm_factory import get_llm
 
 # Build a multimodal message with an image
 llm = get_llm()
-messages = image_query_message(
-    {"image_path": "image.jpg"},
-    {"query": "What objects are in this image?"}
-)
+messages = image_query_message({"image_path": "image.jpg"}, {"query": "What objects are in this image?"})
 response = llm.invoke(messages)
 ```
 
@@ -379,7 +371,7 @@ kv_store:
 ```python
 from genai_tk.extra.kv_store_registry import get_kv_store
 
-store = get_kv_store()                      # uses "default" entry
+store = get_kv_store()  # uses "default" entry
 store = get_kv_store("sql_cache", namespace="llm_cache")
 
 # ByteStore interface (LangChain compatible)
@@ -434,6 +426,7 @@ engine = get_pg_engine("default")
 
 # Create a store via EmbeddingsStore
 from genai_tk.core.embeddings_store import EmbeddingsStore
+
 store = EmbeddingsStore.create_from_config("pg_store")
 vs = store.get_vector_store()
 vs.add_documents(documents)
@@ -502,18 +495,15 @@ rag_retriever = vector_store.as_retriever()
 from genai_tk.agents.langchain.factory import create_langchain_agent
 
 # Create a ReAct agent that can use both SQL and RAG tools
-agent = await create_langchain_agent(profile, extra_tools=[
-    rag_retriever.as_tool()
-])
+agent = await create_langchain_agent(profile, extra_tools=[rag_retriever.as_tool()])
 ```
 
 ### Pattern 2: Structured Output RAG
 
 ```python
 from pydantic import BaseModel
-from genai_tk.extra.graphs.react_agent_structured_output import (
-    create_react_structured_output_graph
-)
+from genai_tk.extra.graphs.react_agent_structured_output import create_react_structured_output_graph
+
 
 class DocumentSummary(BaseModel):
     title: str
@@ -521,12 +511,9 @@ class DocumentSummary(BaseModel):
     action_items: list[str]
     sentiment: str
 
+
 # RAG + Structured output
-agent = create_react_structured_output_graph(
-    llm=get_llm(),
-    tools=[rag_retriever],
-    out_model_class=DocumentSummary
-)
+agent = create_react_structured_output_graph(llm=get_llm(), tools=[rag_retriever], out_model_class=DocumentSummary)
 
 result = agent.invoke({"messages": [...]})
 ```
@@ -577,8 +564,8 @@ for real, fake in mapping.items():
 ```python
 # For long documents
 chunker = MarkdownChunker(
-    chunk_size=2048,      # Larger chunks
-    chunk_overlap=400     # More overlap
+    chunk_size=2048,  # Larger chunks
+    chunk_overlap=400,  # More overlap
 )
 ```
 
@@ -587,10 +574,7 @@ chunker = MarkdownChunker(
 # Cache embeddings to reduce API calls
 from langchain.embeddings import CacheBackedEmbeddings
 
-cached_embeddings = CacheBackedEmbeddings.from_bytes_store(
-    base_embeddings,
-    cache_store
-)
+cached_embeddings = CacheBackedEmbeddings.from_bytes_store(base_embeddings, cache_store)
 ```
 
 **Hybrid Retrieval:**
@@ -598,7 +582,7 @@ cached_embeddings = CacheBackedEmbeddings.from_bytes_store(
 # Combine semantic and keyword search
 ensemble = EnsembleRetriever(
     retrievers=[vector_retriever, bm25_retriever],
-    weights=[0.7, 0.3]  # Weight vector search more
+    weights=[0.7, 0.3],  # Weight vector search more
 )
 ```
 

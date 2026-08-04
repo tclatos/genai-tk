@@ -140,11 +140,13 @@ browser_navigate(url="https://nextgen.myatos.net/sap/flp#Expense-claim")
 browser_wait(load_state="networkidle", timeout_ms=5000)
 
 # Click the Create New Expense Report button
-browser_evaluate(expression="""
+browser_evaluate(
+    expression="""
   const iframe = document.querySelector('#application-Expense-claim-iframe');
   const button = iframe.contentDocument.querySelector('#WD5B');
   button.click();
-""")
+"""
+)
 
 browser_wait(timeout_ms=3000)
 

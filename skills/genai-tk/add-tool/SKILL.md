@@ -81,6 +81,7 @@ See `genai_tk/agents/tools/tool_specs.py` for the full `class:` / `function:` /
 
 ```python
 from my_project.tools.my_tool import my_tool
+
 result = my_tool.invoke("test input")
 print(result)
 ```

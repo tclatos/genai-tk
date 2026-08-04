@@ -103,7 +103,13 @@ uv run cli workflow run anonymize_docs
 
 ```python
 from faker import Faker
-from genai_tk.extra.nlp import AnonymizationConfig, CustomRecognizerConfig, PresidioDetector, PresidioDetectorConfig, anonymize_text
+from genai_tk.extra.nlp import (
+    AnonymizationConfig,
+    CustomRecognizerConfig,
+    PresidioDetector,
+    PresidioDetectorConfig,
+    anonymize_text,
+)
 
 config = PresidioDetectorConfig(
     analyzed_fields=["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD"],

@@ -266,7 +266,7 @@ if runner.completed:
 ```python
 runner.start(
     "markdownize_and_merge",  # workflow name from config/workflows/
-    values={"source_dir": "/path/to/docs"}  # override defaults
+    values={"source_dir": "/path/to/docs"},  # override defaults
 )
 ```
 
@@ -275,14 +275,17 @@ runner.start(
 from prefect import flow, task
 import time
 
+
 @task
 def fetch_data():
     time.sleep(3)
     return "data"
 
+
 @flow
 def my_flow():
     return fetch_data()
+
 
 runner.start_flow(my_flow)  # no YAML config needed
 ```

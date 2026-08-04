@@ -237,16 +237,14 @@ from baml_client.types import Resume
 
 processor = BamlStructuredProcessor[Resume](
     model_cls=Resume,
-    baml_function=b.ExtractResume,   # pass the async BAML method directly
-    kvstore_id="file",               # use file-based KV cache
+    baml_function=b.ExtractResume,  # pass the async BAML method directly
+    kvstore_id="file",  # use file-based KV cache
 )
 
 document_ids = ["doc_1", "doc_2", "doc_3"]
 contents = [open(f).read() for f in ["a.md", "b.md", "c.md"]]
 
-results: list[Resume] = asyncio.run(
-    processor.abatch_analyze_documents(document_ids, contents)
-)
+results: list[Resume] = asyncio.run(processor.abatch_analyze_documents(document_ids, contents))
 ```
 
 Alternatively, use the **function name** instead of a direct reference (useful when the
@@ -257,7 +255,7 @@ processor = BamlStructuredProcessor[Resume](
     function_name="ExtractResume",
     llm="gpt_4o@openai",
     config_name="default",
-    force=False,   # set True to bypass cache
+    force=False,  # set True to bypass cache
 )
 ```
 

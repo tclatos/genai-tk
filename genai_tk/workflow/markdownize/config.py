@@ -12,15 +12,17 @@ Per-family converter choices:
 - ``doc_converter`` — Word/Writer (``.doc``/``.docx``/``.odt``/``.rtf``):
   ``via_pdf`` or ``markitdown``.
 - ``excel_converter`` — spreadsheets (``.xls``/``.xlsx``/``.ods``):
-  ``via_pdf``, ``markitdown``, or ``md_parser``.
+  ``via_pdf``, ``markitdown``, or ``messy_xls_parser`` (deterministic, handles
+  merged cells, grouped headers, and multi-table sheets — see
+  :mod:`genai_tk.workflow.markdownize.excel`).
 - ``pdf_converter`` — how PDFs (native *and* the ones produced by ``via_pdf``)
   become Markdown: ``mistral``, ``markitdown``, or ``edgeparse``.
 
 Built-in profiles (always available, no configuration required) are shipped in
 ``genai_tk/default_config/markdownize.yaml``:
 
-- ``fast`` — everything local: ``markitdown`` + ``md_parser``.
-- ``medium`` — Office via LibreOffice → Mistral OCR, spreadsheets via ``md_parser``.
+- ``fast`` — everything local: ``markitdown`` + ``messy_xls_parser``.
+- ``medium`` — Office via LibreOffice → Mistral OCR, spreadsheets via ``messy_xls_parser``.
 - ``best`` — everything via LibreOffice → Mistral OCR (highest fidelity, slowest).
 - ``default`` — alias for ``medium``.
 
@@ -40,7 +42,7 @@ from genai_tk.utils.singleton import once
 
 PptConverter = Literal["via_pdf", "markitdown"]
 DocConverter = Literal["via_pdf", "markitdown"]
-ExcelConverter = Literal["via_pdf", "markitdown", "md_parser"]
+ExcelConverter = Literal["via_pdf", "markitdown", "messy_xls_parser"]
 PdfConverter = Literal["mistral", "markitdown", "edgeparse"]
 
 
@@ -49,7 +51,7 @@ class MarkdownizeProfile(BaseModel):
 
     ppt_converter: PptConverter = "markitdown"
     doc_converter: DocConverter = "markitdown"
-    excel_converter: ExcelConverter = "md_parser"
+    excel_converter: ExcelConverter = "messy_xls_parser"
     pdf_converter: PdfConverter = "markitdown"
 
     model_config = {"extra": "forbid"}

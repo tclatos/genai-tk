@@ -72,7 +72,7 @@ markdownize_profiles:
   my_profile:
     ppt_converter: via_pdf   # via_pdf | markitdown
     doc_converter: markitdown
-    excel_converter: md_parser   # via_pdf | markitdown | md_parser
+    excel_converter: messy_xls_parser   # via_pdf | markitdown | messy_xls_parser
     pdf_converter: edgeparse     # mistral | markitdown | edgeparse
 ```
 

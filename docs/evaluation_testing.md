@@ -95,30 +95,31 @@ Use these to verify an agent calls the right tools with the right arguments.
 ```python
 from agentevals.trajectory.match import create_trajectory_match_evaluator
 
+
 def test_agent_uses_calculator_for_math():
     """Verify agent calls the calculator tool for arithmetic."""
     evaluator = create_trajectory_match_evaluator(
         trajectory_match_mode="superset",  # Allow extra turn steps
-        tool_args_match_mode="ignore",     # Don't check order of args
+        tool_args_match_mode="ignore",  # Don't check order of args
     )
-    
+
     # Expected: agent should call calculator
     expected_trajectory = [
-        {
-            "role": "assistant",
-            "content": "",
-            "tool_calls": [{"function": {"name": "calculator", "arguments": "{}"}}]
-        },
+        {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "calculator", "arguments": "{}"}}]},
     ]
-    
+
     # Actual agent trajectory
     actual_trajectory = [
         {"role": "user", "content": "What is 5 * 3?"},
-        {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "calculator", "arguments": '{"expression": "5 * 3"}'}}]},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"function": {"name": "calculator", "arguments": '{"expression": "5 * 3"}'}}],
+        },
         {"role": "tool", "content": "15.0"},
         {"role": "assistant", "content": "5 * 3 equals 15."},
     ]
-    
+
     result = evaluator(outputs=actual_trajectory, reference_outputs=expected_trajectory)
     assert result["score"], f"Trajectory evaluator failed: {result['feedback']}"
 ```
@@ -143,19 +144,20 @@ import pytest
 from openevals.llm import create_llm_as_judge
 from openevals.prompts import CORRECTNESS_PROMPT
 
+
 @pytest.mark.evals
 @pytest.mark.real_models
 @pytest.mark.timeout(120)
 def test_correct_answer_is_scored_high(judge_llm) -> None:
     """A correct answer should receive a high score from CORRECTNESS_PROMPT."""
     evaluator = create_llm_as_judge(prompt=CORRECTNESS_PROMPT, judge=judge_llm)
-    
+
     result = evaluator(
         inputs="What is 17 * 3?",
         outputs="17 multiplied by 3 equals 51.",
         reference_outputs="51",
     )
-    
+
     score = result.get("score")
     assert score, f"Expected PASS but got score={score!r}. Reasoning: {result.get('comment')}"
 ```
@@ -181,36 +183,33 @@ import concurrent.futures
 from openevals.simulators import run_multiturn_simulation
 from genai_tk.agents.langchain.langchain_agent import LangchainAgent
 
+
 @pytest.mark.evals
 @pytest.mark.real_models
 def test_agent_handles_multiturn_conversation(judge_llm):
     """Agent maintains context and produces correct answers across turns."""
     agent = LangchainAgent(llm="fast_model", agent_type="react", tools=[calculator, echo])
-    
+
     def agent_app(message: dict, **kwargs) -> dict:
         """Wrapper to call async agent from sync simulator."""
         content = message.get("content", "")
-        
+
         def _run():
             loop = asyncio.new_event_loop()
             try:
                 return loop.run_until_complete(agent.arun(content))
             finally:
                 loop.close()
-        
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
             response = pool.submit(_run).result(timeout=60)
-        
+
         return {"role": "assistant", "content": response}
-    
+
     def check_answers(*, outputs, reference_outputs=None, **kwargs):
         """Custom evaluator: check for expected numeric answers in trajectory."""
         trajectory = outputs if isinstance(outputs, list) else outputs.get("messages", [])
-        text = " ".join(
-            str(m.get("content", ""))
-            for m in trajectory
-            if m.get("role") == "assistant"
-        )
+        text = " ".join(str(m.get("content", "")) for m in trajectory if m.get("role") == "assistant")
         has_96 = "96" in text
         has_192 = "192" in text
         return {
@@ -218,14 +217,14 @@ def test_agent_handles_multiturn_conversation(judge_llm):
             "score": has_96 and has_192,
             "comment": f"96={has_96}, 192={has_192}",
         }
-    
+
     result = run_multiturn_simulation(
         app=agent_app,
         user=["What is 12 * 8?", "What is 96 * 2?"],
         max_turns=2,
         trajectory_evaluators=[check_answers],
     )
-    
+
     eval_results = result.get("evaluator_results", [])
     for er in eval_results:
         assert er.get("score"), f"Evaluator '{er.get('key')}' failed: {er.get('comment')}"
@@ -241,6 +240,7 @@ def _assert_pass(result: dict, label: str) -> None:
     score = result.get("score")
     reasoning = result.get("comment") or "(no reasoning)"
     assert score, f"[{label}] Expected PASS but got {score!r}. Reasoning: {reasoning}"
+
 
 def _assert_fail(result: dict, label: str) -> None:
     """Assert evaluator result is a fail (falsy score)."""
@@ -334,6 +334,7 @@ def my_custom_evaluator(*, outputs, reference_outputs=None, **kwargs):
         "metadata": None,
     }
 
+
 # Use in a test
 evaluator_results = run_multiturn_simulation(
     app=agent_app,
@@ -378,6 +379,7 @@ for i, msg in enumerate(trajectory):
        def evaluator(*, outputs, **kwargs):
            found = text_to_find in str(outputs)
            return {"key": "custom", "score": found}
+
        return evaluator
    ```
 

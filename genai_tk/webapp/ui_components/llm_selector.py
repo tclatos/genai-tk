@@ -130,7 +130,7 @@ def _default_lab_for_provider(provider: str, provider_models: list[LlmInfo]) -> 
     """Return the single lab if the provider is dedicated to one lab; else ``*``."""
     labs = _labs_for_provider(provider_models)
     # Remove the '*' sentinel, check if only one lab remains
-    real_labs = [l for l in labs if l != _ALL_LABS]
+    real_labs = [lab for lab in labs if lab != _ALL_LABS]
     if len(real_labs) == 1:
         return real_labs[0]
     return _ALL_LABS

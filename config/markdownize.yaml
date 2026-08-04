@@ -5,12 +5,12 @@ markdownize_profiles:
   fast:
     ppt_converter: markitdown
     doc_converter: markitdown
-    excel_converter: md_parser
+    excel_converter: messy_xls_parser
     pdf_converter: markitdown
   medium:
     ppt_converter: via_pdf
     doc_converter: via_pdf
-    excel_converter: md_parser
+    excel_converter: messy_xls_parser
     pdf_converter: mistral
   best:
     ppt_converter: via_pdf

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import random
 from typing import Any
 
 from langchain_core.tools import BaseTool
@@ -514,14 +513,12 @@ class BrowserWaitForUserTool(_BrowserTool):
                 return (
                     f"Page URL changed after {elapsed}s.\n"
                     f"Old URL: {initial_url}\n"
-                    f"New URL: {current_url}\n"
-                    + await _page_summary(self.session)
+                    f"New URL: {current_url}\n" + await _page_summary(self.session)
                 )
 
         return (
             f"Timeout reached ({timeout_seconds}s) — URL did not change.\n"
-            f"Current URL: {page.url}\n"
-            + await _page_summary(self.session)
+            f"Current URL: {page.url}\n" + await _page_summary(self.session)
         )
 
 

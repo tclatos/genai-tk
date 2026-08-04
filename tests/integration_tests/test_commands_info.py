@@ -135,7 +135,7 @@ class TestLlmProfileCommand:
                     },
                     {"id": "scaleway/glm-5.1", "capabilities": {}},
                 ]
-            }
+            },
         )
         db._merge_edenai_models(
             "edenai-eur",

@@ -49,19 +49,20 @@ discriminated variant of the `StreamEvent` union:
 ```python
 from genai_tk.agents.harness import BaseHarness
 
+
 class BaseHarness(ABC):
     name: str
 
     @abstractmethod
     def astream(self, message: str, *, thread_id: str | None = None) -> AsyncIterator[StreamEvent]: ...
 
-    async def arun(self, message: str, *, thread_id: str | None = None) -> str: ...       # concrete
-    async def list_threads(self) -> list[HarnessThread]: ...                              # default: []
-    async def list_models(self) -> list[HarnessModel]: ...                                # default: []
-    async def list_skills(self) -> list[HarnessSkill]: ...                                # default: []
-    async def aclose(self) -> None: ...                                                   # default: no-op
-    async def get_graph(self) -> Pregel | Any: ...                                        # NotImplementedError by default
-    async def get_checkpointer(self) -> BaseCheckpointSaver | None: ...                    # NotImplementedError by default
+    async def arun(self, message: str, *, thread_id: str | None = None) -> str: ...  # concrete
+    async def list_threads(self) -> list[HarnessThread]: ...  # default: []
+    async def list_models(self) -> list[HarnessModel]: ...  # default: []
+    async def list_skills(self) -> list[HarnessSkill]: ...  # default: []
+    async def aclose(self) -> None: ...  # default: no-op
+    async def get_graph(self) -> Pregel | Any: ...  # NotImplementedError by default
+    async def get_checkpointer(self) -> BaseCheckpointSaver | None: ...  # NotImplementedError by default
 ```
 
 An abstract base class was chosen over a `Protocol` so that `arun()` and the
@@ -97,8 +98,8 @@ inspection only — it must never be used to drive an actual conversation turn.
 ```python
 from genai_tk.agents.harness import create_harness, list_harness_profiles
 
-harness = create_harness("research")     # single dict lookup across all profiles
-refs = list_harness_profiles()           # one combined list
+harness = create_harness("research")  # single dict lookup across all profiles
+refs = list_harness_profiles()  # one combined list
 ```
 
 `create_harness(key)` resolves `key` once against a single unified profile
@@ -116,6 +117,7 @@ the `harness` field on each profile model:
 class AgentProfileConfig(BaseModel):
     harness: Literal["langchain"] = "langchain"
     ...
+
 
 # genai_tk/agents/deer_flow/profile.py
 class DeerFlowProfile(BaseModel):

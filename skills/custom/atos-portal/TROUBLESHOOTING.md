@@ -61,10 +61,7 @@
 1. Use `browser_wait_for_user()` to pause and let user enter code manually
 2. If you have access to the OTP generator, you can automate:
    ```python
-   browser_fill_credential(
-       selector="input[placeholder*='AUTH']",
-       credential_env="ATOS_AUTH_CODE"
-   )
+   browser_fill_credential(selector="input[placeholder*='AUTH']", credential_env="ATOS_AUTH_CODE")
    ```
 3. Contact Atos IT if you don't have access to 2FA
 
@@ -144,7 +141,7 @@ screenshot = browser_screenshot()
 # 3. Check browser logs for errors
 logs = browser_get_logs(last_n=50)
 for log in logs:
-    if log['level'] == 'error':
+    if log["level"] == "error":
         print(f"Error: {log['message']}")
 
 # 4. Check if element exists

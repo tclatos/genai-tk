@@ -95,6 +95,7 @@ just webapp
 from genai_tk.webapp.ui_components.llm_selector import render_llm_selector
 from genai_tk.webapp.ui_components.agent_layout import render_agent_sidebar
 from genai_tk.webapp.ui_components.message_renderer import render_message_with_mermaid
+
 # For agent pages: build a BaseHarness (LangChainHarness / DeerFlowHarness or
 # create_harness(profile_key)) and render it with the shared workbench —
 # see docs/harness.md and the built-in agent.py page.

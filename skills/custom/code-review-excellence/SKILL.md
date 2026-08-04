@@ -237,12 +237,14 @@ def add_item(item, items=[]):  # Bug! Shared across calls
     items.append(item)
     return items
 
+
 # ✅ Use None as default
 def add_item(item, items=None):
     if items is None:
         items = []
     items.append(item)
     return items
+
 
 # ❌ Catching too broad
 try:
@@ -257,9 +259,11 @@ except ValueError as e:
     logger.error(f"Invalid value: {e}")
     raise
 
+
 # ❌ Using mutable class attributes
 class User:
     permissions = []  # Shared across all instances!
+
 
 # ✅ Initialize in __init__
 class User:

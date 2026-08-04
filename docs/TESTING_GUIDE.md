@@ -80,13 +80,15 @@ def test_vector_store_search(sample_documents):
 def fresh_embeddings_store():
     """Create a fresh in-memory embeddings store for each test."""
     from genai_tk.core.embeddings_store import EmbeddingsStore
+
     return EmbeddingsStore.create_from_config("in_memory_chroma")
+
 
 def test_isolated_search(fresh_embeddings_store, sample_documents):
     """Test with isolated vector store."""
     db = fresh_embeddings_store.get_vector_store()
     db.add_documents(sample_documents)
-    
+
     results = db.similarity_search("test", k=1)
     assert len(results) <= 1
 ```
@@ -112,8 +114,7 @@ whole module (e.g. for module-scoped async fixtures):
 
 ```python
 @pytest.mark.asyncio(loop_scope="module")
-async def test_uses_shared_loop(module_async_fixture):
-    ...
+async def test_uses_shared_loop(module_async_fixture): ...
 ```
 
 ## Mocking External Dependencies
@@ -122,24 +123,23 @@ async def test_uses_shared_loop(module_async_fixture):
 ```python
 from unittest.mock import Mock, AsyncMock, patch
 
+
 @patch("genai_tk.agents.tools.langchain.rag_tool_factory.EmbeddingsStore")
 async def test_rag_tool(mock_embeddings_store_class):
     """Test RAG tool with mocked vector store."""
     from langchain_core.documents import Document
     from genai_tk.agents.tools.langchain.rag_tool_factory import RAGToolFactory, RAGToolConfig
-    
+
     # Mock embeddings store
     mock_embeddings_store = Mock()
-    mock_embeddings_store.query = AsyncMock(
-        return_value=[Document(page_content="Test result")]
-    )
+    mock_embeddings_store.query = AsyncMock(return_value=[Document(page_content="Test result")])
     mock_embeddings_store_class.create_from_config.return_value = mock_embeddings_store
-    
+
     # Create and test tool
     config = RAGToolConfig(embeddings_store="test", top_k=1)
     factory = RAGToolFactory(llm=Mock())
     tool = factory.create_tool(config)
-    
+
     result = await tool.ainvoke({"query": "test"})
     assert "Test result" in result
 ```
@@ -153,16 +153,17 @@ from tests.utils.test_data import (
     generate_sample_queries,
 )
 
+
 def test_with_custom_data():
     """Test with custom generated data."""
     # Generate 10 documents
     docs = generate_sample_documents(count=10)
     assert len(docs) == 10
-    
+
     # Generate texts
     texts = generate_sample_texts(count=5)
     assert len(texts) == 5
-    
+
     # Get search queries
     queries = generate_sample_queries()
     assert len(queries) > 0
@@ -239,20 +240,24 @@ def test_config_validation():
 def test_unit_feature():
     pass
 
+
 # Mark as integration test
 @pytest.mark.integration
 def test_integration_workflow():
     pass
+
 
 # Mark as slow test
 @pytest.mark.slow
 def test_slow_operation():
     pass
 
+
 # Skip test conditionally
 @pytest.mark.skipif(condition, reason="explanation")
 def test_conditional():
     pass
+
 
 # Mark test for specific functionality
 @pytest.mark.fake_models
@@ -415,8 +420,7 @@ For eval tests, you can also mark individual flaky tests:
 ```python
 @pytest.mark.flaky(reruns=2, reruns_delay=2)
 @pytest.mark.real_models
-async def test_llm_judged_feature(judge_llm):
-    ...
+async def test_llm_judged_feature(judge_llm): ...
 ```
 
 ## Troubleshooting

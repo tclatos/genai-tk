@@ -108,9 +108,9 @@ In Python:
 ```python
 from genai_tk.core.factories.llm_factory import get_llm
 
-llm = get_llm()                        # default from config
-llm = get_llm("gpt41mini@openai")      # explicit model
-llm = get_llm("fast_model")            # named tag
+llm = get_llm()  # default from config
+llm = get_llm("gpt41mini@openai")  # explicit model
+llm = get_llm("fast_model")  # named tag
 ```
 
 ---

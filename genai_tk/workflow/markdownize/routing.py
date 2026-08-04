@@ -88,7 +88,7 @@ def _route_for(file_path: Path, profile: MarkdownizeProfile) -> str:
 
     Routes: ``copy`` (pre-existing Markdown, passed through unchanged),
     ``via_pdf`` (LibreOffice → PDF → pdf_converter), ``pdf`` (native PDF
-    → pdf_converter), ``md_parser`` (spreadsheet parser), or ``markitdown``.
+    → pdf_converter), ``messy_xls_parser`` (spreadsheet parser), or ``markitdown``.
     """
     suffix = file_path.suffix.lower()
     if suffix in MD_EXTS:
@@ -98,7 +98,7 @@ def _route_for(file_path: Path, profile: MarkdownizeProfile) -> str:
     if suffix in DOC_EXTS:
         return "via_pdf" if profile.doc_converter == "via_pdf" else "markitdown"
     if suffix in EXCEL_EXTS:
-        return profile.excel_converter  # via_pdf | markitdown | md_parser
+        return profile.excel_converter  # via_pdf | markitdown | messy_xls_parser
     if suffix == ".pdf":
         return "pdf"
     return "markitdown"

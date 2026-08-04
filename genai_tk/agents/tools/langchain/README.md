@@ -27,10 +27,7 @@ config = SQLToolConfig(
     database_uri="sqlite:///path/to/database.db",
     tool_name="my_sql_tool",
     tool_description="Query my database for information",
-    examples=[{
-        "input": "List all users",
-        "query": "SELECT * FROM users LIMIT 10"
-    }]
+    examples=[{"input": "List all users", "query": "SELECT * FROM users LIMIT 10"}],
 )
 
 # Create tool
@@ -52,12 +49,7 @@ config = {
     "database_uri": "sqlite:///chinook.db",
     "tool_name": "query_chinook",
     "tool_description": "Query the Chinook music database",
-    "examples": [
-        {
-            "input": "List all artists",
-            "query": "SELECT * FROM Artist LIMIT 10"
-        }
-    ]
+    "examples": [{"input": "List all artists", "query": "SELECT * FROM Artist LIMIT 10"}],
 }
 
 tool = create_sql_tool_from_config(get_llm(), config)

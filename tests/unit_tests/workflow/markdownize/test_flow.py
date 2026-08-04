@@ -160,17 +160,20 @@ def test_markdownize_manifest_empty_serialises() -> None:
 
 def test_route_for_uses_profile_per_family() -> None:
     profile = MarkdownizeProfile(
-        ppt_converter="via_pdf", doc_converter="markitdown", excel_converter="md_parser", pdf_converter="mistral"
+        ppt_converter="via_pdf",
+        doc_converter="markitdown",
+        excel_converter="messy_xls_parser",
+        pdf_converter="mistral",
     )
     assert _route_for(Path("deck.pptx"), profile) == "via_pdf"
     assert _route_for(Path("memo.docx"), profile) == "markitdown"
-    assert _route_for(Path("sheet.xlsx"), profile) == "md_parser"
+    assert _route_for(Path("sheet.xlsx"), profile) == "messy_xls_parser"
     assert _route_for(Path("scan.pdf"), profile) == "pdf"
     assert _route_for(Path("photo.png"), profile) == "markitdown"
 
 
 # ---------------------------------------------------------------------------
-# _convert_file_task (markitdown / md_parser — local conversion)
+# _convert_file_task (markitdown / messy_xls_parser — local conversion)
 # ---------------------------------------------------------------------------
 
 
@@ -210,7 +213,7 @@ def test_convert_file_task_preserves_subdir_structure(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Excel conversion (md-spreadsheet-parser)
+# Excel conversion (messy_xls_parser)
 # ---------------------------------------------------------------------------
 
 
@@ -233,29 +236,29 @@ def _write_messy_workbook(path: Path) -> None:
     wb.save(path)
 
 
-def test_excel_to_markdown_md_parser_no_nan_and_title_rescued(tmp_path: Path) -> None:
-    from genai_tk.workflow.markdownize.excel import _excel_to_markdown_md_parser
+def test_excel_to_markdown_messy_xls_no_nan_and_title_rescued(tmp_path: Path) -> None:
+    from genai_tk.workflow.markdownize.excel import excel_to_markdown_messy_xls
 
     src = tmp_path / "sample.xlsx"
     _write_messy_workbook(src)
 
-    content = _excel_to_markdown_md_parser(src)
+    content = excel_to_markdown_messy_xls(src)
 
     assert "NaN" not in content
     assert "### Sales Report" in content
-    assert "## Sales" in content
+    assert "## Sheet: Sales" in content
     assert "| Region | Jan | Feb |" in content
 
 
 @pytest.mark.fake_models
-def test_convert_file_task_routes_xlsx_through_md_parser(tmp_path: Path) -> None:
+def test_convert_file_task_routes_xlsx_through_messy_xls_parser(tmp_path: Path) -> None:
     src = tmp_path / "sample.xlsx"
     _write_messy_workbook(src)
     out = tmp_path / "out"
 
     rel_out, out_abs = _output_paths(src, tmp_path, out)
     source, relative_output = _convert_file_task.fn(
-        str(src), str(src), "md_parser", str(out_abs), str(rel_out), "markitdown"
+        str(src), str(src), "messy_xls_parser", str(out_abs), str(rel_out), "markitdown"
     )
 
     assert source == str(src)
@@ -274,7 +277,7 @@ def test_convert_file_task_xlsx_falls_back_to_markitdown_on_parser_error(
     def _boom(path: Path) -> str:
         raise ValueError("boom")
 
-    monkeypatch.setattr(converters_module, "_excel_to_markdown_md_parser", _boom)
+    monkeypatch.setattr(converters_module, "excel_to_markdown_messy_xls", _boom)
 
     src = tmp_path / "sample.xlsx"
     _write_messy_workbook(src)
@@ -282,7 +285,7 @@ def test_convert_file_task_xlsx_falls_back_to_markitdown_on_parser_error(
 
     rel_out, out_abs = _output_paths(src, tmp_path, out)
     source, relative_output = _convert_file_task.fn(
-        str(src), str(src), "md_parser", str(out_abs), str(rel_out), "markitdown"
+        str(src), str(src), "messy_xls_parser", str(out_abs), str(rel_out), "markitdown"
     )
 
     assert source == str(src)

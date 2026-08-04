@@ -124,15 +124,10 @@ profile = load_langchain_profiles()["simple"]  # Profile KEY, not name
 agent = await create_langchain_agent(profile)
 
 # Single query
-result = await agent.ainvoke({
-    "messages": [{"role": "user", "content": "What's the weather in NYC?"}]
-})
+result = await agent.ainvoke({"messages": [{"role": "user", "content": "What's the weather in NYC?"}]})
 
 # Interactive chat (with memory)
-result = await agent.ainvoke(
-    {"messages": [...]},
-    config={"configurable": {"thread_id": "user_123"}}
-)
+result = await agent.ainvoke({"messages": [...]}, config={"configurable": {"thread_id": "user_123"}})
 ```
 
 #### Deep Agent (Advanced)
@@ -264,15 +259,12 @@ checkpointer:
 **Thread-based State:**
 ```python
 # Same thread_id maintains conversation history
-result = await agent.ainvoke(
-    {"messages": [...]},
-    config={"configurable": {"thread_id": "user_session_123"}}
-)
+result = await agent.ainvoke({"messages": [...]}, config={"configurable": {"thread_id": "user_session_123"}})
 
 # Each call has access to previous conversation
 result = await agent.ainvoke(  # Same thread_id
     {"messages": [{"role": "user", "content": "Continue..."}]},
-    config={"configurable": {"thread_id": "user_session_123"}}
+    config={"configurable": {"thread_id": "user_session_123"}},
 )
 ```
 
@@ -302,10 +294,7 @@ mcp_servers_config:
 **Runtime Usage:**
 ```python
 # Override MCP servers at runtime
-agent = await create_langchain_agent(
-    profile,
-    extra_mcp_servers=["custom_server"]
-)
+agent = await create_langchain_agent(profile, extra_mcp_servers=["custom_server"])
 ```
 
 ### CLI Interface
@@ -366,8 +355,8 @@ maintaining parallel CLI/UI code paths per framework.
 ```python
 from genai_tk.agents.harness import BaseHarness, TokenEvent, ToolCallEvent, create_harness
 
-harness = create_harness("research")   # resolves "research" across all
-                                        # harnesses via load_agent_profiles()
+harness = create_harness("research")  # resolves "research" across all
+# harnesses via load_agent_profiles()
 async for event in harness.astream("What is RAG?"):
     if isinstance(event, TokenEvent):
         print(event.text, end="", flush=True)
@@ -447,10 +436,12 @@ result = await agent.ainvoke({"messages": [...]})
 from langchain_core.tools import tool
 import asyncio
 
+
 @tool
 def custom_tool(arg: str) -> str:
     """Custom tool description."""
     return f"Custom result: {arg}"
+
 
 # Create agent and add tool
 agent = await create_langchain_agent(profile, extra_tools=[custom_tool])
@@ -468,15 +459,13 @@ thread_id = "user_session_123"
 
 # Turn 1
 result = await agent.ainvoke(
-    {"messages": [{"role": "user", "content": "Tell me about AI"}]},
-    config={"configurable": {"thread_id": thread_id}}
+    {"messages": [{"role": "user", "content": "Tell me about AI"}]}, config={"configurable": {"thread_id": thread_id}}
 )
 print(result["messages"][-1].content)
 
 # Turn 2 - context preserved
 result = await agent.ainvoke(
-    {"messages": [{"role": "user", "content": "What about ML?"}]},
-    config={"configurable": {"thread_id": thread_id}}
+    {"messages": [{"role": "user", "content": "What about ML?"}]}, config={"configurable": {"thread_id": thread_id}}
 )
 ```
 
@@ -486,11 +475,7 @@ result = await agent.ainvoke(
 from genai_tk.agents.langchain.config import BackendConfig
 
 # Configure sandbox backend
-backend = BackendConfig(
-    type="aio_sandbox",
-    opensandbox_server_url="http://localhost:8080",
-    startup_timeout=90.0
-)
+backend = BackendConfig(type="aio_sandbox", opensandbox_server_url="http://localhost:8080", startup_timeout=90.0)
 
 # Use with deep agent
 profile.type = "deep"
@@ -510,6 +495,7 @@ See [docs/configuration.md](configuration.md) for the full configuration referen
 **Enable Verbose Output:**
 ```python
 from loguru import logger
+
 logger.enable("genai_tk")
 
 agent = await create_langchain_agent(profile, details=True)
@@ -565,6 +551,7 @@ The file provides a small helper set to keep new tests concise:
 
 ```python
 from tests.integration_tests.agents.test_langchain_agent_real import _run, _has, LLM
+
 
 @pytest.mark.integration
 @pytest.mark.real_models

@@ -33,6 +33,7 @@ class ExampleCommands(CliTopCommand):
         ) -> None:
             """Ask the LLM to tell a joke — simplest possible LLM call."""
             from genai_tk.core.llm_factory import get_llm
+
             from genai_tk.core.prompts import def_prompt
 
             llm = get_llm(model)
@@ -47,9 +48,9 @@ class ExampleCommands(CliTopCommand):
             model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
         ) -> None:
             """Run a LangChain LCEL chain — demonstrates prompt | llm | parser composition."""
+            from genai_tk.core.llm_factory import get_llm
             from langchain_core.output_parsers import StrOutputParser
 
-            from genai_tk.core.llm_factory import get_llm
             from genai_tk.core.prompts import def_prompt
 
             llm = get_llm(model)
@@ -67,10 +68,9 @@ class ExampleCommands(CliTopCommand):
             model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
         ) -> None:
             """Run a ReAct agent — demonstrates tool-calling with LangGraph."""
+            from genai_tk.core.llm_factory import get_llm
             from langchain_core.messages import HumanMessage
             from langgraph.prebuilt import create_react_agent
-
-            from genai_tk.core.llm_factory import get_llm
 
             llm = get_llm(model)
 
@@ -87,14 +87,16 @@ class ExampleCommands(CliTopCommand):
                     return f"Error: {e}"
 
             agent = create_react_agent(llm, tools=[calculator])
-            console.print(f"[cyan]Agent thinking...[/cyan]\n")
+            console.print("[cyan]Agent thinking...[/cyan]\n")
             result = agent.invoke({"messages": [HumanMessage(content=question)]})
             last_msg = result["messages"][-1]
             console.print(f"[bold]{last_msg.content}[/bold]\n")
 
         @cli_app.command()
         def deerflow(
-            question: Annotated[str, typer.Argument(help="Research question")] = "What are the latest advances in AI agents?",
+            question: Annotated[
+                str, typer.Argument(help="Research question")
+            ] = "What are the latest advances in AI agents?",
             model: Annotated[str, typer.Option("-m", "--model", help="LLM identifier")] = "default",
         ) -> None:
             """Run a DeerFlow research agent — demonstrates multi-step research with planning."""
@@ -108,11 +110,9 @@ class ExampleCommands(CliTopCommand):
                     NodeEvent,
                     TokenEvent,
                 )
-            except ImportError:
-                console.print(
-                    "[red]DeerFlow not installed.[/red] Run [bold]cli init --deer-flow[/bold] first."
-                )
-                raise typer.Exit(1)
+            except ImportError as ex:
+                console.print("[red]DeerFlow not installed.[/red] Run [bold]cli init --deer-flow[/bold] first.")
+                raise typer.Exit(1) from ex
 
             console.print(f"[cyan]DeerFlow researching:[/cyan] {question}\n")
 

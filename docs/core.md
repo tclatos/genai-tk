@@ -48,8 +48,8 @@ llm = get_llm(llm="gpt-oss-120b (high)@openrouter")
 
 # Nested reasoning payload (OpenAI-compatible providers)
 llm = get_llm(
-  llm="gpt-oss-120b@openrouter",
-  reasoning={"effort": "medium", "resume": "cursor-token", "max_tokens": 2048},
+    llm="gpt-oss-120b@openrouter",
+    reasoning={"effort": "medium", "resume": "cursor-token", "max_tokens": 2048},
 )
 
 # Stream responses
@@ -237,16 +237,10 @@ agent.tools.extend(mcp_tools)
 from genai_tk.core.prompts import def_prompt, dedent_ws, dict_input_message
 
 # Create prompt with system and user messages
-prompt = def_prompt(
-    system="You are a helpful AI assistant",
-    user="Explain quantum computing"
-)
+prompt = def_prompt(system="You are a helpful AI assistant", user="Explain quantum computing")
 
 # Format messages as dictionary
-messages = dict_input_message(
-    user="What is machine learning?",
-    system="You are an educator"
-)
+messages = dict_input_message(user="What is machine learning?", system="You are an educator")
 
 # Dedent multi-line strings
 text = dedent_ws("""
@@ -304,11 +298,7 @@ providers:
 
 **Usage:**
 ```python
-from genai_tk.core.providers import (
-    get_provider_info,
-    get_provider_api_key,
-    get_provider_api_env_var
-)
+from genai_tk.core.providers import get_provider_info, get_provider_api_key, get_provider_api_env_var
 
 # Get provider info
 info = get_provider_info("openai")
@@ -346,9 +336,11 @@ for model_id in models:
 from genai_tk.core.factories.llm_factory import get_llm
 from pydantic import BaseModel
 
+
 class Result(BaseModel):
     answer: str
     confidence: float
+
 
 # Use JSON mode with caching
 llm = get_llm(json_mode=True)

@@ -42,7 +42,7 @@ from genai_tk.agents.langchain.sandbox_backend import AioSandboxBackend, AioSand
 
 async with AioSandboxBackend() as backend:
     result = await backend.execute_tool("bash", {"command": "echo hello"})
-    print(result.output)   # "hello\n"
+    print(result.output)  # "hello\n"
     print(result.success)  # True
 ```
 
@@ -52,8 +52,8 @@ async with AioSandboxBackend() as backend:
 async with AioSandboxBackend() as backend:
     # Execute a shell command
     resp = await backend.aexecute("ls /home/user")
-    print(resp.output)      # file listing
-    print(resp.exit_code)   # 0
+    print(resp.output)  # file listing
+    print(resp.exit_code)  # 0
 
     # List directory with metadata
     infos = await backend.als_info("/home/user")

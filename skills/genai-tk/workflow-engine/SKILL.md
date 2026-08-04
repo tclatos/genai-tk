@@ -37,13 +37,13 @@ description: Work on YAML-driven workflows, Prefect flow wrappers, workflow comp
 
 ```python
 from genai_tk.workflow import (
-    PrefectFlowFactory,          # compile + run a YAML workflow
-    flow_from_yaml,              # parse YAML inline → Prefect @flow
-    execute_workflow,            # run a ResolvedWorkflowInvocation
-    resolve_workflow_invocation, # resolve "name/preset" → invocation
-    load_workflows,              # read all YAML workflow defs from config
-    WorkflowCompiler,            # compile WorkflowDefV2 → CompiledWorkflow
-    workflow,                    # @workflow decorator
+    PrefectFlowFactory,  # compile + run a YAML workflow
+    flow_from_yaml,  # parse YAML inline → Prefect @flow
+    execute_workflow,  # run a ResolvedWorkflowInvocation
+    resolve_workflow_invocation,  # resolve "name/preset" → invocation
+    load_workflows,  # read all YAML workflow defs from config
+    WorkflowCompiler,  # compile WorkflowDefV2 → CompiledWorkflow
+    workflow,  # @workflow decorator
 )
 ```
 

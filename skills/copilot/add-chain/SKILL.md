@@ -59,12 +59,7 @@ print(result)
 ```python
 from langchain_core.runnables import RunnablePassthrough
 
-chain = (
-    {"context": retriever, "question": RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
-)
+chain = {"context": retriever, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser()
 ```
 
 ### Chain with Branching
@@ -82,10 +77,12 @@ chain = RunnableBranch(
 ```python
 from pydantic import BaseModel
 
+
 class Answer(BaseModel):
     reasoning: str
     answer: str
     confidence: float
+
 
 chain = prompt | llm.with_structured_output(Answer)
 ```
@@ -114,10 +111,10 @@ rag_chain = (
 ```python
 register_runnable(
     RunnableItem(
-        tag="Category",          # Groups chains in the UI
-        name="Display Name",     # Unique name for the chain
-        runnable=get_chain,      # Factory function returning a Runnable
-        examples=[               # Example inputs for the playground
+        tag="Category",  # Groups chains in the UI
+        name="Display Name",  # Unique name for the chain
+        runnable=get_chain,  # Factory function returning a Runnable
+        examples=[  # Example inputs for the playground
             Example(query=["input 1"]),
             Example(query=["input 2"]),
         ],

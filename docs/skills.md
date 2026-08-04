@@ -421,6 +421,7 @@ yet supported by the CLI, but can be implemented in your agent code:
 import httpx
 from genai_tk.main.models_skills import SkillInfo
 
+
 async def load_remote_skills():
     async with httpx.AsyncClient() as client:
         res = await client.get("https://api.example.com/skills")

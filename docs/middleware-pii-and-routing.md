@@ -27,7 +27,7 @@ from genai_tk.agents.langchain.middleware.anonymization_middleware import (
     AnonymizationMiddleware,
     AnonymizationConfig,
 )
-from genai_tk.extra.nlp import PresidioDetectorConfig   # canonical import path
+from genai_tk.extra.nlp import PresidioDetectorConfig  # canonical import path
 
 config = AnonymizationConfig(
     detector=PresidioDetectorConfig(

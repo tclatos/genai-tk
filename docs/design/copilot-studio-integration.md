@@ -140,18 +140,12 @@ class LangChainAgent(ActivityHandler):
                 }
             },
         )
-        await turn_context.send_activity(
-            MessageFactory.text(result.get("output", ""))
-        )
+        await turn_context.send_activity(MessageFactory.text(result.get("output", "")))
 
-    async def on_members_added_activity(
-        self, members_added: list[ChannelAccount], turn_context: TurnContext
-    ) -> None:
+    async def on_members_added_activity(self, members_added: list[ChannelAccount], turn_context: TurnContext) -> None:
         for member in members_added:
             if member.id != turn_context.activity.recipient.id:
-                await turn_context.send_activity(
-                    MessageFactory.text("Hello! How can I help you today?")
-                )
+                await turn_context.send_activity(MessageFactory.text("Hello! How can I help you today?"))
 ```
 
 ### 3. Bot Endpoint (aiohttp)
@@ -197,7 +191,7 @@ conversation ID can collide across tenants and breaks multi-device continuity.
 from langchain_community.chat_message_histories import SQLChatMessageHistory
 
 history = SQLChatMessageHistory(
-    session_id=session_id,   # composite — see _session_id() helper
+    session_id=session_id,  # composite — see _session_id() helper
     connection_string="sqlite:///data/sessions/m365_sessions.db",
 )
 ```
@@ -279,6 +273,7 @@ tools can enforce per-user authorization:
 # In agent tool implementation — example guard
 from genai_tk.utils.basic_auth import AuthConfig
 
+
 def _require_role(user_id: str, required_role: str) -> None:
     """Raise PermissionError if user does not hold required_role."""
     # Integrate with your AAD group / role resolution here
@@ -334,12 +329,14 @@ debugging multi-step agent failures is very hard.
 ```python
 from pydantic import BaseModel
 
+
 class ToolTrace(BaseModel):
     step_id: str
     tool_name: str
     inputs: dict
     output_summary: str
     duration_ms: int
+
 
 class ConversationTrace(BaseModel):
     session_id: str
@@ -381,6 +378,7 @@ Enforce them in the handler:
 
 ```python
 import asyncio
+
 
 async def on_message_activity(self, turn_context: TurnContext) -> None:
     ...

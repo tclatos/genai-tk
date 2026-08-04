@@ -83,6 +83,7 @@ down to middleware and tools — without polluting the LLM prompt.
 ```python
 from dataclasses import dataclass
 
+
 @dataclass
 class UserContext:
     user_id: str
@@ -127,6 +128,7 @@ Via `ToolRuntime[UserContext]` parameter injection (LangGraph ≥ 0.6):
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolRuntime
 
+
 @tool
 def search_documents(query: str, runtime: ToolRuntime[UserContext]) -> str:
     """Search internal documents."""
@@ -149,6 +151,7 @@ filtering.
 ```python
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 
 def ingest_with_acl(text: str, doc_id: str, acl: dict, vectorstore):
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
@@ -182,11 +185,13 @@ def build_acl_filter(user: UserContext) -> dict:
     return {
         "$and": [
             {"tenant_id": {"$eq": user.tenant_id}},
-            {"$or": [
-                {"access_level": {"$eq": "public"}},
-                {"allowed_users": {"$contains": user.user_id}},
-                {"allowed_roles": {"$in": user.roles}},
-            ]},
+            {
+                "$or": [
+                    {"access_level": {"$eq": "public"}},
+                    {"allowed_users": {"$contains": user.user_id}},
+                    {"allowed_roles": {"$in": user.roles}},
+                ]
+            },
         ]
     }
 ```
@@ -474,11 +479,13 @@ class ToolAuthorizationMiddleware(AgentMiddleware):
         tool_name = self._get_tool_name(request)
         tool_args = self._get_tool_args(request)
 
-        decision = self._policy.check({
-            "user": {"id": user.user_id, "roles": user.roles},
-            "tool": tool_name,
-            "args": tool_args,
-        })
+        decision = self._policy.check(
+            {
+                "user": {"id": user.user_id, "roles": user.roles},
+                "tool": tool_name,
+                "args": tool_args,
+            }
+        )
         if not decision.allow:
             return self._denied_response(tool_name, decision.reason)
 
@@ -589,6 +596,7 @@ The `JWTValidator` from `langchain-permit` is a clean, dependency-light implemen
 ```python
 from langchain_permit.validator import JWTValidator  # or inline the ~60 lines
 
+
 def user_context_from_jwt(token: str, jwks_url: str) -> UserContext:
     """Validate JWT and extract user context for agent invocation."""
     validator = JWTValidator(jwks_url=jwks_url)
@@ -600,6 +608,7 @@ def user_context_from_jwt(token: str, jwks_url: str) -> UserContext:
         tenant_id=claims.get("tenant", ""),
         clearance=claims.get("clearance", "internal"),
     )
+
 
 # At the API / webapp boundary
 user_ctx = user_context_from_jwt(request.headers["Authorization"], JWKS_URL)

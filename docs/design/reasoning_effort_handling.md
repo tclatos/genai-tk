@@ -38,7 +38,7 @@ The current factory sends every such payload through the OpenAI-compatible
 path as:
 
 ```python
-extra_body={"reasoning": {"effort": "high"}}
+extra_body = {"reasoning": {"effort": "high"}}
 ```
 
 This is correct for OpenRouter, but it is not a general contract. Provider

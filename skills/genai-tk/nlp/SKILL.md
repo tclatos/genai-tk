@@ -63,6 +63,7 @@ nlp:
 Access from Python:
 ```python
 from genai_tk.extra.nlp import nlp_config
+
 cfg = nlp_config()
 model = cfg.get_model_for_language("fr")  # "fr_core_news_sm"
 ```
@@ -72,8 +73,8 @@ model = cfg.get_model_for_language("fr")  # "fr_core_news_sm"
 ```python
 from genai_tk.extra.nlp import get_nlp
 
-nlp = get_nlp()                    # NlpConfig defaults
-nlp_fr = get_nlp(language="fr")    # French model
+nlp = get_nlp()  # NlpConfig defaults
+nlp_fr = get_nlp(language="fr")  # French model
 nlp_lg = get_nlp(model="en_core_web_lg")  # explicit override
 ```
 
@@ -84,7 +85,7 @@ Always use `get_nlp()` — it checks the feature gate, resolves config, and cach
 ```python
 from genai_tk.extra.nlp import get_spacy_preprocess_fn
 
-preprocess = get_spacy_preprocess_fn()        # NlpConfig defaults
+preprocess = get_spacy_preprocess_fn()  # NlpConfig defaults
 preprocess_fr = get_spacy_preprocess_fn(language="fr")
 tokens = preprocess("The quick brown foxes jumping")
 # → ["quick", "brown", "fox", "jump"]
@@ -102,12 +103,14 @@ retriever:
 ```python
 from genai_tk.extra.nlp import PresidioDetector, PresidioDetectorConfig, DetectedEntity
 
-detector = PresidioDetector(config=PresidioDetectorConfig(
-    analyzed_fields=["PERSON", "EMAIL_ADDRESS"],
-    language="fr",      # None → NlpConfig.default_language
-    spacy_model=None,   # None → NlpConfig.models[language]
-    score_threshold=0.4,
-))
+detector = PresidioDetector(
+    config=PresidioDetectorConfig(
+        analyzed_fields=["PERSON", "EMAIL_ADDRESS"],
+        language="fr",  # None → NlpConfig.default_language
+        spacy_model=None,  # None → NlpConfig.models[language]
+        score_threshold=0.4,
+    )
+)
 entities: list[DetectedEntity] = detector.detect("Contact Jean at jean@acme.fr")
 ```
 
@@ -131,18 +134,19 @@ anonymized, mapping = anonymize_text("Alice at alice@example.com", detector=dete
 from genai_tk.extra.nlp.classifiers import DefaultSensitivityScorer, DefaultScorerConfig
 
 scorer = DefaultSensitivityScorer()
-result = scorer.classify("My API key is sk-abc123...")   # TextClassifier protocol
-result = scorer.assess("My API key is sk-abc123...")    # legacy alias
+result = scorer.classify("My API key is sk-abc123...")  # TextClassifier protocol
+result = scorer.assess("My API key is sk-abc123...")  # legacy alias
 
-print(result.score)        # float 0-1
-print(result.level)        # "low" | "medium" | "high" | "critical"
-print(result.is_sensitive) # bool
-print(result.labels)       # list of active signal categories
+print(result.score)  # float 0-1
+print(result.level)  # "low" | "medium" | "high" | "critical"
+print(result.is_sensitive)  # bool
+print(result.labels)  # list of active signal categories
 ```
 
 Custom classifier implementing the protocol:
 ```python
 from genai_tk.extra.nlp.classifiers.base import ClassificationResult, TextClassifier
+
 
 class MyClassifier:
     def classify(self, text: str) -> ClassificationResult:
@@ -171,6 +175,7 @@ from genai_tk.config_mgmt.features import is_available, require_feature
 
 if is_available("nlp"):
     from genai_tk.extra.nlp import get_nlp
+
     nlp = get_nlp()
 
 # At function entry (raises with install instructions if missing):

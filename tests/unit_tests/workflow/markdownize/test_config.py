@@ -25,7 +25,7 @@ def test_fast_profile_is_all_local() -> None:
     fast = get_markdownize_profile("fast")
     assert fast.ppt_converter == "markitdown"
     assert fast.doc_converter == "markitdown"
-    assert fast.excel_converter == "md_parser"
+    assert fast.excel_converter == "messy_xls_parser"
     assert fast.pdf_converter == "markitdown"
 
 

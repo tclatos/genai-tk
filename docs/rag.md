@@ -326,6 +326,7 @@ from genai_tk.core.factories.retriever_factory import ManagedRetriever
 
 class MyCustomConfig(BaseModel):
     """Config for MyCustomRetriever."""
+
     service_url: str
     api_key: str
     top_k: int = 4
@@ -351,13 +352,13 @@ class MyCustomRetriever:
             def _get_relevant_documents(self, query: str, **kwargs) -> list[Document]:
                 # Call your service
                 import requests
+
                 resp = requests.get(
                     f"{cfg.service_url}/search",
                     params={"q": query, "top_k": cfg.top_k},
                     headers={"Authorization": f"Bearer {cfg.api_key}"},
                 )
-                docs = [Document(page_content=r["content"], metadata=r.get("meta", {}))
-                        for r in resp.json()]
+                docs = [Document(page_content=r["content"], metadata=r.get("meta", {})) for r in resp.json()]
                 return docs
 
             async def _aget_relevant_documents(self, query: str, **kwargs) -> list[Document]:
@@ -454,8 +455,8 @@ Chroma collections and BM25 cache directories are cleaned up. PgVector deletion 
 print(managed.get_stats())
 # {'config_tag': 'hybrid_ensemble', 'default_k': 4, 'vector_backend': 'Chroma', ...}
 
-print(managed.has_store)    # True / False
-print(managed.default_k)    # 4
+print(managed.has_store)  # True / False
+print(managed.default_k)  # 4
 
 configs = RetrieverFactory.list_available_configs()
 # ['default', 'bm25_local', 'hybrid_ensemble', 'hybrid_reranked', ...]
@@ -478,14 +479,13 @@ prompt = def_prompt(
     user="Context:\n{context}\n\nQuestion: {question}",
 )
 
+
 def format_docs(docs):
     return "\n\n".join(d.page_content for d in docs)
 
+
 chain = (
-    {"context": managed.retriever | format_docs, "question": RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
+    {"context": managed.retriever | format_docs, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser()
 )
 
 answer = chain.invoke("What is hybrid search?")
@@ -543,10 +543,7 @@ Recommended for documentation (`.md`, `.markdown`, `.rst`).
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
 
 splitter = ChunkerFactory.create("markdown")
-docs = splitter.create_documents(
-    [markdown_text],
-    metadatas=[{"source": "guide.md"}]
-)
+docs = splitter.create_documents([markdown_text], metadatas=[{"source": "guide.md"}])
 ```
 
 **Configuration:**
@@ -675,7 +672,7 @@ doc.metadata == {
     "total_chunks": 10,
     "start_index": 245,
     "token_count": 287,
-    "chunk_type": "text"
+    "chunk_type": "text",
 }
 ```
 
@@ -698,11 +695,12 @@ Your class must inherit from `langchain_text_splitters.TextSplitter`:
 from langchain_text_splitters import TextSplitter
 from langchain_core.documents import Document
 
+
 class MySplitter(TextSplitter):
     def split_text(self, text: str) -> list[str]:
         # Return list of chunk strings
         return chunks
-    
+
     def create_documents(self, texts, metadatas=None):
         # Optional: custom metadata handling
         docs = [Document(page_content=t, metadata=m) for t, m in zip(texts, metadatas or [])]
@@ -746,6 +744,7 @@ splitter = ChunkerFactory.create("recursive")
 # Use YAML override or create manually:
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 splitter = RecursiveCharacterTextSplitter(
     chunk_size=256,
     chunk_overlap=25,
@@ -887,7 +886,7 @@ result = run_flow_ephemeral(
     base_dir="./documents",
     retriever_name="persistent",
     max_chunk_tokens=512,
-    chunker_name="auto",              # auto-detect or specify chunker
+    chunker_name="auto",  # auto-detect or specify chunker
     pathspecs=["**/*.md", "**/*.txt", "!**/node_modules/**"],  # gitignore-style
     force=False,
     batch_size=10,
@@ -952,10 +951,12 @@ tool = RAGToolFactory(get_llm()).create_tool(config)
 result = await tool.ainvoke({"query": "What is the refund policy?"})
 
 # With a runtime filter (merged with default_filter)
-result = await tool.ainvoke({
-    "query": "API limits",
-    "filter": '{"section": "pricing"}',
-})
+result = await tool.ainvoke(
+    {
+        "query": "API limits",
+        "filter": '{"section": "pricing"}',
+    }
+)
 ```
 
 ### Convenience function
@@ -963,11 +964,13 @@ result = await tool.ainvoke({
 ```python
 from genai_tk.agents.tools.langchain.rag_tool_factory import create_rag_tool_from_config
 
-tool = create_rag_tool_from_config({
-    "retriever": "hybrid_ensemble",
-    "tool_name": "search_docs",
-    "top_k": 5,
-})
+tool = create_rag_tool_from_config(
+    {
+        "retriever": "hybrid_ensemble",
+        "tool_name": "search_docs",
+        "top_k": 5,
+    }
+)
 ```
 
 ### `RAGToolConfig` fields

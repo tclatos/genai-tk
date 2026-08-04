@@ -180,7 +180,8 @@ GENAITK_PROFILE=pytest python myapp.py
 In Python:
 ```python
 from genai_tk.config_mgmt.config_mngr import switch_profile
-switch_profile("prod")    # reloads all config with profile=prod
+
+switch_profile("prod")  # reloads all config with profile=prod
 ```
 
 ### Two-layer system
@@ -289,16 +290,19 @@ from genai_tk.config_mgmt.config_mngr import global_config
 
 # Case 1 — single Pydantic model
 from genai_tk.utils.prefect_server import PrefectConfig
+
 prefect = global_config().section("prefect", PrefectConfig)
-print(prefect.host, prefect.port)          # typed attributes, not .get("host")
+print(prefect.host, prefect.port)  # typed attributes, not .get("host")
 
 # Case 2 — dict of Pydantic models
 from genai_tk.core.embeddings_store import EmbeddingsStoreConfig
+
 stores = global_config().section_dict("embeddings_store", EmbeddingsStoreConfig)
-store_cfg = stores["default"]              # EmbeddingsStoreConfig instance
+store_cfg = stores["default"]  # EmbeddingsStoreConfig instance
 
 # Discriminated union (each entry has a `type` field)
 from genai_tk.extra.kv_store_registry import KvStoreConfig
+
 kv_stores = global_config().section_dict("kv_store", KvStoreConfig, inject_name=False)
 ```
 
@@ -325,8 +329,8 @@ Both methods return an empty model / empty dict when the key is absent — they 
 ```python
 from genai_tk.config_mgmt.config_mngr import global_config, switch_profile, use_active_context
 
-config = global_config()                        # singleton, auto-discovered
-value = config.get("llm.models.default")        # dot-separated key path
+config = global_config()  # singleton, auto-discovered
+value = config.get("llm.models.default")  # dot-separated key path
 
 # LLM runtime selection examples
 from genai_tk.core.factories.llm_factory import get_llm
@@ -336,17 +340,17 @@ llm = get_llm(llm="gpt-oss-120b (high)@openrouter")
 
 # Explicit reasoning payload (preferred for provider-specific options)
 llm = get_llm(
-  llm="gpt-oss-120b@openrouter",
-  reasoning={"effort": "high", "resume": "cursor-token", "max_tokens": 4096},
+    llm="gpt-oss-120b@openrouter",
+    reasoning={"effort": "high", "resume": "cursor-token", "max_tokens": 4096},
 )
 
 # Switch the active deployment profile (reloads all config files)
-switch_profile("prod")                          # set GENAITK_PROFILE=prod + reload
-switch_profile("pytest")                        # use fake models for tests
+switch_profile("prod")  # set GENAITK_PROFILE=prod + reload
+switch_profile("pytest")  # use fake models for tests
 
 # Activate a named context overlay (no file reload, lightweight)
-config.use_context("training_local")            # merge training_local: sub-dict on top
-config.use_context("training_openai")           # switch to openai variant
+config.use_context("training_local")  # merge training_local: sub-dict on top
+config.use_context("training_openai")  # switch to openai variant
 ```
 
 ## Debugging configuration

@@ -252,12 +252,8 @@ class TestCommands(CliTopCommand):
                 bool,
                 typer.Option("--docker", "--include-docker", help="Include tests that require Docker"),
             ] = False,
-            real: Annotated[
-                bool, typer.Option("--real", help="Include tests that require real LLM API keys")
-            ] = False,
-            verbose: Annotated[
-                bool, typer.Option("--verbose", "-v", help="Verbose pytest output")
-            ] = False,
+            real: Annotated[bool, typer.Option("--real", help="Include tests that require real LLM API keys")] = False,
+            verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Verbose pytest output")] = False,
         ) -> None:
             """Run tests matching a path or name pattern across all test dirs.
 

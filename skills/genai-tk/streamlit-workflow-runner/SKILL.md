@@ -83,13 +83,16 @@ st.rerun()  # trigger a rerun so render_progress can poll
 ```python
 from prefect import flow, task
 
+
 @task
 def process():
     return "result"
 
+
 @flow
 def my_flow():
     return process()
+
 
 runner.start_flow(my_flow)
 st.rerun()
@@ -137,6 +140,7 @@ with st.sidebar:
 
     if runner.flow_run_id:
         from genai_tk.utils.prefect_server import prefect_server
+
         ui_url = prefect_server().ui_url
         st.markdown(f"[Open in Prefect UI]({ui_url}/runs/flow-run/{runner.flow_run_id})")
 ```
@@ -172,10 +176,7 @@ if uploaded:
 
 # Step 2: Run workflow
 if st.button("Process"):
-    runner.start(
-        "my_workflow",
-        values={"zip_file": zip_path}
-    )
+    runner.start("my_workflow", values={"zip_file": zip_path})
     st.rerun()
 
 # Step 3: Show progress
