@@ -228,7 +228,12 @@ def _collapse_header_rows(table_grid: list[list[str]]) -> list[list[str]]:
 
 def _escape_md_cell(text: str) -> str:
     """Make a cell value safe inside a Markdown table (newlines and pipes)."""
-    return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>").replace("|", "\\|")
+    return _to_br(text).replace("|", "\\|")
+
+
+def _to_br(text: str) -> str:
+    """Replace embedded line breaks with ``<br>`` so multi-line cell text renders on one block."""
+    return text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
 
 
 def _classify_and_format_block(block: list[list[str]]) -> str:
@@ -241,11 +246,11 @@ def _classify_and_format_block(block: list[list[str]]) -> str:
     # Logical cells per row collapse merge-fill duplicates so layout heuristics stay honest.
     logical = [_dedup_consecutive(row) for row in block]
 
-    # --- Case 1: Single line -> Heading or Paragraph ---
+    # --- Case 1: Single line -> bold lead-in or paragraph (no sub-heading: one section per sheet) ---
     if num_rows == 1 and len(logical[0]) == 1:
-        text = logical[0][0]
+        text = _to_br(logical[0][0])
         if len(text) < 80 and not text.endswith("."):
-            return f"### {text}\n"
+            return f"**{text}**\n"
         return f"{text}\n"
 
     # --- Case 2: Narrow multi-row text block (instructions, legend, notes, key/value) ---
@@ -256,7 +261,7 @@ def _classify_and_format_block(block: list[list[str]]) -> str:
     if avg_logical <= 1.5 and max_logical <= 2:
         lines: list[str] = []
         for cells in logical:
-            text = " ".join(cells)
+            text = _to_br(" ".join(cells))
             if not text:
                 continue
             if "=" in text or text.startswith("-"):
@@ -276,7 +281,7 @@ def _classify_and_format_block(block: list[list[str]]) -> str:
 
     md_lines: list[str] = []
     if title:
-        md_lines.append(f"#### {title}\n")
+        md_lines.append(f"**{_to_br(title)}**\n")
 
     headers = table_grid[0]
     headers_clean = [_escape_md_cell(h) if h.strip() else f"Col {i + 1}" for i, h in enumerate(headers)]

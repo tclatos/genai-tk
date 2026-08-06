@@ -406,6 +406,18 @@ def _build_prefect_flow(
         # with their Prefect wait_for dependencies so independent branches
         # run concurrently while ordered steps wait.
         for step in sorted_steps:
+            # Eagerly collect the wait_for dependencies this step's `with:`/`foreach.from`
+            # actually references via `${steps.<id>.result.*}`, so those refs resolve to
+            # real values — not None (which would silently drop the input in
+            # `_prepare_inputs`). Safe because topological order guarantees referenced
+            # steps are already submitted. Pure ordering-only wait_for deps (not
+            # referenced in `with:`) are left as futures so independent branches still
+            # run concurrently.
+            referenced = _referenced_step_ids(step)
+            for dep in step.wait_for:
+                if dep in referenced and dep not in results and dep in futures and futures[dep] is not None:
+                    results[dep] = futures[dep].result()
+
             step_inputs = _prepare_inputs(step.with_, results)
             fp = compute_step_fingerprint(step.id, step_inputs)
             step_fingerprints[step.id] = fp
@@ -423,12 +435,6 @@ def _build_prefect_flow(
 
             # --- foreach fan-out ---
             if step.foreach is not None:
-                # Eagerly collect dependency results so foreach.from_ref can be resolved.
-                # These steps have already been submitted; waiting here is safe because
-                # topological order guarantees all wait_for steps are already submitted.
-                for dep in step.wait_for:
-                    if dep not in results and dep in futures and futures[dep] is not None:
-                        results[dep] = futures[dep].result()
                 collection = _resolve_step_ref(step.foreach.from_ref, results)
                 if not isinstance(collection, (list, tuple)):
                     raise WorkflowExecutionError(
@@ -510,6 +516,20 @@ def _build_prefect_flow(
         task_runner=ThreadPoolTaskRunner(max_workers=max_workers),
         description=compiled.description or "",
     )
+
+
+def _referenced_step_ids(step: CompiledStep) -> set[str]:
+    """Return the step IDs referenced via ``${steps.<id>.result...}`` in *step*'s inputs."""
+    values = list(step.with_.values())
+    if step.foreach is not None:
+        values.append(step.foreach.from_ref)
+    ids: set[str] = set()
+    for val in values:
+        if isinstance(val, str):
+            m = re.search(r"\$\{steps\.([^.}]+)\.result", val)
+            if m:
+                ids.add(m.group(1))
+    return ids
 
 
 def _prepare_inputs(
