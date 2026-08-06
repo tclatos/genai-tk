@@ -32,7 +32,7 @@ def _render_workflow_summary(resolved_name: str, invocation: object) -> None:
     summary.add_row("Requested", resolved_name)
     summary.add_row("Workflow", invocation.workflow_name)
     summary.add_row("Preset", invocation.profile_name or "<none>")
-    summary.add_row("Force", str(invocation.force))
+    summary.add_row("Force", invocation.force_stage or "<none>")
     summary.add_row("Steps", str(len(invocation.workflow.steps)))
     console.print(summary)
 

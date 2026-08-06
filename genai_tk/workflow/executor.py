@@ -79,7 +79,7 @@ def execute_workflow(invocation: ResolvedWorkflowInvocation) -> dict[str, Any]:
 
     # Propagate --force flag as values so YAML steps can reference ${values.force}
     values = dict(invocation.values)
-    if invocation.force:
+    if invocation.force_stage:
         values.setdefault("force", True)
         values.setdefault("force_rebuild", True)
 
