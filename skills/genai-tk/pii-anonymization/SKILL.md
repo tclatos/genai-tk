@@ -44,11 +44,12 @@ Both consumers call the **same** `anonymize_text()` function — identical behav
 ## Use Case 1 — Add Anonymization to an Agent Profile (YAML)
 
 ```yaml
-# config/agents/langchain/simple.yaml
-langchain_agents:
+# config/agents/langchain/simple.yaml — unified `agents:` dict (see skills/genai-tk/agent-profiles)
+agents:
   privacy_agent:
+    harness: langchain          # langchain | deerflow
     name: "Privacy Agent"
-    type: react
+    type: react                 # react (default) | deep | custom
     llm: default
     middlewares:
       - class: genai_tk.agents.langchain.middleware.anonymization_middleware:AnonymizationMiddleware

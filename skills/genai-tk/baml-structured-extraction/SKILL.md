@@ -23,6 +23,16 @@ description: Work on BAML structured extraction, BAML CLI commands, processors, 
 | Workflow flow | `genai_tk/workflow/prefect/flows/baml_flow.py` |
 | Tests | `tests/unit_tests/extra/test_baml_prefect_flow.py`, `tests/integration_tests/test_commands_baml.py` |
 
+## Downstream Consumers
+
+`genai-graph` is the main consumer of `BamlStructuredProcessor` outside genai-tk: its
+`MarkdownBamlFactory` (`genai_graph/kg/factories/markdown_baml_factory.py`) calls
+`processor.analyze_document(...)` inline to extract structured entities from Markdown and
+MERGE them into a Knowledge Graph, caching the result as JSON build artifacts. When
+changing the processor's contract or return shape, check that factory and the
+`genai-graph/skills/genai-graph/kg-factories` skill still hold — see
+`genai-graph/docs/baml_extraction_guide.md` and `genai-graph/docs/document-graph.md`.
+
 ## Change Workflow
 
 1. Keep BAML schemas and generated behavior aligned with `docs/baml.md`.
