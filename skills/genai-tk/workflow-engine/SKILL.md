@@ -15,6 +15,16 @@ description: Work on YAML-driven workflows, Prefect flow wrappers, workflow comp
 - `genai_tk/utils/prefect_server.py`
 - `config/workflows.yaml`
 
+## Downstream Consumers
+
+`genai-graph` (Knowledge Graph / Document Graph library) is the main non-trivial
+consumer of this engine outside genai-tk itself: `kg_build_step` / `docgraph_build_step`
+in `genai_graph/orchestration/workflow_steps.py` are `@workflow`-decorated steps
+referenced by `run:` in a project's `config/workflows/*.yaml` (e.g. ekg-atos's
+`graph_construction.yaml`). See `genai-graph/docs/workflows.md` and
+`genai-graph/docs/document-graph.md` for that project's usage of `pipeline:`/`after:`
+chaining, presets, and `--force <stage>`.
+
 ## Code Map
 
 | Concern | Paths |
