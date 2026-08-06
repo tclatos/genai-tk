@@ -187,3 +187,4 @@ class ResolvedWorkflowInvocation(BaseModel):
     step_overrides: dict[str, Any] = Field(default_factory=dict)
     cli_overrides: dict[str, Any] = Field(default_factory=dict)
     force_stage: str | None = None
+    force: bool = False

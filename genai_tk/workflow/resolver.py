@@ -42,6 +42,10 @@ class WorkflowResolutionError(ValueError):
 
 _LEGACY_KEYS = frozenset({"step_templates", "definitions", "profiles"})
 
+# Global control flags that auto-propagate into every nested workflow/step,
+# regardless of whether the parent's `with:` mapping references them.
+_CONTROL_FLAG_KEYS = frozenset({"force", "force_rebuild"})
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -305,9 +309,11 @@ def _to_workflow_spec(
         for param_name in wf.params:
             if param_name not in auto_with:
                 auto_with[param_name] = f"${{values.{param_name}}}"
-        # Include any extra runtime values (e.g. force injected by --force flag)
-        for extra_key in extra_values or {}:
-            if extra_key not in auto_with:
+        # Wire the global control flags (e.g. force injected by --force flag) — not
+        # arbitrary parent-level values, which would leak unrelated keys as unexpected
+        # kwargs into the target callable.
+        for extra_key in _CONTROL_FLAG_KEYS:
+            if extra_key in (extra_values or {}) and extra_key not in auto_with:
                 auto_with[extra_key] = f"${{values.{extra_key}}}"
         steps = [
             StepSpec(
@@ -372,9 +378,11 @@ def _expand_pipeline(
                 for param_name in sub_wf.params:
                     if param_name not in auto_with:
                         auto_with[param_name] = f"${{values.{param_name}}}"
-                # Also wire any extra runtime values (e.g. force from --force flag)
-                for extra_key in extra_values or {}:
-                    if extra_key not in auto_with:
+                # Wire the global control flags (e.g. force from --force flag) only —
+                # not arbitrary parent-level values, which would leak unrelated keys
+                # (e.g. a sibling step's 'profile' default) as unexpected kwargs.
+                for extra_key in _CONTROL_FLAG_KEYS:
+                    if extra_key in (extra_values or {}) and extra_key not in auto_with:
                         auto_with[extra_key] = f"${{values.{extra_key}}}"
                 sub_pipeline = [PipelineStep(id="run", run=sub_wf.run, **{"with": auto_with})]
                 sub_pipeline[0].cache = sub_wf.resolved_cache()
