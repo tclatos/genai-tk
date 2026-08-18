@@ -20,8 +20,8 @@ from typing import Iterator
 from langchain_core.document_loaders import BaseLoader
 from langchain_core.documents import Document
 from loguru import logger
-from mistralai import Mistral
-from mistralai.models import OCRResponse
+from mistralai.client import Mistral
+from mistralai.client.models import OCRResponse
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from genai_tk.utils.pydantic_utils.kv_store import PydanticStore

@@ -25,7 +25,7 @@ class MistralOCRBatchProcessor:
         """Return a mapping of ``str(pdf_path)`` to its extracted Markdown text."""
         import os
 
-        from mistralai import Mistral
+        from mistralai.client import Mistral
 
         api_key = os.environ.get("MISTRAL_API_KEY")
         if not api_key:
@@ -141,7 +141,7 @@ class MistralOCRBatchProcessor:
         """Download the batch output and return ``str(pdf_path) -> Markdown text``."""
         import json
 
-        from mistralai.models import OCRResponse
+        from mistralai.client.models import OCRResponse
 
         results: dict[str, str] = {}
 

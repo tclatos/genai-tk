@@ -1,15 +1,12 @@
+Status: 
+
+~/prj/ekg-atos ->   cli kg create one_rainbow 
+~/prj/rfq_pricing -> cli docgraph build $ONEDRIVE/prj/RFQ_pricing/RFQ_zipped/Alko.zip 
+
+
 # Simplify Integration
 /home/tcl/prj/genai-tk/docs/design/deepagents-deerflow-langgraph-unification.md
 
-# Unified markdownize + doctree ingestion (implemented)
-
-`markdownize_flow` now accepts a mix of directories, `.zip` archives, and individual
-files (raw Office/PDF/images, or pre-existing Markdown — copied through unchanged) in
-one call. Intermediates (unzipped archives, `via_pdf` PDFs, the manifest) live under
-`cache_dir` (defaults to `<md_output_dir>/.cache`); only clean Markdown lands in
-`md_output_dir`. A single ordered `--force <stage>` (`unzip < pdf < md < parquet <
-graph < embed < all`) replaces the old `--force` bool / `--remarkdownize` — forcing a
-stage re-runs it and everything downstream.
 
 ```bash
 # Markdownize a zip of raw RFQ documents directly — no separate unzip/office2pdf step
@@ -25,19 +22,6 @@ cli doctree build ./RFQ.zip --db ./data/kg/tree.db --force md
 cli doctree build ./RFQ.zip --db ./data/kg/tree.db --force graph
 ```
 
-Programmatic:
-
-```python
-from genai_tk.workflow.markdownize import markdownize_flow
-
-manifest = markdownize_flow(
-    sources=["./RFQ.zip", "./extra_notes.md"],  # zip + a pre-existing Markdown file
-    md_output_dir="./out/md",
-    profile="fast",
-)
-```
-
-See `docs/markdownize.md`, `docs/workflows.md`, and `genai_tk/workflow/force.py`.
 
 # Pydantic
 Replace @dataclass  by pydantic object
@@ -100,10 +84,6 @@ Voir StreamingStdOutCallbackHandler
 
 Factory de provider ?
 
-# markdown
-all option to generate HMTMl with  Edgeparse
- 
-Implement a "jsonify" version with liteparse v2
 
 # Artifect
 https://docs.prefect.io/v3/concepts/artifacts 
@@ -138,7 +118,6 @@ examples/notebooks/middleware_anonymization_demo.ipynb
 
 
 # Around Agents
-- Test the AioSandboxBackend (taken from DeerFlow, and made compatible with Langchain protocol) to work with Deep agents and Deepagent-cli. 
 
 - Develop classical Deep Agents use case  , to run without too much change  (skill,  toools, MCP, ..) either in Deer-flow, Deeppagent-cli and our Langchain generic agent : research agent, coder agent, DB expert agent, etc...  
     - Test with several consiguration (sandbox, LLM, ...)
@@ -157,14 +136,6 @@ examples/notebooks/middleware_anonymization_demo.ipynb
 
 ## Other  
 
-###  Markdown loader
-Refactor /workflow/loaders/markdown_loader.py with improvement from /workflow/rag/markdown_chunking.py.
-Keep a LangChain interface (ie Document + metadata instead of ChunkInfo - as TypedDict if possible - and inherit BaseLoader ).
-Replace code in genai-graph that uses markdown_chunking with the LangChain compatible loader/splitter. 
-Add test cases.
-Consider using PageIndex (of be inspired by) to have a TOC and a better structure (https://github.com/VectifyAI/PageIndex/blob/main/pageindex/page_index_md.py)
-
-
 ###  RAG
 Refactor totaly  /home/tcl/prj/genai-tk/genai_tk/tools/langchain/rag_tool_factory.py .  
 The created LangChain tool should behave like the 'query' command in /home/tcl/prj/genai-tk/genai_tk/workflow/rag/commands_rag.py, ie accept a query string and an optional metadata filter in JSON. 
@@ -181,11 +152,6 @@ look at /home/tcl/prj/genai-tk/genai_tk/tools/langchain/sql_tool_factory.py, tha
 
 ## Hybrid search extension to genai_tk/core/embeddings_store.py
 - use BM25S + Spacy (but configurable)
-
-
-# Misc
-Use https://github.com/GrahamDumpleton/wrapt for @once
-
 
 
 # CLI
