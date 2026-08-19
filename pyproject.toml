@@ -145,7 +145,7 @@ postgres = [
 ]
 
 # Streamlit web interface
-streamlit = ["streamlit>=1.49"]
+streamlit = ["streamlit>=1.49", "streamlit-monaco>=0.1.3"]
 
 # BAML structured extraction — baml-py ships both the runtime and the baml-cli command
 baml = ["baml-py==0.223.0"]

@@ -4,6 +4,11 @@ Status:
 ~/prj/rfq_pricing -> cli docgraph build $ONEDRIVE/prj/RFQ_pricing/RFQ_zipped/Alko.zip 
 
 
+##  Anydoc
+https://github.com/firecrawl/anydoc/blob/main/python/README.md 
+
+
+
 # Simplify Integration
 /home/tcl/prj/genai-tk/docs/design/deepagents-deerflow-langgraph-unification.md
 
@@ -43,6 +48,37 @@ One difference with pageindex-intro  is that we want to create TOC from several 
 
 First implement in genai-tk a simple workfow callable from 'cli workflow run' to create TOC from fiven markdown files. 
 /home/tcl/prj/genai-tk/genai_tk/workflow
+
+STATUS (2026-08-19): implemented in genai-graph instead of genai-tk — it leverages
+the existing Document/MarkdownSection graph (hash-keyed, already has the heading
+hierarchy) rather than a standalone JSON tree. See
+`genai_graph/kg/document_graph/summarize.py`, `cli docgraph summarize`, and
+`docs/document-graph.md` (genai-graph repo) for the implementation.
+
+# LLM prompt caching (provider-side)
+
+genai-tk has no provider-side *prompt* caching — `LlmCache` (`genai_tk/core/cache.py`)
+is LangChain's exact-match response cache (SQLite/memory, keyed on the full prompt
+string), which only helps identical re-runs. There is no support for a shared
+*prefix* being cached across many different calls (e.g. summarizing N sections of
+the same document, each call sharing the same long document context).
+
+Providers that support this, and how:
+- OpenAI: automatic prefix caching above 1024 tokens, no code changes needed, ~50%
+  discount on the cached prefix.
+- Anthropic: explicit `cache_control: {"type": "ephemeral"}` blocks in the message
+  content, 5-minute TTL, ~25% write premium / ~90% read discount.
+- Gemini/Mistral/EdenAI-proxy/local models: no equivalent today.
+
+Would benefit any per-item-over-shared-context workload (document summarization,
+batch classification/extraction over one big context, multi-turn agent scratchpads).
+Needs a provider-agnostic API in `LlmFactory`/`get_llm()` that no-ops on providers
+without support, rather than raising.
+
+Raised while designing genai-graph's Document Graph summarization (`cli docgraph
+summarize`): considered but not adopted a per-section LLM call design because of
+this gap — see `genai_graph/kg/document_graph/summarize.py` docstring.
+
 
 Then integrate it in ...
 

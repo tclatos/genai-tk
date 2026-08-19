@@ -23,6 +23,13 @@ from genai_tk.cli.base import CliTopCommand
 from genai_tk.config_mgmt.config_mngr import global_config
 
 
+def _mask_api_key(value: str, visible: int = 6) -> str:
+    """Return value with only the first/last `visible` characters shown, e.g. 'sk-eden...a5897'."""
+    if len(value) <= visible * 2:
+        return "*" * len(value)
+    return f"{value[:visible]}...{value[-5:]}"
+
+
 class InfoCommands(CliTopCommand):
     """Information and listing commands."""
 
@@ -136,7 +143,8 @@ class InfoCommands(CliTopCommand):
             for provider, provider_info in PROVIDER_INFO.items():
                 key_name = provider_info.api_key_env_var
                 if key_name:
-                    status = "[green]✓ set[/green]" if key_name in os.environ else "[red]✗ not set[/red]"
+                    key_value = os.environ.get(key_name)
+                    status = f"[green]✓ {_mask_api_key(key_value)}[/green]" if key_value else "[red]✗ not set[/red]"
                     keys_table.add_row(provider, key_name, status)
 
             console.print(keys_table)
@@ -579,10 +587,11 @@ class InfoCommands(CliTopCommand):
                 )
                 # API key availability
                 key_var = prov_info.api_key_env_var
+                key_val = os.environ.get(key_var) if key_var else None
                 if key_var == "":
                     key_status = "[dim]not required[/dim]"
-                elif key_var in os.environ:
-                    key_status = f"[green]✓[/green] [dim]{key_var}[/dim]"
+                elif key_val:
+                    key_status = f"[green]✓ {_mask_api_key(key_val)}[/green] [dim]{key_var}[/dim]"
                 else:
                     key_status = f"[red]✗[/red] [dim]{key_var}[/dim]"
                 prov_table.add_row("API key", key_status)

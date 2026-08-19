@@ -19,12 +19,12 @@ from __future__ import annotations
 import warnings
 from typing import Any
 
-import tiktoken
 from chonkie import BaseChunker, MarkdownChef, RecursiveChunker
 from langchain_core.documents import Document
 from langchain_text_splitters import TextSplitter
 
-from genai_tk.utils.singleton import once
+from genai_tk.utils.tokens import count_tokens as _count_tokens
+from genai_tk.utils.tokens import get_tiktoken_encoding as _get_tiktoken_encoding
 
 # Suppress expected chonkie warning about falling back to tiktoken for o200k_base
 warnings.filterwarnings(
@@ -33,18 +33,6 @@ warnings.filterwarnings(
     category=UserWarning,
     module="chonkie.tokenizer",
 )
-
-
-@once
-def _get_tiktoken_encoding(encoding_name: str = "o200k_base") -> tiktoken.Encoding:
-    """Get cached tiktoken encoding."""
-    return tiktoken.get_encoding(encoding_name)
-
-
-def _count_tokens(text: str, encoding_name: str = "o200k_base") -> int:
-    """Count tokens in text using tiktoken."""
-    enc = _get_tiktoken_encoding(encoding_name)
-    return len(enc.encode(text))
 
 
 class ChonkieTextSplitter(TextSplitter):

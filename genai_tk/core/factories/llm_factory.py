@@ -159,13 +159,20 @@ def _edenai_fuzzy_match(
         None,
     )
     model_query = query_normalized[: -len(selected_backend)] if selected_backend else query_normalized
-    base_scores = [
-        (candidate, difflib.SequenceMatcher(None, model_query, _normalize(candidate.rsplit("/", 1)[-1])).ratio())
-        for candidate in candidates
-    ]
-    selected_model_name, best_base_score = max(base_scores, key=lambda match: match[1], default=("", 0.0))
-    if best_base_score < cutoff:
-        return []
+    # An exact full-string match (e.g. a canonical "backend/vendor/model" query) must win outright —
+    # otherwise matching only on the trailing model segment can favor a candidate whose model name
+    # happens to repeat the vendor name (e.g. "NVIDIA-Nemotron...") over the true exact match.
+    exact_match = next((candidate for candidate in candidates if _normalize(candidate) == query_normalized), None)
+    if exact_match is not None:
+        selected_model_name, best_base_score = exact_match, 1.0
+    else:
+        base_scores = [
+            (candidate, difflib.SequenceMatcher(None, model_query, _normalize(candidate.rsplit("/", 1)[-1])).ratio())
+            for candidate in candidates
+        ]
+        selected_model_name, best_base_score = max(base_scores, key=lambda match: match[1], default=("", 0.0))
+        if best_base_score < cutoff:
+            return []
 
     selected_base = _normalize(selected_model_name.rsplit("/", 1)[-1])
     same_model = [candidate for candidate in candidates if _normalize(candidate.rsplit("/", 1)[-1]) == selected_base]

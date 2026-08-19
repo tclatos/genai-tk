@@ -243,8 +243,12 @@ class ModelsDb:
         if cache_path is None:
             cache_path = self._edenai_cache_paths.get(provider_id) or _default_cache_path().with_name(cache_filename)
         logger.info(f"Fetching {provider_id} models from {models_url} …")
-        response = httpx.get(models_url, headers={"Authorization": f"Bearer {api_key}"}, timeout=30)
-        response.raise_for_status()
+        try:
+            response = httpx.get(models_url, headers={"Authorization": f"Bearer {api_key}"}, timeout=30)
+            response.raise_for_status()
+        except httpx.HTTPError as error:
+            logger.warning(f"Could not fetch {provider_id} model catalogue ({error}); skipping.")
+            return False
         raw: dict = response.json()
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(raw, indent=2), encoding="utf-8")

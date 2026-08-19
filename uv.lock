@@ -2177,6 +2177,7 @@ all = [
     { name = "psycopg2-binary" },
     { name = "spacy" },
     { name = "streamlit" },
+    { name = "streamlit-monaco" },
 ]
 baml = [
     { name = "baml-py" },
@@ -2216,6 +2217,7 @@ postgres = [
 ]
 streamlit = [
     { name = "streamlit" },
+    { name = "streamlit-monaco" },
 ]
 
 [package.dev-dependencies]
@@ -2309,6 +2311,7 @@ requires-dist = [
     { name = "rich", extras = ["jupyter"], specifier = ">=13.9.4" },
     { name = "spacy", marker = "extra == 'nlp'", specifier = ">=3.8.0" },
     { name = "streamlit", marker = "extra == 'streamlit'", specifier = ">=1.49" },
+    { name = "streamlit-monaco", marker = "extra == 'streamlit'", specifier = ">=0.1.3" },
     { name = "tavily-python", specifier = ">=0.7.12" },
     { name = "textual", specifier = ">=0.80" },
     { name = "tokenizers", specifier = ">=0.21.0" },
@@ -7414,6 +7417,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/aa/9d/93b4c6c0269e3ee7d71594562fefe94aad53864ca3c1479254285ec1c972/streamlit-1.61.0.tar.gz", hash = "sha256:1329482ff226db6ed85154584c32ad73a5f8019ade3e055536045c4ebe7e1b37", size = 9907089, upload-time = "2026-08-04T20:41:39.756Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/0d/ce/bd7760b041053a39beb77297b15606790182ccb6e0889e5ed6febfac9b8b/streamlit-1.61.0-py3-none-any.whl", hash = "sha256:4d468f771be18340c05421295a03ee32b9c61383fb65d27f640df69d56e512ed", size = 10512864, upload-time = "2026-08-04T20:41:37.366Z" },
+]
+
+[[package]]
+name = "streamlit-monaco"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dc/88/66d784c30a6c5a43a295ad855f3e5a70bab0c392c04a4ade2365aff7a25e/streamlit-monaco-0.1.3.tar.gz", hash = "sha256:cb0ea842f26a89c5987d7e962712603d3594082613387a91403520c79288c519", size = 164437, upload-time = "2023-09-26T07:36:09.997Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/e6/12e26a6e63a1d60c5e0d9a81e9521d10d58d97ad05afcd3b4cba33d8a7cb/streamlit_monaco-0.1.3-py3-none-any.whl", hash = "sha256:3e60cb853b0b15c59b372fbc10c0df7d5f2852d4ef259d8489a98341804b7eb0", size = 175338, upload-time = "2023-09-26T07:36:05.382Z" },
 ]
 
 [[package]]
