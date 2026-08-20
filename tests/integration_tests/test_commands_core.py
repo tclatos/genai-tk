@@ -78,6 +78,18 @@ class TestLlmCommand:
         result = runner.invoke(core_app, args)
         assert result.exit_code == 0
 
+    def test_llm_invalid_reasoning_effort_shows_error(self, core_app, runner) -> None:
+        """An invalid inline reasoning effort surfaces a clean error, not a traceback."""
+        result = runner.invoke(
+            core_app,
+            ["core", "llm", "--input", "hello", "--llm", "gpt_41mini(blabla)@openrouter"],
+        )
+        combined = result.stdout + (result.stderr or "")
+        # The command handles the error gracefully (returns, exit 0) and reports
+        # the invalid effort rather than crashing with a traceback.
+        assert result.exit_code == 0, f"Unexpected exit code; output={combined!r}"
+        assert "Invalid reasoning effort" in combined, f"Missing effort error; output={combined!r}"
+
 
 class TestEmbeddCommand:
     def test_embedd_basic(self, core_app, runner, fake_embeddings_id) -> None:

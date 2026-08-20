@@ -66,7 +66,14 @@ from genai_tk.utils.singleton import once
 SEED = 42  # Arbitrary value....
 DEFAULT_MAX_RETRIES = 2
 REASONING_EFFORT_PATTERN = re.compile(r"^(?P<alias>.+?)\s*\((?P<effort>[A-Za-z0-9_-]+)\)\s*$")
-REASONING_EFFORT_VALUES = {"low", "medium", "high"}
+# Recognized reasoning-effort values. Gateway providers (e.g. OpenRouter) expose
+# additional levels beyond the OpenAI baseline; keep the set permissive but finite
+# so typos are caught upfront instead of being silently forwarded and rejected
+# by the provider later.
+REASONING_EFFORT_VALUES = {"low", "medium", "high", "minimal", "xhigh", "max", "none"}
+# Sentinel effort value that explicitly disables reasoning. Unlike the other
+# values it is NOT forwarded to the provider: it produces no reasoning payload.
+REASONING_DISABLE_VALUE = "none"
 
 
 # ---------------------------------------------------------------------------
@@ -358,6 +365,12 @@ def _extract_reasoning_settings(
     1. Explicit ``reasoning={...}`` values override inline ``(effort)``.
     2. Flat kwargs ``reasoning_effort`` / ``reasoning_resume`` / ``reasoning_max_tokens``
        are accepted for backward compatibility but are normalized into ``reasoning``.
+
+    Validation:
+    - Effort is case-insensitive and matched against ``REASONING_EFFORT_VALUES``.
+    - ``none`` means reasoning is disabled: no reasoning payload is returned.
+    - Any other unrecognized value raises ``ValueError`` instead of being passed
+      through, so typos surface before a provider request is made.
     """
     resolved_llm, inline_effort = _split_inline_reasoning_effort(llm)
     params = llm_params.copy()
@@ -390,11 +403,17 @@ def _extract_reasoning_settings(
     effort = reasoning_payload.get("effort")
     if isinstance(effort, str):
         normalized_effort = effort.strip().lower()
-        reasoning_payload["effort"] = normalized_effort
         if normalized_effort not in REASONING_EFFORT_VALUES:
-            logger.warning(
-                f"Unknown reasoning effort '{effort}' for '{resolved_llm}'. Passing through as provider-specific value."
+            raise ValueError(
+                f"Invalid reasoning effort '{effort}' for '{resolved_llm}'. "
+                f"Valid values: {', '.join(sorted(REASONING_EFFORT_VALUES))}. "
+                f"Use '{REASONING_DISABLE_VALUE}' to disable reasoning."
             )
+        # 'none' explicitly disables reasoning: emit no payload so the provider
+        # uses its default (reasoning off) instead of forwarding a bogus effort.
+        if normalized_effort == REASONING_DISABLE_VALUE:
+            return resolved_llm, params, None
+        reasoning_payload["effort"] = normalized_effort
 
     return resolved_llm, params, (reasoning_payload or None)
 

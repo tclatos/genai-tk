@@ -89,14 +89,48 @@ class CoreCommands(CliTopCommand):
                 print("Error: Input parameter or something in stdin is required")
                 return
 
-            llm_factory = LlmFactory(
-                llm=llm_id,  # use already-resolved ID to avoid duplicate resolution warnings
-                json_mode=False,
-                streaming=stream,
-                reasoning=reasoning,
-                cache=cache,
-                llm_params={"temperature": temperature},
-            )
+            try:
+                llm_factory = LlmFactory(
+                    # Keep the original llm (with any inline "(effort)" suffix) so that
+                    # LlmFactory.model_post_init can extract the reasoning effort. The
+                    # pre-resolved llm_id is passed alongside to avoid duplicate
+                    # resolution warnings.
+                    llm=llm,
+                    llm_id=llm_id,
+                    json_mode=False,
+                    streaming=stream,
+                    reasoning=reasoning,
+                    cache=cache,
+                    llm_params={"temperature": temperature},
+                )
+            except Exception as e:
+                from rich.console import Console
+                from rich.panel import Panel
+
+                # Construction can fail before ``info`` exists (e.g. an invalid
+                # inline reasoning-effort value). Surface it as a clean error panel
+                # rather than letting a traceback escape.
+                from pydantic import ValidationError
+
+                if isinstance(e, ValidationError):
+                    # Strip the pydantic wrapper (type tag, input dump, docs URL)
+                    # and keep only the underlying validation messages.
+                    msg = "; ".join(
+                        str(err.get("msg", "")).removeprefix("Value error, ").strip()
+                        for err in e.errors()
+                    ).strip() or str(e)
+                else:
+                    msg = str(e)
+                Console().print(
+                    Panel(
+                        f"[bold]{type(e).__name__}[/bold]\n{msg}",
+                        title="[red]Model Init Error[/red]",
+                        border_style="red",
+                        expand=False,
+                    )
+                )
+                return
+
             try:
                 llm_model = llm_factory.get()
             except Exception as e:

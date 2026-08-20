@@ -378,3 +378,47 @@ def test_warn_when_reasoning_requested_on_non_thinking_model(fake_llm_id) -> Non
     assert model is not None
     warning_texts = [str(call.args[0]) for call in mock_warning.call_args_list if call.args]
     assert any("not marked as thinking-capable" in text for text in warning_texts)
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "minimal", "xhigh", "max"])
+def test_extract_reasoning_settings_recognized_efforts(effort: str) -> None:
+    """Recognized effort levels (including gateway extras) are forwarded normalized."""
+    _llm_id, _params, payload = _extract_reasoning_settings(f"gpt-oss-120b ({effort})@openrouter", {})
+    assert payload == {"effort": effort}
+
+
+def test_extract_reasoning_settings_case_insensitive() -> None:
+    """Effort matching is case-insensitive."""
+    _llm_id, _params, payload = _extract_reasoning_settings("gpt-oss-120b (HIGH)@openrouter", {})
+    assert payload == {"effort": "high"}
+
+
+def test_extract_reasoning_settings_none_disables() -> None:
+    """Inline (none) means reasoning disabled: no payload is returned."""
+    llm_id, _params, payload = _extract_reasoning_settings("gpt-oss-120b (none)@openrouter", {"temperature": 0.0})
+    assert llm_id == "gpt-oss-120b@openrouter"
+    assert payload is None
+
+
+def test_extract_reasoning_settings_invalid_effort_raises() -> None:
+    """Unknown inline effort hard-fails instead of being passed through to the provider."""
+    with pytest.raises(ValueError, match="Invalid reasoning effort"):
+        _extract_reasoning_settings("gpt-oss-120b (blabla)@openrouter", {})
+
+
+def test_extract_reasoning_settings_explicit_invalid_effort_raises() -> None:
+    """Programmatic reasoning dict with an invalid effort also hard-fails."""
+    with pytest.raises(ValueError, match="Invalid reasoning effort"):
+        _extract_reasoning_settings("gpt-oss-120b@openrouter", {"reasoning": {"effort": "blabla"}})
+
+
+def test_llm_factory_invalid_inline_effort_raises() -> None:
+    """LlmFactory construction rejects an invalid inline effort upfront."""
+    with pytest.raises(ValueError, match="Invalid reasoning effort"):
+        LlmFactory(llm="gpt_41mini(blabla)@openrouter")
+
+
+def test_llm_factory_none_inline_effort_disables_payload() -> None:
+    """LlmFactory with (none) builds with no reasoning payload (reasoning disabled)."""
+    factory = LlmFactory(llm="gpt_41mini(none)@openrouter")
+    assert factory.reasoning_payload is None

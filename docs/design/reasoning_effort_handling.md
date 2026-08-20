@@ -15,6 +15,14 @@ Normalize the selected effort into a provider-neutral internal payload, map it
 to the LangChain/provider parameter accepted by the selected model, and warn
 when the local model metadata does not mark the model as thinking-capable.
 
+Effort values are validated against a finite recognized set (`low`, `medium`,
+`high`, `minimal`, `xhigh`, `max`, `none`). The `none` value explicitly
+disables reasoning: no reasoning payload is forwarded to the provider. Any
+other unrecognized value raises a `ValueError` upfront instead of being passed
+through, so typos surface before a provider request is made rather than as a
+generic API error later. The recognized set deliberately includes the gateway
+extras (`minimal`, `xhigh`, `max`, `none`) so legitimate values are accepted.
+
 If the provider rejects a reasoning-specific request at invocation time, log a
 warning and retry the same request once with the reasoning controls removed.
 The retry is best-effort and must not hide unrelated failures such as invalid
@@ -51,7 +59,7 @@ requested fallback.
 
 | Concern | Current behavior | Gap |
 | --- | --- | --- |
-| Inline effort | `model (high)@provider` is parsed and normalized | Supports only a small fixed set of recognized values, although gateways may support `minimal`, `xhigh`, `max`, or `none`. |
+| Inline effort | `model (high)@provider` is parsed and normalized | Recognized set now includes the gateway extras `minimal`, `xhigh`, `max`, and `none`; unknown values hard-fail upfront rather than being passed through. |
 | Capability warning | A warning is logged when the local `models.dev` metadata lacks `thinking` | The warning is appropriate but catalog metadata can be incomplete or stale. It cannot determine the exact parameter contract. |
 | OpenAI-compatible APIs | The payload is always placed in `extra_body.reasoning` | Native OpenAI and Azure LangChain classes expose `reasoning_effort`; other compatible endpoints may reject either shape. |
 | Provider-specific APIs | Ollama receives a boolean `reasoning` option | Anthropic and Google are routed through `init_chat_model()` without a mapping from the normalized payload. |
@@ -105,8 +113,18 @@ provider supports each one:
 
 The factory continues to accept the parenthesized effort syntax. Explicit
 `reasoning` options retain precedence over inline syntax and legacy flat
-options. Unknown values should be retained with a warning, because gateways
-and future models may add effort levels before the toolkit is updated.
+options. Effort is matched case-insensitively against the recognized set
+`{low, medium, high, minimal, xhigh, max, none}`.
+
+`none` is a sentinel that disables reasoning: `_extract_reasoning_settings`
+returns no payload for it so the provider receives no reasoning control and
+uses its default (reasoning off). It is therefore not forwarded as an effort.
+
+Values outside the recognized set raise a `ValueError` at normalization time
+with a message listing the valid values and the `none` disable sentinel. This
+rejects typos and unsupported levels before any network call. To support a new
+effort level a gateway exposes, add it to `REASONING_EFFORT_VALUES`; do not
+rely on silent passthrough.
 
 ### 2. Make Transport a Provider Configuration Concern
 
@@ -232,6 +250,13 @@ an explicit precedence rule.
 
 - `model (high)@provider` remains valid and is stripped before normal model
   resolution.
+- `model (none)@provider` disables reasoning: no reasoning payload is sent to
+  the provider.
+- An unrecognized inline effort such as `model (blabla)@provider` raises a
+  `ValueError` at factory construction time, listing the valid values, instead
+  of being forwarded to the provider.
+- The recognized effort set is `{low, medium, high, minimal, xhigh, max, none}`
+  and matching is case-insensitive.
 - The user receives a warning when effort is requested for a model that is not
   marked as thinking-capable.
 - OpenRouter continues to receive `extra_body.reasoning`.
