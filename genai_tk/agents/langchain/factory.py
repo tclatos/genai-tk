@@ -259,15 +259,27 @@ async def _create_deep_agent(
         f"backend={type(backend).__name__ if backend is not None else 'none'}"
     )
 
-    agent = create_deep_agent(
-        model=model,
-        tools=tools,
-        system_prompt=profile.system_prompt or None,
-        skills=relative_skills,
-        middleware=middlewares or [],
-        checkpointer=checkpointer,
-        backend=backend,
-    )
+    # NeMo Relay: wrap model/tool calls as Relay llm/tool scopes. The helper
+    # takes the full kwargs dict and appends NemoRelayDeepAgentsMiddleware
+    # (idempotent); it does NOT wrap `model` and leaves `backend` unchanged.
+    # See docs/design/agent_trajectory_nemo_relay.md (Phase-0 spike result).
+    deep_kwargs: dict[str, Any] = {
+        "model": model,
+        "tools": tools,
+        "system_prompt": profile.system_prompt or None,
+        "skills": relative_skills,
+        "middleware": middlewares or [],
+        "checkpointer": checkpointer,
+        "backend": backend,
+    }
+    try:
+        from nemo_relay.integrations.deepagents import add_nemo_relay_integration
+
+        deep_kwargs = add_nemo_relay_integration(deep_kwargs, name=profile.name)
+    except ImportError:
+        logger.debug("nemo-relay[deepagents] not installed — deep agent runs uninstrumented")
+
+    agent = create_deep_agent(**deep_kwargs)
     # Attach the backend so callers can stop it during cleanup
     agent._backend = backend  # type: ignore[attr-defined]
     return agent

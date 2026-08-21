@@ -45,12 +45,13 @@ Orchestrate multi-step AI pipelines with Prefect and a YAML DSL for composable, 
 
 ### 📊 **Monitoring & Observability**
 Built-in tracing for all LLM calls, agents, and workflows across multiple observability backends.
+- **Trajectory store (ATOF / NeMo Relay)** — local, structured, agent-readable record of every Deep Agents run (scope tree, tool args/results, skill loads, token usage); inspect with `cli trajectory`
 - **Multi-backend support** — LangSmith, LangFuse (cloud or self-hosted), OpenTelemetry, local JSONL
 - **State management** — `.genai_tk` file tracks which backends are active
 - **Trace URL opening** — `cli monitoring open --trace` fetches and opens the latest trace in your browser
 - **JSONL logging** — local file-based trace log (always on, no external service required)
 - Docker service control — `just langfuse-server-start/stop` for self-hosted LangFuse
-- See: `cli monitoring`, [docs/monitoring.md](docs/monitoring.md)
+- See: `cli monitoring`, `cli trajectory`, [docs/monitoring.md](docs/monitoring.md), [docs/trajectory.md](docs/trajectory.md)
 
 ---
 

@@ -292,11 +292,20 @@ def setup_monitoring() -> MonitoringContext:
         if cb is not None:
             callbacks.append(cb)
 
+    # NeMo Relay ATOF subscriber — the local trajectory record (source of truth).
+    # Always active when nemo-relay is installed; no-op otherwise.
+    from genai_tk.utils.nemo_relay_setup import setup_nemo_relay
+
+    relay_active = setup_nemo_relay()
+
     if cfg.backends:
         logger.debug(f"Monitoring active backends: {cfg.backends}")
 
+    active = list(cfg.backends)
+    if relay_active and "relay" not in active:
+        active.append("relay")
     _monitoring_context = MonitoringContext(
-        active_backends=list(cfg.backends),
+        active_backends=active,
         langchain_callbacks=callbacks,
     )
     return _monitoring_context

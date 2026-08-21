@@ -318,6 +318,63 @@ LLM-as-judge tests can be flaky (different models, prompt variations, temperatur
 
 ---
 
+## Store-Based Evaluation (Phase 3)
+
+In addition to the re-run pattern above, evals can load a **captured**
+trajectory from the local trajectory store and judge it — no agent re-run.
+This is the recommended path for evaluating real agent behaviour, since it
+reasons about what the agent actually did (including skill usage and
+grounding), not a fresh re-run.
+
+See [docs/trajectory.md](trajectory.md) for the trajectory store and
+`cli trajectory` commands.
+
+### Loading a captured trajectory
+
+```python
+from genai_tk.agents.langchain.trajectory_store_io import load_trajectory_messages
+
+messages = load_trajectory_messages("<run_id>")  # OpenAI-format, for agentevals/openevals
+```
+
+### Golden structural comparison
+
+```python
+from genai_tk.agents.langchain.trajectory_store_io import compare_trajectory_to_golden
+
+verdict = compare_trajectory_to_golden("<run_id>", {"tools": ["echo"], "skills": ["navigation"], "min_steps": 4})
+assert verdict["pass"], verdict["checks"]
+```
+
+### Judge harness
+
+`judge_trajectory` runs configured judges over a stored trajectory:
+
+```python
+from genai_tk.agents.langchain.trajectory_store_io import judge_trajectory
+
+verdicts = judge_trajectory(
+    "<run_id>",
+    [
+        {"kind": "tool_use", "tools": ["echo"]},        # deterministic, no API key
+        {"kind": "grounding"},                         # deterministic
+        {"kind": "efficiency", "max_repeat": 3},        # deterministic
+        {"kind": "correctness", "judge": judge_llm, "reference_outputs": "echo:hello"},  # LLM, gated
+    ],
+)
+```
+
+The deterministic judges run without `--include-real-models`; the LLM judges
+(`correctness`, `trajectory_accuracy`) are gated.
+
+### Test files
+
+- `tests/eval_tests/test_trajectory_store_evals.py` — gated real-model evals
+  that capture a run to an eval-local store, then judge the captured trajectory
+  (superset + golden + deterministic judges + correctness LLM judge).
+
+---
+
 ## Common Patterns
 
 ### Create a Custom Evaluator

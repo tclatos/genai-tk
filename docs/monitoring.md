@@ -3,12 +3,28 @@
 GenAI Toolkit provides unified monitoring support for **LLM calls, agents, and pipelines** across multiple observability backends.
 
 Supported backends:
+- **Trajectory store (ATOF)** — local, structured, agent-readable record via NeMo Relay (source of truth; see [docs/trajectory.md](trajectory.md))
 - **LangSmith** — LangChain's platform (tracing, debugging, testing)
 - **LangFuse** — Open-source observability (cloud or self-hosted)
 - **OpenTelemetry (OTEL)** — Standard observability protocol (standalone or via LangFuse)
-- **Local JSONL** — File-based trace logging (always on, no external service required)
+- **Local JSONL** — File-based per-LLM-call trace logging (always on, no external service required)
 
 Multiple backends can be **active simultaneously** — traces are sent to all configured backends in parallel.
+
+## Trajectory store (NeMo Relay / ATOF)
+
+In addition to the per-LLM-call backends above, Deep Agents runs are captured
+as a full **trajectory** — the scope tree of agent → LLM → tool calls, with
+tool args/results, skill loads, and token usage — via [NeMo Relay](https://docs.nvidia.com/nemo/relay)
+and its Agent Trajectory Observability Format (ATOF). The local trajectory
+store (`<data_root>/trajectories/`) is the **source of truth**; the remote
+backends above are projections of the same event stream.
+
+Inspect recorded runs with `cli trajectory` (list / show / replay / export /
+diff / skills / stats / prune / view), and run store-based evals that judge a
+**captured** trajectory instead of re-running the agent.
+
+See [docs/trajectory.md](trajectory.md) for the full guide.
 
 ## Harness Trace Metadata
 
@@ -540,5 +556,6 @@ For accurate cost tracking, use LangFuse or LangSmith's native cost reporting.
 
 - [docs/core.md](core.md) — LLM factory and model selection
 - [docs/agents.md](agents.md) — Agent frameworks and tool integration
-- [docs/cli.md](cli.md) — CLI command reference including `cli monitoring`
+- [docs/cli.md](cli.md) — CLI command reference including `cli monitoring` and `cli trajectory`
+- [docs/trajectory.md](trajectory.md) — agent trajectory observability (ATOF store, `cli trajectory`, store-based evals)
 - `config/examples/monitoring.yaml` — Configuration templates for different setups

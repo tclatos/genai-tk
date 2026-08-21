@@ -337,6 +337,26 @@ profiles, and integrating with existing commands.
 
 ---
 
+### `trajectory` — Recorded Agent Trajectories
+
+Inspect agent runs captured by NeMo Relay into the local trajectory store.
+See [trajectory.md](trajectory.md) for the full guide.
+
+```bash
+uv run cli trajectory list                         # list recorded runs
+uv run cli trajectory show <run_id>                # scope timeline (tree/json/messages/dot)
+uv run cli trajectory tail                         # last events of the most recent run
+uv run cli trajectory replay <run_id>              # replay events with relative timings
+uv run cli trajectory export <run_id> -f messages # export as OpenAI messages
+uv run cli trajectory diff <id1> <id2>            # structural diff
+uv run cli trajectory skills <run_id>             # skill.load marks
+uv run cli trajectory stats                        # aggregate token/tool/skill stats
+uv run cli trajectory prune --keep-last 50         # retention
+uv run cli trajectory view                         # Harbor ATIF web viewer
+```
+
+---
+
 ### `sandbox` — Code Execution Sandbox
 
 ```bash

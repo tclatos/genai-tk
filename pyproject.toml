@@ -14,7 +14,7 @@ dependencies = [
     "questionary>=2.0",         # Interactive CLI prompts (template picker)
     "omegaconf>=2.3.0",         # Hierarchical configuration system
     "rich[jupyter]>=13.9.4",    # Rich terminal formatting and progress bars
-    "textual>=0.80",            # Terminal UI framework 
+    "textual>=0.80",            # Terminal UI framework
     "universal-pathlib>=0.2.6", # Unified path interface for local/cloud storage
     "python-dotenv>=1.1.1",     # Environment variable management
     "beartype>=0.21.0",         # Runtime type validation
@@ -94,8 +94,8 @@ dependencies = [
     # ============================================
     # Web Interface (Streamlit is optional — see [streamlit] extra)
     # ============================================
-
-
+    "langsmith>=0.9",
+    "nemo-relay[deepagents]>=0.7.3",
 ]
 
 [project.urls]
@@ -201,7 +201,7 @@ package = true
 constraint-dependencies = [
     "ipython<9",       # 9.x has circular import (ultratb → from IPython import get_ipython during __init__)
     "requests<2.34",   # 2.34.x has broken compat.py (missing JSONDecodeError)
-    "langsmith<0.9",   # 0.9.x has circular import in _openapi_client
+ #   "langsmith<0.9",   # 0.9.x has circular import in _openapi_client
     "alembic<1.18",    # 1.18.x has missing PriorityDispatcher (breaks Prefect)
     "openai<2.44",     # 2.44.0 has circular import in _utils/_files
 ]

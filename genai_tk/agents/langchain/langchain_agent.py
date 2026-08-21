@@ -287,10 +287,14 @@ class LangchainAgent(BaseModel):
     @staticmethod
     def _invoke_config() -> dict[str, Any]:
         """Build a RunnableConfig with thread id and monitoring callbacks attached."""
+        from genai_tk.utils.nemo_relay_setup import get_relay_callback_handler
         from genai_tk.utils.tracing import get_monitoring_callbacks
 
         config: dict[str, Any] = {"configurable": {"thread_id": "1"}}
         callbacks = get_monitoring_callbacks()
+        relay_handler = get_relay_callback_handler()
+        if relay_handler is not None:
+            callbacks = [*callbacks, relay_handler]
         if callbacks:
             config["callbacks"] = callbacks
         return config

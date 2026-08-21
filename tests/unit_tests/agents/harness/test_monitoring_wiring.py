@@ -87,7 +87,12 @@ async def test_langchain_harness_astream_passes_callbacks(langchain_profile) -> 
 
 
 async def test_langchain_harness_astream_no_callbacks_when_none_active(langchain_profile) -> None:
-    """When get_monitoring_callbacks() returns [], no callbacks key is added."""
+    """When no callback source is active, no callbacks key is added.
+
+    Covers the case where both legacy monitoring backends are off and NeMo
+    Relay is unavailable (e.g. a downstream venv without the extra). When
+    Relay is installed its callback is always attached (trajectory record).
+    """
     from genai_tk.agents.harness.langchain_harness import LangChainHarness
 
     fake_agent = MagicMock()
@@ -96,9 +101,12 @@ async def test_langchain_harness_astream_no_callbacks_when_none_active(langchain
     harness = LangChainHarness(langchain_profile)
     harness._agent = fake_agent
 
-    with patch(
-        "genai_tk.agents.harness.langchain_harness.get_monitoring_callbacks",
-        return_value=[],
+    with (
+        patch(
+            "genai_tk.agents.harness.langchain_harness.get_monitoring_callbacks",
+            return_value=[],
+        ),
+        patch("genai_tk.utils.nemo_relay_setup.get_relay_callback_handler", return_value=None),
     ):
         async for _ in harness.astream("hello"):
             pass
@@ -195,12 +203,20 @@ def test_langchain_agent_invoke_config_includes_callbacks() -> None:
 
 
 def test_langchain_agent_invoke_config_no_callbacks_when_empty() -> None:
-    """LangchainAgent._invoke_config() omits callbacks key when none active."""
+    """LangchainAgent._invoke_config() omits callbacks key when none active.
+
+    Covers the case where both legacy monitoring backends are off and NeMo
+    Relay is unavailable. When Relay is installed its callback is always
+    attached (trajectory record).
+    """
     from genai_tk.agents.langchain.langchain_agent import LangchainAgent
 
-    with patch(
-        "genai_tk.utils.tracing.get_monitoring_callbacks",
-        return_value=[],
+    with (
+        patch(
+            "genai_tk.utils.tracing.get_monitoring_callbacks",
+            return_value=[],
+        ),
+        patch("genai_tk.utils.nemo_relay_setup.get_relay_callback_handler", return_value=None),
     ):
         config = LangchainAgent._invoke_config()
 

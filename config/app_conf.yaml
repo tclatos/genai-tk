@@ -200,4 +200,5 @@ cli:
     - genai_tk.cli.commands_skills.SkillsCommands
     - genai_tk.main.cli.register_commands
     - genai_tk.cli.commands_monitoring.MonitoringCommands
+    - genai_tk.cli.commands_trajectory.TrajectoryCommands
     - browser_control.commands.example_commands.ExampleCommands

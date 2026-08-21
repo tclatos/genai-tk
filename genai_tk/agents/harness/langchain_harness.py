@@ -125,6 +125,13 @@ class LangChainHarness(BaseHarness):
         # Attach monitoring callbacks (local JSONL log, LangFuse CallbackHandler)
         # so agent runs are traced alongside the env-var/OTEL backends.
         callbacks = get_monitoring_callbacks()
+        # NeMo Relay callback maps the LangGraph run hierarchy to Relay agent
+        # scopes (and HITL marks for Deep Agents) — the trajectory record.
+        from genai_tk.utils.nemo_relay_setup import get_relay_callback_handler
+
+        relay_handler = get_relay_callback_handler()
+        if relay_handler is not None:
+            callbacks = [*callbacks, relay_handler]
         if callbacks:
             config["callbacks"] = callbacks
         # Per-run accumulator: maps astream `run_id` → streamed-text buffer.
@@ -142,6 +149,10 @@ class LangChainHarness(BaseHarness):
         yield EndEvent()
 
     async def aclose(self) -> None:
+        # Flush queued NeMo Relay ATOF events before tearing down the backend.
+        from genai_tk.utils.nemo_relay_setup import flush_nemo_relay_async
+
+        await flush_nemo_relay_async()
         backend = getattr(self._agent, "_backend", None)
         stop = getattr(backend, "stop", None)
         if callable(stop):
