@@ -279,6 +279,20 @@ async def _create_deep_agent(
     except ImportError:
         logger.debug("nemo-relay[deepagents] not installed — deep agent runs uninstrumented")
 
+    # Hide built-in sandbox/file/subagent tools the profile marks excluded, so the
+    # agent relies on its own tools (e.g. graph retrieval) instead of the
+    # filesystem. deepagents appends user middleware AFTER FilesystemMiddleware /
+    # SubAgentMiddleware / SkillsMiddleware inject their tools, so the exclusion
+    # middleware (placed last here) strips them from the model's tool list just
+    # before each model call. Mirrors deepagents' own HarnessProfile.excluded_tools
+    # path without the global, model-keyed profile registry.
+    excluded = frozenset(profile.excluded_tools or [])
+    if excluded:
+        from deepagents.middleware._tool_exclusion import _ToolExclusionMiddleware  # noqa: PLC0415
+
+        deep_kwargs["middleware"] = [*deep_kwargs.get("middleware", []), _ToolExclusionMiddleware(excluded=excluded)]
+        logger.info("Deep agent '{}': excluded {} built-in tool(s): {}", profile.name, len(excluded), sorted(excluded))
+
     agent = create_deep_agent(**deep_kwargs)
     # Attach the backend so callers can stop it during cleanup
     agent._backend = backend  # type: ignore[attr-defined]

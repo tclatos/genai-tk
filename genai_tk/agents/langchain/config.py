@@ -209,6 +209,16 @@ class AgentProfileConfig(BaseModel):
     skill_directories: list[str] = Field(default_factory=list, description="Directories to scan for deep-agent skills")
     enable_planning: bool = Field(True, description="Enable multi-step planning (deep agents only)")
     enable_file_system: bool = Field(True, description="Allow file-system access inside the sandbox")
+    excluded_tools: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Built-in tool names to strip from the model's tool list each turn "
+            "(e.g. ls, read_file, grep, glob, write_file, edit_file, execute, task). "
+            "Use this to force graph/retrieval-only navigation when the sandbox/file "
+            "tools deepagents injects (FilesystemMiddleware / SubAgentMiddleware / "
+            "SkillsMiddleware) are unwanted."
+        ),
+    )
     subagents: list[dict[str, Any]] = Field(default_factory=list, description="Subagent definitions (deep agents only)")
     features: list[str] = Field(default_factory=list, description="Feature flags shown in the UI")
     examples: list[str] = Field(default_factory=list, description="Example prompts shown in the UI")
