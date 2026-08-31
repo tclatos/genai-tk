@@ -41,7 +41,7 @@ def test_markdownize_flow_creates_manifest(tmp_path, monkeypatch) -> None:
     pdf_file = input_dir / "sample.pdf"
     pdf_file.write_bytes(b"%PDF-1.4\ncontent")
 
-    def fake_submit(original_src, convert_src, route, out_abs, rel_out, pdf_converter):
+    def fake_submit(original_src, convert_src, converter_name, out_abs, rel_out):
         return _FakeFuture((original_src, rel_out))
 
     monkeypatch.setattr(mod._convert_file_task, "submit", fake_submit)
@@ -80,7 +80,7 @@ def test_markdownize_flow_skips_unchanged(tmp_path, monkeypatch) -> None:
 
     call_count = 0
 
-    def fake_submit(original_src, convert_src, route, out_abs, rel_out, pdf_converter):
+    def fake_submit(original_src, convert_src, converter_name, out_abs, rel_out):
         nonlocal call_count
         call_count += 1
         return _FakeFuture((original_src, rel_out))

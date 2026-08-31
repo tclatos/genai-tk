@@ -46,21 +46,6 @@ def test_markdownize_profile_rule_order() -> None:
     assert profile.select_route(Path("readme.md")) == "copy"
 
 
-def test_markdownize_profile_legacy_kwargs() -> None:
-    profile = MarkdownizeProfile(
-        ppt_converter="via_pdf",
-        doc_converter="markitdown",
-        excel_converter="messy_xls_parser",
-        pdf_converter="mistral",
-    )
-
-    assert profile.select_route(Path("deck.pptx")) == "via_pdf"
-    assert profile.select_route(Path("memo.docx")) == "markitdown"
-    assert profile.select_route(Path("sheet.xlsx")) == "messy_xls_parser"
-    assert profile.select_route(Path("scan.pdf")) == "mistral_ocr"
-    assert profile.select_route(Path("notes.md")) == "copy"
-
-
 def test_converter_factory_builtin_names() -> None:
     for name in ["markitdown", "messy_xls", "edgeparse", "mistral_ocr", "lighton_ocr", "anydoc", "llm"]:
         conv = ConverterFactory.create(name)

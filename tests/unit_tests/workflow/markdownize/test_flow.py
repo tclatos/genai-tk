@@ -159,21 +159,26 @@ def test_markdownize_manifest_empty_serialises() -> None:
 
 
 def test_route_for_uses_profile_per_family() -> None:
+    from genai_tk.extra.markdownize.selector import ConverterRule
+
     profile = MarkdownizeProfile(
-        ppt_converter="via_pdf",
-        doc_converter="markitdown",
-        excel_converter="messy_xls_parser",
-        pdf_converter="mistral",
+        rules=[
+            ConverterRule(pathspec="**/*.pptx", converter="via_pdf"),
+            ConverterRule(pathspec="**/*.docx", converter="markitdown"),
+            ConverterRule(pathspec="**/*.xlsx", converter="messy_xls"),
+            ConverterRule(pathspec="**/*.pdf", converter="mistral_ocr"),
+            ConverterRule(pathspec="**/*", converter="markitdown"),
+        ]
     )
     assert _route_for(Path("deck.pptx"), profile) == "via_pdf"
     assert _route_for(Path("memo.docx"), profile) == "markitdown"
-    assert _route_for(Path("sheet.xlsx"), profile) == "messy_xls_parser"
-    assert _route_for(Path("scan.pdf"), profile) == "pdf"
+    assert _route_for(Path("sheet.xlsx"), profile) == "messy_xls"
+    assert _route_for(Path("scan.pdf"), profile) == "mistral_ocr"
     assert _route_for(Path("photo.png"), profile) == "markitdown"
 
 
 # ---------------------------------------------------------------------------
-# _convert_file_task (markitdown / messy_xls_parser — local conversion)
+# _convert_file_task (markitdown / messy_xls — local conversion)
 # ---------------------------------------------------------------------------
 
 
@@ -184,9 +189,7 @@ def test_convert_file_task_converts_json_to_markdown(tmp_path: Path) -> None:
     out = tmp_path / "out"
 
     rel_out, out_abs = _output_paths(src, tmp_path, out)
-    source, relative_output = _convert_file_task.fn(
-        str(src), str(src), "markitdown", str(out_abs), str(rel_out), "markitdown"
-    )
+    source, relative_output = _convert_file_task.fn(str(src), str(src), "markitdown", str(out_abs), str(rel_out))
 
     assert source == str(src)
     assert relative_output == "data_json.md"
@@ -203,9 +206,7 @@ def test_convert_file_task_preserves_subdir_structure(tmp_path: Path) -> None:
     out = tmp_path / "out"
 
     rel_out, out_abs = _output_paths(src, tmp_path, out)
-    source, relative_output = _convert_file_task.fn(
-        str(src), str(src), "markitdown", str(out_abs), str(rel_out), "markitdown"
-    )
+    source, relative_output = _convert_file_task.fn(str(src), str(src), "markitdown", str(out_abs), str(rel_out))
 
     assert source == str(src)
     assert relative_output == str(Path("docs") / "data_csv.md")
@@ -213,7 +214,7 @@ def test_convert_file_task_preserves_subdir_structure(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Excel conversion (messy_xls_parser)
+# Excel conversion (messy_xls)
 # ---------------------------------------------------------------------------
 
 
@@ -237,7 +238,7 @@ def _write_messy_workbook(path: Path) -> None:
 
 
 def test_excel_to_markdown_messy_xls_no_nan_and_title_rescued(tmp_path: Path) -> None:
-    from genai_tk.workflow.markdownize.excel import excel_to_markdown_messy_xls
+    from genai_tk.extra.markdownize.excel_converter import excel_to_markdown_messy_xls
 
     src = tmp_path / "sample.xlsx"
     _write_messy_workbook(src)
@@ -251,45 +252,19 @@ def test_excel_to_markdown_messy_xls_no_nan_and_title_rescued(tmp_path: Path) ->
 
 
 @pytest.mark.fake_models
-def test_convert_file_task_routes_xlsx_through_messy_xls_parser(tmp_path: Path) -> None:
+def test_convert_file_task_routes_xlsx_through_messy_xls(tmp_path: Path) -> None:
     src = tmp_path / "sample.xlsx"
     _write_messy_workbook(src)
     out = tmp_path / "out"
 
     rel_out, out_abs = _output_paths(src, tmp_path, out)
-    source, relative_output = _convert_file_task.fn(
-        str(src), str(src), "messy_xls_parser", str(out_abs), str(rel_out), "markitdown"
-    )
+    source, relative_output = _convert_file_task.fn(str(src), str(src), "messy_xls", str(out_abs), str(rel_out))
 
     assert source == str(src)
     written = out / relative_output
     content = written.read_text(encoding="utf-8")
     assert "NaN" not in content
     assert "**Sales Report**" in content
-
-
-@pytest.mark.fake_models
-def test_convert_file_task_xlsx_falls_back_to_markitdown_on_parser_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    import genai_tk.workflow.markdownize.converters as converters_module
-
-    def _boom(path: Path) -> str:
-        raise ValueError("boom")
-
-    monkeypatch.setattr(converters_module, "excel_to_markdown_messy_xls", _boom)
-
-    src = tmp_path / "sample.xlsx"
-    _write_messy_workbook(src)
-    out = tmp_path / "out"
-
-    rel_out, out_abs = _output_paths(src, tmp_path, out)
-    source, relative_output = _convert_file_task.fn(
-        str(src), str(src), "messy_xls_parser", str(out_abs), str(rel_out), "markitdown"
-    )
-
-    assert source == str(src)
-    assert (out / relative_output).exists()
 
 
 # ---------------------------------------------------------------------------
@@ -364,10 +339,12 @@ def test_markdownize_flow_all_cached_returns_without_reprocessing(
     cache.save(cache_dir / "manifest.json")
 
     # If the flow reprocesses, markitdown runs — prevent it to prove caching works.
-    def _boom(*args, **kwargs):  # noqa: ANN002
+    async def _boom(*args, **kwargs):
         raise AssertionError("should not reconvert a cached file")
 
-    monkeypatch.setattr("genai_tk.workflow.markdownize.converters._markitdown_text", _boom, raising=False)
+    monkeypatch.setattr("genai_tk.extra.markdownize.markitdown_converter.MarkItDownConverter.convert", _boom)
 
+    manifest = markdownize_flow(sources=str(src), md_output_dir=str(out))
+    assert str(f) in manifest.entries
     manifest = markdownize_flow(sources=str(src), md_output_dir=str(out))
     assert str(f) in manifest.entries

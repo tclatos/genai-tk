@@ -39,11 +39,6 @@ markdownize_profiles:
         converter: messy_xls
       - pathspec: "**/*"
         converter: markitdown
-    # Legacy fields for backward compatibility
-    ppt_converter: markitdown
-    doc_converter: markitdown
-    excel_converter: messy_xls_parser
-    pdf_converter: markitdown
 
   medium:
     rules:
@@ -55,10 +50,6 @@ markdownize_profiles:
         converter: mistral_ocr
       - pathspec: "**/*"
         converter: markitdown
-    ppt_converter: via_pdf
-    doc_converter: via_pdf
-    excel_converter: messy_xls_parser
-    pdf_converter: mistral
 
   best:
     rules:
@@ -68,10 +59,6 @@ markdownize_profiles:
         converter: mistral_ocr
       - pathspec: "**/*"
         converter: markitdown
-    ppt_converter: via_pdf
-    doc_converter: via_pdf
-    excel_converter: via_pdf
-    pdf_converter: mistral
 
   lighton:
     rules:

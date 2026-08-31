@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import mimetypes
 import os
 import tempfile
 from pathlib import Path
@@ -14,7 +15,18 @@ from pydantic import Field
 
 from genai_tk.extra.markdownize.base import DocumentConverter
 
-_PDF_EXTENSIONS = {".pdf"}
+_MISTRAL_SUPPORTED_EXTENSIONS = {
+    ".pdf",
+    ".docx",
+    ".doc",
+    ".pptx",
+    ".ppt",
+    ".odt",
+    ".odp",
+    ".png",
+    ".jpg",
+    ".jpeg",
+}
 
 
 class MistralOCRConverter(DocumentConverter):
@@ -29,7 +41,7 @@ class MistralOCRConverter(DocumentConverter):
 
     def supported_extensions(self) -> set[str]:
         """Return file extensions supported by Mistral OCR."""
-        return _PDF_EXTENSIONS
+        return _MISTRAL_SUPPORTED_EXTENSIONS
 
     def _resolve_api_key(self) -> str:
         """Resolve the Mistral API key from explicit setting or environment."""
@@ -46,15 +58,30 @@ class MistralOCRConverter(DocumentConverter):
             raise ImportError("mistralai is required for MistralOCRConverter. Install with 'uv add mistralai'.") from e
         return Mistral(api_key=self._resolve_api_key())
 
+    @staticmethod
+    def _document_data_url(path: Path) -> str:
+        """Encode file to a data URL with guessed or resolved MIME type."""
+        content_b64 = base64.b64encode(path.read_bytes()).decode("utf-8")
+        suffix = path.suffix.lower()
+        if suffix == ".pdf":
+            mime_type = "application/pdf"
+        elif suffix in (".jpg", ".jpeg"):
+            mime_type = "image/jpeg"
+        elif suffix == ".png":
+            mime_type = "image/png"
+        else:
+            mime_type, _ = mimetypes.guess_type(str(path))
+            mime_type = mime_type or "application/octet-stream"
+        return f"data:{mime_type};base64,{content_b64}"
+
     async def convert(self, path: Path) -> str:
-        """Convert a single PDF file to Markdown text using Mistral OCR."""
+        """Convert a single document file to Markdown text using Mistral OCR."""
         return await asyncio.to_thread(self._sync_convert_single, path)
 
     def _sync_convert_single(self, path: Path) -> str:
         """Execute single-file Mistral OCR synchronously."""
         client = self._get_client()
-        content_b64 = base64.b64encode(path.read_bytes()).decode("utf-8")
-        document_url = f"data:application/pdf;base64,{content_b64}"
+        document_url = self._document_data_url(path)
 
         ocr_response = client.ocr.process(
             model=self.model,
@@ -71,7 +98,7 @@ class MistralOCRConverter(DocumentConverter):
         return "".join(parts)
 
     async def batch_convert(self, paths: list[Path]) -> dict[str, str]:
-        """Convert a batch of PDF files using Mistral Batch API when enabled."""
+        """Convert a batch of files using Mistral Batch API when enabled."""
         if not paths:
             return {}
 
@@ -83,7 +110,7 @@ class MistralOCRConverter(DocumentConverter):
 
         for start in range(0, len(paths), self.batch_size):
             batch_files = paths[start : start + self.batch_size]
-            logger.info(f"Submitting Mistral OCR batch of {len(batch_files)} PDF(s)")
+            logger.info(f"Submitting Mistral OCR batch of {len(batch_files)} file(s)")
             requests = [self._prepare_batch_request(p, i) for i, p in enumerate(batch_files)]
             batch_results = await self._submit_and_poll_batch(client, requests, batch_files)
             results.update(batch_results)
@@ -92,8 +119,7 @@ class MistralOCRConverter(DocumentConverter):
 
     def _prepare_batch_request(self, file_path: Path, index: int) -> str:
         """Prepare a single JSONL batch request line."""
-        content_b64 = base64.b64encode(file_path.read_bytes()).decode("utf-8")
-        document_url = f"data:application/pdf;base64,{content_b64}"
+        document_url = self._document_data_url(file_path)
         request = {
             "custom_id": str(index),
             "body": {"model": self.model, "document": {"type": "document_url", "document_url": document_url}},
