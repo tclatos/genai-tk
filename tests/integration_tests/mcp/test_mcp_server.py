@@ -92,7 +92,7 @@ async def test_tool_with_structured_schema(tmp_path: Path) -> None:
     server = build_mcp_server(defn)
     tools = await server.list_tools()
     add_tool = next(t for t in tools if t.name == "add_numbers")
-    schema = add_tool.inputSchema
+    schema = getattr(add_tool, "input_schema", getattr(add_tool, "inputSchema", {}))
     props = schema.get("properties", {})
     assert "a" in props
     assert "b" in props

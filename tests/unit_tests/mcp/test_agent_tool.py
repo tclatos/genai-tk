@@ -16,7 +16,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from langchain_core.tools import tool
-from mcp.server.fastmcp import FastMCP
+
+try:
+    from mcp.server.mcpserver import MCPServer
+except (ImportError, ModuleNotFoundError):
+    from mcp.server.fastmcp import FastMCP as MCPServer  # type: ignore[no-redef]
 
 from genai_tk.agents.harness.base import BaseHarness
 from genai_tk.mcp.agent_tool import AgentToolResult, register_agent_tool
@@ -32,8 +36,8 @@ def _fake_tool(text: str) -> str:
 
 
 def _fake_server():
-    """A minimal FastMCP stand-in that captures the registered tool function."""
-    server = MagicMock(spec=FastMCP)
+    """A minimal MCPServer stand-in that captures the registered tool function."""
+    server = MagicMock(spec=MCPServer)
     captured: dict[str, object] = {}
 
     def _add_tool(fn, *, name, description):

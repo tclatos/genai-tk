@@ -700,7 +700,8 @@ class InfoCommands(CliTopCommand):
                     table.add_column("Arguments", style="yellow", ratio=1)
 
                     for tool in tools:
-                        args_str = _format_args(tool.inputSchema)
+                        input_schema = getattr(tool, "input_schema", getattr(tool, "inputSchema", {}))
+                        args_str = _format_args(input_schema)
                         table.add_row(tool.name, tool.description or "", args_str)
 
                     console.print(table)

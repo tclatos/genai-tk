@@ -1,3 +1,32 @@
+# Better Markdown
+
+There are many solutions to convert dpc to markdown. We want to refactor our toolkit to maje easier to leverage one.   
+
+Today we support Mistral OCR (genai_tk/workflow/loaders/mistral_ocr.py, genai_tk/workflow/markdownize/mistral.py), markitdown, edgeparse, and spreadsheet parser (genai_tk/workflow/markdownize/converters.py). Markdown handling is spread over the code...  refactorinf is needed.
+
+We want to support additional solutions : 
+1/ LightOnOCR :  https://developers.lighton.ai/api-reference/parse/parse-a-document-to-markdown 
+2/ Anydoc : https://github.com/firecrawl/anydoc
+
+The converters should run async whenever possible. If a batch mode is available (as with Mistral OCR), make it configurable.
+Have an anstract method that return the list of supported file extension for each solution. 
+
+Use our classical approach : an abstract class, instance per solution, and a YAML file to define common configuration, with a field pointing to the class. 
+You could reuse an refactor genai_tk/default_config/markdownize.yaml, but be more flexible. I suggest selecting the converter by checking an ordered list of pathspecs.  Maybe a 'convertor selector' entry might be interesting ?  I let  you evaluate. 
+
+Update Prefect tasks and workflows. 
+
+Put core code in a new dir under genai_tk/extra.
+
+
+
+
+https://developers.lighton.ai/api-reference/parse/parse-a-document-to-markdown
+
+
+We want to 
+
+
 Status: 
 
 ~/prj/ekg-atos ->   cli kg create one_rainbow 

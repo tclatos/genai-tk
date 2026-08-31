@@ -148,7 +148,7 @@ async def get_mcp_tools_with_schema(filter: list[str] | None = None) -> dict[str
     """Get all tools from MCP servers including their input schemas.
 
     Returns:
-        Dict mapping server name to list of MCP Tool objects (with .name, .description, .inputSchema).
+        Dict mapping server name to list of MCP Tool objects (with .name, .description, .input_schema).
     """
     from mcp import ClientSession, StdioServerParameters  # noqa: PLC0415
     from mcp.client.stdio import stdio_client  # noqa: PLC0415

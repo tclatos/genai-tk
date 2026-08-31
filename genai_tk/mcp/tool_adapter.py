@@ -1,21 +1,21 @@
-"""Adapter layer: LangChain BaseTool → FastMCP tool registration.
+"""Adapter layer: LangChain BaseTool → MCPServer tool registration.
 
 For every LangChain ``BaseTool`` the adapter creates an async wrapper whose
-Python signature mirrors the tool's Pydantic ``args_schema``.  FastMCP
+Python signature mirrors the tool's Pydantic ``args_schema``.  MCPServer
 inspects that signature (via ``inspect.signature``) to derive the JSON schema
 it exposes to MCP clients.
 
-The function body itself accepts ``**kwargs`` – FastMCP always calls tools with
+The function body itself accepts ``**kwargs`` – MCPServer always calls tools with
 keyword arguments, so the real signature only needs to be present as the
 ``__signature__`` attribute (which ``inspect.signature`` honours).
 
 Example:
     ```python
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
     from genai_tk.mcp.tool_adapter import register_tools
     from genai_tk.agents.tools.langchain.search_tools_factory import create_search_function
 
-    server = FastMCP("demo")
+    server = MCPServer("demo")
     lc_tool = create_search_function()
     register_tools(server, [lc_tool])
     ```
@@ -29,7 +29,11 @@ from typing import Any
 
 from langchain_core.tools import BaseTool
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+
+try:
+    from mcp.server.mcpserver import MCPServer
+except (ImportError, ModuleNotFoundError):
+    from mcp.server.fastmcp import FastMCP as MCPServer  # type: ignore[no-redef]
 from pydantic import BaseModel, TypeAdapter
 from pydantic_core import PydanticUndefined
 
@@ -37,11 +41,11 @@ from genai_tk.agents.tools.langchain.shared_config_loader import process_langcha
 from genai_tk.agents.tools.tool_specs import ToolSpec
 
 
-def register_tools(server: FastMCP, tools: list[BaseTool]) -> None:
-    """Register a list of LangChain tools on a FastMCP server instance.
+def register_tools(server: MCPServer, tools: list[BaseTool]) -> None:
+    """Register a list of LangChain tools on an MCPServer instance.
 
     Args:
-        server: The FastMCP server to register tools on.
+        server: The MCPServer to register tools on.
         tools: LangChain BaseTool instances to expose.
     """
     for tool in tools:

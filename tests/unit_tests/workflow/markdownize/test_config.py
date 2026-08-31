@@ -38,8 +38,11 @@ def test_best_profile_is_all_via_pdf_mistral() -> None:
 
 
 def test_config_entry_overrides_builtin() -> None:
-    global_config().set("markdownize_profiles.fast.pdf_converter", "mistral")
-    assert get_markdownize_profile("fast").pdf_converter == "mistral"
+    try:
+        global_config().set("markdownize_profiles.fast.pdf_converter", "mistral")
+        assert get_markdownize_profile("fast").pdf_converter == "mistral"
+    finally:
+        global_config().set("markdownize_profiles.fast.pdf_converter", "markitdown")
 
 
 def test_fingerprint_changes_with_any_field() -> None:

@@ -9,11 +9,11 @@ back to continue a prior turn.
 
 Example:
     ```python
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
     from genai_tk.mcp.config import MCPAgentConfig
     from genai_tk.mcp.agent_tool import register_agent_tool
 
-    server = FastMCP("my-server")
+    server = MCPServer("my-server")
     cfg = MCPAgentConfig(
         enabled=True,
         name="run_research_agent",
@@ -30,7 +30,11 @@ import uuid
 
 from langchain_core.tools import BaseTool
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+
+try:
+    from mcp.server.mcpserver import MCPServer
+except (ImportError, ModuleNotFoundError):
+    from mcp.server.fastmcp import FastMCP as MCPServer  # type: ignore[no-redef]
 from pydantic import BaseModel
 
 from genai_tk.agents.harness.base import BaseHarness
@@ -46,7 +50,7 @@ class AgentToolResult(BaseModel):
 
 
 def register_agent_tool(
-    server: FastMCP,
+    server: MCPServer,
     agent_cfg: MCPAgentConfig,
     extra_tools: list[BaseTool] | None = None,
 ) -> None:
@@ -57,7 +61,7 @@ def register_agent_tool(
     LLM / MCP-server connections to initialise.
 
     Args:
-        server: FastMCP server instance to register the tool on.
+        server: MCPServer instance to register the tool on.
         agent_cfg: Agent configuration (name, description, profile, llm).
         extra_tools: Additional LangChain tools passed to the agent on top of
             what the profile declares (can be None).

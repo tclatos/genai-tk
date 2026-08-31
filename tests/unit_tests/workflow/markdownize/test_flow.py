@@ -245,7 +245,7 @@ def test_excel_to_markdown_messy_xls_no_nan_and_title_rescued(tmp_path: Path) ->
     content = excel_to_markdown_messy_xls(src)
 
     assert "NaN" not in content
-    assert "### Sales Report" in content
+    assert "**Sales Report**" in content
     assert "## Sheet: Sales" in content
     assert "| Region | Jan | Feb |" in content
 
@@ -265,7 +265,7 @@ def test_convert_file_task_routes_xlsx_through_messy_xls_parser(tmp_path: Path) 
     written = out / relative_output
     content = written.read_text(encoding="utf-8")
     assert "NaN" not in content
-    assert "### Sales Report" in content
+    assert "**Sales Report**" in content
 
 
 @pytest.mark.fake_models

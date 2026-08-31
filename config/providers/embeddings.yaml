@@ -34,7 +34,7 @@ embeddings:
       providers:
         #- edenai: deepinfra/Qwen/Qwen3-Embedding-0.6
         - deepinfra: Qwen/Qwen3-Embedding-0.6B
-        - openrouter: qwen/qwen3-embedding-0.6b  # Listed but may have no active endpoints
+        - openrouter: qwen3_06b  # Listed but may have no active endpoints
       dimension: 1024
 
     - model_id: qwen3_4b

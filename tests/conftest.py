@@ -5,12 +5,15 @@ derived from the ``pytest`` profile in ``config/app_conf.yaml`` via the typed
 ``PytestConfig`` model.  Individual test files should **not** hardcode model IDs.
 """
 
+import os
 from pathlib import Path
 from typing import Generator
 
 import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
+from prefect.testing.utilities import prefect_test_harness
 
+import genai_tk.mcp.compat  # noqa: F401
 from genai_tk.config_mgmt.config_mngr import switch_profile
 from genai_tk.config_mgmt.features import is_available
 from genai_tk.config_mgmt.test_config import PytestConfig, get_pytest_config
@@ -75,6 +78,24 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 # ---------------------------------------------------------------------------
 # Session-scoped fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session", autouse=True)
+def prefect_test_harness_session() -> Generator[None, None, None]:
+    """Run all flow tests against an ephemeral in-memory Prefect server."""
+    saved = {key: os.environ.get(key) for key in ("NO_PROXY", "no_proxy", "PREFECT_LOGGING_TO_API_WHEN_MISSING_FLOW")}
+    os.environ["NO_PROXY"] = "*"
+    os.environ["no_proxy"] = "*"
+    os.environ["PREFECT_LOGGING_TO_API_WHEN_MISSING_FLOW"] = "ignore"
+    try:
+        with prefect_test_harness():
+            yield
+    finally:
+        for key, original in saved.items():
+            if original is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = original
 
 
 @pytest.fixture(scope="session", autouse=True)

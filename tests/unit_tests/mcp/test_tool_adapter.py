@@ -1,10 +1,14 @@
-"""Unit tests for genai_tk.mcp.tool_adapter – LangChain → FastMCP bridge."""
+"""Unit tests for genai_tk.mcp.tool_adapter – LangChain → MCPServer bridge."""
 
 import asyncio
 import inspect
 
 from langchain_core.tools import BaseTool, tool
-from mcp.server.fastmcp import FastMCP
+
+try:
+    from mcp.server.mcpserver import MCPServer
+except (ImportError, ModuleNotFoundError):
+    from mcp.server.fastmcp import FastMCP as MCPServer  # type: ignore[no-redef]
 from pydantic import BaseModel
 
 from genai_tk.mcp.tool_adapter import (
@@ -177,25 +181,25 @@ class TestMakeMcpWrapperStructured:
 
 
 # ---------------------------------------------------------------------------
-# register_tools – FastMCP integration
+# register_tools – MCPServer integration
 # ---------------------------------------------------------------------------
 
 
 class TestRegisterTools:
     def test_tools_appear_in_server(self) -> None:
-        server = FastMCP("test")
+        server = MCPServer("test")
         register_tools(server, [_SimpleStringTool(), _StructuredTool()])
         tool_names = [t.name for t in server._tool_manager._tools.values()]
         assert "upper" in tool_names
         assert "adder" in tool_names
 
     def test_description_preserved(self) -> None:
-        server = FastMCP("test")
+        server = MCPServer("test")
         register_tools(server, [_SimpleStringTool()])
         tool_obj = list(server._tool_manager._tools.values())[0]
         assert "upper-case" in tool_obj.description
 
     def test_empty_list(self) -> None:
-        server = FastMCP("test")
+        server = MCPServer("test")
         register_tools(server, [])
         assert len(server._tool_manager._tools) == 0

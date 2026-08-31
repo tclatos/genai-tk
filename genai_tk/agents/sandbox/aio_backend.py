@@ -641,6 +641,28 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             return GrepResult(error=f"grep error: {result.output.strip()}")
         return GrepResult(matches=matches)
 
+    async def als_info(self, path: str = "/") -> list[dict[str, Any]]:
+        """Deprecated alias for ``als()`` returning directory entries."""
+        result = await self.als(path)
+        return result.entries or []
+
+    async def agrep_raw(
+        self,
+        pattern: str,
+        path: str | None = None,
+        glob: str | None = None,
+    ) -> list[GrepMatch] | str:
+        """Deprecated alias for ``agrep()`` returning matches list or error string."""
+        result = await self.agrep(pattern, path=path, glob=glob)
+        if result.error:
+            return result.error
+        return result.matches or []
+
+    async def aglob_info(self, pattern: str, path: str = "/") -> list[dict[str, Any]]:
+        """Deprecated alias for ``aglob()`` returning file info matches."""
+        result = await self.aglob(pattern, path=path)
+        return result.matches or []
+
     async def aglob(self, pattern: str, path: str = "/"):  # type: ignore[override]
         """Find files matching a glob pattern.
 

@@ -104,20 +104,18 @@ class CoreCommands(CliTopCommand):
                     llm_params={"temperature": temperature},
                 )
             except Exception as e:
-                from rich.console import Console
-                from rich.panel import Panel
-
                 # Construction can fail before ``info`` exists (e.g. an invalid
                 # inline reasoning-effort value). Surface it as a clean error panel
                 # rather than letting a traceback escape.
                 from pydantic import ValidationError
+                from rich.console import Console
+                from rich.panel import Panel
 
                 if isinstance(e, ValidationError):
                     # Strip the pydantic wrapper (type tag, input dump, docs URL)
                     # and keep only the underlying validation messages.
                     msg = "; ".join(
-                        str(err.get("msg", "")).removeprefix("Value error, ").strip()
-                        for err in e.errors()
+                        str(err.get("msg", "")).removeprefix("Value error, ").strip() for err in e.errors()
                     ).strip() or str(e)
                 else:
                     msg = str(e)

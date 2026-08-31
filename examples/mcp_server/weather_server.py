@@ -6,10 +6,14 @@ from textwrap import dedent
 from typing import Any
 
 import httpx
-from mcp.server.fastmcp import FastMCP
 
-# Initialize FastMCP server
-mcp = FastMCP("weather")
+try:
+    from mcp.server.mcpserver import MCPServer
+except (ImportError, ModuleNotFoundError):
+    from mcp.server.fastmcp import FastMCP as MCPServer  # type: ignore[no-redef]
+
+# Initialize MCPServer server
+mcp = MCPServer("weather")
 # Constants
 NWS_API_BASE = "https://api.weather.gov"
 USER_AGENT = "weather-app/1.0"

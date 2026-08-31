@@ -15,3 +15,5 @@ Example:
     uv run cli mcp generate --name search --output server_search.py
     ```
 """
+
+import genai_tk.mcp.compat  # noqa: F401

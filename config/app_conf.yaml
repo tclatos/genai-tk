@@ -25,7 +25,6 @@ nlp:
 # Use '!' prefix to exclude files matched by an earlier pattern.
 :merge:
   - "**/*.yaml"
-  - "!examples/**"
   - "!demos/**"
   - "!mcp/**"
 

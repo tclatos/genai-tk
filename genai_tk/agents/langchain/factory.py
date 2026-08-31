@@ -83,6 +83,8 @@ async def create_langchain_agent(
     if all_mcp_servers:
         from langchain_mcp_adapters.client import MultiServerMCPClient
 
+        import genai_tk.mcp.compat  # noqa: F401
+
         mcp_servers_dict = get_mcp_servers_dict(all_mcp_servers)
         if mcp_servers_dict:
             mcp_client = MultiServerMCPClient(mcp_servers_dict)

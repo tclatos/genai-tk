@@ -383,7 +383,11 @@ def _build_prefect_flow(
     step_map: dict[str, CompiledStep] = {s.id: s for s in compiled.steps}
     # Any staged --force bypasses the generic per-step Prefect result cache; the
     # requested stage itself decides which document/KG caches it invalidates.
-    force: bool = compiled.values.get("force_stage") is not None
+    force: bool = (
+        compiled.values.get("force_stage") is not None
+        or bool(compiled.values.get("force"))
+        or bool(compiled.values.get("force_rebuild"))
+    )
 
     # Pre-build all step tasks outside the flow function so they are defined
     # at module scope relative to the flow (important for Prefect serialisation).

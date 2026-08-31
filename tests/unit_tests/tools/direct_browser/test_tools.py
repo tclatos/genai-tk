@@ -39,6 +39,14 @@ def mock_session() -> DirectBrowserSession:
     mock_page.is_closed = MagicMock(return_value=False)
     mock_page.wait_for_selector = AsyncMock()
     mock_page.wait_for_load_state = AsyncMock()
+    mock_locator = MagicMock()
+    mock_locator.wait_for = AsyncMock()
+    mock_locator.scroll_into_view_if_needed = AsyncMock()
+    mock_locator.click = AsyncMock()
+    mock_locator.fill = AsyncMock()
+    mock_locator.press_sequentially = AsyncMock()
+    mock_locator.first = mock_locator
+    mock_page.locator = MagicMock(return_value=mock_locator)
     session._page = mock_page
     session._connected = True
     return session
@@ -46,7 +54,7 @@ def mock_session() -> DirectBrowserSession:
 
 class TestToolRegistry:
     def test_all_browser_tools_count(self) -> None:
-        assert len(ALL_BROWSER_TOOLS) == 13
+        assert len(ALL_BROWSER_TOOLS) == 14
 
     def test_tool_names_match_sandbox_browser(self) -> None:
         expected_names = {
@@ -58,6 +66,7 @@ class TestToolRegistry:
             "browser_read_page",
             "browser_scroll",
             "browser_wait",
+            "browser_wait_for_user",
             "browser_save_cookies",
             "browser_load_cookies",
             "browser_get_logs",
