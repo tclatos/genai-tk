@@ -8,8 +8,8 @@ from pathlib import Path
 
 from loguru import logger
 
+from genai_tk.extra.markdownize.selector import MarkdownizeProfile
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
-from genai_tk.workflow.markdownize.config import MarkdownizeProfile
 from genai_tk.workflow.markdownize.text import _normalize_markdown, _origin_comment
 from genai_tk.workflow.sources import ResolvedSourceFile
 
@@ -21,6 +21,9 @@ IMAGE_EXTS = {".jpeg", ".jpg", ".png", ".gif", ".bmp"}
 DIRECT_MARKITDOWN_EXTS = {".html", ".htm", ".csv", ".json"}
 # Pre-existing Markdown: copied through unchanged rather than converted.
 MD_EXTS = {".md", ".markdown"}
+MD_EXTENSIONS = MD_EXTS
+
+ALL_DOCUMENT_EXTS = PPT_EXTS | DOC_EXTS | EXCEL_EXTS | IMAGE_EXTS | DIRECT_MARKITDOWN_EXTS | MD_EXTS | {".pdf"}
 
 
 @dataclass(slots=True)
@@ -80,28 +83,31 @@ def _prepare_files(
 def _is_markdownize_compatible(file_path: Path) -> bool:
     """Check if file is one of the supported source-document formats."""
     suffix = file_path.suffix.lower()
-    return suffix in (PPT_EXTS | DOC_EXTS | EXCEL_EXTS | IMAGE_EXTS | DIRECT_MARKITDOWN_EXTS | MD_EXTS | {".pdf"})
+    return suffix in ALL_DOCUMENT_EXTS
 
 
 def _route_for(file_path: Path, profile: MarkdownizeProfile) -> str:
-    """Return the conversion route for a file under a profile.
+    """Return the conversion route or converter name for a file under a profile.
 
     Routes: ``copy`` (pre-existing Markdown, passed through unchanged),
     ``via_pdf`` (LibreOffice → PDF → pdf_converter), ``pdf`` (native PDF
-    → pdf_converter), ``messy_xls_parser`` (spreadsheet parser), or ``markitdown``.
+    → pdf_converter), or specific converter names (e.g. ``messy_xls``,
+    ``markitdown``, ``lighton_ocr``, ``anydoc``, ``llm``).
     """
     suffix = file_path.suffix.lower()
-    if suffix in MD_EXTS:
+    if suffix in MD_EXTENSIONS:
         return "copy"
-    if suffix in PPT_EXTS:
-        return "via_pdf" if profile.ppt_converter == "via_pdf" else "markitdown"
-    if suffix in DOC_EXTS:
-        return "via_pdf" if profile.doc_converter == "via_pdf" else "markitdown"
-    if suffix in EXCEL_EXTS:
-        return profile.excel_converter  # via_pdf | markitdown | messy_xls_parser
-    if suffix == ".pdf":
+
+    # Use pathspec-based profile rules
+    route = profile.select_route(file_path)
+    if route == "messy_xls_parser":
+        return "messy_xls_parser"
+    if route in ("mistral", "mistral_ocr") and suffix == ".pdf":
         return "pdf"
-    return "markitdown"
+    if suffix == ".pdf" and route != "via_pdf":
+        return "pdf"
+
+    return route
 
 
 def _output_paths(original: Path, root_dir: Path, output_dir: Path, *, route: str = "convert") -> tuple[Path, Path]:

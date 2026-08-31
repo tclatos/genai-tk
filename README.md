@@ -611,7 +611,7 @@ Ships with ready-to-use flows:
 
 | Flow | Purpose | CLI |
 |------|---------|-----|
-| **markdownize** | Documents → Markdown (profile-driven) | `cli workflow run markdownize` |
+| **markdownize** | Documents → Markdown (MarkItDown, MessyExcel, EdgeParse, Mistral OCR, LightOn, AnyDoc, LLM) | `cli workflow run markdownize` |
 | **office2pdf** | Office docs (PPT/Excel) → PDF | `cli workflow run office2pdf` |
 | **baml** | Structured extraction | `cli baml run` |
 | **rag** | RAG indexing + retrieval | `cli rag add-files` |
@@ -739,7 +739,7 @@ genai_tk/
 │   ├── rag/       # chunkers, RAG CLI commands
 │   ├── loaders/   # Markdown loader, Mistral OCR loader
 │   └── retrievers/ # BM25, ZeroEntropy
-├── extra/         # Non-pipeline tooling: agent graphs, NLP (spaCy/Presidio/classifiers), BAML, image analysis
+├── extra/         # Non-pipeline tooling: document converters (genai_tk.extra.markdownize), agent graphs, NLP (spaCy/Presidio/classifiers), BAML, image analysis
 ├── tools/         # LangChain tool sets
 ├── utils/         # Config manager, Pydantic helpers, LangGraph utilities
 └── main/          # CLI entry point + command modules

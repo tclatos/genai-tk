@@ -272,8 +272,9 @@ def markdownize_flow(
 
     # 3. Turn every PDF (native + via_pdf) into Markdown with the profile's pdf_converter.
     pdf_items = [(fi, pdf_source[str(fi.path)]) for fi in to_process if str(fi.path) in pdf_source]
+    pdf_converter_choice = resolved_profile.pdf_converter or "markitdown"
     if pdf_items:
-        if resolved_profile.pdf_converter == "mistral":
+        if pdf_converter_choice in ("mistral", "mistral_ocr"):
             results.extend(_ocr_pdfs_with_mistral(pdf_items, output_upath))
         else:
             for batch in _chunked(pdf_items, batch_size):
@@ -282,13 +283,15 @@ def markdownize_flow(
                     rel_out, out_abs = _output_paths(fi.path, fi.root, output_upath)
                     futures.append(
                         _convert_file_task.submit(
-                            str(fi.path), pdf, "pdf", str(out_abs), str(rel_out), resolved_profile.pdf_converter
+                            str(fi.path), pdf, "pdf", str(out_abs), str(rel_out), pdf_converter_choice
                         )
                     )
                 results.extend(f.result() for f in futures)  # type: ignore[misc]
 
-    # 4. Direct conversions: messy_xls_parser spreadsheets + markitdown for everything else.
-    direct_files = [fi for fi in to_process if routes[str(fi.path)] in ("messy_xls_parser", "markitdown")]
+    # 4. Direct conversions: anydoc, lighton, llm, messy_xls, markitdown for remaining files.
+    direct_files = [
+        fi for fi in to_process if routes[str(fi.path)] not in ("via_pdf", "copy") and str(fi.path) not in pdf_source
+    ]
     for batch in _chunked(direct_files, batch_size):
         futures = []
         for fi in batch:
@@ -300,7 +303,7 @@ def markdownize_flow(
                     routes[str(fi.path)],
                     str(out_abs),
                     str(rel_out),
-                    resolved_profile.pdf_converter,
+                    pdf_converter_choice,
                 )
             )
         results.extend(f.result() for f in futures)  # type: ignore[misc]

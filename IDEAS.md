@@ -1,22 +1,34 @@
-# Better Markdown
+# Better Markdown Convertion
 
-There are many solutions to convert dpc to markdown. We want to refactor our toolkit to maje easier to leverage one.   
+There are many solutions to convert documents  to markdown. We want to refactor our toolkit to make easier to integrate new one.   
 
-Today we support Mistral OCR (genai_tk/workflow/loaders/mistral_ocr.py, genai_tk/workflow/markdownize/mistral.py), markitdown, edgeparse, and spreadsheet parser (genai_tk/workflow/markdownize/converters.py). Markdown handling is spread over the code...  refactorinf is needed.
+Today we support Mistral OCR (genai_tk/workflow/loaders/mistral_ocr.py, genai_tk/workflow/markdownize/mistral.py), markitdown, edgeparse, and a custom spreadsheet parser (genai_tk/workflow/markdownize/converters.py). Markdown handling is spread over the code...  refactorinf is needed.
 
 We want to support additional solutions : 
-1/ LightOnOCR :  https://developers.lighton.ai/api-reference/parse/parse-a-document-to-markdown 
+1/ LightOnOCR :  https://developers.lighton.ai/api-reference/parse/parse-a-document-to-markdown (we have the API key in the .env file)
 2/ Anydoc : https://github.com/firecrawl/anydoc
+3/ LLM  : use an LLM selected by a the langchain based LLM factory. Write the prompt and call the LLL async and in batch.  Expect that the given file format is supported by the LLM/provider - but have a clean message if error. 
 
-The converters should run async whenever possible. If a batch mode is available (as with Mistral OCR), make it configurable.
-Have an anstract method that return the list of supported file extension for each solution. 
 
-Use our classical approach : an abstract class, instance per solution, and a YAML file to define common configuration, with a field pointing to the class. 
-You could reuse an refactor genai_tk/default_config/markdownize.yaml, but be more flexible. I suggest selecting the converter by checking an ordered list of pathspecs.  Maybe a 'convertor selector' entry might be interesting ?  I let  you evaluate. 
 
-Update Prefect tasks and workflows. 
+Use our classical approach : an abstract class, instance per solution with contructor matching main solution parameters, and a YAML file to define common configuration, with a field pointing to the class. 
+
+The converters should run async. If a batch mode is available (as with Mistral OCR), make it configurable.
+Have an abstract method that return the list of supported file extensions for each solution. 
+
+
+You could reuse and refactor genai_tk/default_config/markdownize.yaml, but be more flexible. I suggest selecting the converter by checking an ordered list of pathspecs.  Maybe a 'convertor selector' entry might be interesting ?  I let  you evaluate. 
 
 Put core code in a new dir under genai_tk/extra.
+
+Lazy import the necessary Python package. 
+Update Prefect tasks and workflows. 
+Update tests, docs, README and skills. 
+
+
+
+Think first, ask question, suggest alternatives, etc. 
+
 
 
 

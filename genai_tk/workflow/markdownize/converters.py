@@ -1,48 +1,62 @@
-"""File-to-Markdown text converters (markitdown, edgeparse, spreadsheet parser dispatch)."""
+"""File-to-Markdown text converters dispatch and fallbacks."""
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from loguru import logger
 
+from genai_tk.extra.markdownize.factory import ConverterFactory
 from genai_tk.workflow.markdownize.excel import excel_to_markdown_messy_xls
 
 
 def _markitdown_text(path: Path) -> str:
     """Convert any markitdown-supported file to Markdown text."""
-    from markitdown import MarkItDown
-
-    return MarkItDown().convert(str(path)).text_content
+    converter = ConverterFactory.create("markitdown")
+    return asyncio.run(converter.convert(path))
 
 
 def _edgeparse_text(path: Path) -> str | None:
-    """Convert a PDF with edgeparse, returning None (to trigger fallback) on failure."""
+    """Convert a PDF with edgeparse, returning None on failure."""
     try:
-        import edgeparse
-
-        return edgeparse.convert(str(path), format="markdown")
+        converter = ConverterFactory.create("edgeparse")
+        return asyncio.run(converter.convert(path))
     except Exception as e:
         logger.warning(f"edgeparse failed for {path.name}: {e}. Falling back to markitdown.")
         return None
 
 
-def _convert_text(path: Path, route: str, pdf_converter: str) -> str:
-    """Convert a single file to Markdown text for a non-Mistral route.
+def _convert_text(path: Path, route: str, pdf_converter: str = "markitdown") -> str:
+    """Convert a single file to Markdown text using the specified route or converter.
 
-    ``route`` is one of ``messy_xls_parser`` / ``pdf`` / ``markitdown``. The
-    ``pdf`` route honours ``pdf_converter`` (``edgeparse`` with markitdown
-    fallback, or ``markitdown``); Mistral PDFs are handled in the flow via the
-    batch API.
+    Args:
+        path: File to convert.
+        route: Converter name or route identifier.
+        pdf_converter: Fallback converter name for 'pdf' route.
+
+    Returns:
+        Converted Markdown text.
     """
-    if route == "messy_xls_parser":
+    if route == "messy_xls_parser" or route == "messy_xls":
         try:
             return excel_to_markdown_messy_xls(path)
         except Exception as e:
             logger.warning(f"messy_xls_parser failed for {path.name}: {e}. Falling back to markitdown.")
             return _markitdown_text(path)
-    if route == "pdf" and pdf_converter == "edgeparse":
-        text = _edgeparse_text(path)
-        if text is not None:
-            return text
-    return _markitdown_text(path)
+
+    target = pdf_converter if route == "pdf" else route
+    try:
+        converter = ConverterFactory.create(target)
+        return asyncio.run(converter.convert(path))
+    except Exception as e:
+        logger.warning(f"{target} failed for {path.name}: {e}. Falling back to markitdown.")
+        return _markitdown_text(path)
+
+
+__all__ = [
+    "_convert_text",
+    "_edgeparse_text",
+    "_markitdown_text",
+    "excel_to_markdown_messy_xls",
+]
