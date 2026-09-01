@@ -194,9 +194,27 @@ def markdownize_flow(
             try:
                 texts = asyncio.run(converter.batch_convert(pdf_paths))
             except Exception as e:
-                logger.warning(f"Mistral batch OCR failed ({e}); falling back to markitdown.")
-                fallback = ConverterFactory.create("markitdown")
-                texts = {str(p): asyncio.run(fallback.convert(Path(p))) for _, p in pdf_items}
+                logger.warning(f"Mistral batch OCR failed ({e}); falling back to anydoc.")
+                texts = {}
+                try:
+                    anydoc_fb = ConverterFactory.create("anydoc")
+                    for _, p in pdf_items:
+                        try:
+                            t = asyncio.run(anydoc_fb.convert(Path(p)))
+                            if t and t.strip():
+                                texts[str(p)] = t
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+
+                # Final fallback for any missing PDFs
+                missing = [p for _, p in pdf_items if str(p) not in texts]
+                if missing:
+                    logger.warning("Falling back to markitdown for {} files", len(missing))
+                    fallback = ConverterFactory.create("markitdown")
+                    for p in missing:
+                        texts[str(p)] = asyncio.run(fallback.convert(Path(p)))
             for file_info, pdf in pdf_items:
                 rel_out, out_abs = _output_paths(file_info.path, file_info.root, output_upath)
                 text = texts.get(str(pdf), "")
