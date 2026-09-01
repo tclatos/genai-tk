@@ -1,52 +1,10 @@
-# Better Markdown Convertion
 
-There are many solutions to convert documents  to markdown. We want to refactor our toolkit to make easier to integrate new one.   
-
-Today we support Mistral OCR (genai_tk/workflow/loaders/mistral_ocr.py, genai_tk/workflow/markdownize/mistral.py), markitdown, edgeparse, and a custom spreadsheet parser (genai_tk/workflow/markdownize/converters.py). Markdown handling is spread over the code...  refactorinf is needed.
-
-We want to support additional solutions : 
-1/ LightOnOCR :  https://developers.lighton.ai/api-reference/parse/parse-a-document-to-markdown (we have the API key in the .env file)
-2/ Anydoc : https://github.com/firecrawl/anydoc
-3/ LLM  : use an LLM selected by a the langchain based LLM factory. Write the prompt and call the LLL async and in batch.  Expect that the given file format is supported by the LLM/provider - but have a clean message if error. 
-
-
-
-Use our classical approach : an abstract class, instance per solution with contructor matching main solution parameters, and a YAML file to define common configuration, with a field pointing to the class. 
-
-The converters should run async. If a batch mode is available (as with Mistral OCR), make it configurable.
-Have an abstract method that return the list of supported file extensions for each solution. 
-
-
-You could reuse and refactor genai_tk/default_config/markdownize.yaml, but be more flexible. I suggest selecting the converter by checking an ordered list of pathspecs.  Maybe a 'convertor selector' entry might be interesting ?  I let  you evaluate. 
-
-Put core code in a new dir under genai_tk/extra.
-
-Lazy import the necessary Python package. 
-Update Prefect tasks and workflows. 
-Update tests, docs, README and skills. 
-
-
-
-Think first, ask question, suggest alternatives, etc. 
-
-
-
-
-
-https://developers.lighton.ai/api-reference/parse/parse-a-document-to-markdown
-
-
-We want to 
 
 
 Status: 
 
 ~/prj/ekg-atos ->   cli kg create one_rainbow 
 ~/prj/rfq_pricing -> cli docgraph build $ONEDRIVE/prj/RFQ_pricing/RFQ_zipped/Alko.zip 
-
-
-##  Anydoc
-https://github.com/firecrawl/anydoc/blob/main/python/README.md 
 
 
 
@@ -71,30 +29,6 @@ cli doctree build ./RFQ.zip --db ./data/kg/tree.db --force graph
 
 # Pydantic
 Replace @dataclass  by pydantic object
-# TOC
-
-We want to implement commands and Prefect tasks to create a table of content (TOC) from a Markdown document, and tools for agents
-Inspiration is : 
-- https://pageindex.ai/blog/pageindex-intro 
-- https://github.com/VectifyAI/PageIndex/blob/main/pageindex/page_index_md.py
-- https://github.com/VectifyAI/PageIndex/blob/main/examples/agentic_vectorless_rag_demo.py 
-
-
- Take inspiration of PageIndex parameters, but use our own convention to select the LLM, the class, etc. 
-
-One difference with pageindex-intro  is that we want to create TOC from several Markdown files (typically in a  dir or a zip ), like in genai_tk/workflow/prefect/flows/merge_markdown_flow.py
-
-
-
-
-First implement in genai-tk a simple workfow callable from 'cli workflow run' to create TOC from fiven markdown files. 
-/home/tcl/prj/genai-tk/genai_tk/workflow
-
-STATUS (2026-08-19): implemented in genai-graph instead of genai-tk — it leverages
-the existing Document/MarkdownSection graph (hash-keyed, already has the heading
-hierarchy) rather than a standalone JSON tree. See
-`genai_graph/kg/document_graph/summarize.py`, `cli docgraph summarize`, and
-`docs/document-graph.md` (genai-graph repo) for the implementation.
 
 # LLM prompt caching (provider-side)
 
@@ -146,11 +80,6 @@ Our idea is this one :
 - Each concrete ManagedRetriever (with pgvecor, zvec, vertor-store+bm25s, ...) should at least be able to do hybrid search (vector + full text search) with reranking (either RRF or given reranker model). Adapt configuration and possible extra feature to the actuel implementation (read the doc ! )
 
 Adapt the Prefect workflows and examples accordingly.honkie
-
-## Ladybug embeddings
-
-We want to store in Ladybug the embeddings of some kinf of documents.  
-
 
 
  

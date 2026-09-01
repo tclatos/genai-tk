@@ -92,6 +92,12 @@ FEATURES: dict[str, FeatureInfo] = {
         check_modules=["chromadb"],
         install_cmd='uv sync --extra chromadb  # or: uv add "genai-tk[chromadb]"',
     ),
+    "ladybug": FeatureInfo(
+        description="Ladybug embedded graph database (Kùzu fork)",
+        packages=["ladybug"],
+        check_modules=["ladybug"],
+        install_cmd="uv add ladybug",
+    ),
 }
 
 

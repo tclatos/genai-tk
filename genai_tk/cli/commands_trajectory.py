@@ -260,11 +260,16 @@ class TrajectoryCommands(CliTopCommand):
 
         @cli_app.command("view")
         def view_cmd() -> None:
-            """Launch the Harbor ATIF web viewer on the store (if installed)."""
+            """Launch the Harbor ATIF web viewer on the store (if installed).
+
+            The trajectory store root holds one subdirectory per recorded run,
+            which is harbor's jobs layout, so ``--jobs`` is passed explicitly to
+            skip harbor's folder-type auto-detection (which fails on the store).
+            """
             console = Console()
             s = store()
             try:
-                subprocess.run(["harbor", "view", str(s.root)], check=False)  # noqa: S603,S607
+                subprocess.run(["harbor", "view", "--jobs", str(s.root)], check=False)  # noqa: S603,S607
             except FileNotFoundError:
                 console.print(
                     "[yellow]harbor not installed.[/yellow] Install it with "
