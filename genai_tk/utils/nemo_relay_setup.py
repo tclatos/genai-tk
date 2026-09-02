@@ -298,6 +298,7 @@ class _RelayState:
 
 
 _state = _RelayState()
+_setup_lock = threading.Lock()
 
 
 def is_nemo_relay_available() -> bool:
@@ -324,31 +325,38 @@ def setup_nemo_relay(*, atof_path: Path | None = None, store_dir: Path | None = 
     Returns:
         True if the subscriber is active after the call.
     """
-    if _state.active:
+    with _setup_lock:
+        if _state.active:
+            return True
+        if not is_nemo_relay_available():
+            logger.debug("NeMo Relay not installed — skipping ATOF subscriber setup")
+            return False
+
+        import nemo_relay
+
+        if atof_path is not None:
+            path = Path(atof_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            _state.file = _FileState(path)
+            _state.path = path
+            where = f"file {path}"
+        else:
+            sdir = Path(store_dir) if store_dir is not None else _default_store_dir()
+            sdir.mkdir(parents=True, exist_ok=True)
+            _state.store = _StoreState(sdir)
+            where = f"store {sdir}"
+
+        try:
+            nemo_relay.subscribers.register(_SUBSCRIBER_NAME, _state.on_event)
+        except RuntimeError as exc:
+            if "already exists" in str(exc).lower():
+                logger.debug(f"NeMo Relay subscriber {_SUBSCRIBER_NAME} already registered: {exc}")
+            else:
+                raise
+        atexit.register(_atexit_flush)
+        _state.active = True
+        logger.info(f"NeMo Relay ATOF subscriber active → {where}")
         return True
-    if not is_nemo_relay_available():
-        logger.debug("NeMo Relay not installed — skipping ATOF subscriber setup")
-        return False
-
-    import nemo_relay
-
-    if atof_path is not None:
-        path = Path(atof_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        _state.file = _FileState(path)
-        _state.path = path
-        where = f"file {path}"
-    else:
-        sdir = Path(store_dir) if store_dir is not None else _default_store_dir()
-        sdir.mkdir(parents=True, exist_ok=True)
-        _state.store = _StoreState(sdir)
-        where = f"store {sdir}"
-
-    nemo_relay.subscribers.register(_SUBSCRIBER_NAME, _state.on_event)
-    atexit.register(_atexit_flush)
-    _state.active = True
-    logger.info(f"NeMo Relay ATOF subscriber active → {where}")
-    return True
 
 
 def _atexit_flush() -> None:
@@ -425,19 +433,20 @@ def get_relay_callback_handler() -> Any | None:
 
 def reset_nemo_relay() -> None:
     """Tear down the subscriber and reset state (used in tests)."""
-    if not _state.active:
-        return
-    try:
-        import nemo_relay
+    with _setup_lock:
+        if not _state.active:
+            return
+        try:
+            import nemo_relay
 
-        nemo_relay.subscribers.deregister(_SUBSCRIBER_NAME)
-    except Exception:  # noqa: BLE001
-        pass
-    if _state.store is not None:
-        _state.store.close()
-    elif _state.file is not None:
-        _state.file.close()
-    _state.active = False
-    _state.store = None
-    _state.file = None
-    _state.path = None
+            nemo_relay.subscribers.deregister(_SUBSCRIBER_NAME)
+        except Exception:  # noqa: BLE001
+            pass
+        if _state.store is not None:
+            _state.store.close()
+        elif _state.file is not None:
+            _state.file.close()
+        _state.active = False
+        _state.store = None
+        _state.file = None
+        _state.path = None

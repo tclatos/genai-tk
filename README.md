@@ -1,3 +1,6 @@
+# use @Once for Singletons
+in genai_tk/utils/nemo_relay_setup.py, genai_tk/utils/ladybug/shared.py, genai_graph/kg/ingest/merge.py, 
+
 # GenAI Toolkit (`genai-tk`)
 
 A toolkit for building Gen AI and Agentic applications with LangChain, LangGraph, and 100+ LLM providers.
