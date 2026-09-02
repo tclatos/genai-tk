@@ -44,7 +44,7 @@ nlp:
       cache_path: data/llm_cache/langchain.db
     embeddings:
       models:
-        default: qwen3_06b@edenai
+        default: qwen3_06b@deepinfra
         local: artic_22@ollama
         fake: embeddings_768@fake
       cache: data/hf_models
