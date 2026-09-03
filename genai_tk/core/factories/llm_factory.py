@@ -1121,6 +1121,8 @@ class LlmFactory(BaseModel):
             "api_key": api_key,
             **llm_params,
         }
+        if "max_tokens" not in create_params and self.info.max_tokens is not None:
+            create_params["max_tokens"] = self.info.max_tokens
         if provider_info.api_base:
             create_params["base_url"] = provider_info.api_base
         if extra_body:

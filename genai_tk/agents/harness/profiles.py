@@ -202,7 +202,7 @@ def _load_unified_file(path: Path) -> tuple[dict[str, Any], AgentDefaultsConfig 
         # No `agent_defaults:` key present anywhere — defaults stay None.
         defaults_raw = None
     defaults = AgentDefaultsConfig.model_validate(defaults_raw) if defaults_raw else None
-    default_profile_key = (defaults.default_profile if defaults else "") or ""
+    default_profile_key = (defaults.default_profile if defaults else "") or raw.get("default_profile") or ""
 
     profiles: dict[str, Any] = {}
     for key, val in raw.items():
@@ -221,4 +221,8 @@ def _load_unified_file(path: Path) -> tuple[dict[str, Any], AgentDefaultsConfig 
             profiles[key] = _adapter.validate_python(candidate)
         except Exception as e:
             logger.warning(f"Skipping agent profile '{key}': {e}")
+
+    if not default_profile_key and "default" in profiles:
+        default_profile_key = "default"
+
     return profiles, defaults, default_profile_key

@@ -25,11 +25,13 @@ Built-in middlewares (pre-existing)
     :class:`~genai_tk.agents.langchain.middleware.rich_middleware.ToolCallLimitMiddleware`
     :class:`~genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware`
     :class:`~genai_tk.agents.langchain.middleware.deduplicate_middleware.DeduplicateToolCallsMiddleware`
+    :class:`~genai_tk.agents.langchain.middleware.observation_truncation_middleware.ObservationTruncationMiddleware`
 """
 
 from genai_tk.agents.langchain.middleware.anonymization_middleware import AnonymizationConfig, AnonymizationMiddleware
 from genai_tk.agents.langchain.middleware.deduplicate_middleware import DeduplicateToolCallsMiddleware
 from genai_tk.agents.langchain.middleware.empty_response_retry import EmptyResponseRetryMiddleware
+from genai_tk.agents.langchain.middleware.observation_truncation_middleware import ObservationTruncationMiddleware
 from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware, ToolCallLimitMiddleware
 from genai_tk.agents.langchain.middleware.sensitivity_router_middleware import (
     SensitivityRouterConfig,
@@ -70,4 +72,5 @@ __all__ = [
     "ToolCallLimitMiddleware",
     "EmptyResponseRetryMiddleware",
     "DeduplicateToolCallsMiddleware",
+    "ObservationTruncationMiddleware",
 ]

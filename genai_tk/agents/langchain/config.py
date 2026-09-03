@@ -79,6 +79,14 @@ _MIDDLEWARE_REGISTRY: dict[str, dict[str, Any]] = {
         "class": "genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware",
         "max_retries": 2,
     },
+    "DeduplicateToolCallsMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.deduplicate_middleware.DeduplicateToolCallsMiddleware",
+    },
+    "ObservationTruncationMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.observation_truncation_middleware.ObservationTruncationMiddleware",
+        "max_chars": 12000,
+        "head_ratio": 0.8,
+    },
 }
 
 
