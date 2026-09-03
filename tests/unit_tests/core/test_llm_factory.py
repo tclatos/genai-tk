@@ -366,6 +366,37 @@ def test_openai_compatible_injects_reasoning_payload() -> None:
     assert call_kwargs["extra_body"]["reasoning"] == {"effort": "high", "max_tokens": 1024}
 
 
+def test_openai_compatible_edenai_injects_reasoning_effort() -> None:
+    """EdenAI OpenAI-compatible path should set reasoning_effort and qwen extra_body."""
+    from unittest.mock import MagicMock, patch
+
+    mock_llm = MagicMock()
+    mock_chat_openai = MagicMock(return_value=mock_llm)
+
+    factory = LlmFactory.__new__(LlmFactory)
+    object.__setattr__(factory, "json_mode", False)
+    object.__setattr__(factory, "streaming", False)
+    object.__setattr__(factory, "reasoning", None)
+    object.__setattr__(factory, "cache", None)
+    object.__setattr__(factory, "llm_params", {})
+    object.__setattr__(factory, "llm_id", "deepseek-v4-flash-0731@edenai")
+    object.__setattr__(factory, "llm", "deepseek-v4-flash-0731(none)@edenai")
+    object.__setattr__(factory, "_reasoning_payload", {"effort": "none"})
+    object.__setattr__(
+        factory,
+        "_resolved_llm_info",
+        LlmInfo(id="qwen/deepseek-v4-flash-0731@edenai", provider="edenai", model="qwen/deepseek-v4-flash-0731"),
+    )
+
+    with patch("langchain_openai.ChatOpenAI", mock_chat_openai):
+        provider_info = factory.info.get_provider_info()
+        factory._create_openai_compatible_llm(provider_info, {"temperature": 0.1}, api_key="test-key")
+
+    call_kwargs = mock_chat_openai.call_args.kwargs
+    assert call_kwargs["reasoning_effort"] == "none"
+    assert call_kwargs["extra_body"]["extra_body"] == {"enable_thinking": False, "thinking": {"type": "disabled"}}
+
+
 def test_warn_when_reasoning_requested_on_non_thinking_model(fake_llm_id) -> None:
     """Factory should warn when reasoning options are requested on a non-thinking model."""
     from unittest.mock import patch
@@ -380,9 +411,9 @@ def test_warn_when_reasoning_requested_on_non_thinking_model(fake_llm_id) -> Non
     assert any("not marked as thinking-capable" in text for text in warning_texts)
 
 
-@pytest.mark.parametrize("effort", ["low", "medium", "high", "minimal", "xhigh", "max"])
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "minimal", "xhigh", "max", "none"])
 def test_extract_reasoning_settings_recognized_efforts(effort: str) -> None:
-    """Recognized effort levels (including gateway extras) are forwarded normalized."""
+    """Recognized effort levels (including gateway extras and none) are forwarded normalized."""
     _llm_id, _params, payload = _extract_reasoning_settings(f"gpt-oss-120b ({effort})@openrouter", {})
     assert payload == {"effort": effort}
 
@@ -394,10 +425,10 @@ def test_extract_reasoning_settings_case_insensitive() -> None:
 
 
 def test_extract_reasoning_settings_none_disables() -> None:
-    """Inline (none) means reasoning disabled: no payload is returned."""
+    """Inline (none) explicitly sets effort to none to disable reasoning at the provider."""
     llm_id, _params, payload = _extract_reasoning_settings("gpt-oss-120b (none)@openrouter", {"temperature": 0.0})
     assert llm_id == "gpt-oss-120b@openrouter"
-    assert payload is None
+    assert payload == {"effort": "none"}
 
 
 def test_extract_reasoning_settings_invalid_effort_raises() -> None:
@@ -419,6 +450,6 @@ def test_llm_factory_invalid_inline_effort_raises() -> None:
 
 
 def test_llm_factory_none_inline_effort_disables_payload() -> None:
-    """LlmFactory with (none) builds with no reasoning payload (reasoning disabled)."""
+    """LlmFactory with (none) builds with effort='none' reasoning payload to disable reasoning."""
     factory = LlmFactory(llm="gpt_41mini(none)@openrouter")
-    assert factory.reasoning_payload is None
+    assert factory.reasoning_payload == {"effort": "none"}

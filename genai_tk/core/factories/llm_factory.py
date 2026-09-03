@@ -71,8 +71,7 @@ REASONING_EFFORT_PATTERN = re.compile(r"^(?P<alias>.+?)\s*\((?P<effort>[A-Za-z0-
 # so typos are caught upfront instead of being silently forwarded and rejected
 # by the provider later.
 REASONING_EFFORT_VALUES = {"low", "medium", "high", "minimal", "xhigh", "max", "none"}
-# Sentinel effort value that explicitly disables reasoning. Unlike the other
-# values it is NOT forwarded to the provider: it produces no reasoning payload.
+# Sentinel effort value that explicitly disables reasoning.
 REASONING_DISABLE_VALUE = "none"
 
 
@@ -368,7 +367,9 @@ def _extract_reasoning_settings(
 
     Validation:
     - Effort is case-insensitive and matched against ``REASONING_EFFORT_VALUES``.
-    - ``none`` means reasoning is disabled: no reasoning payload is returned.
+    - ``none`` explicitly disables reasoning and is forwarded as ``{"effort": "none"}``
+      so providers that enable reasoning by default (e.g. OpenRouter for DeepSeek/Qwen)
+      turn reasoning off.
     - Any other unrecognized value raises ``ValueError`` instead of being passed
       through, so typos surface before a provider request is made.
     """
@@ -409,10 +410,6 @@ def _extract_reasoning_settings(
                 f"Valid values: {', '.join(sorted(REASONING_EFFORT_VALUES))}. "
                 f"Use '{REASONING_DISABLE_VALUE}' to disable reasoning."
             )
-        # 'none' explicitly disables reasoning: emit no payload so the provider
-        # uses its default (reasoning off) instead of forwarding a bogus effort.
-        if normalized_effort == REASONING_DISABLE_VALUE:
-            return resolved_llm, params, None
         reasoning_payload["effort"] = normalized_effort
 
     return resolved_llm, params, (reasoning_payload or None)
@@ -1061,10 +1058,11 @@ class LlmFactory(BaseModel):
             llm_params |= {"response_format": {"type": "json_object"}}
 
         if self.reasoning_payload and not self.info.supports_thinking:
-            logger.warning(
-                f"Model '{self.info.id}' is not marked as thinking-capable in models.dev metadata. "
-                f"Reasoning options requested: {self.reasoning_payload}."
-            )
+            if self.reasoning_payload.get("effort") != REASONING_DISABLE_VALUE:
+                logger.warning(
+                    f"Model '{self.info.id}' is not marked as thinking-capable in models.dev metadata. "
+                    f"Reasoning options requested: {self.reasoning_payload}."
+                )
 
         # Get provider info for configuration details
         provider_info = self.info.get_provider_info()
@@ -1131,13 +1129,29 @@ class LlmFactory(BaseModel):
             create_params["default_headers"] = custom_headers
 
         if self.reasoning_payload:
-            extra_body_payload = create_params.get("extra_body", {}).copy()
-            existing_reasoning = extra_body_payload.get("reasoning", {})
-            if not isinstance(existing_reasoning, dict):
-                existing_reasoning = {}
-            existing_reasoning.update(self.reasoning_payload)
-            extra_body_payload["reasoning"] = existing_reasoning
-            create_params["extra_body"] = extra_body_payload
+            effort = self.reasoning_payload.get("effort")
+            if self.provider in ("edenai", "edenai-eur"):
+                if effort:
+                    create_params["reasoning_effort"] = effort
+                if self.info.model.startswith("qwen/"):
+                    extra_body_payload = create_params.get("extra_body", {}).copy()
+                    extra_backend = extra_body_payload.get("extra_body", {})
+                    if not isinstance(extra_backend, dict):
+                        extra_backend = {}
+                    if effort == "none":
+                        extra_backend.update({"enable_thinking": False, "thinking": {"type": "disabled"}})
+                    else:
+                        extra_backend.update({"enable_thinking": True})
+                    extra_body_payload["extra_body"] = extra_backend
+                    create_params["extra_body"] = extra_body_payload
+            else:
+                extra_body_payload = create_params.get("extra_body", {}).copy()
+                existing_reasoning = extra_body_payload.get("reasoning", {})
+                if not isinstance(existing_reasoning, dict):
+                    existing_reasoning = {}
+                existing_reasoning.update(self.reasoning_payload)
+                extra_body_payload["reasoning"] = existing_reasoning
+                create_params["extra_body"] = extra_body_payload
 
         llm = ChatOpenAI(**create_params)
         return llm
@@ -1348,7 +1362,7 @@ def get_llm(
 def get_llm_info(llm_id: str) -> LlmInfo:
     """Return information on given LLM."""
     factory = LlmFactory(llm=llm_id)
-    r = factory.known_items_dict().get(llm_id)
+    r = factory.info
     if r is None:
         raise ValueError(f"Unknown llm_id: '{llm_id}' ")
     else:

@@ -19,7 +19,7 @@ from __future__ import annotations
 import warnings
 from typing import Any
 
-from chonkie import BaseChunker, MarkdownChef, RecursiveChunker
+from chonkie import BaseChunker, MarkdownChef, RecursiveChunker, TableChunker
 from langchain_core.documents import Document
 from langchain_text_splitters import TextSplitter
 
@@ -33,6 +33,46 @@ warnings.filterwarnings(
     category=UserWarning,
     module="chonkie.tokenizer",
 )
+
+
+def is_markdown_table(text: str) -> bool:
+    """Check if a text block contains or is a Markdown pipe table."""
+    stripped = text.strip()
+    if "|" not in stripped:
+        return False
+    lines = [line.strip() for line in stripped.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return False
+    for line in lines[:5]:
+        if "-|-" in line or "|---" in line or line.startswith("|:-") or line.startswith("| -"):
+            return True
+    return False
+
+
+def split_markdown_table(
+    table_text: str,
+    *,
+    max_tokens: int = 512,
+    encoding_name: str = "o200k_base",
+) -> list[str]:
+    """Split a Markdown or HTML table into multiple sub-tables using Chonkie's TableChunker.
+
+    Repeats table header rows on every continuation chunk to preserve column context.
+
+    Args:
+        table_text: Full Markdown or HTML table text.
+        max_tokens: Maximum target token count per sub-table chunk.
+        encoding_name: Tiktoken encoding name (default: "o200k_base").
+
+    Returns:
+        List of valid Markdown/HTML table chunks, each starting with the table header.
+    """
+    if not table_text or not table_text.strip():
+        return []
+    tokenizer = _get_tiktoken_encoding(encoding_name)
+    chunker = TableChunker(tokenizer=tokenizer, chunk_size=max_tokens)
+    chunks = chunker.chunk(table_text)
+    return [c.text for c in chunks if c.text and c.text.strip()]
 
 
 class ChonkieTextSplitter(TextSplitter):
@@ -69,6 +109,7 @@ class ChonkieTextSplitter(TextSplitter):
         max_tokens: int = 512,
         min_tokens: int = 50,
         merge_small_chunks: bool = False,
+        repeat_table_headers: bool = True,
         encoding_name: str = "o200k_base",
         **kwargs: Any,
     ):
@@ -83,6 +124,8 @@ class ChonkieTextSplitter(TextSplitter):
             min_tokens: Min token count before merging with next chunk.
             merge_small_chunks: If True, merge chunks smaller than min_tokens
                 forward with the next substantial chunk. Enabled by default for markdown.
+            repeat_table_headers: If True, large Markdown tables are split with repeated
+                column headers on each sub-table piece.
             encoding_name: Tiktoken encoding name (default: "o200k_base" for GPT-4o).
             **kwargs: Additional arguments passed to TextSplitter.
 
@@ -95,12 +138,14 @@ class ChonkieTextSplitter(TextSplitter):
         self.max_tokens = max_tokens
         self.min_tokens = min_tokens
         self.merge_small_chunks = merge_small_chunks
+        self.repeat_table_headers = repeat_table_headers
         self.chunker_type = chunker_type
 
         if chunker is not None and chunker_type is not None:
             raise ValueError("Cannot specify both 'chunker' and 'chunker_type'")
 
         tokenizer = _get_tiktoken_encoding(encoding_name)
+        self.table_chunker = TableChunker(tokenizer=tokenizer, chunk_size=max_tokens)
 
         if chunker is not None:
             self.chunker = chunker
@@ -140,18 +185,45 @@ class ChonkieTextSplitter(TextSplitter):
         if isinstance(self.chunker, MarkdownChef):
             # MarkdownChef uses parse() to return a document
             doc = self.chunker.parse(text)
-            # Flatten all chunks from the parsed document
-            chunks = []
+            # Flatten all elements from the parsed document, preserving chronological source order
+            raw_elements: list[Any] = []
             if hasattr(doc, "chunks"):
-                chunks.extend(doc.chunks)
+                raw_elements.extend(doc.chunks)
             if hasattr(doc, "tables"):
-                chunks.extend(doc.tables)
+                raw_elements.extend(doc.tables)
             if hasattr(doc, "code"):
-                chunks.extend(doc.code)
+                raw_elements.extend(doc.code)
+            raw_elements.sort(key=lambda x: getattr(x, "start_index", 0))
+
+            chunks: list[Any] = []
+            for elem in raw_elements:
+                elem_text = getattr(elem, "text", None) or getattr(elem, "content", None) or ""
+                elem_type = self._infer_chunk_type(elem)
+                if self.repeat_table_headers and (elem_type == "table" or is_markdown_table(elem_text)):
+                    if _count_tokens(elem_text, self.encoding_name) > self.max_tokens:
+                        table_chunks = self.table_chunker.chunk(elem_text)
+                        for tc in table_chunks:
+                            setattr(tc, "chunk_type", "table")
+                        chunks.extend(table_chunks)
+                        continue
+                chunks.append(elem)
             return chunks
         else:
             # Other chunkers use chunk()
-            return self.chunker.chunk(text)
+            raw_chunks = self.chunker.chunk(text)
+            if not self.repeat_table_headers:
+                return raw_chunks
+            chunks = []
+            for chunk in raw_chunks:
+                chunk_text = getattr(chunk, "text", None) or getattr(chunk, "content", None) or ""
+                if is_markdown_table(chunk_text) and _count_tokens(chunk_text, self.encoding_name) > self.max_tokens:
+                    table_chunks = self.table_chunker.chunk(chunk_text)
+                    for tc in table_chunks:
+                        setattr(tc, "chunk_type", "table")
+                    chunks.extend(table_chunks)
+                else:
+                    chunks.append(chunk)
+            return chunks
 
     def create_documents(
         self,

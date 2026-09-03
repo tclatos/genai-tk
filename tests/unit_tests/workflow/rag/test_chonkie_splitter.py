@@ -243,3 +243,45 @@ Some final text.
         assert isinstance(split_docs, list)
         assert len(split_docs) > 0
         assert all(isinstance(d, Document) for d in split_docs)
+
+
+class TestMarkdownTableSplitting:
+    """Test Markdown table splitting and repeated headers."""
+
+    def test_is_markdown_table(self) -> None:
+        from genai_tk.workflow.rag.chonkie_splitter import is_markdown_table
+
+        table = "| Col A | Col B |\n| --- | --- |\n| 1 | 2 |"
+        assert is_markdown_table(table) is True
+
+        prose = "This is regular text without pipes."
+        assert is_markdown_table(prose) is False
+
+    def test_split_markdown_table_repeats_headers(self) -> None:
+        from genai_tk.workflow.rag.chonkie_splitter import split_markdown_table
+
+        rows = [f"| Item {i} | Value {i} | Category {i} |" for i in range(1, 41)]
+        table_text = "| Item | Value | Category |\n| --- | --- | --- |\n" + "\n".join(rows)
+
+        chunks = split_markdown_table(table_text, max_tokens=100)
+        assert len(chunks) > 1
+
+        for chunk in chunks:
+            assert "| Item | Value | Category |" in chunk
+            assert "| --- | --- | --- |" in chunk
+
+    def test_chonkie_splitter_table_chunking_integration(self) -> None:
+        from genai_tk.workflow.rag.chonkie_splitter import ChonkieTextSplitter
+
+        rows = [f"| Country {i} | {1000 + i} | {2000 + i} |" for i in range(1, 60)]
+        table_text = "# Economic Statistics\n\n| Country | 2010 | 2011 |\n| --- | --- | --- |\n" + "\n".join(rows)
+
+        splitter = ChonkieTextSplitter(chunker_type="markdown", max_tokens=150, repeat_table_headers=True)
+        docs = splitter.create_documents([table_text])
+
+        table_docs = [d for d in docs if d.metadata.get("chunk_type") == "table"]
+        assert len(table_docs) >= 2
+        for td in table_docs:
+            assert "| Country | 2010 | 2011 |" in td.page_content
+            assert "| --- | --- | --- |" in td.page_content
+
