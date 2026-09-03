@@ -203,7 +203,7 @@ class ChonkieTextSplitter(TextSplitter):
                     if _count_tokens(elem_text, self.encoding_name) > self.max_tokens:
                         table_chunks = self.table_chunker.chunk(elem_text)
                         for tc in table_chunks:
-                            setattr(tc, "chunk_type", "table")
+                            tc.chunk_type = "table"
                         chunks.extend(table_chunks)
                         continue
                 chunks.append(elem)
@@ -219,7 +219,7 @@ class ChonkieTextSplitter(TextSplitter):
                 if is_markdown_table(chunk_text) and _count_tokens(chunk_text, self.encoding_name) > self.max_tokens:
                     table_chunks = self.table_chunker.chunk(chunk_text)
                     for tc in table_chunks:
-                        setattr(tc, "chunk_type", "table")
+                        tc.chunk_type = "table"
                     chunks.extend(table_chunks)
                 else:
                     chunks.append(chunk)

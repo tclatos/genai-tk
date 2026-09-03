@@ -284,4 +284,3 @@ class TestMarkdownTableSplitting:
         for td in table_docs:
             assert "| Country | 2010 | 2011 |" in td.page_content
             assert "| --- | --- | --- |" in td.page_content
-
