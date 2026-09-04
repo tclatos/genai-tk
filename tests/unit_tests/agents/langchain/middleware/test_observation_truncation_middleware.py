@@ -61,3 +61,28 @@ def test_line_truncation():
     assert "Truncated 40 lines" in result
     assert result.startswith("Line 0\n")
     assert result.endswith("Line 49\n")
+
+
+def test_target_tools_filtering():
+    mw = ObservationTruncationMiddleware(max_chars=20, tools=["get_section_content"])
+    req_match = DummyRequest("get_section_content")
+    req_other = DummyRequest("other_tool")
+    long_text = "A" * 100
+
+    assert "Truncated" in mw.wrap_tool_call(req_match, lambda r: long_text)
+    assert mw.wrap_tool_call(req_other, lambda r: long_text) == long_text
+
+
+def test_langchain_agent_factory_compatibility():
+    from langchain.agents import create_agent
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+
+    mw = ObservationTruncationMiddleware(max_chars=100)
+    # create_agent scans [t for m in middleware for t in getattr(m, "tools", [])]
+    # Verify ObservationTruncationMiddleware does not expose a None tools attribute
+    agent = create_agent(
+        model=FakeListChatModel(responses=["test"]),
+        tools=[],
+        middleware=[mw],
+    )
+    assert agent is not None

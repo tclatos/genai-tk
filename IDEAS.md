@@ -1,5 +1,10 @@
 
+# Python Executor
 
+Create a async langchain tool to execute Python code in-process. 
+I suggest you use as baseline : https://github.com/huggingface/smolagents/blob/main/src/smolagents/local_python_executor.py  . Its safer than using standard CPython, and easier to use for tests than sandboxes. 
+Replace their Tool definition with LangChain BaseTool, or remove that feature if its too complicated.
+Implement some tests with Pandas as imported package. 
 
 Status: 
 

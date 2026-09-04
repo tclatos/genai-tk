@@ -45,7 +45,7 @@ class ObservationTruncationMiddleware(AgentMiddleware):
         self.max_chars = max(10, max_chars)
         self.max_lines = max_lines
         self.head_ratio = max(0.1, min(0.9, head_ratio))
-        self.tools = frozenset(tools) if tools is not None else None
+        self.target_tools = frozenset(tools) if tools is not None else None
         self.excluded_tools = frozenset(excluded_tools) if excluded_tools is not None else frozenset()
 
     def _extract_tool_metadata(self, request: Any) -> tuple[str, Any]:
@@ -57,7 +57,7 @@ class ObservationTruncationMiddleware(AgentMiddleware):
     def _should_truncate(self, tool_name: str) -> bool:
         if tool_name in self.excluded_tools:
             return False
-        if self.tools is not None and tool_name not in self.tools:
+        if self.target_tools is not None and tool_name not in self.target_tools:
             return False
         return True
 
