@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from importlib.util import find_spec
 from typing import Any
 
 from langchain_core.tools import BaseTool
@@ -11,6 +12,8 @@ from pydantic import Field
 
 from genai_tk.agents.tools.python_executor.executor import LocalPythonExecutor
 from genai_tk.agents.tools.python_executor.models import PythonExecutorInput
+
+COMMON_OPTIONAL_PACKAGES: list[str] = ["numpy", "pandas", "scipy", "sympy"]
 
 
 class PythonExecutorTool(BaseTool):
@@ -82,7 +85,8 @@ def create_python_executor_tool(
     Returns:
         Configured PythonExecutorTool instance.
     """
-    effective_imports = (authorized_imports or []) + (additional_authorized_imports or [])
+    discovered = [pkg for pkg in COMMON_OPTIONAL_PACKAGES if find_spec(pkg) is not None]
+    effective_imports = list(set((authorized_imports or []) + (additional_authorized_imports or []) + discovered))
     executor = LocalPythonExecutor(
         additional_authorized_imports=effective_imports,
         tools=tools,

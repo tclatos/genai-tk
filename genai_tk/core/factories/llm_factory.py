@@ -1055,7 +1055,7 @@ class LlmFactory(BaseModel):
         api_key = get_provider_api_key(self.provider)
         llm_params = common_params | self.llm_params
         if self.json_mode:
-            llm_params |= {"response_format": {"type": "json_object"}}
+            llm_params.setdefault("model_kwargs", {})["response_format"] = {"type": "json_object"}
 
         if self.reasoning_payload and not self.info.supports_thinking:
             if self.reasoning_payload.get("effort") != REASONING_DISABLE_VALUE:

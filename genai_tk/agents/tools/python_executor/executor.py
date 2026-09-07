@@ -96,6 +96,9 @@ ALLOWED_DUNDER_METHODS = {
     "__add__",
     "__sub__",
     "__mul__",
+    "__matmul__",
+    "__imatmul__",
+    "__rmatmul__",
     "__truediv__",
     "__floordiv__",
     "__mod__",
@@ -109,6 +112,10 @@ ALLOWED_DUNDER_METHODS = {
     "__neg__",
     "__pos__",
     "__abs__",
+    "__round__",
+    "__array__",
+    "__array_interface__",
+    "__array_struct__",
     "__format__",
     "__hash__",
     "__bool__",
@@ -253,17 +260,38 @@ class LangChainToolAdapter:
         self.__doc__ = tool.description
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        if kwargs and not args:
-            return self.tool.invoke(kwargs)
-        if len(args) == 1 and not kwargs:
-            arg = args[0]
-            if isinstance(arg, dict):
-                return self.tool.invoke(arg)
-            return self.tool.invoke(arg)
-        if args and kwargs:
-            return self.tool.invoke(kwargs)
+        merged_kwargs = dict(kwargs)
         if args:
-            return self.tool.invoke(list(args))
+            param_names: list[str] = []
+            if hasattr(self.tool, "args_schema") and self.tool.args_schema is not None:
+                if hasattr(self.tool.args_schema, "model_fields"):
+                    param_names = list(self.tool.args_schema.model_fields.keys())
+                elif hasattr(self.tool.args_schema, "__fields__"):
+                    param_names = list(self.tool.args_schema.__fields__.keys())
+            elif hasattr(self.tool, "args") and isinstance(self.tool.args, dict):
+                param_names = list(self.tool.args.keys())
+
+            if (
+                len(args) == 1
+                and not merged_kwargs
+                and isinstance(args[0], dict)
+                and not (param_names and param_names[0] in args[0])
+            ):
+                return self.tool.invoke(args[0])
+
+            for idx, arg in enumerate(args):
+                if idx < len(param_names):
+                    param_name = param_names[idx]
+                    if param_name not in merged_kwargs:
+                        merged_kwargs[param_name] = arg
+                elif len(args) == 1 and not merged_kwargs:
+                    return self.tool.invoke(arg)
+
+            return self.tool.invoke(merged_kwargs)
+
+        if merged_kwargs:
+            return self.tool.invoke(merged_kwargs)
+
         return self.tool.invoke({})
 
     def invoke(self, *args: Any, **kwargs: Any) -> Any:
@@ -673,6 +701,8 @@ def evaluate_augassign(
         current_value -= value_to_add
     elif isinstance(expression.op, ast.Mult):
         current_value *= value_to_add
+    elif isinstance(expression.op, ast.MatMult):
+        current_value @= value_to_add
     elif isinstance(expression.op, ast.Div):
         current_value /= value_to_add
     elif isinstance(expression.op, ast.FloorDiv):
@@ -732,6 +762,8 @@ def evaluate_binop(
         return left_val - right_val
     if isinstance(binop.op, ast.Mult):
         return left_val * right_val
+    if isinstance(binop.op, ast.MatMult):
+        return left_val @ right_val
     if isinstance(binop.op, ast.Div):
         return left_val / right_val
     if isinstance(binop.op, ast.FloorDiv):
@@ -1332,6 +1364,10 @@ def evaluate_ast(
 
     if isinstance(expression, ast.Assign):
         return evaluate_assign(expression, *common_params)
+    if isinstance(expression, ast.NamedExpr):
+        value = evaluate_ast(expression.value, *common_params)
+        set_value(expression.target, value, *common_params)
+        return value
     if isinstance(expression, ast.AnnAssign):
         return evaluate_annassign(expression, *common_params)
     if isinstance(expression, ast.AugAssign):

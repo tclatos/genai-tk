@@ -356,9 +356,9 @@ from genai_tk.agents.langchain.trajectory_store_io import judge_trajectory
 verdicts = judge_trajectory(
     "<run_id>",
     [
-        {"kind": "tool_use", "tools": ["echo"]},        # deterministic, no API key
-        {"kind": "grounding"},                         # deterministic
-        {"kind": "efficiency", "max_repeat": 3},        # deterministic
+        {"kind": "tool_use", "tools": ["echo"]},  # deterministic, no API key
+        {"kind": "grounding"},  # deterministic
+        {"kind": "efficiency", "max_repeat": 3},  # deterministic
         {"kind": "correctness", "judge": judge_llm, "reference_outputs": "echo:hello"},  # LLM, gated
     ],
 )

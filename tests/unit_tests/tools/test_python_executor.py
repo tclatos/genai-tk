@@ -249,6 +249,56 @@ def test_final_answer_terminates_and_sets_flag() -> None:
 
 
 @pytest.mark.unit
+def test_walrus_operator_named_expr() -> None:
+    executor = LocalPythonExecutor()
+    res = executor("if (n := len([1, 2, 3])) > 2:\n    res = n * 10\nres")
+    assert res.error is None
+    assert res.output == 30
+
+
+@pytest.mark.unit
+def test_matrix_multiplication_matmul() -> None:
+    executor = LocalPythonExecutor(additional_authorized_imports=["numpy"])
+    code = """
+import numpy as np
+A = np.array([[1, 2], [3, 4]])
+B = np.array([[5, 6], [7, 8]])
+C = A @ B
+C.tolist()
+"""
+    res = executor(code)
+    assert res.error is None
+    assert res.output == [[19, 22], [43, 50]]
+
+
+@pytest.mark.unit
+def test_tool_positional_arguments_adapter() -> None:
+    @tool
+    def add_numbers(a: int, b: int) -> int:
+        """Add two numbers."""
+        return a + b
+
+    executor = LocalPythonExecutor(tools=[add_numbers])
+    res = executor("res = add_numbers(15, 27)\nres")
+    assert res.error is None
+    assert res.output == 42
+
+
+@pytest.mark.unit
+def test_scipy_and_stats_integration() -> None:
+    executor = LocalPythonExecutor(additional_authorized_imports=["scipy"])
+    code = """
+import scipy.stats as stats
+vals = [2.0, 4.0, 8.0, 16.0]
+gm = float(stats.gmean(vals))
+round(gm, 4)
+"""
+    res = executor(code)
+    assert res.error is None
+    assert res.output == pytest.approx(5.6569, rel=1e-4)
+
+
+@pytest.mark.unit
 def test_final_answer_tool_output_marker() -> None:
     tool = create_python_executor_tool()
     result = tool.invoke({"code": "final_answer(9.7)"})

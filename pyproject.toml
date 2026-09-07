@@ -96,6 +96,7 @@ dependencies = [
     # ============================================
     "langsmith>=0.9",
     "nemo-relay[deepagents]>=0.7.3",
+    "scipy>=1.18.1",
 ]
 
 [project.urls]

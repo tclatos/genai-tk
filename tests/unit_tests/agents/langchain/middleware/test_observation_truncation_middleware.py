@@ -1,6 +1,7 @@
 """Unit tests for ObservationTruncationMiddleware."""
 
 import pytest
+
 from genai_tk.agents.langchain.middleware.observation_truncation_middleware import (
     ObservationTruncationMiddleware,
 )
