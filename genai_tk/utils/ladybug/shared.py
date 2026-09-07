@@ -8,6 +8,7 @@ as transactions touch disjoint rows.
 
 from __future__ import annotations
 
+import atexit
 import threading
 from pathlib import Path
 from typing import Any
@@ -71,3 +72,31 @@ def clear_shared_database_cache() -> None:
     """Clear all cached shared ``ladybug.Database`` instances across the process."""
     with _DB_LOCK:
         _SHARED_DATABASES.clear()
+
+
+def shutdown_shared_databases() -> None:
+    """Close every shared Database and its connections in a safe order at exit.
+
+    Interpreter-shutdown garbage collection frees Connection and Database
+    native objects in arbitrary order, which corrupts the native heap
+    (observed as "free(): invalid size" after a multi-threaded run). Closing
+    every live connection first and each Database afterwards gives the native
+    teardown the ordering it requires.
+    """
+    with _DB_LOCK:
+        databases = list(_SHARED_DATABASES.values())
+        _SHARED_DATABASES.clear()
+    for db in databases:
+        connections = list(getattr(db, "_connections", []) or [])
+        for conn in connections:
+            try:
+                conn.close()
+            except Exception:  # noqa: BLE001 - best-effort teardown
+                pass
+        try:
+            db.close()
+        except Exception:  # noqa: BLE001 - best-effort teardown
+            pass
+
+
+atexit.register(shutdown_shared_databases)
