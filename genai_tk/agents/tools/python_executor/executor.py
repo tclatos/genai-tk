@@ -300,6 +300,11 @@ class PrintContainer:
         return len(self.value)
 
 
+def _final_answer(value: Any) -> Any:
+    """Terminate the current run and return *value* as the final answer."""
+    return value
+
+
 def truncate_content(content: str, max_length: int = DEFAULT_MAX_LEN_OUTPUT) -> str:
     """Truncates content to stay within max_length characters."""
     if len(content) <= max_length:
@@ -1534,7 +1539,12 @@ class LocalPythonExecutor:
         if initial_state:
             self.state.update(initial_state)
 
-        self.additional_functions = additional_functions or {}
+        functions = dict(additional_functions or {})
+        # CodeAct termination stub: calling final_answer(x) inside executed code
+        # raises FinalAnswerException(x) (wired in evaluate_python_code) so the
+        # run stops and CodeOutput.is_final_answer is set.
+        functions.setdefault("final_answer", _final_answer)
+        self.additional_functions = functions
         self.static_tools: dict[str, Callable[..., Any]] = {}
         self._init_tools(tools)
 

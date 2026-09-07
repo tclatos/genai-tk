@@ -41,7 +41,9 @@ class PythonExecutorTool(BaseTool):
         if self.include_logs and code_output.logs:
             parts.append(f"Logs:\n{code_output.logs.rstrip()}")
 
-        if code_output.output is not None:
+        if code_output.is_final_answer:
+            parts.append(f"FINAL ANSWER:\n{code_output.output}")
+        elif code_output.output is not None:
             parts.append(f"Result:\n{code_output.output}")
 
         if not parts:

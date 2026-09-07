@@ -6,6 +6,25 @@ I suggest you use as baseline : https://github.com/huggingface/smolagents/blob/m
 Replace their Tool definition with LangChain BaseTool, or remove that feature if its too complicated.
 Implement some tests with Pandas as imported package. 
 
+
+# CodeAct
+
+We have developped a SmolAgents inspired statefull safe Python interpreter tool, able to call other langchain tools and functions from external package. (/home/tcl/prj/genai-tk/genai_tk/agents/tools/python_executor)
+We want to investigate the idea a get closer to SmolAgents with a CodeAct skill. Here a sketch: 
+- For any multi-step reasoning/tool-use task, express the action as a Python code block passed to execute_python, not as separate discrete tool calls
+- Any other registered tools should be pre-bound as plain callables inside the executor's namespace (DeepAgents' middleware can inject them into the sandbox's globals at session start), so calling a tool from code is just calling a function
+- On error, the traceback returned by the executor becomes the next observation — the skill instructs the agent to read it and retry, not give up
+- Terminate by calling a final_answer(x) stub inside the executor rather than replying in plain English
+
+Idealy, 
+- we shoud have a dedicated  subagent whose only skill is codeact
+- The codeagent could have access to the tools defined in the agent profile. 
+
+Think about that, and propose a plan if you think it's possible. 
+The first use case could be the classical SmolAgents example :'"ow many seconds would it take for a leopard at full speed to run through Pont des Arts?"  (with a websearch tool)
+
+Thonk about that, analyse tradeoffs, ask questions
+
 Status: 
 
 ~/prj/ekg-atos ->   cli kg create one_rainbow 

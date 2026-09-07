@@ -96,6 +96,8 @@ async def create_langchain_agent(
     if extra_tools:
         all_tools.extend(extra_tools)
 
+    bind_executor_tools(all_tools)
+
     logger.info("Creating '{}' agent (type={}) with {} tools", profile.name, profile.type, len(all_tools))
 
     # 5. Checkpointer
@@ -174,13 +176,82 @@ async def create_langchain_agent(
 
     if profile.type == "deep":
         return await _create_deep_agent(
-            model, all_tools, checkpointer, profile, middlewares=middlewares, backend=backend
+            model,
+            all_tools,
+            checkpointer,
+            profile,
+            middlewares=middlewares,
+            backend=backend,
+            subagents=_resolve_subagents(profile, llm_id=llm_id),
         )
 
     if profile.type == "custom":
         return _create_custom_agent(model, all_tools, checkpointer)
 
     raise ValueError(f"Unknown agent type: {profile.type!r}")
+
+
+# ============================================================================
+# CodeAct & subagent wiring
+# ============================================================================
+
+
+def bind_executor_tools(tools: list[BaseTool]) -> None:
+    """Expose sibling tools as plain callables inside every Python executor sandbox.
+
+    CodeAct support: when the toolset contains a ``PythonExecutorTool``, all other
+    tools in the list are registered in its interpreter namespace so agent code
+    can call them as ordinary functions (e.g. ``internet_search("...")``) instead
+    of separate discrete tool calls. ``final_answer`` is always available via the
+    executor's default ``additional_functions``.
+    """
+    from genai_tk.agents.tools.python_executor import PythonExecutorTool
+
+    executors = [t for t in tools if isinstance(t, PythonExecutorTool)]
+    if not executors:
+        return
+
+    siblings = [t for t in tools if not isinstance(t, PythonExecutorTool)]
+    for executor_tool in executors:
+        executor_tool.executor.send_tools(siblings)
+        logger.info(
+            "CodeAct binding: {} sibling tool(s) exposed inside '{}' sandbox",
+            len(siblings),
+            executor_tool.name,
+        )
+
+
+def _resolve_subagents(profile: AgentProfileConfig, llm_id: str) -> list[dict[str, Any]] | None:
+    """Convert ``profile.subagents`` raw dicts into deepagents ``SubAgent`` specs.
+
+    Supported dict fields (YAML, after ``${paths.*}`` interpolation):
+    ``name`` and ``description`` (required by deepagents), ``system_prompt``,
+    ``model``, ``skills`` (list of paths), ``tools`` (list of tool specs using
+    ``class:``/``function:``/``factory:`` discriminators, or ``null`` to inherit
+    the parent's tools). Subagent toolsets get the same CodeAct executor binding
+    as top-level profiles.
+    """
+    if not profile.subagents:
+        return None
+
+    from pydantic import TypeAdapter
+
+    from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
+    from genai_tk.agents.tools.tool_specs import ToolSpec
+
+    spec_list_adapter = TypeAdapter(list[ToolSpec])
+    subagents: list[dict[str, Any]] = []
+    for raw_spec in profile.subagents:
+        sub = dict(raw_spec)
+        raw_tools = sub.pop("tools", None)
+        if raw_tools is not None:
+            tool_specs = spec_list_adapter.validate_python(raw_tools)
+            sub_tools = process_langchain_tools_from_config(tool_specs, llm=llm_id)
+            bind_executor_tools(sub_tools)
+            sub["tools"] = sub_tools
+            logger.info("Subagent '{}': resolved {} tool(s)", sub.get("name", "?"), len(sub_tools))
+        subagents.append(sub)
+    return subagents
 
 
 # ============================================================================
@@ -212,6 +283,7 @@ async def _create_deep_agent(
     *,
     middlewares: list | None = None,
     backend: Any = None,
+    subagents: list[dict[str, Any]] | None = None,
 ) -> Any:
     """Build a deep agent using deepagents.create_deep_agent.
 
@@ -274,6 +346,8 @@ async def _create_deep_agent(
         "checkpointer": checkpointer,
         "backend": backend,
     }
+    if subagents:
+        deep_kwargs["subagents"] = subagents
     try:
         from nemo_relay.integrations.deepagents import add_nemo_relay_integration
 

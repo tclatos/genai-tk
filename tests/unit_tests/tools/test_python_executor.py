@@ -236,3 +236,29 @@ def test_executor_reset() -> None:
     assert "secret_var" in executor.state
     executor.reset()
     assert "secret_var" not in executor.state
+
+
+@pytest.mark.unit
+def test_final_answer_terminates_and_sets_flag() -> None:
+    executor = LocalPythonExecutor()
+    res = executor("x = 2 + 3\nprint('computing...')\nfinal_answer(x * 10)")
+    assert res.error is None
+    assert res.is_final_answer is True
+    assert res.output == 50
+    assert "computing..." in res.logs
+
+
+@pytest.mark.unit
+def test_final_answer_tool_output_marker() -> None:
+    tool = create_python_executor_tool()
+    result = tool.invoke({"code": "final_answer(9.7)"})
+    assert "FINAL ANSWER:\n9.7" in result
+    assert "Result:" not in result
+
+
+@pytest.mark.unit
+def test_final_answer_not_called_runs_normally() -> None:
+    tool = create_python_executor_tool()
+    result = tool.invoke({"code": "21 * 2"})
+    assert "FINAL ANSWER" not in result
+    assert "Result:\n42" in result

@@ -14,6 +14,7 @@ Use `skills/genai-tk/repo-map` first when you need orientation. Domain skills mi
 | `genai-tk-configuration` | `docs/configuration.md` | `genai_tk/utils/config_mngr.py`, `config/` |
 | `genai-tk-core-models` | `docs/core.md`, `docs/llm-selection.md` | `genai_tk/core/`, `config/providers/` |
 | `genai-tk-agent-profiles` | `docs/agents.md`, `docs/deer-flow.md`, `docs/middleware-pii-and-routing.md` | `genai_tk/agents/`, `config/agents/` |
+| `genai-tk-python-interpreter` | `docs/codeact.md` | `genai_tk/agents/tools/python_executor/` |
 | `genai-tk-add-tool` | — | `genai_tk/agents/tools/` |
 | `genai-tk-add-skill` | `docs/skills.md` | `skills/` |
 | `genai-tk-add-mcp-server` | `docs/mcp-servers.md` | `config/mcp_servers.yaml` |
