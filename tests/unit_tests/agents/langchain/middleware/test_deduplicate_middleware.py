@@ -88,3 +88,41 @@ async def test_deduplicate_middleware_async() -> None:
     res2 = await mw.awrap_tool_call(req, async_mock_handler)
     assert "[Notice: Duplicate call to 'get_folder_toc'" in res2
     assert call_count == 1
+
+
+def test_deduplicate_middleware_circuit_breaker() -> None:
+    """When a tool call is repeated >= circuit_breaker_threshold, return a strict directive."""
+    mw = DeduplicateToolCallsMiddleware(tools=["search_sections"], circuit_breaker_threshold=3)
+
+    call_count = 0
+
+    def mock_handler(req: Any) -> str:
+        nonlocal call_count
+        call_count += 1
+        return "Search result"
+
+    req = _tool_request("search_sections", {"query": "Table 1"})
+    # Call 1: passes through
+    res1 = mw.wrap_tool_call(req, mock_handler)
+    assert res1 == "Search result"
+    assert call_count == 1
+
+    # Call 2: duplicate notice
+    res2 = mw.wrap_tool_call(req, mock_handler)
+    assert "[Notice: Duplicate call to 'search_sections'" in res2
+    assert call_count == 1
+
+    # Call 3: circuit breaker triggered
+    res3 = mw.wrap_tool_call(req, mock_handler)
+    assert "[Circuit Breaker: You have called 'search_sections' with arguments {'query': 'Table 1'} 3 times." in res3
+    assert "Further duplicate calls are blocked." in res3
+    assert call_count == 1
+
+
+def test_default_dedup_tools_includes_search_and_content() -> None:
+    mw = DeduplicateToolCallsMiddleware()
+    assert "get_document_toc" in mw.target_tools
+    assert "get_folder_toc" in mw.target_tools
+    assert "search_sections" in mw.target_tools
+    assert "get_section_content" in mw.target_tools
+    assert "web_search" in mw.target_tools

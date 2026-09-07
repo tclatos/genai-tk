@@ -29,7 +29,16 @@ from typing import Any, Literal
 from langchain.agents.middleware import AgentMiddleware
 from loguru import logger
 
-_DEFAULT_DEDUP_TOOLS = frozenset({"get_document_toc", "get_folder_toc", "list_documents"})
+_DEFAULT_DEDUP_TOOLS = frozenset(
+    {
+        "get_document_toc",
+        "get_folder_toc",
+        "list_documents",
+        "search_sections",
+        "get_section_content",
+        "web_search",
+    }
+)
 
 
 class DeduplicateToolCallsMiddleware(AgentMiddleware):
@@ -37,13 +46,15 @@ class DeduplicateToolCallsMiddleware(AgentMiddleware):
 
     Args:
         tools: List or set of tool names to deduplicate. If None, defaults to
-            ``{"get_document_toc", "get_folder_toc", "list_documents"}``.
+            ``{"get_document_toc", "get_folder_toc", "list_documents", "search_sections", "get_section_content", "web_search"}``.
         mode: How to handle duplicate calls:
             - ``"stub"`` (default): return a concise notice directing the agent
               to refer to earlier output in the conversation history.
             - ``"cache"``: return the exact cached result from the earlier call.
         custom_stub: Optional custom message template for stub mode. May contain
-            ``{tool_name}`` and ``{args}``.
+            ``{tool_name}``, ``{args}``, and ``{count}``.
+        circuit_breaker_threshold: Threshold count of identical calls after which
+            a strict circuit-breaking directive is returned (default: 3).
     """
 
     def __init__(
@@ -51,10 +62,12 @@ class DeduplicateToolCallsMiddleware(AgentMiddleware):
         tools: list[str] | set[str] | None = None,
         mode: Literal["stub", "cache"] = "stub",
         custom_stub: str | None = None,
+        circuit_breaker_threshold: int = 3,
     ) -> None:
         self.target_tools = frozenset(tools) if tools is not None else _DEFAULT_DEDUP_TOOLS
         self.mode = mode
         self.custom_stub = custom_stub
+        self.circuit_breaker_threshold = circuit_breaker_threshold
         self._cache: dict[str, Any] = {}
         self._counts: dict[str, int] = {}
 
@@ -74,9 +87,15 @@ class DeduplicateToolCallsMiddleware(AgentMiddleware):
             args_str = str(tool_args)
         return f"{tool_name}:{args_str}"
 
-    def _format_stub(self, tool_name: str, tool_args: Any) -> str:
+    def _format_stub(self, tool_name: str, tool_args: Any, count: int = 1) -> str:
         if self.custom_stub:
-            return self.custom_stub.format(tool_name=tool_name, args=tool_args)
+            return self.custom_stub.format(tool_name=tool_name, args=tool_args, count=count)
+        if count >= self.circuit_breaker_threshold:
+            return (
+                f"[Circuit Breaker: You have called '{tool_name}' with arguments {tool_args} {count} times. "
+                f"Further duplicate calls are blocked. Do not repeat this call. "
+                f"Please synthesize your answer directly from the conversation history or select a different action.]"
+            )
         return (
             f"[Notice: Duplicate call to '{tool_name}' with arguments {tool_args}. "
             f"The full result is already present in your conversation history above. "
@@ -101,7 +120,7 @@ class DeduplicateToolCallsMiddleware(AgentMiddleware):
                 self.mode,
             )
             if self.mode == "stub":
-                return self._format_stub(tool_name, tool_args)
+                return self._format_stub(tool_name, tool_args, count)
             return self._cache[key]
 
         # First time invocation: execute tool and cache response
@@ -128,7 +147,7 @@ class DeduplicateToolCallsMiddleware(AgentMiddleware):
                 self.mode,
             )
             if self.mode == "stub":
-                return self._format_stub(tool_name, tool_args)
+                return self._format_stub(tool_name, tool_args, count)
             return self._cache[key]
 
         # First time invocation: execute tool and cache response
