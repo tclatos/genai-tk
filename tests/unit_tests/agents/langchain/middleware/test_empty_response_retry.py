@@ -15,6 +15,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage
 
 from genai_tk.agents.langchain.middleware.empty_response_retry import (
+    DEFAULT_RECOVERY_PROMPT,
     EmptyResponseRetryMiddleware,
     _is_empty,
     _unwrap_ai_message,
@@ -28,12 +29,16 @@ from genai_tk.agents.langchain.middleware.empty_response_retry import (
 class _FakeRequest:
     """Stand-in for a ModelRequest that records ``override`` calls."""
 
-    def __init__(self) -> None:
+    def __init__(self, messages: list[Any] | None = None) -> None:
         self.override_calls: list[dict[str, Any]] = []
+        self.messages: list[Any] | None = messages
 
     def override(self, **kw: Any) -> "_FakeRequest":
         self.override_calls.append(kw)
-        return _FakeRequest()
+        next_messages = kw.get("messages", self.messages)
+        next_req = _FakeRequest(messages=next_messages)
+        next_req.override_calls = self.override_calls
+        return next_req
 
 
 class _FakeFallbackModel:
@@ -281,6 +286,59 @@ def test_make_retry_request_last_with_fallback_overrides() -> None:
 
     assert retry is not request
     assert request.override_calls == [{"model": fallback}]
+
+
+def test_make_retry_request_injects_recovery_prompt() -> None:
+    mw = EmptyResponseRetryMiddleware(max_retries=2)
+    request = _FakeRequest(messages=[HumanMessage(content="initial prompt")])
+
+    retry = mw._make_retry_request(request, attempt=1)
+
+    assert retry is not request
+    assert len(request.override_calls) == 1
+    assert "messages" in request.override_calls[0]
+    messages = request.override_calls[0]["messages"]
+    assert len(messages) == 2
+    assert messages[0].content == "initial prompt"
+    assert messages[1].content == DEFAULT_RECOVERY_PROMPT
+
+
+def test_make_retry_request_with_custom_recovery_prompt() -> None:
+    custom_prompt = "Custom recovery message."
+    mw = EmptyResponseRetryMiddleware(max_retries=1, recovery_prompt=custom_prompt)
+    request = _FakeRequest(messages=[HumanMessage(content="initial")])
+
+    retry = mw._make_retry_request(request, attempt=1)
+
+    assert retry is not request
+    assert len(request.override_calls) == 1
+    messages = request.override_calls[0]["messages"]
+    assert len(messages) == 2
+    assert messages[1].content == custom_prompt
+
+
+def test_make_retry_request_disabled_recovery_prompt() -> None:
+    mw = EmptyResponseRetryMiddleware(max_retries=2, recovery_prompt=None)
+    request = _FakeRequest(messages=[HumanMessage(content="initial")])
+
+    retry = mw._make_retry_request(request, attempt=1)
+
+    assert retry is request
+    assert request.override_calls == []
+
+
+def test_make_retry_request_injects_recovery_prompt_and_fallback_model() -> None:
+    fallback = _FakeFallbackModel()
+    mw = EmptyResponseRetryMiddleware(max_retries=1, fallback_model=fallback)
+    request = _FakeRequest(messages=[HumanMessage(content="initial")])
+
+    retry = mw._make_retry_request(request, attempt=1)
+
+    assert retry is not request
+    assert len(request.override_calls) == 1
+    assert request.override_calls[0]["model"] is fallback
+    assert len(request.override_calls[0]["messages"]) == 2
+    assert request.override_calls[0]["messages"][1].content == DEFAULT_RECOVERY_PROMPT
 
 
 # --------------------------------------------------------------------------- #

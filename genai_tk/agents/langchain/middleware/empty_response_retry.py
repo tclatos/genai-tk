@@ -12,7 +12,7 @@ Example YAML config::
     middlewares:
       - class: genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware
         max_retries: 2
-        fallback_llm: claude-haiku@openrouter
+        fallback_llm: claude-sonnet@openrouter
 """
 
 from __future__ import annotations
@@ -23,10 +23,16 @@ from typing import Any
 from langchain.agents.middleware import AgentMiddleware
 from langchain.agents.middleware.types import ModelRequest, ModelResponse
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from loguru import logger
 
 from genai_tk.core.messages import extract_ai_message_parts
+
+DEFAULT_RECOVERY_PROMPT: str = (
+    "Your previous response was completely empty (no text and no tool calls). "
+    "Please continue your analysis and provide your response, emit the next required tool call, "
+    "or deliver your final answer."
+)
 
 
 def _unwrap_ai_message(response: Any) -> AIMessage | None:
@@ -57,12 +63,16 @@ class EmptyResponseRetryMiddleware(AgentMiddleware):
     On each retry the original model is called again. On the **last** attempt
     the request is re-issued with ``fallback_model`` (if provided) so that a
     more capable or differently-configured model can recover the conversation.
+    If ``recovery_prompt`` is set, an active recovery prompt is injected into the
+    messages on each retry attempt to guide the model back to generating output.
 
     Args:
         max_retries: Number of additional attempts after the first empty response.
         fallback_model: Pre-built ``BaseChatModel`` to use on the last retry.
-        fallback_llm: LLM identifier resolved via ``LlmFactory`` (e.g. ``claude-haiku@openrouter``).
+        fallback_llm: LLM identifier resolved via ``LlmFactory`` (e.g. ``claude-sonnet@openrouter``).
             Used when ``fallback_model`` is not provided.  Takes effect only on the last retry.
+        recovery_prompt: Optional recovery instruction injected as a HumanMessage on retry attempts.
+            Defaults to ``DEFAULT_RECOVERY_PROMPT``. Set to ``None`` or empty string to disable.
     """
 
     def __init__(
@@ -70,10 +80,12 @@ class EmptyResponseRetryMiddleware(AgentMiddleware):
         max_retries: int = 1,
         fallback_model: BaseChatModel | None = None,
         fallback_llm: str | None = None,
+        recovery_prompt: str | None = DEFAULT_RECOVERY_PROMPT,
     ) -> None:
         self._max_retries = max_retries
         self._fallback_model = fallback_model
         self._fallback_llm = fallback_llm
+        self._recovery_prompt = recovery_prompt or None
         self._resolved_fallback: BaseChatModel | None = None
 
     def _get_fallback(self) -> BaseChatModel | None:
@@ -86,19 +98,34 @@ class EmptyResponseRetryMiddleware(AgentMiddleware):
         return self._resolved_fallback
 
     def _make_retry_request(self, request: ModelRequest, attempt: int) -> ModelRequest:
+        if not hasattr(request, "override"):
+            return request
+
         is_last = attempt == self._max_retries
         fallback = self._get_fallback() if is_last else None
+        override_kwargs: dict[str, Any] = {}
+
         if fallback is not None:
             model_name = getattr(fallback, "model_name", None) or getattr(fallback, "model", "unknown")
             logger.warning(
                 f"[EmptyResponseRetry] Empty LLM response (attempt {attempt}/{self._max_retries}) — "
                 f"retrying with fallback model: {model_name}"
             )
-            return request.override(model=fallback)
-        logger.warning(
-            f"[EmptyResponseRetry] Empty LLM response (attempt {attempt}/{self._max_retries}) — "
-            "retrying with same model"
-        )
+            override_kwargs["model"] = fallback
+        else:
+            logger.warning(
+                f"[EmptyResponseRetry] Empty LLM response (attempt {attempt}/{self._max_retries}) — "
+                "retrying with same model"
+            )
+
+        if self._recovery_prompt and hasattr(request, "messages") and request.messages is not None:
+            override_kwargs["messages"] = [*request.messages, HumanMessage(content=self._recovery_prompt)]
+            logger.info(
+                f"[EmptyResponseRetry] Injected active recovery prompt on attempt {attempt}/{self._max_retries}"
+            )
+
+        if override_kwargs:
+            return request.override(**override_kwargs)
         return request
 
     async def awrap_model_call(
