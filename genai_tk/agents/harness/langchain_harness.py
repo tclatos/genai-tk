@@ -19,12 +19,17 @@ from genai_tk.agents.harness.events import (
     ErrorEvent,
     NodeEvent,
     StreamEvent,
+    ThinkingEvent,
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
     UsageEvent,
 )
-from genai_tk.agents.langchain.config import AgentProfileConfig
+from genai_tk.agents.harness.profiles import AgentProfile
+from genai_tk.core.messages import (
+    extract_ai_message_parts,
+    extract_text_content,
+)
 from genai_tk.utils.tracing import apply_harness_trace_metadata, get_monitoring_callbacks, setup_monitoring
 
 # Chain-node names that are internal plumbing of the compiled graph rather than
@@ -64,7 +69,7 @@ class LangChainHarness(BaseHarness):
 
     def __init__(
         self,
-        profile: AgentProfileConfig,
+        profile: AgentProfile,
         *,
         llm_override: str | None = None,
         force_memory_checkpointer: bool = False,
@@ -204,15 +209,20 @@ def _translate_langchain_event(
 
     if event_type == "on_chat_model_stream":
         chunk = data.get("chunk")
-        content = getattr(chunk, "content", "") if chunk is not None else ""
-        if isinstance(content, list):
-            content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
-        text = str(content) if content else ""
-        if not text:
+        if chunk is None:
             return []
-        if streamed_per_run is not None:
-            streamed_per_run[run_id] = streamed_per_run.get(run_id, "") + text
-        return [TokenEvent(text=text)]
+        parts = extract_ai_message_parts(chunk)
+        events: list[StreamEvent] = []
+        if parts.thinking:
+            if streamed_per_run is not None:
+                think_key = f"{run_id}:thinking"
+                streamed_per_run[think_key] = streamed_per_run.get(think_key, "") + parts.thinking
+            events.append(ThinkingEvent(text=parts.thinking))
+        if parts.text:
+            if streamed_per_run is not None:
+                streamed_per_run[run_id] = streamed_per_run.get(run_id, "") + parts.text
+            events.append(TokenEvent(text=parts.text))
+        return events
 
     if event_type == "on_tool_start":
         return [
@@ -239,27 +249,46 @@ def _translate_langchain_event(
     if event_type == "on_chat_model_end":
         events: list[StreamEvent] = []
         output = data.get("output")
-        full = _ai_message_text(output) if output is not None else ""
-        if full:
-            streamed = streamed_per_run.pop(run_id, "") if streamed_per_run is not None else ""
-            if streamed and full.startswith(streamed):
-                tail = full[len(streamed) :]
-            elif streamed:
-                # Chunks were emitted but don't align with the final message;
-                # assume streaming already delivered the content and avoid dupes.
-                tail = ""
-            else:
-                tail = full
-            if tail:
-                events.append(TokenEvent(text=tail))
-        usage = getattr(output, "usage_metadata", None) if output is not None else None
-        if usage:
-            events.append(
-                UsageEvent(
-                    input_tokens=usage.get("input_tokens", 0),
-                    output_tokens=usage.get("output_tokens", 0),
+        if output is not None:
+            parts = extract_ai_message_parts(output)
+            full_thinking = parts.thinking
+            full_text = parts.text
+
+            # Flush any un-streamed thinking remainder
+            if full_thinking:
+                think_key = f"{run_id}:thinking"
+                streamed_think = streamed_per_run.pop(think_key, "") if streamed_per_run is not None else ""
+                if streamed_think and full_thinking.startswith(streamed_think):
+                    think_tail = full_thinking[len(streamed_think) :]
+                elif streamed_think:
+                    think_tail = ""
+                else:
+                    think_tail = full_thinking
+                if think_tail:
+                    events.append(ThinkingEvent(text=think_tail))
+
+            # Flush any un-streamed text remainder
+            if full_text:
+                streamed = streamed_per_run.pop(run_id, "") if streamed_per_run is not None else ""
+                if streamed and full_text.startswith(streamed):
+                    tail = full_text[len(streamed) :]
+                elif streamed:
+                    # Chunks were emitted but don't align with the final message;
+                    # assume streaming already delivered the content and avoid dupes.
+                    tail = ""
+                else:
+                    tail = full_text
+                if tail:
+                    events.append(TokenEvent(text=tail))
+
+            usage = getattr(output, "usage_metadata", None)
+            if usage:
+                events.append(
+                    UsageEvent(
+                        input_tokens=usage.get("input_tokens", 0),
+                        output_tokens=usage.get("output_tokens", 0),
+                    )
                 )
-            )
         return events
 
     if event_type == "on_chain_start":
@@ -274,17 +303,4 @@ def _translate_langchain_event(
 
 def _ai_message_text(output: Any) -> str:
     """Flatten an ``on_chat_model_end`` output into its visible text content."""
-    msg = output
-    if hasattr(msg, "model_response"):
-        msg = msg.model_response
-    if hasattr(msg, "result"):
-        msgs = msg.result
-        msg = msgs[0] if msgs else msg
-    content = getattr(msg, "content", None)
-    if content is None:
-        return ""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        return "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
-    return str(content)
+    return extract_text_content(output)

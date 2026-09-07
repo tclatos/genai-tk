@@ -7,6 +7,7 @@ CLI and Streamlit UI only need to understand one event vocabulary.
 Event kinds:
 
 - ``token``         — incremental or complete assistant text
+- ``thinking``      — incremental or complete model thinking / reasoning trace
 - ``node``          — a graph node/phase became active (planner, researcher, …)
 - ``tool_call``     — the model is calling a tool
 - ``tool_result``   — a tool returned a result
@@ -36,6 +37,13 @@ class TokenEvent(HarnessEvent):
     """Incremental or complete assistant response text."""
 
     kind: Literal["token"] = "token"
+    text: str = ""
+
+
+class ThinkingEvent(HarnessEvent):
+    """Incremental or complete model thinking / reasoning trace."""
+
+    kind: Literal["thinking"] = "thinking"
     text: str = ""
 
 
@@ -111,6 +119,7 @@ class EndEvent(HarnessEvent):
 
 StreamEvent = (
     TokenEvent
+    | ThinkingEvent
     | NodeEvent
     | ToolCallEvent
     | ToolResultEvent

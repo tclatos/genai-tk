@@ -22,6 +22,7 @@ from rich.markdown import Markdown
 from rich.panel import Panel
 
 from genai_tk.agents.rich_display import summarize_tool_result
+from genai_tk.core.messages import extract_ai_message_parts
 from genai_tk.utils.markdown import looks_like_markdown
 
 
@@ -435,33 +436,27 @@ class RichToolCallMiddleware(AgentMiddleware):
     def _print_llm_response_summary(self, response: Any, elapsed: float) -> None:
         """Print a one-line summary of what the LLM returned."""
         self._call_count += 1
-        # Unwrap deepagents ModelResponse / ExtendedModelResponse wrappers
-        # to get the actual AIMessage with content and tool_calls.
-        msg = response
-        if hasattr(response, "model_response"):
-            # ExtendedModelResponse → ModelResponse → result[0]
-            response = response.model_response
-        if hasattr(response, "result"):
-            # ModelResponse.result is list[BaseMessage]; first is the AI message
-            msgs = response.result
-            msg = msgs[0] if msgs else response
-
-        tool_calls = getattr(msg, "tool_calls", None) or []
-        content = getattr(msg, "content", None)
-        text_len = 0
-        if isinstance(content, str):
-            text_len = len(content)
-        elif isinstance(content, list):
-            text_len = sum(len(b.get("text", "")) if isinstance(b, dict) else len(str(b)) for b in content)
+        parts_info = extract_ai_message_parts(response)
+        tool_calls = parts_info.tool_calls
+        text_len = len(parts_info.text)
+        thinking_len = len(parts_info.thinking)
 
         parts: list[str] = [f"[dim]{elapsed:.1f}s[/dim]"]
         if tool_calls:
             names = [tc.get("name", "?") for tc in tool_calls]
             parts.append(f"[yellow]→ {len(tool_calls)} tool call(s): {', '.join(names)}[/yellow]")
+        if thinking_len:
+            parts.append(f"[dim]{thinking_len} chars thinking[/dim]")
         if text_len:
             parts.append(f"[dim]{text_len} chars text[/dim]")
-        if not tool_calls and not text_len:
+        if not tool_calls and not text_len and not thinking_len:
             parts.append("[bold red]⚠ empty response (no tool calls, no text)[/bold red]")
+            msg = response
+            if hasattr(response, "model_response"):
+                response = response.model_response
+            if hasattr(response, "result"):
+                msgs = response.result
+                msg = msgs[0] if msgs else response
             logger.warning("LLM #{}: empty response — raw type={}", self._call_count, type(msg).__name__)
             raw_attrs = {
                 a: repr(getattr(msg, a, None))[:200]

@@ -13,6 +13,7 @@ import pytest
 
 from genai_tk.agents.harness.events import (
     NodeEvent,
+    ThinkingEvent,
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
@@ -129,6 +130,36 @@ def test_chat_model_end_no_duplicate_text_after_streaming() -> None:
 
 def test_unknown_event_returns_empty_list() -> None:
     assert _translate_langchain_event({"event": "on_retriever_stream", "data": {}}) == []
+
+
+def test_chat_model_stream_reasoning_emits_thinking_event() -> None:
+    """Streaming chunks with reasoning_content emit ThinkingEvent, not TokenEvent."""
+    from langchain_core.messages import AIMessageChunk
+
+    chunk = AIMessageChunk(content="", additional_kwargs={"reasoning_content": "Thinking step..."})
+    ev = _translate_langchain_event({"event": "on_chat_model_stream", "data": {"chunk": chunk}})
+    assert len(ev) == 1
+    assert isinstance(ev[0], ThinkingEvent)
+    assert ev[0].text == "Thinking step..."
+
+
+def test_chat_model_end_with_reasoning_and_text() -> None:
+    """An AIMessage with both reasoning and visible text flushes both as distinct events."""
+    from langchain_core.messages import AIMessage
+
+    output = AIMessage(
+        content=[
+            {"type": "reasoning", "reasoning": "Internal thought"},
+            {"type": "text", "text": "Final visible text"},
+        ]
+    )
+    ev = _translate_langchain_event({"event": "on_chat_model_end", "data": {"output": output}})
+    thinking = [e for e in ev if isinstance(e, ThinkingEvent)]
+    tokens = [e for e in ev if isinstance(e, TokenEvent)]
+    assert len(thinking) == 1
+    assert thinking[0].text == "Internal thought"
+    assert len(tokens) == 1
+    assert tokens[0].text == "Final visible text"
 
 
 @pytest.mark.unit

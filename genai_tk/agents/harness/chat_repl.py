@@ -21,6 +21,7 @@ from genai_tk.agents.harness import (
     EndEvent,
     ErrorEvent,
     NodeEvent,
+    ThinkingEvent,
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
@@ -68,6 +69,9 @@ async def astream_turn(
         if isinstance(event, TokenEvent):
             console.print(event.text, end="", highlight=False)
             parts.append(event.text)
+        elif isinstance(event, ThinkingEvent):
+            if show_trace:
+                console.print(event.text, end="", style="dim italic", highlight=False)
         elif isinstance(event, ToolCallEvent):
             console.print(f"\n[tool] {event.tool_name}({event.args})", style="cyan")
         elif isinstance(event, ToolResultEvent):

@@ -23,6 +23,7 @@ from genai_tk.agents.harness.events import (
     ClarificationEvent,
     ErrorEvent,
     NodeEvent,
+    ThinkingEvent,
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
@@ -313,6 +314,11 @@ def stream_harness_turn(
                     tool.artifact = extract_tool_artifact(tool.name, {}, tool.result)
                     if current_step:
                         current_step.tools.append(tool)
+
+            elif isinstance(event, ThinkingEvent):
+                # Thinking tokens: do not append to visible final answer text
+                if not current_step:
+                    _get_or_create_step("planner")
 
             elif isinstance(event, TokenEvent):
                 if not current_step or current_step.node not in ("reporter", "agent"):

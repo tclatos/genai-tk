@@ -26,6 +26,8 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage
 from loguru import logger
 
+from genai_tk.core.messages import extract_ai_message_parts
+
 
 def _unwrap_ai_message(response: Any) -> AIMessage | None:
     """Extract the AIMessage from a ModelResponse / ExtendedModelResponse."""
@@ -44,15 +46,9 @@ def _unwrap_ai_message(response: Any) -> AIMessage | None:
 
 
 def _is_empty(msg: AIMessage) -> bool:
-    """True when the AIMessage carries neither text content nor tool calls."""
-    tool_calls = getattr(msg, "tool_calls", None) or []
-    content = msg.content
-    text_len = 0
-    if isinstance(content, str):
-        text_len = len(content.strip())
-    elif isinstance(content, list):
-        text_len = sum(len(b.get("text", "").strip()) if isinstance(b, dict) else len(str(b).strip()) for b in content)
-    return text_len == 0 and len(tool_calls) == 0
+    """True when the AIMessage carries neither visible text content nor tool calls."""
+    parts = extract_ai_message_parts(msg)
+    return len(parts.text.strip()) == 0 and len(parts.tool_calls) == 0
 
 
 class EmptyResponseRetryMiddleware(AgentMiddleware):

@@ -44,7 +44,7 @@ def is_markdown_table(text: str) -> bool:
     if len(lines) < 2:
         return False
     for line in lines[:5]:
-        if "-|-" in line or "|---" in line or line.startswith("|:-") or line.startswith("| -"):
+        if "-|-" in line or "|---" in line or line.startswith(("|:-", "| -")):
             return True
     return False
 

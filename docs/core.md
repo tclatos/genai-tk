@@ -275,6 +275,36 @@ print(f"Cost: {model.cost_per_1k}")
 openai_models = db.list_models_for_provider("openai")
 ```
 
+### Content Blocks & Message Decomposition (`messages.py`)
+
+**Purpose:** Normalized extraction and separation of LangChain 1.6+ `content_blocks` across messages, streaming chunks, and model wrappers.
+
+**Features:**
+- Clean separation of user-facing `text` from internal `thinking` (chain-of-thought) traces and `tool_calls`
+- Leverages standard `AIMessage.content_blocks` while seamlessly handling `additional_kwargs` (`reasoning_content`, `thought`, `thinking`) across all providers
+- Robust tag sanitization (`strip_reasoning_tags`) for models that leak `<think>...</think>` or `assistantfinal` markers
+- Emits `ThinkingEvent` and `TokenEvent` in agent harnesses so downstream evaluation and UI components remain unpolluted
+
+**Usage:**
+```python
+from genai_tk.core.messages import (
+    extract_ai_message_parts,
+    extract_text_content,
+    extract_thinking_content,
+    strip_reasoning_tags,
+)
+
+# Decompose any message, chunk, or response into structured parts
+parts = extract_ai_message_parts(ai_message)
+print(parts.text)  # Clean user-facing response only
+print(parts.thinking)  # Model reasoning trace
+print(parts.tool_calls)  # Extracted tool calls
+
+# Sanitize leaked reasoning tags
+clean = strip_reasoning_tags("<think>Step 1...</think>The answer is 42")
+assert clean == "The answer is 42"
+```
+
 ### Providers (`providers.py`)
 
 **Purpose:** Provider configuration, API key management, and LLM class resolution.
