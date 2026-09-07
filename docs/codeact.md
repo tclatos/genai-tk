@@ -97,17 +97,88 @@ Profiles live in `config/examples/agents/codeact.yaml`:
   (declared under `subagents:`) that owns the executor; the orchestrator only
   delegates via the `task` tool.
 
-Example tool wiring:
-
-```yaml
-tools:
-  - factory: genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
-  - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
-```
-
 Only `BaseTool` instances survive profile loading; factories returning raw
 functions are silently dropped (this is why the profiles use
 `create_search_tool`, not `create_search_function`).
+
+### Example profiles
+
+Standalone CodeAct agent (excerpt of the `codeact` profile):
+
+```yaml
+agents:
+  codeact:
+    harness: langchain
+    name: "CodeAct"
+    type: deep
+    description: "Solves tasks by writing Python code blocks in a sandbox; tools are plain functions, print() is the observation, final_answer(x) terminates"
+    system_prompt: |
+      You are a CodeAct agent. You solve tasks by writing Python code and
+      executing it with the python_interpreter tool — never answer by prose alone.
+
+      ## Protocol
+
+      1. Think about the next single step, then express it as a short Python code block.
+      2. Call python_interpreter with that code. Variables persist between calls.
+      3. Tools available in your profile (e.g. web_search) are plain functions
+         inside the sandbox: call them directly, e.g. `result = web_search("...")`.
+      4. Observe: print() output and the last expression value come back as the result.
+      5. If the result is an Error/traceback, fix the code and retry — do not give up.
+      6. When the task is solved, call final_answer(value) with the final result.
+
+    tools:
+      - factory: genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
+      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
+
+    skill_directories:          # progressive disclosure of the CodeAct skill
+      - ${paths.project}/skills/custom
+
+    enable_planning: true
+    enable_file_system: false
+```
+
+Orchestrator delegating to a codeact-only subagent (excerpt of
+`codeact-orchestrator`; the orchestrator itself has no tools — it delegates
+via deepagents' `task` tool):
+
+```yaml
+agents:
+  codeact-orchestrator:
+    harness: langchain
+    name: "CodeAct Orchestrator"
+    type: deep
+    description: "Orchestrator that delegates every computation to a dedicated CodeAct subagent"
+    system_prompt: |
+      You are an orchestrator. You do NOT compute anything yourself.
+
+      For every task that requires computation, data lookup, or multi-step
+      reasoning, delegate to the 'codeact' subagent via the task tool and
+      relay its final answer. Summarize results clearly for the user.
+
+    tools: []
+
+    subagents:
+      - name: codeact
+        description: "CodeAct worker: solves tasks by writing Python code in a sandbox."
+        system_prompt: |
+          You are a CodeAct agent. Solve tasks exclusively by writing Python
+          code executed via the python_interpreter tool.
+
+          - web_search(...) is available as a plain function in the sandbox.
+          - Variables persist across calls; use print() for observations.
+          - On error, read the traceback, fix the code, and retry.
+          - Terminate by calling final_answer(result).
+
+        tools:                        # resolved by _resolve_subagents and
+          - factory: genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
+          - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
+```
+
+Subagent dict fields supported by `_resolve_subagents`: `name` and
+`description` (required by deepagents), `system_prompt`, `model`, `skills`
+(list of paths), and `tools` (list of tool specs, or `null` to inherit the
+parent's tools). Subagent toolsets get the same CodeAct sandbox binding as
+top-level profiles.
 
 ## Extending
 
