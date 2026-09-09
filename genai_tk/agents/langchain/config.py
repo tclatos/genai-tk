@@ -184,6 +184,31 @@ class CheckpointerConfig(BaseModel):
 
 
 # ============================================================================
+# Filesystem permissions
+# ============================================================================
+
+
+class FsPermissionConfig(BaseModel):
+    """One deepagents ``FilesystemPermission`` rule.
+
+    ```yaml
+    fs_permissions:
+      - operations: [read]
+        paths: ["/officeqa/data/**"]
+        mode: deny
+    ```
+    """
+
+    operations: list[Literal["read", "write"]] = Field(
+        default_factory=lambda: ["read"], description="Filesystem operations the rule applies to"
+    )
+    paths: list[str] = Field(..., description="Glob patterns (backend-virtual paths), e.g. '/officeqa/data/**'")
+    mode: Literal["allow", "deny", "interrupt"] = Field(
+        "deny", description="Effect when a file-tool call matches: allow, deny (permission error), or interrupt"
+    )
+
+
+# ============================================================================
 # Agent profile
 # ============================================================================
 
@@ -228,6 +253,14 @@ class AgentProfileConfig(BaseModel):
         ),
     )
     subagents: list[dict[str, Any]] = Field(default_factory=list, description="Subagent definitions (deep agents only)")
+    fs_permissions: list[FsPermissionConfig] = Field(
+        default_factory=list,
+        description=(
+            "deepagents FilesystemPermission rules for the main agent (deep agents only). "
+            "Use to deny file-tool access to paths that must be reached via dedicated "
+            "retrieval tools instead (e.g. raw corpus data behind a document graph)."
+        ),
+    )
     features: list[str] = Field(default_factory=list, description="Feature flags shown in the UI")
     examples: list[str] = Field(default_factory=list, description="Example prompts shown in the UI")
     recursion_limit: int = Field(

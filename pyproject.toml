@@ -116,7 +116,9 @@ Repository = "https://github.com/tclatos/genai-tk"
 # Agentic harness: sandbox, DeerFlow, DeepAgents
 harnessing = [
 
-    "deepagents>=0.4",           # Deep agents SDK — planning, sub-agents, skills, sandbox backends
+    "deepagents>=0.7.13",        # Deep agents SDK — planning, sub-agents, skills, sandbox backends
+                                 # 0.7.13 floor: raw tool results are coerced to ToolMessage in the
+                                 # eviction middleware instead of raising AssertionError (OfficeQA bug).
     "agent-sandbox>=0.0.24",     # AIO sandbox HTTP SDK client
     "opensandbox>=0.1.5",        # Container lifecycle manager
     "opensandbox-server>=0.1.7", # OpenSandbox REST server

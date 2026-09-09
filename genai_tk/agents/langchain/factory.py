@@ -369,6 +369,21 @@ async def _create_deep_agent(
         deep_kwargs["middleware"] = [*deep_kwargs.get("middleware", []), _ToolExclusionMiddleware(excluded=excluded)]
         logger.info("Deep agent '{}': excluded {} built-in tool(s): {}", profile.name, len(excluded), sorted(excluded))
 
+    # Enforce file-tool permission rules (e.g. deny reading raw corpus data that
+    # must be navigated via dedicated retrieval tools). The rules are evaluated
+    # inside FilesystemMiddleware itself, so denials hold even when the backend
+    # root happens to expose the paths.
+    if profile.fs_permissions:
+        from deepagents.middleware.filesystem import FilesystemPermission  # noqa: PLC0415
+
+        deep_kwargs["permissions"] = [
+            FilesystemPermission(operations=list(rule.operations), paths=list(rule.paths), mode=rule.mode)
+            for rule in profile.fs_permissions
+        ]
+        logger.info(
+            "Deep agent '{}': {} filesystem permission rule(s)", profile.name, len(profile.fs_permissions)
+        )
+
     agent = create_deep_agent(**deep_kwargs)
     # Attach the backend so callers can stop it during cleanup
     agent._backend = backend  # type: ignore[attr-defined]

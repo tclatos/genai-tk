@@ -1,29 +1,32 @@
+# DeepAgent bug ? 
 
-# Python Executor
+CRITICAL PATCH APPLIED: deepagents middleware bug fixed (67 "Unreachable code" errors were caused
+    by raw tool outputs not being wrapped into ToolMessage; patch wraps them automatically).
+    The patch lives in /home/tcl/prj/officeqa/.venv/lib/python3.12/site-packages/deepagents/middleware/filesystem.py
 
-Create a async langchain tool to execute Python code in-process. 
-I suggest you use as baseline : https://github.com/huggingface/smolagents/blob/main/src/smolagents/local_python_executor.py  . Its safer than using standard CPython, and easier to use for tests than sandboxes. 
-Replace their Tool definition with LangChain BaseTool, or remove that feature if its too complicated.
-Implement some tests with Pandas as imported package. 
+     Unreachable code reached in _aintercept_large_tool_result in the genai-tk middleware,
+     
 
 
-# CodeAct
+# Select LLM Provider
 
-We have developped a SmolAgents inspired statefull safe Python interpreter tool, able to call other langchain tools and functions from external package. (/home/tcl/prj/genai-tk/genai_tk/agents/tools/python_executor)
-We want to investigate the idea a get closer to SmolAgents with a CodeAct skill. Here a sketch: 
-- For any multi-step reasoning/tool-use task, express the action as a Python code block passed to execute_python, not as separate discrete tool calls
-- Any other registered tools should be pre-bound as plain callables inside the executor's namespace (DeepAgents' middleware can inject them into the sandbox's globals at session start), so calling a tool from code is just calling a function
-- On error, the traceback returned by the executor becomes the next observation — the skill instructs the agent to read it and retry, not give up
-- Terminate by calling a final_answer(x) stub inside the executor rather than replying in plain English
+LLM routers service now provide a feature to select the  LLM provider accoring to sme criteris, such as price, throughput, latency and precision.
 
-Idealy, 
-- we shoud have a dedicated  subagent whose only skill is codeact
-- The codeagent could have access to the tools defined in the agent profile. 
+Implement such option in genai-tk, in 2 forms : 
+1/ in the LLM name, after a ':' in  the router name : for ex  glm5.3fast(low)@openrouter:speed
+2/ as parameter in the API factory
 
-Think about that, and propose a plan if you think it's possible. 
-The first use case could be the classical SmolAgents example :'"ow many seconds would it take for a leopard at full speed to run through Pont des Arts?"  (with a websearch tool)
+We want to support first openrouter and edenai (might evolve later)
 
-Thonk about that, analyse tradeoffs, ask questions
+https://openrouter.ai/docs/guides/routing/provider-selection 
+https://openrouter.ai/docs/guides/routing/auto-exacto
+
+https://www.edenai.co/docs/v3/llms/provider-routing#choosing-an-objective 
+
+Implement and test such feature.  Just write a warning if not supported by the provider.
+
+
+
 
 Status: 
 
