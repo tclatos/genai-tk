@@ -344,6 +344,10 @@ llm = get_llm(
     reasoning={"effort": "high", "resume": "cursor-token", "max_tokens": 4096},
 )
 
+# Provider routing selection (OpenRouter / EdenAI)
+llm = get_llm(llm="glm5.3fast(low)@openrouter:speed")  # inline syntax
+llm = get_llm(llm="gpt-4o-mini@edenai", routing="cost")  # programmatic parameter
+
 # Switch the active deployment profile (reloads all config files)
 switch_profile("prod")  # set GENAITK_PROFILE=prod + reload
 switch_profile("pytest")  # use fake models for tests

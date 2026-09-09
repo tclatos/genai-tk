@@ -102,6 +102,10 @@ cli core llm -i "Explain RAG" -m fast_model
 
 # Stream output
 cli core llm -i "Explain RAG" -m gpt41mini@openai --stream
+
+# Provider routing selection (openrouter / edenai: price, speed, latency, precision)
+cli core llm -i "Explain RAG" -m glm5.3fast(low)@openrouter:speed
+cli core llm -i "Explain RAG" -m gpt41mini@edenai:cost
 ```
 
 In Python:
@@ -111,7 +115,57 @@ from genai_tk.core.factories.llm_factory import get_llm
 llm = get_llm()  # default from config
 llm = get_llm("gpt41mini@openai")  # explicit model
 llm = get_llm("fast_model")  # named tag
+llm = get_llm("glm5.3fast(low)@openrouter:speed")  # inline router selection
+llm = get_llm("gpt41mini@edenai", routing="cost")  # programmatic routing parameter
 ```
+
+---
+
+## Provider routing and objective selection
+
+Gateway and router providers such as **OpenRouter** and **EdenAI** support dynamic endpoint selection based on performance and cost criteria (throughput/speed, latency, price/cost, instruction-following/exactness).
+
+genai-tk supports provider routing in two forms:
+
+### 1. Inline router suffix in model identifier
+
+Append `:<strategy>` to the provider name in the model string:
+
+```bash
+# Prioritize throughput on OpenRouter
+cli core llm -i "Hello" -m "glm5.3fast(low)@openrouter:speed"
+
+# Prioritize lowest cost on EdenAI
+cli core llm -i "Hello" -m "gpt41mini@edenai:cost"
+```
+
+### 2. Programmatic parameter in API factory
+
+Pass `routing` (or `provider_routing`) to `get_llm()` or `LlmFactory`:
+
+```python
+# Strategy string
+llm = get_llm("gpt_oss120@openrouter", routing="speed")
+llm = get_llm("gpt41mini@edenai", routing="cost")
+
+# Or custom router configuration dictionary
+llm = get_llm(
+    "gpt_oss120@openrouter",
+    routing={"sort": "throughput", "allow_fallbacks": False},
+)
+```
+
+### Supported providers & strategy mappings
+
+| Objective | OpenRouter Mapping (`extra_body.provider`) | EdenAI Mapping (`extra_body.routing`) |
+|-----------|--------------------------------------------|---------------------------------------|
+| `speed` / `throughput` / `nitro` | `sort: "throughput"` | `sort: "speed"` |
+| `cost` / `price` / `floor` | `sort: "price"` | `sort: "cost"` |
+| `latency` | `sort: "latency"` | `sort: "latency"` |
+| `exact` / `exacto` / `precision` | `require_parameters: True` | `sort: "exact"` |
+| Custom dict | Merged directly into `provider` | Merged directly into `routing` |
+
+*Note:* If provider routing is specified on a provider that does not support routing (such as direct `openai` or `anthropic`), the factory logs a warning and proceeds without failing.
 
 ---
 

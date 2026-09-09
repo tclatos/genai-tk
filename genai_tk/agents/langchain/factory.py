@@ -380,9 +380,7 @@ async def _create_deep_agent(
             FilesystemPermission(operations=list(rule.operations), paths=list(rule.paths), mode=rule.mode)
             for rule in profile.fs_permissions
         ]
-        logger.info(
-            "Deep agent '{}': {} filesystem permission rule(s)", profile.name, len(profile.fs_permissions)
-        )
+        logger.info("Deep agent '{}': {} filesystem permission rule(s)", profile.name, len(profile.fs_permissions))
 
     agent = create_deep_agent(**deep_kwargs)
     # Attach the backend so callers can stop it during cleanup

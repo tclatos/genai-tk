@@ -7,7 +7,9 @@ from genai_tk.core.factories.llm_factory import (
     LlmFactory,
     LlmInfo,
     _extract_reasoning_settings,
+    _extract_routing_settings,
     _split_inline_reasoning_effort,
+    _split_inline_routing,
     configurable,
     get_llm,
     get_llm_info,
@@ -453,3 +455,206 @@ def test_llm_factory_none_inline_effort_disables_payload() -> None:
     """LlmFactory with (none) builds with effort='none' reasoning payload to disable reasoning."""
     factory = LlmFactory(llm="gpt_41mini(none)@openrouter")
     assert factory.reasoning_payload == {"effort": "none"}
+
+
+def test_split_inline_routing() -> None:
+    """Inline provider routing should extract model@provider and routing strategy."""
+    llm, routing = _split_inline_routing("glm5.3fast@openrouter:speed")
+    assert llm == "glm5.3fast@openrouter"
+    assert routing == "speed"
+
+    # With reasoning and routing combined
+    clean_llm, effort = _split_inline_reasoning_effort("glm5.3fast(low)@openrouter:speed")
+    assert clean_llm == "glm5.3fast@openrouter:speed"
+    assert effort == "low"
+    clean_llm, routing = _split_inline_routing(clean_llm)
+    assert clean_llm == "glm5.3fast@openrouter"
+    assert routing == "speed"
+
+    # EdenAI
+    llm, routing = _split_inline_routing("gpt4o@edenai:cost")
+    assert llm == "gpt4o@edenai"
+    assert routing == "cost"
+
+    # EdenAI Europe
+    llm, routing = _split_inline_routing("gpt4o@edenai-eur:latency")
+    assert llm == "gpt4o@edenai-eur"
+    assert routing == "latency"
+
+    # Tag with routing
+    llm, routing = _split_inline_routing("fast_model:speed")
+    assert llm == "fast_model"
+    assert routing == "speed"
+
+    # No routing
+    llm, routing = _split_inline_routing("gpt4o@openrouter")
+    assert llm == "gpt4o@openrouter"
+    assert routing is None
+
+    # Virtual variant in model name, no provider routing
+    llm, routing = _split_inline_routing("openai/gpt-4.1-mini:floor@openrouter")
+    assert llm == "openai/gpt-4.1-mini:floor@openrouter"
+    assert routing is None
+
+    # Virtual variant in model name + provider routing
+    llm, routing = _split_inline_routing("openai/gpt-4.1-mini:floor@openrouter:speed")
+    assert llm == "openai/gpt-4.1-mini:floor@openrouter"
+    assert routing == "speed"
+
+
+def test_extract_routing_settings_precedence() -> None:
+    """Explicit parameter overrides inline routing and kwargs."""
+    # Explicit arg wins
+    llm, params, routing = _extract_routing_settings(
+        "gpt4o@openrouter:speed",
+        "latency",
+        {"temperature": 0.5},
+    )
+    assert llm == "gpt4o@openrouter"
+    assert routing == "latency"
+    assert params == {"temperature": 0.5}
+
+    # Kwargs wins over inline
+    llm, params, routing = _extract_routing_settings(
+        "gpt4o@openrouter:speed",
+        None,
+        {"routing": "cost", "temperature": 0.5},
+    )
+    assert llm == "gpt4o@openrouter"
+    assert routing == "cost"
+    assert params == {"temperature": 0.5}
+
+    # Inline used when no explicit/kwarg
+    llm, params, routing = _extract_routing_settings(
+        "gpt4o@openrouter:speed",
+        None,
+        {"temperature": 0.5},
+    )
+    assert llm == "gpt4o@openrouter"
+    assert routing == "speed"
+    assert params == {"temperature": 0.5}
+
+
+def test_openai_compatible_openrouter_injects_routing_sort() -> None:
+    """OpenRouter OpenAI-compatible path should inject provider.sort into extra_body."""
+    from unittest.mock import MagicMock, patch
+
+    mock_llm = MagicMock()
+    mock_chat_openai = MagicMock(return_value=mock_llm)
+
+    factory = LlmFactory.__new__(LlmFactory)
+    object.__setattr__(factory, "json_mode", False)
+    object.__setattr__(factory, "streaming", False)
+    object.__setattr__(factory, "reasoning", None)
+    object.__setattr__(factory, "cache", None)
+    object.__setattr__(factory, "llm_params", {})
+    object.__setattr__(factory, "llm_id", "gpt41mini@openrouter")
+    object.__setattr__(factory, "llm", "gpt41mini@openrouter")
+    object.__setattr__(factory, "_reasoning_payload", None)
+    object.__setattr__(factory, "_routing_strategy", "speed")
+    object.__setattr__(
+        factory,
+        "_resolved_llm_info",
+        LlmInfo(id="gpt41mini@openrouter", provider="openrouter", model="openai/gpt-4.1-mini"),
+    )
+
+    with patch("langchain_openai.ChatOpenAI", mock_chat_openai):
+        provider_info = factory.info.get_provider_info()
+        factory._create_openai_compatible_llm(provider_info, {"temperature": 0.1}, api_key="test-key")
+
+    call_kwargs = mock_chat_openai.call_args.kwargs
+    assert "extra_body" in call_kwargs
+    assert call_kwargs["extra_body"]["provider"]["sort"] == "throughput"
+
+
+def test_openai_compatible_openrouter_routing_precision() -> None:
+    """OpenRouter precision/exact routing sets require_parameters: True."""
+    from unittest.mock import MagicMock, patch
+
+    mock_llm = MagicMock()
+    mock_chat_openai = MagicMock(return_value=mock_llm)
+
+    factory = LlmFactory.__new__(LlmFactory)
+    object.__setattr__(factory, "json_mode", False)
+    object.__setattr__(factory, "streaming", False)
+    object.__setattr__(factory, "reasoning", None)
+    object.__setattr__(factory, "cache", None)
+    object.__setattr__(factory, "llm_params", {})
+    object.__setattr__(factory, "llm_id", "gpt41mini@openrouter")
+    object.__setattr__(factory, "llm", "gpt41mini@openrouter")
+    object.__setattr__(factory, "_reasoning_payload", None)
+    object.__setattr__(factory, "_routing_strategy", "precision")
+    object.__setattr__(
+        factory,
+        "_resolved_llm_info",
+        LlmInfo(id="gpt41mini@openrouter", provider="openrouter", model="openai/gpt-4.1-mini"),
+    )
+
+    with patch("langchain_openai.ChatOpenAI", mock_chat_openai):
+        provider_info = factory.info.get_provider_info()
+        factory._create_openai_compatible_llm(provider_info, {"temperature": 0.1}, api_key="test-key")
+
+    call_kwargs = mock_chat_openai.call_args.kwargs
+    assert call_kwargs["extra_body"]["provider"]["require_parameters"] is True
+
+
+def test_openai_compatible_edenai_injects_routing_sort() -> None:
+    """EdenAI OpenAI-compatible path should inject routing.sort into extra_body."""
+    from unittest.mock import MagicMock, patch
+
+    mock_llm = MagicMock()
+    mock_chat_openai = MagicMock(return_value=mock_llm)
+
+    factory = LlmFactory.__new__(LlmFactory)
+    object.__setattr__(factory, "json_mode", False)
+    object.__setattr__(factory, "streaming", False)
+    object.__setattr__(factory, "reasoning", None)
+    object.__setattr__(factory, "cache", None)
+    object.__setattr__(factory, "llm_params", {})
+    object.__setattr__(factory, "llm_id", "gpt-4o-mini@edenai")
+    object.__setattr__(factory, "llm", "gpt-4o-mini@edenai")
+    object.__setattr__(factory, "_reasoning_payload", None)
+    object.__setattr__(factory, "_routing_strategy", "speed")
+    object.__setattr__(
+        factory,
+        "_resolved_llm_info",
+        LlmInfo(id="gpt-4o-mini@edenai", provider="edenai", model="openai/gpt-4.1-mini-2025-04-14"),
+    )
+
+    with patch("langchain_openai.ChatOpenAI", mock_chat_openai):
+        provider_info = factory.info.get_provider_info()
+        factory._create_openai_compatible_llm(provider_info, {"temperature": 0.1}, api_key="test-key")
+
+    call_kwargs = mock_chat_openai.call_args.kwargs
+    assert "extra_body" in call_kwargs
+    assert call_kwargs["extra_body"]["routing"] == {"sort": "speed"}
+
+
+def test_warn_when_routing_requested_on_unsupported_provider(fake_llm_id) -> None:
+    """Factory should log a warning when routing is requested on a provider without router support."""
+    from unittest.mock import patch
+
+    factory = LlmFactory(llm=fake_llm_id, routing="speed")
+
+    with patch("genai_tk.core.factories.llm_factory.logger.warning") as mock_warning:
+        model = factory.model_factory()
+
+    assert model is not None
+    warning_texts = [str(call.args[0]) for call in mock_warning.call_args_list if call.args]
+    assert any("not supported by provider" in text for text in warning_texts)
+
+
+def test_llm_factory_and_get_llm_routing_options() -> None:
+    """Test LlmFactory parses routing from both model name and factory parameter."""
+    factory1 = LlmFactory(llm="gpt_41mini(low)@openrouter:speed")
+    assert factory1.routing_strategy == "speed"
+    assert factory1.reasoning_payload == {"effort": "low"}
+    assert factory1.llm == "gpt_41mini@openrouter"
+
+    factory2 = LlmFactory(llm="gpt_41mini@openrouter", routing="cost")
+    assert factory2.routing_strategy == "cost"
+    assert factory2.llm == "gpt_41mini@openrouter"
+
+    factory3 = LlmFactory(llm="gpt_41mini@edenai:latency")
+    assert factory3.routing_strategy == "latency"
+    assert factory3.llm == "gpt_41mini@edenai"

@@ -341,12 +341,17 @@ class InfoCommands(CliTopCommand):
             resolved_canonical: str | None = None
 
             if "@" in model_id:
+                from genai_tk.core.factories.llm_factory import _split_inline_reasoning_effort, _split_inline_routing
+
+                clean_model_id, _ = _split_inline_reasoning_effort(model_id)
+                clean_model_id, _ = _split_inline_routing(clean_model_id)
+
                 # Step 1: exact match in known items (exceptions + registry)
-                llm_info = LlmFactory.known_items_dict().get(model_id)
+                llm_info = LlmFactory.known_items_dict().get(clean_model_id)
 
                 # Step 2: fuzzy resolution for compact aliases like haiku45@anthropic
                 if llm_info is None:
-                    compact, _, provider_id = model_id.rpartition("@")
+                    compact, _, provider_id = clean_model_id.rpartition("@")
                     try:
                         from genai_tk.core.factories.llm_factory import LlmInfo
 
@@ -361,7 +366,7 @@ class InfoCommands(CliTopCommand):
                             )
                         llm_info = LlmFactory.known_items_dict().get(f"{canon}@{provider_id}")
                         if llm_info is None:
-                            llm_info = LlmInfo(id=model_id, provider=provider_id, model=canon)
+                            llm_info = LlmInfo(id=clean_model_id, provider=provider_id, model=canon)
                     except ValueError as e:
                         console.print(f"[yellow]Could not fuzzy-resolve '{model_id}': {e}[/yellow]")
             else:

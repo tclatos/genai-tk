@@ -52,6 +52,15 @@ llm = get_llm(
     reasoning={"effort": "medium", "resume": "cursor-token", "max_tokens": 2048},
 )
 
+# Provider routing strategy (OpenRouter / EdenAI)
+# 1. Inline in model name after ':' in the router name:
+llm = get_llm(llm="glm5.3fast(low)@openrouter:speed")
+llm = get_llm(llm="gpt-4o-mini@edenai:cost")
+
+# 2. Factory parameter:
+llm = get_llm(llm="gpt_oss120@openrouter", routing="speed")
+llm = get_llm(llm="gpt-4o-mini@edenai", routing="cost")
+
 # Stream responses
 llm = get_llm()
 for chunk in llm.stream("Tell me about AI"):
@@ -59,7 +68,8 @@ for chunk in llm.stream("Tell me about AI"):
 ```
 
 When reasoning options are requested for a model that is not marked as thinking-capable
-in models.dev metadata, the factory logs a warning and continues.
+in models.dev metadata, or when provider routing is requested for an unsupported provider,
+the factory logs a warning and continues.
 
 **Related:**
 - `models_db.py` - Model registry and metadata storage

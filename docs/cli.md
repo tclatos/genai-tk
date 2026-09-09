@@ -114,6 +114,10 @@ echo "Summarise this text" | uv run cli core llm --input -
 uv run cli core llm "Explain AI" --llm powerful_model
 uv run cli core llm "Explain AI" --llm gpt_4o@openai
 
+# Select provider routing strategy (OpenRouter / EdenAI: speed, cost, latency, exact)
+uv run cli core llm "Explain AI" --llm "glm5.3fast(low)@openrouter:speed"
+uv run cli core llm "Explain AI" --llm "gpt41mini@edenai:cost"
+
 # Streaming output
 uv run cli core llm "Write a poem" --stream
 

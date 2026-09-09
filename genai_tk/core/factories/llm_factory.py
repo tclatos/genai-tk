@@ -415,6 +415,60 @@ def _extract_reasoning_settings(
     return resolved_llm, params, (reasoning_payload or None)
 
 
+def _split_inline_routing(llm: str) -> tuple[str, str | None]:
+    """Extract inline provider routing from an LLM identifier.
+
+    Supported forms include:
+    - ``model@provider:routing`` (e.g. ``glm5.3fast(low)@openrouter:speed``)
+    - ``model@provider`` (no routing, passthrough)
+    - ``tag:routing`` (e.g. ``fast_model:speed``)
+    """
+    if not llm:
+        return llm, None
+
+    if "@" in llm:
+        model_part, _, provider_part = llm.rpartition("@")
+        if ":" in provider_part:
+            provider_name, _, routing = provider_part.partition(":")
+            provider_name = provider_name.strip()
+            routing = routing.strip()
+            if provider_name and routing:
+                return f"{model_part}@{provider_name}", routing
+        return llm, None
+
+    if ":" in llm:
+        tag_part, _, routing = llm.partition(":")
+        tag_part = tag_part.strip()
+        routing = routing.strip()
+        if tag_part and routing:
+            return tag_part, routing
+
+    return llm, None
+
+
+def _extract_routing_settings(
+    llm: str,
+    explicit_routing: str | dict[str, Any] | None,
+    llm_params: dict[str, Any],
+) -> tuple[str, dict[str, Any], str | dict[str, Any] | None]:
+    """Normalize provider routing settings from inline syntax, explicit parameters, and kwargs.
+
+    Precedence:
+    1. Explicit parameter ``routing`` / ``provider_routing``
+    2. Kwargs ``routing`` / ``provider_routing``
+    3. Inline routing in model string (e.g. ``@openrouter:speed``)
+    """
+    resolved_llm, inline_routing = _split_inline_routing(llm)
+    params = llm_params.copy()
+
+    routing_kwarg = params.pop("routing", None)
+    provider_routing_kwarg = params.pop("provider_routing", None)
+
+    routing_value = explicit_routing or routing_kwarg or provider_routing_kwarg or inline_routing
+
+    return resolved_llm, params, routing_value
+
+
 class LlmInfo(BaseModel):
     """Description of an LLM model and its configuration.
 
@@ -638,18 +692,29 @@ class LlmFactory(BaseModel):
     streaming: bool = False
     reasoning: bool | None = None
     cache: str | CacheMethod | None = None
+    routing: str | dict[str, Any] | None = None
+    provider_routing: str | dict[str, Any] | None = None
     llm_params: dict = {}
 
     # Internal fields set during resolution
     llm_id: Annotated[str | None, Field(validate_default=True)] = None
     _resolved_llm_info: LlmInfo | None = PrivateAttr(default=None)
     _reasoning_payload: dict[str, Any] | None = PrivateAttr(default=None)
+    _routing_strategy: str | dict[str, Any] | None = PrivateAttr(default=None)
 
     @property
     def reasoning_payload(self) -> dict[str, Any] | None:
         """Return normalized reasoning payload, tolerating partially built test instances."""
         try:
             return self._reasoning_payload
+        except AttributeError:
+            return None
+
+    @property
+    def routing_strategy(self) -> str | dict[str, Any] | None:
+        """Return normalized provider routing strategy, tolerating partially built test instances."""
+        try:
+            return self._routing_strategy
         except AttributeError:
             return None
 
@@ -705,9 +770,13 @@ class LlmFactory(BaseModel):
     def model_post_init(self, __context: dict) -> None:
         """Post-initialization validation and ID resolution."""
         normalized_llm, normalized_params, reasoning_payload = _extract_reasoning_settings(self.llm, self.llm_params)
+        normalized_llm, normalized_params, routing_strategy = _extract_routing_settings(
+            normalized_llm, self.routing or self.provider_routing, normalized_params
+        )
         object.__setattr__(self, "llm", normalized_llm)
         object.__setattr__(self, "llm_params", normalized_params)
         object.__setattr__(self, "_reasoning_payload", reasoning_payload)
+        object.__setattr__(self, "_routing_strategy", routing_strategy)
 
         # Seed llm_id from the unified 'llm' parameter.
         # "standard Pydantic pattern for setting fields internally during model_post_init when you want to mutate state without re-triggering validation.""
@@ -850,16 +919,20 @@ class LlmFactory(BaseModel):
         Raises:
             ValueError: If the string cannot be resolved to any known LLM.
         """
+        # Strip inline reasoning effort and inline routing if present
+        clean_llm, _ = _split_inline_reasoning_effort(llm)
+        clean_llm, _ = _split_inline_routing(clean_llm)
+
         # Exact match
-        if llm in LlmFactory.known_items():
-            return llm
+        if clean_llm in LlmFactory.known_items():
+            return clean_llm
 
         # Config tag lookup
         try:
-            tag_value = LlmFactory.find_llm_id_from_tag(llm)
+            tag_value = LlmFactory.find_llm_id_from_tag(clean_llm)
             # The tag value is often a compact alias (e.g. "gpt_oss120@openrouter");
             # recursively resolve it so callers always get a canonical model name.
-            if tag_value != llm:
+            if tag_value != clean_llm:
                 try:
                     return LlmFactory.resolve_llm_identifier(tag_value)
                 except (ValueError, NotImplementedError):
@@ -868,11 +941,11 @@ class LlmFactory(BaseModel):
         except ValueError:
             pass
 
-        if _is_litellm(llm):
+        if _is_litellm(clean_llm):
             raise NotImplementedError("Support of LiteLLM model names not yet implemented")
 
-        if "@" in llm:
-            compact, _, provider_id = llm.rpartition("@")
+        if "@" in clean_llm:
+            compact, _, provider_id = clean_llm.rpartition("@")
 
             # Try normalizing hyphens → underscores (llm.yaml model_ids use underscores)
             normalized = f"{compact.replace('-', '_')}@{provider_id}"
@@ -886,7 +959,7 @@ class LlmFactory(BaseModel):
                 best_score = alts[0][1] if alts else 0.0
                 if best_score < 0.6:
                     logger.warning(
-                        f"Low-confidence LLM resolution: '{llm}' → '{canonical_id}' "
+                        f"Low-confidence LLM resolution: '{clean_llm}' → '{canonical_id}' "
                         f"(score {best_score:.2f}). Did you mean one of: "
                         f"{[name for name, _ in alts[:3]]}?"
                     )
@@ -901,13 +974,13 @@ class LlmFactory(BaseModel):
         # Include all YAML-defined IDs (even those with missing keys/modules) as fuzzy candidates
         yaml_all_ids = [item.id for item in LlmFactory.known_list()]
         all_candidates = sorted(set(LlmFactory.known_items()) | set(yaml_all_ids))
-        matches = _fuzzy_match(llm, all_candidates, n=5, cutoff=0.3)
+        matches = _fuzzy_match(clean_llm, all_candidates, n=5, cutoff=0.3)
         close_ids = [m for m, _ in matches]
 
         # Auto-resolve if the top match is high-confidence
         if matches and matches[0][1] >= 0.8:
             best_match = matches[0][0]
-            logger.info(f"Auto-resolved '{llm}' → '{best_match}' (score {matches[0][1]:.2f})")
+            logger.info(f"Auto-resolved '{clean_llm}' → '{best_match}' (score {matches[0][1]:.2f})")
             return best_match
         try:
             tags = _llm_section().models.all_tags()
@@ -1155,12 +1228,77 @@ class LlmFactory(BaseModel):
                 extra_body_payload["reasoning"] = existing_reasoning
                 create_params["extra_body"] = extra_body_payload
 
+        if self.routing_strategy:
+            if self.provider == "openrouter":
+                extra_body_payload = create_params.get("extra_body", {}).copy() if "extra_body" in create_params else {}
+                provider_payload = extra_body_payload.get("provider", {})
+                if not isinstance(provider_payload, dict):
+                    provider_payload = {}
+                else:
+                    provider_payload = provider_payload.copy()
+
+                if isinstance(self.routing_strategy, dict):
+                    provider_payload.update(self.routing_strategy)
+                else:
+                    strat = str(self.routing_strategy).strip().lower()
+                    if strat in ("speed", "throughput", "fastest", "nitro"):
+                        provider_payload["sort"] = "throughput"
+                    elif strat in ("price", "cost", "cheapest", "floor"):
+                        provider_payload["sort"] = "price"
+                    elif strat in ("latency", "fast", "lowest_latency"):
+                        provider_payload["sort"] = "latency"
+                    elif strat in ("exact", "exacto", "precision", "quality"):
+                        provider_payload["require_parameters"] = True
+                    else:
+                        provider_payload["sort"] = strat
+
+                extra_body_payload["provider"] = provider_payload
+                create_params["extra_body"] = extra_body_payload
+
+            elif self.provider in ("edenai", "edenai-eur"):
+                extra_body_payload = create_params.get("extra_body", {}).copy() if "extra_body" in create_params else {}
+                routing_payload = extra_body_payload.get("routing", {})
+                if not isinstance(routing_payload, dict):
+                    routing_payload = {}
+                else:
+                    routing_payload = routing_payload.copy()
+
+                if isinstance(self.routing_strategy, dict):
+                    routing_payload.update(self.routing_strategy)
+                else:
+                    strat = str(self.routing_strategy).strip().lower()
+                    if strat in ("cost", "price", "cheapest", "floor"):
+                        routing_payload["sort"] = "cost"
+                    elif strat in ("speed", "throughput", "fastest", "nitro"):
+                        routing_payload["sort"] = "speed"
+                    elif strat in ("latency", "lowest_latency"):
+                        routing_payload["sort"] = "latency"
+                    elif strat in ("exact", "precision", "exacto", "quality"):
+                        routing_payload["sort"] = "exact"
+                    else:
+                        routing_payload["sort"] = strat
+
+                extra_body_payload["routing"] = routing_payload
+                create_params["extra_body"] = extra_body_payload
+
+            else:
+                logger.warning(
+                    f"Provider routing '{self.routing_strategy}' is not supported by provider '{self.provider}'. "
+                    f"Ignoring routing."
+                )
+
         llm = ChatOpenAI(**create_params)
         return llm
 
     def _create_fake_llm(self) -> "BaseChatModel":
         """Create a fake LLM for testing."""
         from langchain_core.language_models.fake_chat_models import ParrotFakeChatModel
+
+        if self.routing_strategy:
+            logger.warning(
+                f"Provider routing '{self.routing_strategy}' is not supported by provider '{self.provider}'. "
+                f"Ignoring routing."
+            )
 
         if self.info.model == "parrot":
             return ParrotFakeChatModel()
@@ -1174,6 +1312,12 @@ class LlmFactory(BaseModel):
         Handles providers with non-OpenAI-compatible APIs: anthropic, google, azure, ollama,
         litellm, mistral, huggingface, together, deepseek, and others via init_chat_model.
         """
+        if self.routing_strategy:
+            logger.warning(
+                f"Provider routing '{self.routing_strategy}' is not supported by provider '{self.provider}'. "
+                f"Ignoring routing."
+            )
+
         provider = self.provider
 
         # --- Mistral: ChatMistralAI ---
@@ -1274,6 +1418,8 @@ def get_llm(
     streaming: bool = False,
     reasoning: bool | None = None,
     cache: str | CacheMethod | None = None,
+    routing: str | dict[str, Any] | None = None,
+    provider_routing: str | dict[str, Any] | None = None,
     **kwargs,
 ) -> BaseChatModel:
     """Create a configured LangChain BaseLanguageModel instance.
@@ -1286,6 +1432,8 @@ def get_llm(
         streaming: Whether to enable streaming responses (where supported)
         reasoning: Whether to show reasoning/thinking process (None=default, True=enable, False=disable)
         cache: cache method ("sqlite", "memory", no"_cache, ..) or "default", or None if no change (global setting)
+        routing: Provider routing objective/strategy (e.g. "speed", "cost", "latency", "exact", or dict)
+        provider_routing: Alias for `routing`
         **kwargs: other llm parameters (temperature, max_token, ....)
 
     Returns:
@@ -1298,6 +1446,10 @@ def get_llm(
 
         # Get specific model with streaming (recommended)
         llm = get_llm(llm="gpt_35_openai", streaming=True)
+
+        # Get model with routing strategy via name or parameter
+        llm = get_llm(llm="glm5.3fast(low)@openrouter:speed")
+        llm = get_llm(llm="gpt-4o-mini@edenai", routing="cost")
 
         # Get model by tag (recommended)
         llm = get_llm(llm="fast_model", temperature=0.7)
@@ -1338,6 +1490,7 @@ def get_llm(
             streaming=streaming,
             reasoning=reasoning,
             cache=cache,
+            routing=routing or provider_routing,
             llm_params=kwargs,
         )
     except Exception as e:
