@@ -349,7 +349,7 @@ layout: atos-two-cols
 ```python
 # Multi-Period OfficeQA Pro Inflation & Defense Aggregation (UID0005)
 # 1. Monthly defense line items aggregated from 1940 & 1953 bulletins
-def_1940_monthly = [129.5, 138.2, 145.0, 156.8, 172.4, 189.1,...]  # M$
+def_1940_monthly = [129.5, 138.2, 145.0, 156.8, 172.4, 189.1, ...]  # M$
 def_1953_monthly = [3650.2, 3720.5, 3810.0, 3940.1, ...]  # M$
 
 tot_1940, tot_1953 = sum(def_1940_monthly), sum(def_1953_monthly)
