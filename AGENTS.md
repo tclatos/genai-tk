@@ -217,4 +217,5 @@ Current docs index:
 | `docs/webapp.md` | Built-in Streamlit webapp — `just webapp`, built-in agent pages, `genai_tk://` cross-package nav, `cli init` |
 | `docs/docker.md` | Docker image build — generic Dockerfile, just recipes, extras, scaffolded app setup |
 | `docs/TESTING_GUIDE.md` | Pytest fixtures, fake LLM/embeddings, async tests |
-| `docs/benchmarks_financebench_officeqa.md` | Technical report & architecture for processing FinanceBench and OfficeQA Pro benchmarks |
+| `docs/benchmark_framework.md` | Unified multi-dataset benchmark framework architecture, pipeline stages, selection criteria, and CLI/TUI |
+| `docs/benchmarks_financebench_officeqa.md` | Benchmark implementation studies & empirical evaluation on FinanceBench and OfficeQA Pro |
