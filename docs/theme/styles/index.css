@@ -152,8 +152,10 @@
   margin: 0.6em 0;
   border-radius: 6px;
   border: 1px solid var(--atos-border);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.45;
+  overflow-x: auto;
+  max-width: 100%;
 }
 
 .slidev-layout pre code {

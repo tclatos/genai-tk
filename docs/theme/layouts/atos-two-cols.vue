@@ -45,7 +45,7 @@ const props = defineProps<{
 
 .two-columns-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   column-gap: 2.5rem;
   row-gap: 1rem;
   width: 100%;
@@ -56,6 +56,7 @@ const props = defineProps<{
 .col-right {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .col-left :deep(h1),
