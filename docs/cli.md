@@ -348,7 +348,9 @@ See [trajectory.md](trajectory.md) for the full guide.
 
 ```bash
 uv run cli trajectory list                         # list recorded runs
-uv run cli trajectory show <run_id>                # scope timeline (tree/json/messages/dot)
+uv run cli trajectory show <run_id>                # intertwined turn tree (tree/json/messages/dot/tui)
+uv run cli trajectory show <run_id> --tui          # interactive TUI trajectory explorer
+uv run cli trajectory tui [run_id]                 # interactive TUI trajectory navigator
 uv run cli trajectory tail                         # last events of the most recent run
 uv run cli trajectory replay <run_id>              # replay events with relative timings
 uv run cli trajectory export <run_id> -f messages # export as OpenAI messages

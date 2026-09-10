@@ -68,7 +68,8 @@ parses ATOF events into typed `Trajectory` / `LlmCall` / `ToolCall` /
 | Command | Purpose |
 |---|---|
 | `cli trajectory list [--profile P] [--since WHEN] [--status failed]` | List recorded runs (id, profile, model, started, LLM/tool counts, tokens, status). |
-| `cli trajectory show <id> [--format tree\|json\|messages\|dot]` | Render a trajectory. `tree` = scope timeline; `messages` = OpenAI-format; `dot` = scope-tree graph. |
+| `cli trajectory show <id> [--format tree\|json\|messages\|dot\|tui] [--tui]` | Render a trajectory. `tree` = intertwined LLM & tool turn tree; `messages` = OpenAI-format; `dot` = scope graph; `tui` = interactive explorer. |
+| `cli trajectory tui [id]` | Interactive full-screen Textual TUI navigator for browsing trajectories, turns, LLM thoughts, and tool logs. |
 | `cli trajectory tail [--n 20]` | Last N ATOF events from the most recent run. |
 | `cli trajectory replay <id> [--delay 0.5]` | Replay events in order with relative timings. |
 | `cli trajectory export <id> --format atif\|atof\|messages\|otel [--out file]` | Export a trajectory. |

@@ -93,6 +93,44 @@ class SkillLoad:
     timestamp: str
 
 
+def short_model_name(model: str | None) -> str:
+    """Return a concise, human-readable model identifier.
+
+    Strips provider prefixes ('openai/', 'z-ai/'), provider suffixes
+    ('@openrouter', '@openai'), and cleans up doubled model IDs (e.g.
+    'z-ai/glm-5.2z-ai/glm-5.2' -> 'glm-5.2').
+    """
+    if not model:
+        return "?"
+    s = str(model).strip()
+    # Deduplicate repeated prefix/suffix if present (e.g. "foo/barfoo/bar" -> "foo/bar")
+    half = len(s) // 2
+    if len(s) % 2 == 0 and s[:half] == s[half:]:
+        s = s[:half]
+    # Strip @provider suffix
+    if "@" in s:
+        s = s.split("@", 1)[0]
+    # Strip provider path prefix (e.g. "z-ai/glm-5.2" -> "glm-5.2", "openai/gpt-4o" -> "gpt-4o")
+    if "/" in s:
+        s = s.split("/")[-1]
+    return s or "?"
+
+
+@dataclass
+class TrajectoryTurn:
+    """One logical turn in an agent trajectory (an LLM step and its triggered tools)."""
+
+    index: int
+    llm_call: LlmCall | None = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    skill_loads: list[SkillLoad] = field(default_factory=list)
+
+    @property
+    def is_final(self) -> bool:
+        """True if this turn ended the trajectory with a final message and no tool calls."""
+        return bool(self.llm_call and not self.llm_call.tool_calls and not self.tool_calls)
+
+
 @dataclass
 class Trajectory:
     """A full run reconstructed from ATOF events."""
@@ -130,6 +168,101 @@ class Trajectory:
                 seen.add(sl.skill_name)
                 names.append(sl.skill_name)
         return names
+
+    @property
+    def turns(self) -> list[TrajectoryTurn]:
+        """Reconstruct the sequence of turns (LLM calls intertwined with tool executions)."""
+        if not self.llm_calls and not self.tool_calls and not self.skill_loads:
+            return []
+
+        # Index tool calls by tool_call_id
+        by_id: dict[str, ToolCall] = {}
+        unmatched_tools: list[ToolCall] = []
+        for tc in self.tool_calls:
+            if tc.tool_call_id:
+                by_id[tc.tool_call_id] = tc
+            else:
+                unmatched_tools.append(tc)
+
+        matched_tool_uuids: set[str] = set()
+        turns: list[TrajectoryTurn] = []
+
+        if not self.llm_calls:
+            # Only tools/skills, no LLM calls
+            return [
+                TrajectoryTurn(
+                    index=1,
+                    llm_call=None,
+                    tool_calls=list(self.tool_calls),
+                    skill_loads=list(self.skill_loads),
+                )
+            ]
+
+        # Handle tools that ran before the first LLM call
+        first_llm_start = self.llm_calls[0].started_at
+        pre_tools = [tc for tc in unmatched_tools if tc.started_at < first_llm_start]
+        pre_skills = [sl for sl in self.skill_loads if sl.timestamp < first_llm_start]
+        for tc in pre_tools:
+            matched_tool_uuids.add(tc.uuid)
+
+        if pre_tools or pre_skills:
+            turns.append(
+                TrajectoryTurn(
+                    index=len(turns) + 1,
+                    llm_call=None,
+                    tool_calls=pre_tools,
+                    skill_loads=pre_skills,
+                )
+            )
+
+        # Build turns for each LLM call
+        for i, lc in enumerate(self.llm_calls):
+            current_start = lc.started_at
+            next_start = self.llm_calls[i + 1].started_at if i + 1 < len(self.llm_calls) else None
+
+            turn_tools: list[ToolCall] = []
+
+            # 1. Match tool calls by tool_call_id in lc.tool_calls
+            if lc.tool_calls:
+                for req in lc.tool_calls:
+                    req_id = req.get("id") if isinstance(req, dict) else None
+                    if req_id and req_id in by_id:
+                        matched = by_id[req_id]
+                        turn_tools.append(matched)
+                        matched_tool_uuids.add(matched.uuid)
+
+            # 2. Match any remaining tools by time window
+            for tc in self.tool_calls:
+                if tc.uuid not in matched_tool_uuids:
+                    if tc.started_at >= current_start and (next_start is None or tc.started_at < next_start):
+                        turn_tools.append(tc)
+                        matched_tool_uuids.add(tc.uuid)
+
+            # 3. Match skill loads by time window
+            turn_skills = [
+                sl
+                for sl in self.skill_loads
+                if sl.timestamp >= current_start and (next_start is None or sl.timestamp < next_start)
+            ]
+
+            turns.append(
+                TrajectoryTurn(
+                    index=len(turns) + 1,
+                    llm_call=lc,
+                    tool_calls=turn_tools,
+                    skill_loads=turn_skills,
+                )
+            )
+
+        # Any remaining orphan tools that were not placed
+        orphan_tools = [tc for tc in self.tool_calls if tc.uuid not in matched_tool_uuids]
+        if orphan_tools:
+            if turns:
+                turns[-1].tool_calls.extend(orphan_tools)
+            else:
+                turns.append(TrajectoryTurn(index=1, tool_calls=orphan_tools))
+
+        return turns
 
 
 # ── Store ────────────────────────────────────────────────────────────────────

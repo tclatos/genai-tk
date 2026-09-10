@@ -86,15 +86,25 @@ class TrajectoryCommands(CliTopCommand):
             run_id: Annotated[str, typer.Argument(help="Run id (root agent scope uuid)")],
             fmt: Annotated[
                 str,
-                typer.Option("--format", "-f", help="tree | json | messages | dot"),
+                typer.Option("--format", "-f", help="tree | json | messages | dot | tui"),
             ] = "tree",
+            tui: Annotated[
+                bool,
+                typer.Option("--tui", "-t", help="Launch interactive TUI navigator"),
+            ] = False,
         ) -> None:
-            """Render a trajectory."""
+            """Render a trajectory (tree, json, messages, dot, or interactive TUI)."""
             console = Console()
             traj = store().get(run_id)
             if traj is None:
                 console.print(f"[red]Run '{run_id}' not found in store {store().root}[/red]")
                 raise typer.Exit(1)
+            if tui or fmt == "tui":
+                from genai_tk.cli.trajectory_tui import TrajectoryTuiApp
+
+                app = TrajectoryTuiApp(initial_run_id=run_id, store=store())
+                app.run()
+                return
             if fmt == "json":
                 console.print_json(json.dumps(_trajectory_dict(traj)))
             elif fmt == "messages":
@@ -103,6 +113,19 @@ class TrajectoryCommands(CliTopCommand):
                 console.print(_to_dot(traj))
             else:
                 _print_tree(console, traj)
+
+        @cli_app.command("tui")
+        def tui_cmd(
+            run_id: Annotated[
+                str | None,
+                typer.Argument(help="Optional run id to navigate (defaults to most recent run)"),
+            ] = None,
+        ) -> None:
+            """Launch interactive TUI trajectory navigator."""
+            from genai_tk.cli.trajectory_tui import TrajectoryTuiApp
+
+            app = TrajectoryTuiApp(initial_run_id=run_id, store=store())
+            app.run()
 
         @cli_app.command("tail")
         def tail_cmd(
@@ -280,21 +303,93 @@ class TrajectoryCommands(CliTopCommand):
 # ── Render helpers ───────────────────────────────────────────────────────────
 
 
+def _format_args_summary(tool_name: str, args: dict[str, Any]) -> str:
+    """Format tool arguments into a concise, readable single-line summary."""
+    if not args:
+        return ""
+    if tool_name == "python_interpreter" and "code" in args:
+        code = str(args["code"]).strip()
+        first_line = code.splitlines()[0] if code else ""
+        if len(code.splitlines()) > 1:
+            return f"code='{_snip(first_line, 45)}...'"
+        return f"code='{_snip(first_line, 55)}'"
+    if tool_name == "read_file" and "file_path" in args:
+        return f"file_path='{args['file_path']}'"
+    # General dict formatting
+    parts = []
+    for k, v in args.items():
+        val_str = repr(v) if isinstance(v, str) else str(v)
+        parts.append(f"{k}={_snip(val_str, 30)}")
+    return _snip(", ".join(parts), 70)
+
+
 def _print_tree(console: Console, traj: Any) -> None:
-    """Render a trajectory as a scope timeline tree."""
-    tree = RichTree(f"[bold cyan]{traj.profile}[/bold cyan] [dim]{traj.run_id}[/dim]")
-    node = tree.add(f"[dim]started[/dim] {_short_ts(traj.started_at)} · status={traj.status}")
-    for lc in traj.llm_calls:
-        label = f"[blue]llm[/blue] {lc.model or '?'}"
-        if lc.tool_calls:
-            label += f" → {', '.join(tc.get('name', '') for tc in lc.tool_calls if isinstance(tc, dict))}"
-        if lc.message:
-            label += f" [dim]{_snip(lc.message, 60)}[/dim]"
-        node.add(label)
-    for tc in traj.tool_calls:
-        node.add(f"[magenta]tool[/magenta] {tc.name} [dim]→ {_snip(tc.result or '', 60)}[/dim]")
-    for sl in traj.skill_loads:
-        node.add(f"[yellow]skill.load[/yellow] {sl.skill_name} [dim]({sl.source or '?'})[/dim]")
+    """Render a trajectory as an intertwined scope timeline tree."""
+    from genai_tk.utils.trajectory_store import TrajectoryStore, short_model_name
+
+    user_msg = TrajectoryStore._root_user_message(TrajectoryStore(), traj)
+
+    header = f"[bold cyan]{traj.profile or 'Agent'}[/bold cyan] [dim]{traj.run_id}[/dim]"
+    tree = RichTree(header)
+
+    info_parts = [
+        f"[dim]started[/dim] {_short_ts(traj.started_at)}",
+        f"status={'[green]ok[/green]' if traj.status == 'ok' else '[red]' + str(traj.status) + '[/red]'}",
+    ]
+    if traj.total_prompt_tokens or traj.total_completion_tokens:
+        info_parts.append(f"[dim]tokens:[/dim] {traj.total_prompt_tokens} in / {traj.total_completion_tokens} out")
+    if traj.llm_calls:
+        info_parts.append(f"[dim]llm calls:[/dim] {len(traj.llm_calls)}")
+    if traj.tool_calls:
+        info_parts.append(f"[dim]tool calls:[/dim] {len(traj.tool_calls)}")
+
+    root_node = tree.add(" · ".join(info_parts))
+
+    if user_msg:
+        root_node.add(f"[bold green]user[/bold green] [dim]{_snip(user_msg, 90)}[/dim]")
+
+    turns = traj.turns
+    for turn in turns:
+        lc = turn.llm_call
+        if lc is not None:
+            model_short = short_model_name(lc.model)
+            usage = lc.usage or {}
+            tok_in = usage.get("prompt_tokens") or 0
+            tok_out = usage.get("completion_tokens") or 0
+            tok_info = f" [dim]({tok_in} in / {tok_out} out)[/dim]" if (tok_in or tok_out) else ""
+
+            turn_label = f"Turn {turn.index}: [blue]llm[/blue] [bold]{model_short}[/bold]{tok_info}"
+            step_node = root_node.add(turn_label)
+
+            if lc.message:
+                if turn.is_final:
+                    step_node.add(f"[bold green]response[/bold green] {_snip(lc.message, 120)}")
+                else:
+                    step_node.add(f"[dim]thought:[/dim] {_snip(lc.message, 100)}")
+
+            for tc in turn.tool_calls:
+                args_str = _format_args_summary(tc.name, tc.args)
+                tool_label = f"[magenta]tool[/magenta] [bold]{tc.name}[/bold]({args_str})"
+                tool_node = step_node.add(tool_label)
+                if tc.result:
+                    tool_node.add(f"[dim]result:[/dim] {_snip(tc.result, 100)}")
+
+            for sl in turn.skill_loads:
+                step_node.add(
+                    f"[yellow]skill.load[/yellow] [bold]{sl.skill_name}[/bold] [dim]({sl.source or '?'})[/dim]"
+                )
+        else:
+            # Standalone tools/skills without an LLM call
+            for tc in turn.tool_calls:
+                args_str = _format_args_summary(tc.name, tc.args)
+                tool_node = root_node.add(f"[magenta]tool[/magenta] [bold]{tc.name}[/bold]({args_str})")
+                if tc.result:
+                    tool_node.add(f"[dim]result:[/dim] {_snip(tc.result, 100)}")
+            for sl in turn.skill_loads:
+                root_node.add(
+                    f"[yellow]skill.load[/yellow] [bold]{sl.skill_name}[/bold] [dim]({sl.source or '?'})[/dim]"
+                )
+
     console.print(tree)
 
 

@@ -95,10 +95,10 @@ def generate_portal(decks: list[dict[str, str]]) -> None:
     cards_html = ""
     for deck in decks:
         cards_html += f"""
-      <a href="{deck['path']}" class="deck-card">
+      <a href="{deck["path"]}" class="deck-card">
         <div class="deck-tag">Presentation</div>
-        <div class="deck-title">{deck['title']}</div>
-        <div class="deck-desc">Source: <code>docs/{deck['file']}</code></div>
+        <div class="deck-title">{deck["title"]}</div>
+        <div class="deck-desc">Source: <code>docs/{deck["file"]}</code></div>
         <div class="deck-action">Launch Slides ➔</div>
       </a>"""
 
@@ -107,7 +107,7 @@ def generate_portal(decks: list[dict[str, str]]) -> None:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{REPO_NAME.replace('-', ' ').title()} - Slide Decks Portal</title>
+  <title>{REPO_NAME.replace("-", " ").title()} - Slide Decks Portal</title>
   <style>
     :root {{
       --atos-navy: #00005b;
@@ -229,7 +229,7 @@ def generate_portal(decks: list[dict[str, str]]) -> None:
 </head>
 <body>
   <header>
-    <h1>{REPO_NAME.replace('-', ' ').title()} Presentations</h1>
+    <h1>{REPO_NAME.replace("-", " ").title()} Presentations</h1>
     <p>Interactive Atos Slide Decks Portal</p>
   </header>
   <main>

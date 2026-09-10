@@ -330,3 +330,39 @@ def test_judge_trajectory_efficiency_fails_on_repeats(tmp_path: Path) -> None:
     store = TrajectoryStore(root=tmp_path)
     verdicts = judge_trajectory(_ROOT, [{"kind": "efficiency", "max_repeat": 3}], store=store)
     assert verdicts[0]["score"] is False
+
+
+def test_short_model_name() -> None:
+    from genai_tk.utils.trajectory_store import short_model_name
+
+    assert short_model_name("z-ai/glm-5.2z-ai/glm-5.2") == "glm-5.2"
+    assert short_model_name("z-ai/glm-5.2") == "glm-5.2"
+    assert short_model_name("openai/gpt-4o-mini") == "gpt-4o-mini"
+    assert short_model_name("deepseek_v4_flash@openrouter") == "deepseek_v4_flash"
+    assert short_model_name("gpt-4o@openai") == "gpt-4o"
+    assert short_model_name("") == "?"
+    assert short_model_name(None) == "?"
+
+
+def test_trajectory_turns_intertwined(store: TrajectoryStore) -> None:
+    traj = store.get(_ROOT)
+    assert traj is not None
+    turns = traj.turns
+    assert len(turns) == 2
+    # Turn 1 has LLM1 and echo tool
+    assert turns[0].index == 1
+    assert turns[0].llm_call is not None
+    assert turns[0].llm_call.model == "gpt-oss-120b"
+    assert len(turns[0].tool_calls) == 1
+    assert turns[0].tool_calls[0].name == "echo"
+    assert turns[0].tool_calls[0].result == "echo:hello"
+    assert len(turns[0].skill_loads) == 1
+    assert turns[0].skill_loads[0].skill_name == "navigation"
+    assert turns[0].is_final is False
+
+    # Turn 2 has LLM2 (final response) and no tools
+    assert turns[1].index == 2
+    assert turns[1].llm_call is not None
+    assert turns[1].llm_call.message == "The echo result is echo:hello."
+    assert len(turns[1].tool_calls) == 0
+    assert turns[1].is_final is True
