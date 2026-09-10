@@ -156,14 +156,48 @@ cli_app = typer.Typer(
     pretty_exceptions_enable=PRETTY_EXCEPTION,
 )
 
+_KNOWN_CMD_ALIASES: dict[str, list[str]] = {
+    "tools": ["commands_extra", "ExtraCommands"],
+    "mcpserver": ["mcp", "McpCommands"],
+    "echo": ["register_commands"],
+}
 
-def load_and_register_commands(cli_app: typer.Typer) -> None:
-    """Load and register all CLI commands from config.
+
+def _extract_target_command(argv: list[str]) -> str | None:
+    """Extract the top-level command or group name from argv, skipping flags."""
+    for arg in argv[1:]:
+        if not arg.startswith("-"):
+            return arg
+    return None
+
+
+def _module_matches_command(module_path: str, cmd_name: str) -> bool:
+    """Check if a qualified module name likely corresponds to a CLI command name."""
+    cmd_lower = cmd_name.lower()
+    mod_lower = module_path.lower()
+
+    if cmd_lower in mod_lower:
+        return True
+
+    for alias_mod in _KNOWN_CMD_ALIASES.get(cmd_lower, []):
+        if alias_mod.lower() in mod_lower:
+            return True
+
+    return False
+
+
+def load_and_register_commands(cli_app: typer.Typer, target_command: str | None = None) -> None:
+    """Load and register CLI commands from config.
+
+    When target_command is specified, only imports and registers the matching
+    command module for fast startup. If target_command is None, or if no
+    module matches, all configured command modules are registered.
 
     Supports both class-based (CliTopCommand) and function-based registration.
 
     Args:
         cli_app: The Typer app instance to register commands to
+        target_command: Optional name of the specific command/group being invoked
     """
     try:
         cli_cfg = global_config().section("cli", CliConfig)
@@ -184,8 +218,15 @@ def load_and_register_commands(cli_app: typer.Typer) -> None:
         logger.error(f"Configuration error: {e.message}\nSuggestion: {e.suggestion}")
         raise typer.Exit(1) from e
 
-    # Import and register commands from each module
-    for module in modules:
+    # If target_command is specified, filter to matching modules
+    selected_modules = modules
+    if target_command:
+        matching = [m for m in modules if _module_matches_command(m, target_command)]
+        if matching:
+            selected_modules = matching
+
+    # Import and register commands from each selected module
+    for module in selected_modules:
         try:
             imported = ImportResolver.import_from_qualified(module)
 
@@ -238,9 +279,25 @@ def main() -> None:
     # Always register bootstrap commands — no config required.
     InitCommands().register(cli_app)
 
+    # Check if --help is requested or no arguments provided (show custom tree instead of default help)
+    if len(sys.argv) == 1 or ("--help" in sys.argv and len(sys.argv) == 2):
+        try:
+            setup_logging(level)
+            load_and_register_commands(cli_app)
+        except ConfigFileNotFoundError:
+            logger.warning(
+                "No config/app_conf.yaml found in this directory.\nRun 'cli init' to copy the default configuration here."
+            )
+        from genai_tk.utils.typer_display import display_command_tree
+
+        display_command_tree(cli_app)
+        return
+
+    target_cmd = _extract_target_command(sys.argv)
+
     try:
         setup_logging(level)
-        load_and_register_commands(cli_app)
+        load_and_register_commands(cli_app, target_command=target_cmd)
     except ConfigFileNotFoundError:
         # No config in cwd — still let bootstrap commands (init, etc.) run.
         logger.warning(
@@ -266,13 +323,6 @@ def main() -> None:
         # Unexpected error during initialization
         logger.exception(f"Unexpected error during CLI initialization: {e}")
         raise typer.Exit(1) from e
-
-    # Check if --help is requested or no arguments provided (show custom tree instead of default help)
-    if len(sys.argv) == 1 or ("--help" in sys.argv and len(sys.argv) == 2):
-        from genai_tk.utils.typer_display import display_command_tree
-
-        display_command_tree(cli_app)
-        return
 
     try:
         cli_app()

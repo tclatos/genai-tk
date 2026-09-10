@@ -117,14 +117,14 @@
 .slidev-layout table {
   width: 100%;
   border-collapse: collapse;
-  margin: 1em 0;
-  font-size: 15px;
+  margin: 0.5em 0;
+  font-size: 13.5px;
 }
 
 .slidev-layout tr th,
 .slidev-layout tr td {
   border: 1px solid var(--atos-border);
-  padding: 8px 12px;
+  padding: 5px 9px;
   text-align: left;
 }
 

@@ -139,7 +139,8 @@ class OmegaConfig(BaseModel):
         if not isinstance(config, DictConfig):
             raise ConfigTypeError("root", expected_type="DictConfig", actual_type=type(config), actual_value=config)
 
-        os.environ["PWD"] = os.popen("pwd").read().strip()  # Hack because PWD is sometime set to a Windows path in WSL
+        if "PWD" not in os.environ or "\\" in os.environ["PWD"]:
+            os.environ["PWD"] = os.getcwd()
 
         # Process :env pseudo-key to load environment variables
         OmegaConfig._process_env_variables(config)
@@ -552,8 +553,9 @@ class OmegaConfig(BaseModel):
             ConfigKeyNotFoundError: If key not found and no default provided
             ConfigInterpolationError: If interpolation resolution fails
         """
-        # Create merged config with runtime overrides first
-        merged = OmegaConf.merge(self.root, self.selected or {})
+        # Create merged config with runtime overrides only if needed
+        selected_ctx = self.selected
+        merged = OmegaConf.merge(self.root, selected_ctx) if selected_ctx else self.root
         try:
             value = OmegaConf.select(merged, key)
             if value is None:

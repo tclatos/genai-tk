@@ -463,41 +463,41 @@ layout: atos-default
 # 10. Empirical Results & Architectural Comparisons
 ## Quantitative performance comparison and benchmark scorecard
 
-<div class="grid grid-cols-2 gap-6 mt-3">
+<div class="grid grid-cols-[1.38fr_1fr] gap-5 mt-2">
 
 <div>
-  <h3 class="text-sm font-bold text-[#0073E6] mb-2">Architecture Comparison: Flat RAG vs. DocGraph</h3>
-  <table>
+  <h3 class="text-sm font-bold text-[#0073E6] mb-1.5">Architecture Comparison: Flat RAG vs. DocGraph</h3>
+  <table class="text-xs" style="table-layout: fixed; width: 100%;">
     <thead>
       <tr>
-        <th>Dimension</th>
-        <th style="text-align: center;">Traditional Flat RAG</th>
-        <th style="text-align: center; color: #0073E6;">Hierarchical DocGraph</th>
+        <th style="width: 38%; white-space: nowrap;">Dimension</th>
+        <th style="width: 31%; text-align: center;">Traditional Flat RAG</th>
+        <th style="width: 31%; text-align: center; color: #0073E6;">Hierarchical DocGraph</th>
       </tr>
     </thead>
     <tbody>
       <tr>
-        <td><strong>Complex QA Accuracy</strong></td>
+        <td style="white-space: nowrap;"><strong>Complex QA Accuracy</strong></td>
         <td style="text-align: center;">42.0% – 51.5%</td>
         <td style="text-align: center; color: #0073E6; font-weight: bold;">96.0% (FinanceBench)</td>
       </tr>
       <tr>
-        <td><strong>Table Integrity</strong></td>
+        <td style="white-space: nowrap;"><strong>Table Integrity</strong></td>
         <td style="text-align: center;">❌ Severed by chunking</td>
         <td style="text-align: center; color: #0073E6; font-weight: bold;">✓ 100% Contiguous Tables</td>
       </tr>
       <tr>
-        <td><strong>Calculation Precision</strong></td>
+        <td style="white-space: nowrap;"><strong>Calculation Precision</strong></td>
         <td style="text-align: center;">58.3% (Token math)</td>
         <td style="text-align: center; color: #0073E6; font-weight: bold;">100% (Python CodeAct)</td>
       </tr>
       <tr>
-        <td><strong>Audit Provenance</strong></td>
+        <td style="white-space: nowrap;"><strong>Audit Provenance</strong></td>
         <td style="text-align: center;">Opaque chunk IDs</td>
         <td style="text-align: center; color: #0073E6; font-weight: bold;">Exact byte offsets & TOC</td>
       </tr>
       <tr>
-        <td><strong>Token Efficiency</strong></td>
+        <td style="white-space: nowrap;"><strong>Token Efficiency</strong></td>
         <td style="text-align: center;">High looping (&gt;1.5M tokens)</td>
         <td style="text-align: center; color: #0073E6; font-weight: bold;">-59.1% (Section summaries)</td>
       </tr>
@@ -506,13 +506,13 @@ layout: atos-default
 </div>
 
 <div>
-  <h3 class="text-sm font-bold text-[#00005B] mb-2">Benchmark Scorecard</h3>
-  <table>
+  <h3 class="text-sm font-bold text-[#00005B] mb-1.5">Benchmark Scorecard</h3>
+  <table class="text-xs" style="table-layout: fixed; width: 100%;">
     <thead>
       <tr>
-        <th>Metric</th>
-        <th style="text-align: center;">FinanceBench<br/><span style="font-size:11px;font-weight:normal">(Corporate 10-K/Q)</span></th>
-        <th style="text-align: center;">OfficeQA Pro<br/><span style="font-size:11px;font-weight:normal">(Historical Treasury)</span></th>
+        <th style="width: 38%;">Metric</th>
+        <th style="width: 31%; text-align: center;">FinanceBench<br/><span style="font-size:10px;font-weight:normal">(Corporate 10-K/Q)</span></th>
+        <th style="width: 31%; text-align: center;">OfficeQA Pro<br/><span style="font-size:10px;font-weight:normal">(Historical Treasury)</span></th>
       </tr>
     </thead>
     <tbody>
