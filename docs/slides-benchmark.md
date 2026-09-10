@@ -240,9 +240,7 @@ layout: atos-two-cols
   - **Dense Semantic Embeddings**: Indexed over concise section summaries for high-level conceptual discovery (`"Macroeconomic growth drivers"`).
 
 - **Reciprocal Rank Fusion (RRF)**
-  - Combines multiple ranked result lists without requiring arbitrary score calibration or normalizations:
-
-$$RRF\_score(d) = \sum_{m \in M} \frac{1}{k + rank_m(d)} \quad (k = 60)$$
+  - Combines multiple ranked result lists without requiring arbitrary score calibration or normalizations
 
 - **Topological Re-Ranking**
   - Graph ancestry boosts sections whose parent chapters match the user's intent.
@@ -351,24 +349,10 @@ layout: atos-two-cols
 ```python
 # Multi-Period OfficeQA Pro Inflation & Defense Aggregation (UID0005)
 # 1. Monthly defense line items aggregated from 1940 & 1953 bulletins
-def_1940_monthly = [129.5, 138.2, 145.0, 156.8, 172.4, 189.1, 205.3, 221.7, 240.2, 265.8, 280.1, 310.9]  # M$
-def_1953_monthly = [
-    3650.2,
-    3720.5,
-    3810.0,
-    3940.1,
-    4010.8,
-    4120.3,
-    4250.0,
-    4180.2,
-    4090.5,
-    3980.4,
-    3890.1,
-    3780.9,
-]  # M$
+def_1940_monthly = [129.5, 138.2, 145.0, 156.8, 172.4, 189.1,...]  # M$
+def_1953_monthly = [3650.2, 3720.5, 3810.0, 3940.1, ...]  # M$
 
 tot_1940, tot_1953 = sum(def_1940_monthly), sum(def_1953_monthly)
-
 # 2. External BLS CPI-U series fetched via web search
 cpi_1940, cpi_1953 = 14.0, 26.77
 tot_1940_adj = tot_1940 * (cpi_1953 / cpi_1940)
