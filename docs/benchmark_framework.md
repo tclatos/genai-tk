@@ -177,7 +177,9 @@ The ingestion pipeline converts unstructured documents into a queryable, content
    - Aligns outline headings with exact Markdown byte offsets, segmenting the text into contiguous `MarkdownSection` nodes.
 5. **Hierarchical Graph Ingestion (Ladybug DB)**:
    - Populates an embedded **Ladybug** graph database:
-     $$\text{Folder} \xrightarrow{\text{CONTAINS}} \text{Document} \xrightarrow{\text{HAS\_SECTION}} \text{MarkdownSection} \xrightarrow{\text{HAS\_SUBSECTION}} \text{MarkdownSection}$$
+     ```
+     Folder ──CONTAINS──▶ Document ──HAS_SECTION──▶ MarkdownSection ──HAS_SUBSECTION──▶ MarkdownSection
+     ```
    - Sections are keyed by cryptographic hashes (`xxHash`), enabling deterministic deduplication.
    - Dual retrieval: Every section is indexed in both a **BM25 full-text engine** (exact financial/statutory terms) and a **dense vector store** (semantic intent).
    - **Vectorless Navigation Substrate**: Agents navigate the document hierarchy directly via TOC inspection and selective section retrieval, preserving natural table and footnote boundaries.
