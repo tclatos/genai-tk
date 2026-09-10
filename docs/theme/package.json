@@ -1,0 +1,25 @@
+{
+  "name": "slidev-theme-atos",
+  "version": "1.0.0",
+  "description": "Executive Atos corporate theme for Slidev developer presentations",
+  "keywords": [
+    "slidev-theme",
+    "slidev",
+    "atos",
+    "vue",
+    "presentation"
+  ],
+  "author": "Atos",
+  "license": "MIT",
+  "main": "./index.ts",
+  "files": [
+    "layouts",
+    "styles",
+    "public",
+    "global-bottom.vue",
+    "slide-bottom.vue",
+    "index.ts",
+    "package.json",
+    "README.md"
+  ]
+}

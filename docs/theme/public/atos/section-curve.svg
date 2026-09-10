@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 720" width="500" height="720" fill="none">
+  <!-- Cyan wave/arc on the right side -->
+  <path d="M 500 0 L 250 0 C 180 180, 200 380, 120 540 C 80 620, 20 680, 0 720 L 500 720 Z" fill="#43C7F4" opacity="0.95"/>
+  <!-- Dark navy subtle secondary shadow/curve -->
+  <path d="M 500 120 C 380 200, 320 400, 260 560 C 220 640, 180 690, 150 720 L 500 720 Z" fill="#00005B" opacity="0.25"/>
+  <!-- Light cyan accent stroke -->
+  <path d="M 250 0 C 180 180, 200 380, 120 540 C 80 620, 20 680, 0 720" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity="0.6" fill="none"/>
+</svg>

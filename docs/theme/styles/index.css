@@ -1,0 +1,163 @@
+:root {
+  --atos-navy: #00005b;
+  --atos-blue: #0073e6;
+  --atos-cyan: #43c7f4;
+  --atos-white: #ffffff;
+  --atos-text: #161650;
+  --atos-gray-bg: #f5f5f5;
+  --atos-border: #e6e6e6;
+  --atos-font: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  
+  --slide-padding-x: 4.5%;
+  --slide-padding-top: 3.5%;
+  --slide-padding-bottom: 6.5%;
+  
+  --title-size: 36px;
+  --subtitle-size: 22px;
+  --body-size: 19px;
+  --footer-size: 11px;
+}
+
+/* Base Slide Layout */
+.slidev-layout {
+  font-family: var(--atos-font);
+  color: var(--atos-text);
+  padding: var(--slide-padding-top) var(--slide-padding-x) var(--slide-padding-bottom);
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--atos-white);
+}
+
+/* Typography Hierarchy */
+.slidev-layout h1 {
+  margin: 0 0 0.25em 0;
+  color: var(--atos-blue);
+  font-size: var(--title-size);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.slidev-layout h2 {
+  margin: 0 0 0.8em 0;
+  color: var(--atos-navy);
+  font-size: var(--subtitle-size);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.slidev-layout h3 {
+  margin: 0.5em 0 0.3em 0;
+  color: var(--atos-navy);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.slidev-layout p,
+.slidev-layout li {
+  font-size: var(--body-size);
+  line-height: 1.45;
+  color: var(--atos-text);
+}
+
+.slidev-layout ul {
+  margin-top: 0.4em;
+  margin-bottom: 0.8em;
+  padding-left: 1.2em;
+}
+
+.slidev-layout li {
+  margin-bottom: 0.45em;
+}
+
+.slidev-layout li::marker {
+  color: var(--atos-blue);
+}
+
+.slidev-layout strong {
+  color: var(--atos-blue);
+  font-weight: 700;
+}
+
+.slidev-layout em {
+  font-style: italic;
+  color: var(--atos-navy);
+}
+
+.slidev-layout a {
+  color: var(--atos-blue);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--atos-blue);
+  transition: border-color 0.2s;
+}
+
+.slidev-layout a:hover {
+  border-bottom-style: solid;
+}
+
+/* Tables */
+.slidev-layout table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 15px;
+}
+
+.slidev-layout tr th,
+.slidev-layout tr td {
+  border: 1px solid var(--atos-border);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.slidev-layout tr th {
+  background-color: var(--atos-gray-bg);
+  color: var(--atos-navy);
+  font-weight: 700;
+}
+
+.slidev-layout tr:nth-child(even) td {
+  background-color: #fafafa;
+}
+
+/* Code & Pre */
+.slidev-layout code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.85em;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background-color: #f1f3f9;
+  color: var(--atos-navy);
+}
+
+.slidev-layout pre {
+  margin: 0.8em 0;
+  border-radius: 6px;
+  border: 1px solid var(--atos-border);
+}
+
+.slidev-layout pre code {
+  padding: 0;
+  background: transparent;
+}
+
+/* Blockquotes & Callouts */
+.slidev-layout blockquote {
+  border-left: 4px solid var(--atos-blue);
+  padding: 6px 16px;
+  margin: 0.8em 0;
+  background-color: #f6faff;
+  color: var(--atos-navy);
+  border-radius: 0 4px 4px 0;
+}
+
+/* Mermaid Diagrams */
+.slidev-layout .mermaid {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0.5em 0;
+}

@@ -1,5 +1,5 @@
 ---
-theme: /home/tcl/prj/slidev-theme-atos
+theme: ./theme
 title: Hierarchical Document Graphs & Agent Benchmarking
 presentationDate: 10/09/2026
 confidentiality: © Atos Group - for internal use
