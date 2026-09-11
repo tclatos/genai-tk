@@ -59,11 +59,15 @@ class SkillsCommands(CliTopCommand):
         def list_skills(
             source: Annotated[
                 Optional[str],
-                typer.Option("--source", "-s", help="Filter by source: bundled, custom, git, skillssh"),
+                typer.Option("--source", "-s", help="Filter by source: bundled, custom, vendor, git, skillssh"),
             ] = None,
             category: Annotated[
                 Optional[str],
-                typer.Option("--category", "-c", help="Filter by category: dev, agent, project"),
+                typer.Option(
+                    "--category",
+                    "-c",
+                    help="Filter by category: runtime, development, governance, vendor, custom, dev, agent, project",
+                ),
             ] = None,
         ) -> None:
             """List all discovered skills (bundled + custom + community)."""
@@ -84,6 +88,11 @@ class SkillsCommands(CliTopCommand):
                 return
 
             _CAT_LABELS = {
+                "runtime": "Runtime Skills  [dim](solve user problems)[/dim]",
+                "development": "Development Skills  [dim](improve and extend the toolkit)[/dim]",
+                "governance": "Governance Skills  [dim](maintain consistency and quality)[/dim]",
+                "vendor": "Vendor Skills  [dim](imported, not edited directly)[/dim]",
+                "custom": "Custom Skills  [dim](project-specific skills)[/dim]",
                 "dev": "Dev Skills  [dim](for building with genai-tk)[/dim]",
                 "agent": "Agent Skills  [dim](runtime capabilities for agents)[/dim]",
                 "project": "Project Skills  [dim](custom / community)[/dim]",
@@ -97,7 +106,7 @@ class SkillsCommands(CliTopCommand):
             total = len(skills)
             console.print(f"\n[bold]Skills[/bold] [dim]({total} found)[/dim]\n")
 
-            for cat_key in ("dev", "agent", "project"):
+            for cat_key in ("runtime", "development", "governance", "vendor", "custom", "dev", "agent", "project"):
                 group = groups.get(cat_key)
                 if not group:
                     continue
@@ -114,10 +123,10 @@ class SkillsCommands(CliTopCommand):
                 console.print()
 
             console.print(
-                "[dim]Filter:[/dim]  cli skills list --category dev  |  --category agent  |  --category project"
+                "[dim]Filter:[/dim]  cli skills list --category runtime  |  --category development  |  --category governance  |  --category vendor"
             )
             console.print(
-                "[dim]Add:[/dim]    cli skills add <name>  |  "
+                "[dim]Add:[/dim]     cli skills add <name>  |  "
                 "cli skills add --git <url>  |  cli skills add --skillssh <owner/repo>"
             )
 

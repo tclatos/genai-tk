@@ -56,9 +56,11 @@ def test_converter_factory_mistral_with_image_extraction() -> None:
     conv = ConverterFactory.create(
         "mistral_ocr",
         include_image_base64=True,
+        image_min_size=150,
         images_dir="custom_images_dir",
     )
     assert getattr(conv, "include_image_base64", False) is True
+    assert getattr(conv, "image_min_size", None) == 150
     assert getattr(conv, "images_dir", None) == "custom_images_dir"
 
 

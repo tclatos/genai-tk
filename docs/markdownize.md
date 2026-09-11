@@ -48,6 +48,7 @@ The toolkit provides 7 document converter engines in `genai_tk.extra.markdownize
 
 `MistralOCRConverter` supports extracting embedded images from documents via Mistral's OCR API:
 - `include_image_base64: true` requests base64 encoded images from Mistral OCR.
+- `image_min_size: 100` filters out small logos, icons, and decorative elements (default: `100` pixels minimum height and width).
 - Images are decoded and hashed with **xxhash32** (`xxh32`), and saved to `images_dir` (e.g. `images/{hash}{ext}`).
 - In the generated Markdown, an HTML commentary `<!-- Image: {filename} (hash: {hash}) -->` is added adjacent to the image reference, and the link target is updated to the saved file path.
 
@@ -62,6 +63,7 @@ markdownize_converters:
       batch_size: 100
       use_batch_api: true
       include_image_base64: true
+      image_min_size: 100
       images_dir: data/extracted_images
 ```
 

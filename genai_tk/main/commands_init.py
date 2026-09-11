@@ -131,7 +131,7 @@ def _install_extra(extra: str) -> bool:
     return True
 
 
-def _print_next_steps(app_name: str, installed_extras: list[str]) -> None:
+def _print_next_steps(app_name: str, installed_extras: list[str], with_graph: bool = False) -> None:
     """Print the post-init 'next steps' banner."""
     from genai_tk.main.scaffolder import _sanitize_package_name
 
@@ -144,6 +144,10 @@ def _print_next_steps(app_name: str, installed_extras: list[str]) -> None:
     console.print("\n[bold]Next steps:[/bold]")
     console.print("  [dim]uv sync[/dim]                    install dependencies")
     console.print("  [dim]uv run cli agent chat[/dim]      start agent chat")
+    if with_graph:
+        console.print("  [dim]uv run cli bench list[/dim]      list benchmark profiles")
+        console.print("  [dim]uv run cli bench run[/dim]       run benchmark pipeline")
+        console.print("  [dim]uv run cli bench questions -t[/dim] interactive TUI browser")
     console.print("  [dim]just skills[/dim]               list available skills")
 
     console.print("\n[bold]Optional features[/bold] (install later with [dim]uv sync --extra <name>[/dim]):")
@@ -175,12 +179,25 @@ def _print_next_steps(app_name: str, installed_extras: list[str]) -> None:
     console.print("\n[dim]Docs: AGENTS.md · docs/SKILLS.md · docs/EXTENDING.md[/dim]\n")
 
 
-def _scaffold_project(project_dir: Path, project_name: str, *, force: bool = False) -> None:
+def _scaffold_project(
+    project_dir: Path,
+    project_name: str,
+    *,
+    force: bool = False,
+    with_graph: bool = False,
+    graph_path: str | None = None,
+) -> None:
     """Generate Python package, examples, skills dir, and agent-support files."""
     try:
         from genai_tk.main.scaffolder import ProjectScaffolder
 
-        scaffolder = ProjectScaffolder(project_dir, project_name, force=force)
+        scaffolder = ProjectScaffolder(
+            project_dir,
+            project_name,
+            force=force,
+            with_graph=with_graph,
+            graph_path=graph_path,
+        )
         scaffolder.scaffold()
     except ImportError:
         console.print("[yellow]Jinja2 not installed — skipping project scaffold.[/yellow]")
@@ -221,6 +238,21 @@ class InitCommands(CliTopCommand):
                 Optional[str],
                 typer.Option("--name", "-n", help="Project name (default: current directory name)."),
             ] = None,
+            with_graph: Annotated[
+                bool,
+                typer.Option(
+                    "--with-graph",
+                    "-g",
+                    help="Include genai-graph dependency, benchmark adapter, config/bench.yaml, and merged skills.",
+                ),
+            ] = False,
+            graph_path: Annotated[
+                Optional[str],
+                typer.Option(
+                    "--graph-path",
+                    help="Editable path to genai-graph repository (default: '../genai-graph').",
+                ),
+            ] = None,
             extras: Annotated[
                 Optional[list[str]],
                 typer.Option(
@@ -240,6 +272,8 @@ class InitCommands(CliTopCommand):
             Examples:
                 cli init                                # scaffold in current directory
                 cli init --name "My Project"             # set project name
+                cli init --with-graph                   # scaffold with genai-graph & benchmark support
+                cli init --with-graph --graph-path /path/to/genai-graph
                 cli init --force                        # overwrite existing files
                 cli init --extra harnessing             # also install harnessing feature
                 cli init --extra harnessing --extra browser  # install multiple features
@@ -256,7 +290,13 @@ class InitCommands(CliTopCommand):
             _patch_webapp_yaml(dest, app_name)
 
             # ── Scaffold ────────────────────────────────────────────────
-            _scaffold_project(Path.cwd(), app_name, force=force)
+            _scaffold_project(
+                Path.cwd(),
+                app_name,
+                force=force,
+                with_graph=with_graph,
+                graph_path=graph_path,
+            )
 
             # ── Optional extras ──────────────────────────────────────
             installed_extras: list[str] = []
@@ -265,4 +305,4 @@ class InitCommands(CliTopCommand):
                     installed_extras.append(extra)
 
             # ── Post-init banner ─────────────────────────────────────
-            _print_next_steps(app_name, installed_extras=installed_extras)
+            _print_next_steps(app_name, installed_extras=installed_extras, with_graph=with_graph)

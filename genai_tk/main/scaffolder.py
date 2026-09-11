@@ -48,6 +48,8 @@ class ProjectScaffolder:
         project_dir: Root directory of the new project (usually cwd).
         project_name: Human-readable name (e.g. "My AI Project").
         force: Overwrite existing files.
+        with_graph: Include genai-graph and benchmark framework support.
+        graph_path: Editable path to genai-graph repository.
     """
 
     def __init__(
@@ -56,11 +58,15 @@ class ProjectScaffolder:
         project_name: str,
         *,
         force: bool = False,
+        with_graph: bool = False,
+        graph_path: str | None = None,
     ) -> None:
         self.project_dir = project_dir
         self.project_name = project_name
         self.package_name = _sanitize_package_name(project_name)
         self.force = force
+        self.with_graph = with_graph
+        self.graph_path = graph_path or ("../genai-graph" if with_graph else None)
         self._written = 0
         self._skipped = 0
 
@@ -85,11 +91,14 @@ class ProjectScaffolder:
             "quickstart_run": meta["quickstart_run"],
             "structure_entries": meta["structure_entries"],
             "project_recipes": meta["project_recipes"],
+            "with_graph": self.with_graph,
+            "graph_path": self.graph_path,
         }
 
         search_dirs = [
             str(tpl_path / "common"),
             str(tpl_path / "agent-app"),
+            str(tpl_path),
         ]
         env = Environment(
             loader=FileSystemLoader(search_dirs),
@@ -116,7 +125,7 @@ class ProjectScaffolder:
         self._scaffold_template_files(env, ctx)
 
         # ── Skills directory structure ────────────────────────────────
-        for sub in ("custom", "community", "bundled"):
+        for sub in ("runtime", "development", "governance", "vendor", "custom", "community"):
             d = self.project_dir / "skills" / sub
             d.mkdir(parents=True, exist_ok=True)
             gitkeep = d / ".gitkeep"
@@ -124,8 +133,8 @@ class ProjectScaffolder:
                 gitkeep.write_text("")
                 self._written += 1
 
-        # ── Copy genai-tk bundled skills into skills/genai-tk/ ────────
-        self._copy_genai_tk_skills()
+        # ── Copy & merge skills across tiers ──────────────────────────
+        self._copy_skills()
 
         # ── Package sub-package __init__.py files ─────────────────────
         for sub in self._get_package_subdirs():
@@ -165,6 +174,14 @@ class ProjectScaffolder:
             "config/agents.yaml.j2": "config/agents.yaml",
             "skills/custom/getting-started/SKILL.md.j2": "skills/custom/getting-started/SKILL.md",
         }
+        if self.with_graph:
+            file_map.update(
+                {
+                    "adapter.py.j2": f"{pkg}/adapter.py",
+                    "commands/bench_commands.py.j2": f"{pkg}/commands/bench_commands.py",
+                    "config/bench.yaml.j2": "config/bench.yaml",
+                }
+            )
         self._render_hello_agent_page(ctx, pkg)
         for tpl_name, out_rel in file_map.items():
             self._render_template(env, ctx, tpl_name, out_rel)
@@ -196,25 +213,101 @@ class ProjectScaffolder:
     def _get_package_subdirs(self) -> list[str]:
         return ["commands", "tools", "webapp", "webapp/pages", "webapp/pages/demos", "main"]
 
-    def _copy_genai_tk_skills(self) -> None:
-        """Copy skills/genai-tk/ from the installed package into the project's skills/genai-tk/."""
+    def _copy_skills(self) -> None:
+        """Copy tiered skills from genai-tk and optionally merge from genai-graph."""
         import shutil
 
+        # 1. Copy genai-tk bundled skills across tiers
+        tk_skills_root = None
         try:
-            bundled_root = Path(str(pkg_files("genai_tk") / "skills" / "genai-tk"))
+            bundled_root = Path(str(pkg_files("genai_tk") / "skills"))
+            if bundled_root.is_dir():
+                tk_skills_root = bundled_root
         except Exception:
-            return
-        if not bundled_root.is_dir():
-            return
+            pass
 
-        dest = self.project_dir / "skills" / "genai-tk"
-        if dest.exists() and not self.force:
-            return
+        if tk_skills_root is None:
+            dev_skills = Path(__file__).resolve().parent.parent.parent / "skills"
+            if dev_skills.is_dir():
+                tk_skills_root = dev_skills
 
-        shutil.copytree(bundled_root, dest, dirs_exist_ok=True)
-        count = sum(1 for _ in dest.rglob("SKILL.md"))
-        self._written += count
-        console.print(f"[green]✓ Installed {count} genai-tk skill(s)[/green] → skills/genai-tk/")
+        count_tk = 0
+        if tk_skills_root and tk_skills_root.is_dir():
+            for tier_dir in tk_skills_root.iterdir():
+                if not tier_dir.is_dir() or tier_dir.name.startswith("."):
+                    continue
+                dest_tier = self.project_dir / "skills" / tier_dir.name
+                dest_tier.mkdir(parents=True, exist_ok=True)
+                for skill_dir in tier_dir.iterdir():
+                    if not skill_dir.is_dir() or not (skill_dir / "SKILL.md").exists():
+                        continue
+                    dest_skill = dest_tier / skill_dir.name
+                    if dest_skill.exists() and not self.force:
+                        continue
+                    if dest_skill.exists():
+                        shutil.rmtree(dest_skill)
+                    shutil.copytree(skill_dir, dest_skill, dirs_exist_ok=True)
+                    count_tk += 1
+
+        if count_tk:
+            self._written += count_tk
+            console.print(f"[green]✓ Installed {count_tk} genai-tk skill(s)[/green] → skills/")
+
+        # 2. If with_graph is enabled, merge genai-graph skills
+        if self.with_graph:
+            count_graph = self._merge_graph_skills()
+            if count_graph:
+                self._written += count_graph
+                console.print(f"[green]✓ Merged {count_graph} genai-graph skill(s)[/green] → skills/")
+
+    def _merge_graph_skills(self) -> int:
+        """Locate genai-graph skills and merge them into project skills/ across tiers."""
+        import shutil
+
+        graph_skills_root = None
+        if self.graph_path:
+            p = Path(self.graph_path)
+            if not p.is_absolute():
+                p = (self.project_dir / self.graph_path).resolve()
+            if (p / "skills").is_dir():
+                graph_skills_root = p / "skills"
+
+        if not graph_skills_root:
+            sibling = self.project_dir.parent / "genai-graph" / "skills"
+            if sibling.is_dir():
+                graph_skills_root = sibling
+
+        if not graph_skills_root:
+            try:
+                bundled_graph = Path(str(pkg_files("genai_graph") / "skills"))
+                if bundled_graph.is_dir():
+                    graph_skills_root = bundled_graph
+            except Exception:
+                pass
+
+        if not graph_skills_root or not graph_skills_root.is_dir():
+            console.print(
+                "[yellow]Notice: genai-graph skills directory not found — skipping graph skills merge.[/yellow]"
+            )
+            return 0
+
+        count = 0
+        for tier_dir in graph_skills_root.iterdir():
+            if not tier_dir.is_dir() or tier_dir.name.startswith("."):
+                continue
+            dest_tier = self.project_dir / "skills" / tier_dir.name
+            dest_tier.mkdir(parents=True, exist_ok=True)
+            for skill_dir in tier_dir.iterdir():
+                if not skill_dir.is_dir() or not (skill_dir / "SKILL.md").exists():
+                    continue
+                dest_skill = dest_tier / skill_dir.name
+                if dest_skill.exists() and not self.force:
+                    continue
+                if dest_skill.exists():
+                    shutil.rmtree(dest_skill)
+                shutil.copytree(skill_dir, dest_skill, dirs_exist_ok=True)
+                count += 1
+        return count
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -243,22 +336,25 @@ class ProjectScaffolder:
             return
         content = app_conf.read_text(encoding="utf-8")
 
-        entry_class = f"{self.package_name}.commands.agent_commands.AgentCommands"
-        if not entry_class:
-            return
+        entries_to_add = [
+            f"{self.package_name}.commands.agent_commands.AgentCommands",
+            "genai_tk.cli.commands_skills.SkillsCommands",
+        ]
+        if self.with_graph:
+            entries_to_add.append("genai_graph.core.commands_bench.BenchCommands")
 
-        entry = f"    - {entry_class}"
-        if entry in content:
-            return
-
-        marker = "    - genai_tk.main.cli.register_commands"
-        if marker in content:
-            content = content.replace(marker, f"{marker}\n{entry}")
-        else:
-            content += f"\n{entry}\n"
+        for entry_class in entries_to_add:
+            entry = f"    - {entry_class}"
+            if entry in content:
+                continue
+            marker = "    - genai_tk.main.cli.register_commands"
+            if marker in content:
+                content = content.replace(marker, f"{marker}\n{entry}")
+            else:
+                content += f"\n{entry}\n"
+            console.print(f"[green]✓ Registered {entry_class.split('.')[-1]} in[/green] [bold]{app_conf.name}[/bold]")
 
         app_conf.write_text(content, encoding="utf-8")
-        console.print(f"[green]✓ Registered {entry_class.split('.')[-1]} in[/green] [bold]{app_conf.name}[/bold]")
 
     def _patch_webapp_yaml(self) -> None:
         webapp_yaml = self.project_dir / "config" / "webapp.yaml"

@@ -1,0 +1,42 @@
+"""Benchmark adapter for {{ project_name }}."""
+
+from pathlib import Path
+from genai_graph.bench.adapters.base import BaseBenchmarkAdapter
+from genai_graph.bench.models import BenchQuestion
+
+
+class DefaultBenchmarkAdapter(BaseBenchmarkAdapter):
+    """Starter benchmark adapter for {{ project_name }}."""
+
+    def load_dataset(self, split: str | None = None, cache_dir: Path | None = None) -> list[BenchQuestion]:
+        """Load benchmark questions. Replace with your dataset loading logic."""
+        return [
+            BenchQuestion(
+                id="sample_001",
+                doc_name="sample_doc",
+                doc_names=["sample_doc"],
+                question="What is the key conclusion in the sample document?",
+                gold_answer="The sample benchmark is successfully configured.",
+                justification="Demonstration sample question for {{ project_name }}.",
+                evidence=["Conclusion: The sample benchmark is successfully configured."],
+                metadata={"split": split or "test"},
+            )
+        ]
+
+    def fetch_document(self, doc_name: str, output_dir: Path) -> Path:
+        """Fetch or locate the raw document for doc_name."""
+        output_dir.mkdir(parents=True, exist_ok=True)
+        doc_path = output_dir / f"{doc_name}.pdf"
+        if not doc_path.exists():
+            doc_path.write_text(f"Sample document content for {doc_name}", encoding="utf-8")
+        return doc_path
+
+    def get_judge_rubric(self) -> str:
+        """Return domain-specific judge rubric."""
+        return (
+            "You are an expert evaluator assessing answers against ground truth.\n"
+            "Criteria:\n"
+            "1. Correctness: Evaluate factual and semantic accuracy.\n"
+            "2. Numeric Precision: Match numeric figures accounting for rounding and scale.\n"
+            "3. Groundedness: Verify answer is supported by the document context."
+        )

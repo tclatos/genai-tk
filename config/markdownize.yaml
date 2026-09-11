@@ -16,6 +16,7 @@ markdownize_converters:
       batch_size: 100
       use_batch_api: true
       include_image_base64: false
+      image_min_size: 100
       images_dir: images
   lighton_ocr:
     class: genai_tk.extra.markdownize.lighton_ocr_converter.LightOnOCRConverter

@@ -43,23 +43,35 @@ def _write_skill(root: Path, name: str, category: str | None = None) -> Path:
 
 
 class TestSkillInfoCategory:
-    def test_default_category_is_project(self):
+    def test_default_category_is_custom(self):
         from genai_tk.main.models_skills import SkillInfo
 
         s = SkillInfo(name="x", path=Path("/tmp"), source="custom")
-        assert s.category == "project"
+        assert s.category == "custom"
 
-    def test_category_dev(self):
+    def test_category_development(self):
         from genai_tk.main.models_skills import SkillInfo
 
-        s = SkillInfo(name="x", path=Path("/tmp"), source="bundled", category="dev")
-        assert s.category == "dev"
+        s = SkillInfo(name="x", path=Path("/tmp"), source="bundled", category="development")
+        assert s.category == "development"
 
-    def test_category_agent(self):
+    def test_category_runtime(self):
         from genai_tk.main.models_skills import SkillInfo
 
-        s = SkillInfo(name="x", path=Path("/tmp"), source="bundled", category="agent")
-        assert s.category == "agent"
+        s = SkillInfo(name="x", path=Path("/tmp"), source="bundled", category="runtime")
+        assert s.category == "runtime"
+
+    def test_category_governance(self):
+        from genai_tk.main.models_skills import SkillInfo
+
+        s = SkillInfo(name="x", path=Path("/tmp"), source="bundled", category="governance")
+        assert s.category == "governance"
+
+    def test_category_vendor(self):
+        from genai_tk.main.models_skills import SkillInfo
+
+        s = SkillInfo(name="x", path=Path("/tmp"), source="vendor", category="vendor")
+        assert s.category == "vendor"
 
     def test_invalid_category_raises(self):
         from pydantic import ValidationError
@@ -67,7 +79,7 @@ class TestSkillInfoCategory:
         from genai_tk.main.models_skills import SkillInfo
 
         with pytest.raises(ValidationError):
-            SkillInfo(name="x", path=Path("/tmp"), source="custom", category="unknown")
+            SkillInfo(name="x", path=Path("/tmp"), source="custom", category="unknown_invalid_category")
 
 
 # ---------------------------------------------------------------------------
@@ -80,11 +92,11 @@ class TestDiscoverSkills:
         from genai_tk.main.skills_manager import discover_skills
 
         _write_skill(tmp_path, "my-skill")
-        skills = discover_skills([tmp_path], source="custom", category="project")
+        skills = discover_skills([tmp_path], source="custom", category="custom")
         assert len(skills) == 1
         assert skills[0].name == "my-skill"
         assert skills[0].source == "custom"
-        assert skills[0].category == "project"
+        assert skills[0].category == "custom"
 
     def test_discovers_multiple_skills(self, tmp_path: Path):
         from genai_tk.main.skills_manager import discover_skills
@@ -106,8 +118,8 @@ class TestDiscoverSkills:
 
         _write_skill(tmp_path, "s1")
         _write_skill(tmp_path, "s2")
-        skills = discover_skills([tmp_path], source="bundled", category="dev")
-        assert all(s.category == "dev" for s in skills)
+        skills = discover_skills([tmp_path], source="bundled", category="development")
+        assert all(s.category == "development" for s in skills)
         assert all(s.source == "bundled" for s in skills)
 
     def test_empty_root_returns_empty(self, tmp_path: Path):
@@ -129,25 +141,25 @@ class TestDiscoverSkills:
 
 
 class TestDirCategoryMapping:
-    def test_genai_tk_dir_maps_to_dev(self):
+    def test_development_dir_maps_to_development(self):
         from genai_tk.main.skills_manager import _DIR_CATEGORY
 
-        assert _DIR_CATEGORY["genai-tk"] == "dev"
+        assert _DIR_CATEGORY["development"] == "development"
 
-    def test_copilot_dir_maps_to_dev(self):
+    def test_runtime_dir_maps_to_runtime(self):
         from genai_tk.main.skills_manager import _DIR_CATEGORY
 
-        assert _DIR_CATEGORY["copilot"] == "dev"
+        assert _DIR_CATEGORY["runtime"] == "runtime"
 
-    def test_public_dir_maps_to_agent(self):
+    def test_governance_dir_maps_to_governance(self):
         from genai_tk.main.skills_manager import _DIR_CATEGORY
 
-        assert _DIR_CATEGORY["public"] == "agent"
+        assert _DIR_CATEGORY["governance"] == "governance"
 
-    def test_langchain_examples_maps_to_agent(self):
+    def test_vendor_dir_maps_to_vendor(self):
         from genai_tk.main.skills_manager import _DIR_CATEGORY
 
-        assert _DIR_CATEGORY["langchain_examples"] == "agent"
+        assert _DIR_CATEGORY["vendor"] == "vendor"
 
 
 # ---------------------------------------------------------------------------
@@ -156,29 +168,33 @@ class TestDirCategoryMapping:
 
 
 class TestDiscoverAllSkillsBundled:
-    def test_bundled_dev_skills_have_dev_category(self):
+    def test_bundled_development_skills_have_development_category(self):
         from genai_tk.main.skills_manager import discover_all_skills
 
         skills = discover_all_skills(Path("/tmp/__nonexistent__"))
-        dev_skills = [s for s in skills if s.category == "dev"]
-        # genai-tk/ and copilot/ dirs both map to dev
+        dev_skills = [s for s in skills if s.category == "development"]
         assert len(dev_skills) > 0
 
-    def test_bundled_agent_skills_have_agent_category(self):
+    def test_bundled_runtime_skills_have_runtime_category(self):
         from genai_tk.main.skills_manager import discover_all_skills
 
         skills = discover_all_skills(Path("/tmp/__nonexistent__"))
-        agent_skills = [s for s in skills if s.category == "agent"]
-        # public/ and langchain_examples/ dirs both map to agent
-        assert len(agent_skills) > 0
+        runtime_skills = [s for s in skills if s.category == "runtime"]
+        assert len(runtime_skills) > 0
 
-    def test_all_bundled_skills_have_source_bundled(self):
+    def test_bundled_governance_skills_have_governance_category(self):
         from genai_tk.main.skills_manager import discover_all_skills
 
         skills = discover_all_skills(Path("/tmp/__nonexistent__"))
-        bundled = [s for s in skills if s.source == "bundled"]
-        assert len(bundled) > 0
-        assert all(s.source == "bundled" for s in bundled)
+        gov_skills = [s for s in skills if s.category == "governance"]
+        assert len(gov_skills) > 0
+
+    def test_all_bundled_skills_have_source_bundled_or_vendor(self):
+        from genai_tk.main.skills_manager import discover_all_skills
+
+        skills = discover_all_skills(Path("/tmp/__nonexistent__"))
+        assert len(skills) > 0
+        assert all(s.source in ("bundled", "vendor") for s in skills)
 
     def test_project_custom_skills_discovered(self, tmp_path: Path):
         from genai_tk.main.skills_manager import discover_all_skills
@@ -189,7 +205,7 @@ class TestDiscoverAllSkillsBundled:
         skills = discover_all_skills(tmp_path)
         custom = [s for s in skills if s.source == "custom"]
         assert any(s.name == "my-custom-skill" for s in custom)
-        assert all(s.category == "project" for s in custom)
+        assert all(s.category == "custom" for s in custom)
 
     def test_community_skills_discovered(self, tmp_path: Path):
         from genai_tk.main.skills_manager import discover_all_skills
@@ -200,7 +216,7 @@ class TestDiscoverAllSkillsBundled:
         skills = discover_all_skills(tmp_path)
         community = [s for s in skills if s.source == "skillssh"]
         assert any(s.name == "a-community-skill" for s in community)
-        assert all(s.category == "project" for s in community)
+        assert all(s.category == "custom" for s in community)
 
 
 # ---------------------------------------------------------------------------

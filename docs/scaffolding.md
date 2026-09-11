@@ -2,7 +2,7 @@
 
 `cli init` bootstraps a new genai-tk project in the current directory. It copies
 the default `config/` tree, scaffolds a Python package with agent infrastructure,
-and generates `AGENTS.md` and a `justfile` — everything you need for AI-assisted coding.
+merges tiered skills, and generates `AGENTS.md` and a `justfile` — everything you need for AI-assisted coding.
 
 ---
 
@@ -11,14 +11,16 @@ and generates `AGENTS.md` and a `justfile` — everything you need for AI-assist
 ```bash
 mkdir my-project && cd my-project
 uv init
-uv add git+https://github.com/tclatos/genai-tk@main
+uv add "genai-tk @ git+https://github.com/tclatos/genai-tk@main"
 
-# Bootstrap the project (always scaffolds agent-app structure)
+# Bootstrap a standard agent application:
 uv run cli init --name "My AI Project"
 
-# Optional: add heavy components later
-uv run cli init --with-deer-flow   # install deerflow-harness + config
-uv run cli init --with-sandbox     # install aio-sandbox (Docker support)
+# Bootstrap with GenAI Graph and Benchmark framework support:
+uv run cli init --name "My Benchmark Suite" --with-graph --graph-path ../genai-graph
+
+# Optional: install extras during init
+uv run cli init --extra harnessing --extra browser
 
 # Done!
 uv sync
@@ -29,75 +31,69 @@ just run                           # start the application
 
 ## What `cli init` does
 
-1. **Copies config/** — LLM/embedding providers, agent profiles, MCP server configs, webapp settings
-2. **Scaffolds package** — Python module with CLI commands, tools, skills, webapp pages
-3. **Generates docs** — `AGENTS.md` (architecture map), `EXTENDING.md` (how-to guide)
-4. **Configures IDE support** — `.github/copilot-instructions.md` (auto-loaded by Copilot)
-5. **Sets up workflows** — `justfile` for common tasks (lint, skills, run)
-
-All scaffolding follows **agent-friendly defaults**: no IDE-specific files (Cursor/Windsurf rules are
-shown as post-init commands instead), modular structure for tools/skills/chains.
+1. **Copies config/** — LLM/embedding providers, agent profiles, MCP server configs, webapp settings, and optional `bench.yaml`.
+2. **Scaffolds package** — Python module with CLI commands, tools, starter benchmark adapter, skills, and webapp pages.
+3. **Installs & Merges Skills** — Copies 4-tier skills (`runtime`, `development`, `governance`, `vendor`) from `genai-tk` and merges `genai-graph` skills when `--with-graph` is passed.
+4. **Generates docs** — `AGENTS.md` (architecture map), `EXTENDING.md` (how-to guide), and `SKILLS.md`.
+5. **Configures IDE support** — `.github/copilot-instructions.md` (auto-loaded by Copilot).
+6. **Sets up workflows** — `justfile` for common tasks (lint, test, skills, run).
 
 ---
 
-## Generated structure
+## Flags & Options
 
-### Always generated (agent-app structure)
+| Option | Flag | Description |
+|---|---|---|
+| `--name` | `-n` | Human-readable project name (determines package name). |
+| `--with-graph` | `-g` | Enable `genai-graph` dependency, benchmark framework CLI (`cli bench`), starter `adapter.py`, and `config/bench.yaml`. |
+| `--graph-path` | | Path to local editable `genai-graph` checkout (defaults to `../genai-graph`). |
+| `--extra` | `-e` | Install optional extras at init time (repeatable: `harnessing`, `browser`, `nlp`, `postgres`, `streamlit`, `baml`, `chromadb`). |
+| `--force` | `-f` | Overwrite existing files. |
+
+---
+
+## Generated Structure
 
 ```
 config/                           ← copied from genai-tk defaults
-  app_conf.yaml                   ← CLI command registry
+  app_conf.yaml                   ← CLI command registry (includes AgentCommands & BenchCommands)
   agents.yaml                     ← unified agent profiles (default + research)
+  bench.yaml                      ← benchmark profiles & adapter reference (when --with-graph)
   providers/
     llm.yaml                      ← LLM model definitions
     embeddings.yaml               ← embedding model definitions
-  *.yaml                          ← other configs (mcp, webapp, workflows, etc.)
+  *.yaml                          ← other configs (mcp, webapp, markdownize, etc.)
 
 <my_project>/                     ← Python package
   __init__.py
+  adapter.py                      ← starter BaseBenchmarkAdapter (when --with-graph)
   commands/
-    agent_commands.py             ← AgentCommands CLI group (auto-registered)
+    agent_commands.py             ← AgentCommands CLI group
+    bench_commands.py             ← Benchmark CLI group (when --with-graph)
   tools/
     example_tool.py               ← example LangChain tool
-  utils/
-    __init__.py
   webapp/
     pages/demos/
       hello_agent.py              ← demo: chat with ReAct agent
   main/
     streamlit.py                  ← Streamlit app entry point
 
-data/                             ← runtime data
-  kv_store/                       ← vector store, checkpoints, cache
-  models_dev.json                 ← downloaded model metadata
-
-docs/
-  EXTENDING.md                    ← how to add CLI commands, tools, chains, webapp pages
-  SKILLS.md                       ← skills reference (created by cli skills add)
-
-skills/
-  custom/                         ← your SKILL.md files (committed)
-  community/                      ← installed via cli skills add (gitignored)
+skills/                           ← 4-tier skills architecture
+  runtime/                        ← runtime user capabilities (query-writing, browser-automation, kg-query)
+  development/                    ← developer & scaffolding skills (benchmark-framework, agent-profiles, kg-schema)
+  governance/                     ← quality & consistency (evaluation-testing, repo-map, pii-anonymization)
+  vendor/                         ← imported third-party skills (atos-slidev)
+  custom/                         ← project-local custom skills
+  community/                      ← installed via skills.sh
 
 AGENTS.md                         ← architecture map for AI agents
 justfile                          ← task runner: just run / just lint / just skills
 README.md                         ← project overview
-pyproject.toml                    ← package config with genai-tk dependency
+pyproject.toml                    ← package config with dependencies and [tool.uv.sources]
 
 .github/
   copilot-instructions.md         ← Copilot agent instructions (points to AGENTS.md)
-
-.gitignore                        ← includes /skills/community, /data/*, etc.
 ```
-
-### Optional (`--with-deer-flow`)
-
-```
-config/agents.yaml                ← DeerFlow profiles appended to the unified `agents:` dict
-                                  (chat + research by default)
-
-# In your Python environment:
-# uv add "deerflow-harness @ git+https://github.com/bytedance/deer-flow@main#subdirectory=backend/packages/harness"
 ```
 
 ### Optional (`--with-sandbox`)

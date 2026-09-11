@@ -12,11 +12,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import xxhash
 from loguru import logger
 from pydantic import Field
 
 from genai_tk.extra.markdownize.base import DocumentConverter
+from genai_tk.utils.hashing import buffer_digest
 
 _MISTRAL_SUPPORTED_EXTENSIONS = {
     ".pdf",
@@ -43,6 +43,10 @@ class MistralOCRConverter(DocumentConverter):
     max_poll_attempts: int = Field(default=300, description="Maximum polling attempts for batch jobs")
     include_image_base64: bool = Field(
         default=False, description="Whether to extract images as base64 from Mistral OCR"
+    )
+    image_min_size: int | None = Field(
+        default=100,
+        description="Minimum height and width of image in pixels to extract (filters out small logos/icons)",
     )
     images_dir: Path | str | None = Field(
         default=None, description="Directory to store extracted images named by xxhash32"
@@ -95,6 +99,8 @@ class MistralOCRConverter(DocumentConverter):
         ocr_kwargs: dict[str, Any] = {}
         if self.include_image_base64:
             ocr_kwargs["include_image_base64"] = True
+        if self.image_min_size is not None:
+            ocr_kwargs["image_min_size"] = self.image_min_size
 
         ocr_response = client.ocr.process(
             model=self.model,
@@ -169,7 +175,7 @@ class MistralOCRConverter(DocumentConverter):
                 else:
                     ext = ".jpg"
 
-            img_hash = xxhash.xxh32(raw_bytes).hexdigest()
+            img_hash = buffer_digest(raw_bytes, algorithm="xxh32")
             filename = f"{img_hash}{ext}"
 
             try:
@@ -236,6 +242,8 @@ class MistralOCRConverter(DocumentConverter):
         }
         if self.include_image_base64:
             body["include_image_base64"] = True
+        if self.image_min_size is not None:
+            body["image_min_size"] = self.image_min_size
         request = {
             "custom_id": str(index),
             "body": body,

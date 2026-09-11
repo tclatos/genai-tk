@@ -20,16 +20,27 @@ cli skills info <name>                       # show metadata + content
 
 ## Skill Directory Layout
 
+Skills follow a **4-tier architecture** with support for custom and community extensions:
+
 ```
 skills/
-├── custom/              # your own project-specific skills
+├── runtime/             # Runtime capabilities solving user problems
+│   └── browser-automation/
+│       └── SKILL.md
+├── development/         # Developer skills improving and extending the toolkit
+│   └── benchmark-framework/
+│       └── SKILL.md
+├── governance/          # Governance, quality, testing, and consistency
+│   └── evaluation-testing/
+│       └── SKILL.md
+├── vendor/              # Third-party / external skills (not edited directly)
+│   └── atos-slidev/
+│       └── SKILL.md
+├── custom/              # Project-local custom skills
 │   └── my-domain/
 │       └── SKILL.md
-├── community/           # installed from git or skills.sh
-│   └── langchain-retrieval/
-│       └── SKILL.md
-└── bundled/             # copied from genai-tk bundled catalog
-    └── deep-research/
+└── community/           # Installed from git or skills.sh
+    └── langchain-retrieval/
         └── SKILL.md
 ```
 

@@ -1,0 +1,24 @@
+default_profile: default
+
+adapter: {{ package_name }}.adapter.DefaultBenchmarkAdapter
+
+bench_profiles:
+  default:
+    llms:
+      agent: default
+      judge: default
+    build:
+      skip_ocr: false
+      structure_strategy: auto
+      summaries: true
+      workers: 4
+    files:
+      pathspecs: ["*"]
+      limit: null
+    agent:
+      profile: default
+      folder_id: null
+      concurrency: 5
+    judge:
+      concurrency: 5
+    monitoring: null

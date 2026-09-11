@@ -22,13 +22,21 @@ MANIFEST_FILENAME = "skills.yaml"
 # resolved via genai_tk package path).
 _BUNDLED_ROOTS_NAMES = ["langchain_examples", "public"]
 
-# Map bundled subdirectory names to skill categories shown in `cli skills list`.
-# Directories not in this map fall back to "project".
+# Map directory names to skill categories shown in `cli skills list`.
+# Directories not in this map fall back to "custom".
 _DIR_CATEGORY: dict[str, str] = {
-    "genai-tk": "dev",
-    "copilot": "dev",
-    "public": "agent",
-    "langchain_examples": "agent",
+    "runtime": "runtime",
+    "development": "development",
+    "governance": "governance",
+    "vendor": "vendor",
+    "custom": "custom",
+    "community": "custom",
+    # Legacy fallbacks
+    "genai-tk": "development",
+    "genai-graph": "development",
+    "copilot": "development",
+    "public": "runtime",
+    "langchain_examples": "runtime",
 }
 
 SKILL_FRONTMATTER_REQUIRED = {"name", "description"}
@@ -86,7 +94,7 @@ def parse_frontmatter(path: Path) -> dict:
         return {}
 
 
-def discover_skills(roots: list[Path], source: str = "custom", category: str = "project") -> list[SkillInfo]:
+def discover_skills(roots: list[Path], source: str = "custom", category: str = "custom") -> list[SkillInfo]:
     """Walk *roots* and return a SkillInfo for every SKILL.md found one level deep.
 
     Expected layout: <root>/<skill-name>/SKILL.md
@@ -102,13 +110,15 @@ def discover_skills(roots: list[Path], source: str = "custom", category: str = "
             if not skill_file.exists():
                 continue
             fm = parse_frontmatter(skill_file)
+            skill_cat = fm.get("category") or category
+            skill_src = fm.get("source") or source
             skills.append(
                 SkillInfo(
                     name=fm.get("name", skill_dir.name),
                     description=fm.get("description", ""),
                     path=skill_dir,
-                    source=source,  # type: ignore[arg-type]
-                    category=category,  # type: ignore[arg-type]
+                    source=skill_src,  # type: ignore[arg-type]
+                    category=skill_cat,  # type: ignore[arg-type]
                     tags=fm.get("tags") or [],
                     version=str(fm.get("version", "")),
                     author=str(fm.get("author", "")),
@@ -121,7 +131,7 @@ def discover_all_skills(project_dir: Path) -> list[SkillInfo]:
     """Discover all skills in a project: bundled, custom, git/skillssh (from manifest)."""
     from importlib.resources import files as pkg_files
 
-    skills: list[SkillInfo] = []
+    skills_by_name: dict[str, SkillInfo] = {}
 
     # 1. Bundled skills shipped inside genai_tk package
     try:
@@ -129,18 +139,33 @@ def discover_all_skills(project_dir: Path) -> list[SkillInfo]:
         if bundled_root.is_dir():
             for sub in sorted(bundled_root.iterdir()):
                 if sub.is_dir():
-                    cat = _DIR_CATEGORY.get(sub.name, "project")
-                    skills.extend(discover_skills([sub], source="bundled", category=cat))
+                    cat = _DIR_CATEGORY.get(sub.name, sub.name)
+                    src = "vendor" if sub.name == "vendor" else "bundled"
+                    for s in discover_skills([sub], source=src, category=cat):
+                        skills_by_name[s.name] = s
     except Exception as exc:
         logger.debug("Could not locate bundled skills: {}", exc)
 
-    # 2. Project-local skills (custom + community)
+    # 2. Project-local skills (runtime, development, governance, vendor, custom, community, genai-tk, genai-graph)
     local_skills_root = project_dir / "skills"
-    for sub_name in ("custom", "community"):
-        sub = local_skills_root / sub_name
-        if sub.is_dir():
-            src = "skillssh" if sub_name == "community" else "custom"
-            skills.extend(discover_skills([sub], source=src, category="project"))
+    if local_skills_root.is_dir():
+        for sub in sorted(local_skills_root.iterdir()):
+            if not sub.is_dir():
+                continue
+            cat = _DIR_CATEGORY.get(sub.name, sub.name)
+            if sub.name == "community":
+                src = "skillssh"
+            elif sub.name == "vendor":
+                src = "vendor"
+            elif sub.name == "custom":
+                src = "custom"
+            else:
+                src = "bundled"
+            for s in discover_skills([sub], source=src, category=cat):
+                # Local skills take precedence / overwrite bundled entries
+                skills_by_name[s.name] = s
+
+    skills = list(skills_by_name.values())
 
     # 3. Manifest-tracked git/skillssh skills fill in the rest (already covered above,
     #    but we enrich with git_ref from the manifest).

@@ -142,9 +142,10 @@ async def test_mistral_ocr_converter_image_extraction(tmp_path: Path, monkeypatc
 
     md = await converter.convert(test_file)
 
-    # 1. Check API was called with include_image_base64=True
+    # 1. Check API was called with include_image_base64=True and default image_min_size=100
     fake_client.ocr.process.assert_called_once()
     assert fake_client.ocr.process.call_args.kwargs.get("include_image_base64") is True
+    assert fake_client.ocr.process.call_args.kwargs.get("image_min_size") == 100
 
     # 2. Check image was saved to images_dir with hash as name
     saved_files = list(images_dir.glob("*.jpeg")) + list(images_dir.glob("*.jpg"))

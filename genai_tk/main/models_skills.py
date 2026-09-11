@@ -14,9 +14,18 @@ class SkillInfo(BaseModel):
     name: str
     description: str = ""
     path: Path
-    source: Literal["bundled", "custom", "git", "skillssh"] = "custom"
-    # dev = for developers building with genai-tk; agent = runtime capabilities
-    category: Literal["dev", "agent", "project"] = "project"
+    source: Literal["bundled", "custom", "git", "skillssh", "vendor"] = "custom"
+    # runtime = solve user problems; development = improve/extend toolkit; governance = maintain consistency/quality; vendor = external/imported
+    category: Literal[
+        "runtime",
+        "development",
+        "governance",
+        "vendor",
+        "custom",
+        "dev",
+        "agent",
+        "project",
+    ] = "custom"
     tags: list[str] = Field(default_factory=list)
     version: str = ""
     author: str = ""
@@ -30,6 +39,8 @@ class SkillInfo(BaseModel):
     def display_source(self) -> str:
         if self.source == "bundled":
             return "[dim]bundled[/dim]"
+        if self.source == "vendor":
+            return "[yellow]vendor[/yellow]"
         if self.source == "git":
             ref = f"@{self.git_ref[:7]}" if self.git_ref else ""
             return f"[blue]git{ref}[/blue]"

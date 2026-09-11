@@ -177,9 +177,9 @@ plain `assert` replaces `self.assertEqual`; `pytest.raises` replaces `self.asser
 - See `docs/sandbox_support.md` for setup and `docs/browser_control.md` for the browser tooling
 
 ### Skills (SKILL.md)
-- One SKILL.md per domain — kept in `skills/custom/<name>/SKILL.md` (your project) or `skills/genai-tk/` (contributor skills)
+- One SKILL.md per domain — organized across 4 tiers in `skills/{runtime,development,governance,vendor,custom}/<name>/SKILL.md`
 - Skills are read by the agent on demand, not injected into every prompt
-- Use `cli skills list` to see all discovered skills; `cli skills validate --all` to check them
+- Use `cli skills list` to see all discovered skills across tiers; `cli skills validate --all` to check them
 - Install community skills: `cli skills add --skillssh langchain-ai/langchain-skills`
 - Create a new skill: `cli skills create <name>` (scaffolds skills.sh-format SKILL.md)
 - Keep site-specific selectors, commands, and domain details in the skill file, not in Python

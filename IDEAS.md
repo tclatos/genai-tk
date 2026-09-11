@@ -1,9 +1,5 @@
-# Image from Mistral
-- [x] Get the images extracted by Mistral OCR API from a PDF
-- [x] Calculate their xxhash32, and store in a directory given by config with this hash as name 
-- [x] In the generated Markdown, add a commentary close to the link to this image with its actual name based on the hash
 
-Status: Completed (implemented in `MistralOCRConverter` with `include_image_base64=True` and `images_dir`)
+
 
 ~/prj/ekg-atos ->   cli kg create one_rainbow 
 ~/prj/rfq_pricing -> cli docgraph build $ONEDRIVE/prj/RFQ_pricing/RFQ_zipped/Alko.zip 
