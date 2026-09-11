@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -286,6 +287,45 @@ async def test_mistral_ocr_converter_batch(tmp_path: Path, monkeypatch: pytest.M
     assert str(f1) in results
     assert str(f2) in results
     assert results[str(f1)] == "## Page 1\n\nContent 1"
+
+
+@pytest.mark.asyncio
+async def test_mistral_ocr_converter_image_min_size_custom(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    test_file = tmp_path / "sample.pdf"
+    test_file.write_bytes(b"%PDF-1.4 sample")
+
+    fake_page = MagicMock(index=0, markdown="# Page 1", images=[])
+    fake_response = MagicMock(pages=[fake_page])
+    fake_client = MagicMock()
+    fake_client.ocr.process.return_value = fake_response
+
+    converter = MistralOCRConverter(
+        api_key="fake-key",
+        include_image_base64=True,
+        image_min_size=250,
+    )
+    monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
+
+    await converter.convert(test_file)
+    assert fake_client.ocr.process.call_args.kwargs.get("image_min_size") == 250
+
+
+def test_mistral_ocr_converter_prepare_batch_request(tmp_path: Path) -> None:
+    test_file = tmp_path / "doc.pdf"
+    test_file.write_bytes(b"%PDF-1.4 sample")
+
+    converter = MistralOCRConverter(
+        api_key="fake-key",
+        include_image_base64=True,
+        image_min_size=120,
+    )
+    raw_json = converter._prepare_batch_request(test_file, 0)
+    data = json.loads(raw_json)
+
+    assert data["custom_id"] == "0"
+    assert data["body"]["model"] == "mistral-ocr-latest"
+    assert data["body"]["include_image_base64"] is True
+    assert data["body"]["image_min_size"] == 120
 
 
 @pytest.mark.asyncio
