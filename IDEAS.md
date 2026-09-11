@@ -1,34 +1,9 @@
-# DeepAgent bug ? 
+# Image from Mistral
+- [x] Get the images extracted by Mistral OCR API from a PDF
+- [x] Calculate their xxhash32, and store in a directory given by config with this hash as name 
+- [x] In the generated Markdown, add a commentary close to the link to this image with its actual name based on the hash
 
-CRITICAL PATCH APPLIED: deepagents middleware bug fixed (67 "Unreachable code" errors were caused
-    by raw tool outputs not being wrapped into ToolMessage; patch wraps them automatically).
-    The patch lives in /home/tcl/prj/officeqa/.venv/lib/python3.12/site-packages/deepagents/middleware/filesystem.py
-
-     Unreachable code reached in _aintercept_large_tool_result in the genai-tk middleware,
-     
-
-
-# Select LLM Provider
-
-LLM routers service now provide a feature to select the  LLM provider accoring to sme criteris, such as price, throughput, latency and precision.
-
-Implement such option in genai-tk, in 2 forms : 
-1/ in the LLM name, after a ':' in  the router name : for ex  glm5.3fast(low)@openrouter:speed
-2/ as parameter in the API factory
-
-We want to support first openrouter and edenai (might evolve later)
-
-https://openrouter.ai/docs/guides/routing/provider-selection 
-https://openrouter.ai/docs/guides/routing/auto-exacto
-
-https://www.edenai.co/docs/v3/llms/provider-routing#choosing-an-objective 
-
-Implement and test such feature.  Just write a warning if not supported by the provider.
-
-
-
-
-Status: 
+Status: Completed (implemented in `MistralOCRConverter` with `include_image_base64=True` and `images_dir`)
 
 ~/prj/ekg-atos ->   cli kg create one_rainbow 
 ~/prj/rfq_pricing -> cli docgraph build $ONEDRIVE/prj/RFQ_pricing/RFQ_zipped/Alko.zip 
@@ -55,7 +30,9 @@ cli doctree build ./RFQ.zip --db ./data/kg/tree.db --force graph
 
 
 # Pydantic
-Replace @dataclass  by pydantic object
+Replace @dataclass  by pydantic object.
+In Pydantic, avoid __init__ surcharge and use model_post_init()  insted (and/or @computed_field)
+
 
 # LLM prompt caching (provider-side)
 

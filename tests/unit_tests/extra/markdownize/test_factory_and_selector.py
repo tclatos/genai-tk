@@ -52,6 +52,16 @@ def test_converter_factory_builtin_names() -> None:
         assert isinstance(conv, DocumentConverter)
 
 
+def test_converter_factory_mistral_with_image_extraction() -> None:
+    conv = ConverterFactory.create(
+        "mistral_ocr",
+        include_image_base64=True,
+        images_dir="custom_images_dir",
+    )
+    assert getattr(conv, "include_image_base64", False) is True
+    assert getattr(conv, "images_dir", None) == "custom_images_dir"
+
+
 def test_converter_factory_unknown_raises() -> None:
     with pytest.raises(KeyError, match="Unknown document converter"):
         ConverterFactory.create("non_existent_converter_xyz")

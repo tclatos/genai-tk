@@ -28,7 +28,7 @@ from typing import Literal
 
 import xxhash
 
-HashAlgorithm = Literal["xxh3_64", "xxh3_128", "sha256", "md5"]
+HashAlgorithm = Literal["xxh32", "xxhash32", "xxh3_64", "xxh3_128", "sha256", "md5"]
 
 
 def _get_hasher(algorithm: HashAlgorithm):
@@ -40,7 +40,9 @@ def _get_hasher(algorithm: HashAlgorithm):
     Returns:
         A hasher instance (hashlib-compliant).
     """
-    if algorithm == "xxh3_64":
+    if algorithm in ("xxh32", "xxhash32"):
+        return xxhash.xxh32()
+    elif algorithm == "xxh3_64":
         return xxhash.xxh3_64()
     elif algorithm == "xxh3_128":
         return xxhash.xxh3_128()

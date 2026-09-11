@@ -89,6 +89,35 @@ async def test_mistral_ocr_single_and_batch_conversion(sample_pdf_path: Path) ->
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_mistral_ocr_with_image_extraction_real_pdf(tmp_path: Path) -> None:
+    """Test Mistral OCR image extraction on a sample PDF from internet when API key is available."""
+    api_key = os.environ.get("MISTRAL_API_KEY")
+    if not api_key:
+        pytest.skip("MISTRAL_API_KEY not found in environment")
+
+    pdf_url = "https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/tracemonkey.pdf"
+    pdf_path = tmp_path / "tracemonkey.pdf"
+    response = httpx.get(pdf_url, follow_redirects=True, timeout=30.0)
+    response.raise_for_status()
+    pdf_path.write_bytes(response.content)
+
+    images_dir = tmp_path / "extracted_images"
+    converter = MistralOCRConverter(
+        use_batch_api=False,
+        include_image_base64=True,
+        images_dir=images_dir,
+    )
+    text = await converter.convert(pdf_path)
+    assert len(text) > 100
+    saved_images = list(images_dir.glob("*.*"))
+    if saved_images:
+        for img_file in saved_images:
+            assert len(img_file.stem) == 8  # xxhash32 hex is 8 characters
+            assert f"<!-- Image: {img_file.name}" in text
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_llm_pdf_conversion(sample_pdf_path: Path) -> None:
     """Test LLM multimodal base64 PDF conversion if default LLM is configured."""
     try:

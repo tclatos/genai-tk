@@ -104,6 +104,168 @@ async def test_mistral_ocr_converter_single(tmp_path: Path, monkeypatch: pytest.
 
 
 @pytest.mark.asyncio
+async def test_mistral_ocr_converter_image_extraction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    test_file = tmp_path / "sample.pdf"
+    test_file.write_bytes(b"%PDF-1.4 sample with image")
+    images_dir = tmp_path / "extracted_images"
+
+    # Create dummy image bytes and calculate expected xxhash32
+    import base64
+
+    import xxhash
+
+    raw_image_bytes = (
+        b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00" + b"fake_jpeg_content_12345"
+    )
+    expected_hash = xxhash.xxh32(raw_image_bytes).hexdigest()
+    b64_image = base64.b64encode(raw_image_bytes).decode("utf-8")
+
+    fake_image = MagicMock()
+    fake_image.id = "img-0.jpeg"
+    fake_image.image_base64 = f"data:image/jpeg;base64,{b64_image}"
+
+    fake_page = MagicMock()
+    fake_page.index = 0
+    fake_page.markdown = "# Page with Chart\n\n![Figure 1](img-0.jpeg)\n\nSome explanation text."
+    fake_page.images = [fake_image]
+
+    fake_response = MagicMock(pages=[fake_page])
+    fake_client = MagicMock()
+    fake_client.ocr.process.return_value = fake_response
+
+    converter = MistralOCRConverter(
+        api_key="fake-key",
+        include_image_base64=True,
+        images_dir=images_dir,
+    )
+    monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
+
+    md = await converter.convert(test_file)
+
+    # 1. Check API was called with include_image_base64=True
+    fake_client.ocr.process.assert_called_once()
+    assert fake_client.ocr.process.call_args.kwargs.get("include_image_base64") is True
+
+    # 2. Check image was saved to images_dir with hash as name
+    saved_files = list(images_dir.glob("*.jpeg")) + list(images_dir.glob("*.jpg"))
+    assert len(saved_files) == 1
+    expected_filename = f"{expected_hash}.jpeg"
+    assert saved_files[0].name == expected_filename
+    assert saved_files[0].read_bytes() == raw_image_bytes
+
+    # 3. Check commentary is added close to the image link with actual hash name
+    expected_comment = f"<!-- Image: {expected_filename} (hash: {expected_hash}) -->"
+    assert expected_comment in md
+    assert f"![Figure 1]({images_dir}/{expected_filename})" in md
+
+
+@pytest.mark.asyncio
+async def test_mistral_ocr_converter_image_extraction_unreferenced_image(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test when Mistral extracts an image not explicitly linked in page markdown text."""
+    test_file = tmp_path / "sample.pdf"
+    test_file.write_bytes(b"%PDF-1.4 sample")
+    images_dir = tmp_path / "img_out"
+
+    import base64
+
+    import xxhash
+
+    raw_png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + b"dummy_png_bytes"
+    expected_hash = xxhash.xxh32(raw_png_bytes).hexdigest()
+    b64_image = base64.b64encode(raw_png_bytes).decode("utf-8")
+
+    fake_image = MagicMock()
+    fake_image.id = "diagram-1"
+    fake_image.image_base64 = f"data:image/png;base64,{b64_image}"
+
+    fake_page = MagicMock()
+    fake_page.index = 0
+    fake_page.markdown = "# Plain text page with no markdown image tag"
+    fake_page.images = [fake_image]
+
+    fake_response = MagicMock(pages=[fake_page])
+    fake_client = MagicMock()
+    fake_client.ocr.process.return_value = fake_response
+
+    converter = MistralOCRConverter(
+        api_key="fake-key",
+        include_image_base64=True,
+        images_dir=images_dir,
+    )
+    monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
+
+    md = await converter.convert(test_file)
+
+    saved_files = list(images_dir.glob("*.png"))
+    assert len(saved_files) == 1
+    assert saved_files[0].name == f"{expected_hash}.png"
+
+    expected_comment = f"<!-- Image: {expected_hash}.png (hash: {expected_hash}) -->"
+    assert expected_comment in md
+    assert f"![diagram-1]({images_dir}/{expected_hash}.png)" in md
+
+
+@pytest.mark.asyncio
+async def test_mistral_ocr_converter_online_pdf_download_and_extraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Download a simple PDF from Internet and test Mistral OCR image extraction pipeline."""
+    import base64
+
+    import httpx
+    import xxhash
+
+    # Download simple PDF from internet
+    pdf_url = "https://raw.githubusercontent.com/pdfminer/pdfminer.six/master/samples/simple1.pdf"
+    try:
+        resp = httpx.get(pdf_url, timeout=10.0)
+        resp.raise_for_status()
+        pdf_bytes = resp.content
+    except Exception:
+        pdf_bytes = b"%PDF-1.4 dummy online fallback"
+
+    pdf_file = tmp_path / "simple_online.pdf"
+    pdf_file.write_bytes(pdf_bytes)
+
+    # Simulated image in OCR response
+    sample_img_bytes = b"\xff\xd8\xff\xe0" + b"test_online_image_data"
+    img_hash = xxhash.xxh32(sample_img_bytes).hexdigest()
+    img_b64 = base64.b64encode(sample_img_bytes).decode("utf-8")
+
+    fake_image = MagicMock()
+    fake_image.id = "img-0.jpg"
+    fake_image.image_base64 = f"data:image/jpeg;base64,{img_b64}"
+
+    fake_page = MagicMock()
+    fake_page.index = 0
+    fake_page.markdown = "Introduction\n\n![Chart](img-0.jpg)\n\nConclusion"
+    fake_page.images = [fake_image]
+
+    fake_response = MagicMock(pages=[fake_page])
+    fake_client = MagicMock()
+    fake_client.ocr.process.return_value = fake_response
+
+    images_dir = tmp_path / "test_web_pdf_images"
+    converter = MistralOCRConverter(
+        api_key="fake-key",
+        include_image_base64=True,
+        images_dir=images_dir,
+    )
+    monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
+
+    md = await converter.convert(pdf_file)
+
+    saved_img = images_dir / f"{img_hash}.jpg"
+    assert saved_img.exists()
+    assert saved_img.read_bytes() == sample_img_bytes
+
+    assert f"<!-- Image: {img_hash}.jpg (hash: {img_hash}) -->" in md
+    assert f"![Chart]({images_dir}/{img_hash}.jpg)" in md
+
+
+@pytest.mark.asyncio
 async def test_mistral_ocr_converter_batch(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     f1 = tmp_path / "1.pdf"
     f2 = tmp_path / "2.pdf"

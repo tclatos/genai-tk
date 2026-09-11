@@ -7,9 +7,12 @@ import base64
 import json
 import mimetypes
 import os
+import re
 import tempfile
 from pathlib import Path
+from typing import Any
 
+import xxhash
 from loguru import logger
 from pydantic import Field
 
@@ -38,6 +41,12 @@ class MistralOCRConverter(DocumentConverter):
     use_batch_api: bool = Field(default=True, description="Whether to use the Mistral Batch API for batch conversions")
     poll_interval_seconds: float = Field(default=2.0, description="Polling interval in seconds for batch jobs")
     max_poll_attempts: int = Field(default=300, description="Maximum polling attempts for batch jobs")
+    include_image_base64: bool = Field(
+        default=False, description="Whether to extract images as base64 from Mistral OCR"
+    )
+    images_dir: Path | str | None = Field(
+        default=None, description="Directory to store extracted images named by xxhash32"
+    )
 
     def supported_extensions(self) -> set[str]:
         """Return file extensions supported by Mistral OCR."""
@@ -83,19 +92,120 @@ class MistralOCRConverter(DocumentConverter):
         client = self._get_client()
         document_url = self._document_data_url(path)
 
+        ocr_kwargs: dict[str, Any] = {}
+        if self.include_image_base64:
+            ocr_kwargs["include_image_base64"] = True
+
         ocr_response = client.ocr.process(
             model=self.model,
             document={"type": "document_url", "document_url": document_url},
+            **ocr_kwargs,
         )
         return self._format_ocr_pages(ocr_response.pages)
 
-    @staticmethod
-    def _format_ocr_pages(pages: list) -> str:
-        """Format Mistral OCR pages into a unified Markdown string."""
+    def _format_ocr_pages(self, pages: list) -> str:
+        """Format Mistral OCR pages into a unified Markdown string, optionally extracting images."""
         parts: list[str] = []
         for page in pages:
-            parts.append(f"## Page {page.index + 1}\n\n{page.markdown}\n\n")
+            page_index = getattr(page, "index", 0) if not isinstance(page, dict) else page.get("index", 0)
+            page_markdown = getattr(page, "markdown", "") if not isinstance(page, dict) else page.get("markdown", "")
+            page_images = getattr(page, "images", None) if not isinstance(page, dict) else page.get("images", None)
+
+            if self.include_image_base64 and page_images:
+                page_markdown = self._process_page_images(page_markdown, page_images)
+
+            parts.append(f"## Page {page_index + 1}\n\n{page_markdown}\n\n")
         return "".join(parts)
+
+    def _process_page_images(self, markdown: str, images: list) -> str:
+        """Extract base64 images, compute xxhash32, save to disk, and annotate markdown."""
+        target_dir = Path(self.images_dir) if self.images_dir else Path("images")
+
+        for img in images:
+            img_id = getattr(img, "id", "") if not isinstance(img, dict) else img.get("id", "")
+            img_b64 = getattr(img, "image_base64", None) if not isinstance(img, dict) else img.get("image_base64", None)
+
+            if not img_b64:
+                continue
+
+            b64_str = str(img_b64)
+            inferred_ext = ""
+            if b64_str.startswith("data:"):
+                header, sep, rest = b64_str.partition(",")
+                if sep:
+                    b64_str = rest
+                    if "image/jpeg" in header or "image/jpg" in header:
+                        inferred_ext = ".jpg"
+                    elif "image/png" in header:
+                        inferred_ext = ".png"
+                    elif "image/webp" in header:
+                        inferred_ext = ".webp"
+                    elif "image/gif" in header:
+                        inferred_ext = ".gif"
+
+            try:
+                raw_bytes = base64.b64decode(b64_str)
+            except Exception as exc:
+                logger.warning(f"Failed to decode base64 for image '{img_id}': {exc}")
+                continue
+
+            # Determine extension
+            ext = ""
+            if img_id:
+                suffix = Path(img_id).suffix.lower()
+                if suffix in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".bmp"):
+                    ext = suffix
+            if not ext:
+                if inferred_ext:
+                    ext = inferred_ext
+                elif raw_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+                    ext = ".png"
+                elif raw_bytes.startswith(b"\xff\xd8\xff"):
+                    ext = ".jpg"
+                elif raw_bytes.startswith((b"GIF87a", b"GIF89a")):
+                    ext = ".gif"
+                elif raw_bytes.startswith(b"RIFF") and len(raw_bytes) > 12 and raw_bytes[8:12] == b"WEBP":
+                    ext = ".webp"
+                else:
+                    ext = ".jpg"
+
+            img_hash = xxhash.xxh32(raw_bytes).hexdigest()
+            filename = f"{img_hash}{ext}"
+
+            try:
+                target_dir.mkdir(parents=True, exist_ok=True)
+                out_path = target_dir / filename
+                out_path.write_bytes(raw_bytes)
+                logger.debug(f"Saved extracted image '{img_id}' to {out_path} (xxhash32: {img_hash})")
+            except Exception as exc:
+                logger.error(f"Failed to save image {filename} to {target_dir}: {exc}")
+                continue
+
+            saved_target = str(target_dir / filename)
+            commentary = f"<!-- Image: {filename} (hash: {img_hash}) -->"
+
+            escaped_id = re.escape(img_id) if img_id else ""
+            id_stem = re.escape(Path(img_id).stem) if img_id else ""
+
+            replaced = False
+            if escaped_id:
+                pattern = re.compile(
+                    rf"!\[(?P<alt>.*?)\]\((?P<url>{escaped_id}|{id_stem})(?P<title>\s+[\"'].*?[\"'])?\)"
+                )
+
+                def _replace_match(match: re.Match, _comm: str = commentary, _target: str = saved_target) -> str:
+                    nonlocal replaced
+                    replaced = True
+                    alt = match.group("alt")
+                    title = match.group("title") or ""
+                    return f"{_comm}\n![{alt}]({_target}{title})"
+
+                markdown = pattern.sub(_replace_match, markdown)
+
+            if not replaced:
+                markdown = f"{markdown}\n\n{commentary}\n![{img_id or filename}]({saved_target})\n"
+
+        return markdown
 
     async def batch_convert(self, paths: list[Path]) -> dict[str, str]:
         """Convert a batch of files using Mistral Batch API when enabled."""
@@ -120,9 +230,15 @@ class MistralOCRConverter(DocumentConverter):
     def _prepare_batch_request(self, file_path: Path, index: int) -> str:
         """Prepare a single JSONL batch request line."""
         document_url = self._document_data_url(file_path)
+        body: dict[str, Any] = {
+            "model": self.model,
+            "document": {"type": "document_url", "document_url": document_url},
+        }
+        if self.include_image_base64:
+            body["include_image_base64"] = True
         request = {
             "custom_id": str(index),
-            "body": {"model": self.model, "document": {"type": "document_url", "document_url": document_url}},
+            "body": body,
         }
         return json.dumps(request)
 

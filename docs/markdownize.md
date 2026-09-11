@@ -39,10 +39,31 @@ The toolkit provides 7 document converter engines in `genai_tk.extra.markdownize
 | `markitdown` | Microsoft MarkItDown local parser | Office, PDF, HTML, CSV, JSON, images | Built-in |
 | `messy_xls` | Deterministic spreadsheet parser handling merged headers & multi-table sheets | `.xlsx`, `.xls`, `.ods` | Built-in (`openpyxl`) |
 | `edgeparse` | Local edgeparse PDF parser | `.pdf` | `edgeparse` |
-| `mistral_ocr` | Mistral AI Document OCR (single & batch API) | `.pdf`, Word, PPT, OpenDocument, images | `MISTRAL_API_KEY` |
+| `mistral_ocr` | Mistral AI Document OCR (single & batch API, base64 image extraction) | `.pdf`, Word, PPT, OpenDocument, images | `MISTRAL_API_KEY` |
 | `lighton_ocr` | LightOn AI Parse REST API (sync & async polling modes) | `.pdf`, Office, images, HTML | `LIGHTON_API_KEY` |
 | `anydoc` | Firecrawl anydoc Rust parser | Word, PPT, Excel, OpenDoc, RTF, EPUB, PDF | `firecrawl-anydoc` |
 | `llm` | LangChain LLM factory async batch multimodal transcription | Images, PDFs, text, code, HTML | Provider API key |
+
+### Mistral OCR Image Extraction
+
+`MistralOCRConverter` supports extracting embedded images from documents via Mistral's OCR API:
+- `include_image_base64: true` requests base64 encoded images from Mistral OCR.
+- Images are decoded and hashed with **xxhash32** (`xxh32`), and saved to `images_dir` (e.g. `images/{hash}{ext}`).
+- In the generated Markdown, an HTML commentary `<!-- Image: {filename} (hash: {hash}) -->` is added adjacent to the image reference, and the link target is updated to the saved file path.
+
+Example configuration in `config/markdownize.yaml`:
+
+```yaml
+markdownize_converters:
+  mistral_ocr:
+    class: genai_tk.extra.markdownize.mistral_ocr_converter.MistralOCRConverter
+    params:
+      model: mistral-ocr-latest
+      batch_size: 100
+      use_batch_api: true
+      include_image_base64: true
+      images_dir: data/extracted_images
+```
 
 ## Profiles
 

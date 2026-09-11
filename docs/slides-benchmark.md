@@ -584,7 +584,7 @@ layout: atos-two-cols
 
 - **3. Sovereign, Cost-Efficient AI Differentiation**
   - Near-SOTA accuracy achieved with lightweight, cost-effective models.
-  - Less than €100 total evaluation cost, deployable on sovereign on-premise or cloud infrastructure.
+
 
 ::right::
 
@@ -612,11 +612,55 @@ The strategic value of this approach lies in creating a unified enterprise memor
 -->
 
 ---
+layout: atos-two-cols
+---
+
+<template v-slot:header>
+
+# 12. Next Steps & Strategic Roadmap
+## Priorities for expanding multimodal capabilities, enterprise EKG, and self-learning
+
+</template>
+
+::left::
+
+- **Multimodal & Visual Understanding**
+  - Ingest and reason over documents with complex diagrams, schematics, and charts.
+  - Visual-aware section hierarchy and layout preservation.
+
+- **Kortex EKG Integration**
+  - Connection with Kortex EKG schema-driven entity and relationship extraction.
+  - Bridge document-level hierarchical graphs with enterprise ontologies.
+
+- **Granular Access Control**
+  - Document- and section-level role-based access control (RBAC).
+  - Secure multi-tenant querying and compliance-driven redaction.
+
+::right::
+
+- **Automated Benchmarks & Self-Learning Loop**
+  - Automated evaluation harness with forensic trajectory diagnostics.
+  - Continuous feedback loop to progressively optimize agent prompts and tools.
+
+- **Expanded Benchmark Suite**
+  - Extend evaluations to new complex domains (technical RFQs, contracts, legal, medical).
+  - Cross-lingual and multi-jurisdiction corpora.
+
+- **Vibe Coding for Document-Centric AI**
+  - Modular skills and templates for fast vibe coding of custom document agents.
+  - Reusable agent components and scaffolds for rapid enterprise delivery.
+
+<!--
+Our roadmap focuses on expanding multimodal capabilities for diagrams, connecting with Kortex EKG for schema-driven entity extraction, enforcing granular access control, and expanding our automated benchmarking and self-learning loops.
+-->
+
+---
 layout: atos-section
 ---
 
 # Questions & Technical Discussion
 ## Thank you for your attention
+::left::
 
 - **DocGraph & Benchmark Engine:** `genai_graph.kg` & `genai_graph.bench`
 - **Framework Architecture Guide:** `docs/benchmark_framework.md`

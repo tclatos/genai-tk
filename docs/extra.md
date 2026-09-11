@@ -183,15 +183,16 @@ for doc in documents:
     print(f"Tags: {doc.metadata.get('tags')}")
 ```
 
-### OCR Loader (`mistral_ocr.py`)
+### OCR Loader (`mistral_ocr.py`) and Converter (`mistral_ocr_converter.py`)
 
-Extract text from images and PDFs using Mistral's OCR service.
+Extract text and images from documents and PDFs using Mistral's OCR service.
 
 **Features:**
 - Image-to-text conversion
 - PDF text extraction
 - Handwriting recognition
 - Table structure preservation
+- Embedded image extraction with xxhash32 deduplication and Markdown commentary links (`include_image_base64: true`, `images_dir: images`)
 
 **Configuration:**
 ```yaml

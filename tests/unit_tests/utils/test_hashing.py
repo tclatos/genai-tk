@@ -13,6 +13,11 @@ class TestBufferDigest:
         assert isinstance(result, str)
         assert len(result) > 0
 
+    def test_xxh32_algorithm(self) -> None:
+        result = buffer_digest(b"hello", algorithm="xxh32")
+        assert isinstance(result, str)
+        assert len(result) == 8  # xxhash32 hex = 8 chars
+
     def test_xxh3_64_algorithm(self) -> None:
         result = buffer_digest(b"hello", algorithm="xxh3_64")
         assert isinstance(result, str)
