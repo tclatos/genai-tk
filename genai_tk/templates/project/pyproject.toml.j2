@@ -18,7 +18,7 @@ dependencies = [
 {% if with_graph and graph_path %}
 genai_graph = { path = "{{ graph_path }}", editable = true }
 {% endif %}
-genai-tk = { git = "https://github.com/tclatos/genai-tk", branch = "main" }
+genai-tk = { git = "https://github.com/tclatos/genai-tk", rev = "main" }
 
 # Forward genai-tk optional extras — install with: uv sync --extra <name>
 [project.optional-dependencies]
