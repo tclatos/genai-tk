@@ -1,66 +1,147 @@
-# use @Once for Singletons
-in genai_tk/utils/nemo_relay_setup.py, genai_tk/utils/ladybug/shared.py, genai_graph/kg/ingest/merge.py, 
-
 # GenAI Toolkit (`genai-tk`)
 
-A toolkit for building Gen AI and Agentic applications with LangChain, LangGraph, and 100+ LLM providers.
+A comprehensive framework and developer toolkit for building enterprise GenAI, GraphRAG, and Autonomous Agentic applications with LangChain, DeepAgents, DeerFlow, Prefect, and 100+ LLM providers.
 
-See also the [great DeepWiki generated documentation](https://deepwiki.com/tclatos/genai-tk).
-
-## Three Domains
-
-The toolkit is organized around three complementary domains:
-
-### 🧠 **Core GenAI**
-Build intelligent applications with multi-provider LLM/embeddings support and state management.
-- Multi-provider LLM and embeddings factory (OpenAI, Groq, Anthropic, Ollama, local, …)
-- Vector stores: Chroma, PgVector, in-memory
-- LLM caching, prompt templates, structured output
-- See: `cli core llm`, `cli info models`, [docs/core.md](docs/core.md)
-
-### 🔤 **NLP**
-Centralized spaCy and NLP functionality for PII detection, anonymization, BM25 preprocessing, and text classification.
-- PII detection with [Presidio](https://microsoft.github.io/presidio/) + spaCy (English, French, and more)
-- Reversible anonymization with Faker — shared by agent middleware and Prefect ETL flows
-- Configurable sensitivity scoring (regex + keywords + Presidio + heuristics)
-- BM25 lemmatization preprocessing, multi-language model management
-- See: [docs/nlp.md](docs/nlp.md), [docs/middleware-pii-and-routing.md](docs/middleware-pii-and-routing.md)
-
-### 🤖 **Agents**
-Three agent frameworks (ReAct, Deep, DeerFlow) sharing YAML profiles, LLM factory, tools, and Docker sandbox — unified behind a shared harness layer (`agents.harness`) for CLI and UI.
-- **ReAct** — standard Thought → Action → Observation loop (LangChain)
-- **Deep agent** — multi-step planning + subagent delegation (LangChain / DeepAgents SDK)
-- **DeerFlow** — native web research, multi-agent orchestration (LangGraph / ByteDance)
-- **Harness layer** — one `BaseHarness` interface + one event model across LangChain and DeerFlow; `cli agents run`/`cli agents list` work across both
-- **Skills system** — `SKILL.md` domain-knowledge files loaded on demand; managed with `cli skills`
-- Docker sandbox — isolated execution, browser automation
-- MCP servers — protocol-standard tool integration
-- See: `cli agents`, [docs/agents.md](docs/agents.md), [AGENTS.md](AGENTS.md)
-
-### ⚙️ **Workflows**
-Orchestrate multi-step AI pipelines with Prefect and a YAML DSL for composable, reusable workflows.
-- **Workflow DSL** — YAML-configured steps, dependencies, and sub-workflows (no Python needed)
-- **Prefect server** — explicit local server managed via `cli prefect start/stop/status`; auto-starts before workflow runs
-- **Document pipelines** — markdownize, OCR, PDF extraction, chunking
-- **RAG pipeline** — full retrieval pipeline with BM25 + dense hybrid search
-- **Structured extraction** — BAML-based extraction with type-safe output
-- See: `cli workflow`, `cli prefect`, [docs/workflows.md](docs/workflows.md), [docs/prefect.md](docs/prefect.md)
-
-### 📊 **Monitoring & Observability**
-Built-in tracing for all LLM calls, agents, and workflows across multiple observability backends.
-- **Trajectory store (ATOF / NeMo Relay)** — local, structured, agent-readable record of every Deep Agents run (scope tree, tool args/results, skill loads, token usage); inspect with `cli trajectory`
-- **Multi-backend support** — LangSmith, LangFuse (cloud or self-hosted), OpenTelemetry, local JSONL
-- **State management** — `.genai_tk` file tracks which backends are active
-- **Trace URL opening** — `cli monitoring open --trace` fetches and opens the latest trace in your browser
-- **JSONL logging** — local file-based trace log (always on, no external service required)
-- Docker service control — `just langfuse-server-start/stop` for self-hosted LangFuse
-- See: `cli monitoring`, `cli trajectory`, [docs/monitoring.md](docs/monitoring.md), [docs/trajectory.md](docs/trajectory.md)
+See also the [DeepWiki generated documentation](https://deepwiki.com/tclatos/genai-tk).
 
 ---
 
-**What it gives you:**
-- YAML-configured profiles — swap models, tools, MCP servers, and sandboxes without code changes
-- Rich CLI that mirrors every capability; easily extensible with one class + one YAML line
+## Core Domains & Pillars
+
+The toolkit is organized around complementary, composable domains:
+
+```mermaid
+flowchart TD
+    subgraph Core["1. Core & Extraction"]
+        LLM["Multi-Provider LLM & Embeddings Factory<br/>(OpenAI, Anthropic, Mistral, Groq, Ollama, ...)"]
+        BAML["BAML Structured Data Extraction"]
+        NLP["NLP & Presidio PII Anonymization"]
+        VEC["Vector Stores (Chroma, PgVector, ZVec)"]
+    end
+
+    subgraph Orchestration["2. Workflows & Pipelines"]
+        PREF["Prefect Task & Flow Orchestration"]
+        DSL["YAML Task DSL & Pipeline Profiles"]
+        DOC["Document OCR & Markdownize Ladder"]
+        RAG["BM25 + Dense Hybrid RAG Pipelines"]
+    end
+
+    subgraph Agentic["3. Autonomous Agents & Harness"]
+        HARNESS["Unified BaseHarness Event Layer"]
+        REACT["ReAct Agents (LangChain)"]
+        DEEP["Deep Planning Agents (DeepAgents SDK)"]
+        DEER["Deep Research Agents (DeerFlow)"]
+        SKILLS["4-Tier Skills Architecture (skills.sh)"]
+        SANDBOX["OpenSandbox Docker & Playwright Browser"]
+    end
+
+    subgraph Observability["4. Evaluation & Observability"]
+        BENCH["Unified Benchmark Framework (cli bench)"]
+        TRAJ["Trajectory Store (ATOF / NeMo Relay)"]
+        MON["LangFuse, LangSmith, OTel Tracing"]
+    end
+
+    Core --> Orchestration
+    Core --> Agentic
+    Orchestration --> BENCH
+    Agentic --> BENCH
+    Agentic --> Observability
+```
+
+### 🧠 **Core GenAI**
+Build intelligent applications with multi-provider LLM/embeddings support, prompt engineering, and state management.
+- Multi-provider LLM and embeddings factory (OpenAI, Groq, Anthropic, Mistral, Ollama, OpenRouter, local, …)
+- Vector stores: ChromaDB, PostgreSQL (PgVector), in-memory, ZVec
+- LLM response caching (SQLite, Redis, in-memory), structured outputs, prompt management
+- See: `cli core llm`, `cli info models`, [docs/core.md](docs/core.md)
+
+### 🔤 **NLP & Privacy**
+Centralized spaCy and NLP functionality for PII detection, reversible anonymization, BM25 preprocessing, and text classification.
+- PII detection with [Microsoft Presidio](https://microsoft.github.io/presidio/) + spaCy (English, French, and custom recognizers)
+- Reversible anonymization with Faker — shared by agent middleware and ETL flows
+- Configurable sensitivity scoring (regex + keywords + Presidio + heuristics)
+- See: [docs/nlp.md](docs/nlp.md), [docs/middleware-pii-and-routing.md](docs/middleware-pii-and-routing.md)
+
+### 🤖 **Agents & Harness**
+Three agent frameworks (ReAct, DeepAgents, DeerFlow) sharing YAML profiles, LLM factory, tools, and Docker sandbox — unified behind a shared harness layer (`agents.harness`) for CLI and UI.
+- **ReAct** — standard Thought → Action → Observation loop (LangChain)
+- **Deep agent** — multi-step planning + subagent delegation (DeepAgents SDK)
+- **DeerFlow** — native web research, multi-agent orchestration (LangGraph / ByteDance)
+- **Shared harness layer** — one `BaseHarness` interface and event model across LangChain and DeerFlow; `cli agents run` works seamlessly across both
+- **4-Tier Skills system** — progressive disclosure of domain knowledge via `SKILL.md` files; managed with `cli skills`
+- **Docker sandbox & browser control** — isolated code execution and Playwright automation
+- **MCP servers** — Model Context Protocol tool integrations
+- See: `cli agents`, [docs/agents.md](docs/agents.md), [AGENTS.md](AGENTS.md)
+
+### ⚙️ **Workflows & Document Processing**
+Orchestrate multi-step AI pipelines with Prefect and a YAML DSL for composable, reproducible workflows.
+- **Workflow DSL** — YAML-configured steps, dependencies, and sub-workflows (no boilerplate Python needed)
+- **Document Pipeline** — Markdownize OCR ladder (Mistral OCR → Docling → MarkItDown), chunking (Chonkie)
+- **RAG pipeline** — full retrieval pipeline with BM25 + dense hybrid search and cross-encoder rerankers
+- **Structured extraction** — BAML-based extraction with compile-time type-safe schemas and streaming
+- See: `cli workflow`, `cli prefect`, [docs/workflows.md](docs/workflows.md), [docs/prefect.md](docs/prefect.md), [docs/baml.md](docs/baml.md)
+
+### 📊 **Monitoring, Trajectory & Evaluation**
+Built-in tracing for all LLM calls, agents, and benchmark evaluations across observability backends.
+- **Trajectory store (ATOF / NeMo Relay)** — local, structured, agent-readable record of every Deep Agents run (scope tree, tool args/results, skill loads, token usage); inspect with `cli trajectory`
+- **Multi-backend tracing** — LangSmith, LangFuse (cloud or self-hosted Docker), OpenTelemetry, and local JSONL logs
+- **Unified Benchmark Framework** — dataset-agnostic pipeline (`cli bench`) for evaluating agents against ground-truth benchmarks
+- See: `cli monitoring`, `cli trajectory`, `cli bench`, [docs/monitoring.md](docs/monitoring.md), [docs/benchmark_framework.md](docs/benchmark_framework.md)
+
+---
+
+## 4-Tier Skills Architecture
+
+Skills provide agents with **procedural knowledge on demand** using the [skills.sh](https://www.skills.sh) standard. Skills are organized into four distinct tiers:
+
+1. **`skills/runtime/`** (*Solve user problems*): Capabilities invoked by agents during runs (e.g. `browser-automation`, `codeact`, `ppt-generation`, `query-writing`, `schema-exploration`).
+2. **`skills/development/`** (*Improve & extend the toolkit*): Recipes and guides for developers (e.g. `benchmark-framework`, `agent-profiles`, `add-tool`, `add-skill`, `cli-and-scaffolding`, `rag-systems`, `workflow-engine`, `baml-structured-extraction`).
+3. **`skills/governance/`** (*Maintain consistency, quality & security*): Standards, test guidelines, and audits (e.g. `evaluation-testing`, `repo-map`, `pii-anonymization`, `code-review-excellence`).
+4. **`skills/vendor/`** (*Imported third-party packages*): External skills managed without direct edits (e.g. `atos-slidev`).
+
+Manage skills with:
+```bash
+uv run cli skills list                              # list all discovered skills across tiers
+uv run cli skills list --category runtime           # filter by tier
+uv run cli skills validate --all                    # lint and validate all SKILL.md files
+uv run cli skills create my-skill                   # scaffold a new skill
+uv run cli skills add <name>                        # install a bundled skill
+uv run cli skills add --skillssh owner/repo         # install from skills.sh registry
+```
+
+---
+
+## Project Scaffolding (`cli init`)
+
+Bootstrap production-ready GenAI and Benchmark applications in seconds:
+
+```bash
+# 1. Initialize a new directory
+mkdir my-ai-app && cd my-ai-app
+uv init
+uv add "genai-tk @ git+https://github.com/tclatos/genai-tk@main"
+
+# 2. Scaffold a standard agent application
+uv run cli init --name "My Agent App"
+
+# 3. Or scaffold a Knowledge Graph / Benchmark application (with genai-graph)
+uv run cli init --name "My Benchmark Suite" --with-graph --graph-path ../genai-graph
+
+# Optional: install extras during init
+uv run cli init --extra harnessing --extra browser
+
+# 4. Sync dependencies and run
+uv sync
+just run                                            # start agent chat
+```
+
+Scaffolding automatically sets up:
+- Complete `config/` tree (`app_conf.yaml`, `agents.yaml`, `providers/`, `bench.yaml`)
+- Typed Python package with commands, tools, webapp demo pages, and starter benchmark adapter
+- Merged 4-tier `skills/` from `genai-tk` and `genai-graph`
+- Developer tooling: `justfile`, `AGENTS.md`, `docs/SKILLS.md`, `docs/EXTENDING.md`, `.github/copilot-instructions.md`
+
+See [docs/scaffolding.md](docs/scaffolding.md) for full scaffolding options.
 
 ---
 
