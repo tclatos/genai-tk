@@ -47,6 +47,11 @@ embeddings:
         - local: BAAI/bge-small-en-v1.5
       dimension: 384
 
+    - model_id: nova_multimodal
+      providers:
+        - edenai: amazon/amazon.nova-2-multimodal-embeddings-v1
+      dimension: 1024
+
     # - model_id: mistral
     #   providers:
     #     - edenai: mistral/mistral-embed

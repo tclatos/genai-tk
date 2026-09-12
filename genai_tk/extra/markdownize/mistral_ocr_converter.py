@@ -10,7 +10,7 @@ import os
 import re
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from loguru import logger
 from pydantic import Field
@@ -50,6 +50,9 @@ class MistralOCRConverter(DocumentConverter):
     )
     images_dir: Path | str | None = Field(
         default=None, description="Directory to store extracted images named by xxhash32"
+    )
+    table_format: Literal["markdown", "html"] | None = Field(
+        default=None, description="Table format for Mistral OCR ('markdown' or 'html')"
     )
 
     def supported_extensions(self) -> set[str]:
@@ -101,6 +104,8 @@ class MistralOCRConverter(DocumentConverter):
             ocr_kwargs["include_image_base64"] = True
         if self.image_min_size is not None:
             ocr_kwargs["image_min_size"] = self.image_min_size
+        if self.table_format is not None:
+            ocr_kwargs["table_format"] = self.table_format
 
         ocr_response = client.ocr.process(
             model=self.model,
@@ -244,6 +249,8 @@ class MistralOCRConverter(DocumentConverter):
             body["include_image_base64"] = True
         if self.image_min_size is not None:
             body["image_min_size"] = self.image_min_size
+        if self.table_format is not None:
+            body["table_format"] = self.table_format
         request = {
             "custom_id": str(index),
             "body": body,
