@@ -300,10 +300,6 @@ def test_get_function_parameters_no_args() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_create_baml_options_default_returns_none() -> None:
-    assert baml.create_baml_options("default") is None
-
-
 def test_create_baml_options_none_returns_none() -> None:
     assert baml.create_baml_options(None) is None
 

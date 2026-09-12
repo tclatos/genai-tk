@@ -262,16 +262,16 @@ def load_and_validate_baml_function(
     return baml_function, return_type, baml_types, baml_async_client
 
 
-def create_baml_options(llm: str = "default") -> dict[str, Any] | None:
+def create_baml_options(llm: str | None = "default") -> dict[str, Any] | None:
     """Create BAML options dict with client registry for the specified LLM.
 
     Args:
-        llm: LLM identifier (use "default" to keep configured client defaults)
+        llm: LLM identifier (resolves configured default when "default", or None to keep raw client defaults)
 
     Returns:
         Dict with client_registry or None if no LLM specified
     """
-    if llm and llm != "default":
+    if llm is not None:
         return {"client_registry": create_baml_client_registry(llm)}
     return None
 
