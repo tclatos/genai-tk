@@ -9,6 +9,8 @@ import mimetypes
 import os
 import re
 import tempfile
+import threading
+import time
 from pathlib import Path
 from typing import Any, Literal
 
@@ -32,10 +34,28 @@ _MISTRAL_SUPPORTED_EXTENSIONS = {
 }
 
 
+_ocr_request_lock = threading.Lock()
+_ocr_next_start = 0.0
+
+
+def _pace_request_start(min_interval: float) -> None:
+    """Space OCR API request starts at least min_interval seconds apart across threads."""
+    global _ocr_next_start
+    with _ocr_request_lock:
+        delay = _ocr_next_start - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
+        _ocr_next_start = time.monotonic() + min_interval
+
+
 class MistralOCRConverter(DocumentConverter):
     """Document converter using Mistral's OCR and Batch APIs."""
 
     api_key: str | None = Field(default=None, description="Mistral API key (defaults to MISTRAL_API_KEY env var)")
+    min_request_interval_seconds: float = Field(
+        default=1.0,
+        description="Minimum spacing between OCR API request starts across threads to avoid rate limits",
+    )
     model: str = Field(default="mistral-ocr-latest", description="Mistral OCR model name")
     batch_size: int = Field(default=100, description="Maximum files per batch API request")
     use_batch_api: bool = Field(default=True, description="Whether to use the Mistral Batch API for batch conversions")
@@ -96,6 +116,7 @@ class MistralOCRConverter(DocumentConverter):
 
     def _sync_convert_single(self, path: Path) -> str:
         """Execute single-file Mistral OCR synchronously."""
+        _pace_request_start(self.min_request_interval_seconds)
         client = self._get_client()
         document_url = self._document_data_url(path)
 

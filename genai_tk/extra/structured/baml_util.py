@@ -6,6 +6,7 @@ including dynamic loading, type inspection, and validation.
 
 import importlib
 import inspect
+import os
 import re
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -20,6 +21,7 @@ try:
 except ModuleNotFoundError:
     baml_lib = None  # type: ignore[assignment]  # baml_lib removed in baml-py >= 0.100
 from baml_py import ClientRegistry  # noqa: E402
+from baml_py.logging import set_log_level  # noqa: E402
 from loguru import logger  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
@@ -49,6 +51,12 @@ _DEFAULT_BAML_HTTP_OPTIONS = {
 }
 
 _BAML_RUNTIME_CLIENT_NAME = "runtime_llm_override"
+
+# BAML logs every LLM call at WARN level, dumping the full prompt. Keep BAML
+# quiet unless the developer explicitly opts into verbose BAML logging via
+# BAML_LOG (debug/info/trace).
+if os.environ.get("BAML_LOG", "").lower() not in {"debug", "info", "trace"}:
+    set_log_level("ERROR")
 
 
 def _parse_baml_versions(err_msg: str) -> tuple[str | None, str | None]:
