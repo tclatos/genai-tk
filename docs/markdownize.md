@@ -44,13 +44,22 @@ The toolkit provides 7 document converter engines in `genai_tk.extra.markdownize
 | `anydoc` | Firecrawl anydoc Rust parser | Word, PPT, Excel, OpenDoc, RTF, EPUB, PDF | `firecrawl-anydoc` |
 | `llm` | LangChain LLM factory async batch multimodal transcription | Images, PDFs, text, code, HTML | Provider API key |
 
-### Mistral OCR Image Extraction
+### Mistral OCR Image Extraction & Description
 
 `MistralOCRConverter` supports extracting embedded images from documents via Mistral's OCR API:
 - `include_image_base64: true` requests base64 encoded images from Mistral OCR.
 - `image_min_size: 100` filters out small logos, icons, and decorative elements (default: `100` pixels minimum height and width).
 - Images are decoded and hashed with **xxhash32** (`xxh32`), and saved to `images_dir` (e.g. `images/{hash}{ext}`).
 - In the generated Markdown, an HTML commentary `<!-- Image: {filename} (hash: {hash}) -->` is added adjacent to the image reference, and the link target is updated to the saved file path.
+- **Uncaptioned Image Description (`genai_tk.extra.markdownize.image_describer`)**: Uncaptioned images ($>10\text{ KB}$) can be automatically described with a VLM (extracting chart legends, axes, and numerical values). Descriptions are cached content-addressed in a KV-store / sidecar cache (`ImageDescriptionCache`) so re-runs never repeat expensive VLM calls.
+
+### Lossless HTML Table Processing
+
+`genai_tk.extra.markdownize.table_processor` processes HTML tables produced by OCR engines or Web conversions:
+- **`is_markdown_table(html)`**: Checks whether an HTML table can be converted to standard Markdown without loss of layout or semantic information (i.e. no `colspan`, `rowspan`, or nested tables).
+- **`convert_html_table(html)`**: Losslessly converts simple HTML tables to standard Markdown tables (`markdownify`), stripping redundant links and saving substantial LLM prompt tokens.
+- **Complex Tables**: Tables with merged cells or nested hierarchies are preserved in clean HTML, annotated with dimensional comments `<!-- Table: {rows}x{cols} -->`, while noisy anchor tags and unwanted formatting are stripped.
+- **`process_markdown_tables(text)`**: Scans entire Markdown documents and processes all embedded HTML `<table>...</table>` blocks automatically.
 
 Example configuration in `config/markdownize.yaml`:
 

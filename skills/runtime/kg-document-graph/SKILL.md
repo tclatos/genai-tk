@@ -24,14 +24,19 @@ every entity-extraction factory attaches to, and a substrate for agentic RAG whe
 walks a document's table of contents and reads section text directly (no embeddings).
 
 ```
-Folder ──CONTAINS──▶ Document ──HAS_SECTION──▶ MarkdownSection ──HAS_SUBSECTION──▶ MarkdownSection ──…
+Folder ──CONTAINS──▶ Document ──HAS_SECTION──▶ MarkdownSection ──HAS_SUBSECTION──▶ MarkdownSection
+                                                     │
+                                                 HAS_CHUNK
+                                                     ▼
+                                                SectionChunk
 ```
 
 | Node | Key | Notes |
 |---|---|---|
 | `Folder` | `folder_id` | A directory, `.zip` archive, or a single file's parent. |
-| `Document` | `content_hash` (xxHash of raw bytes) | Provenance anchor; carries `filename`, `relative_path`, `path`, `mime_type`, `markdown_hash`, `token_count`, `section_count`. |
-| `MarkdownSection` | `section_id` = `{markdown_hash}::{sequence}` | One heading-delimited section (heading + body up to the next heading). A synthetic level-0 root section captures heading-less documents/preambles. |
+| `Document` | `content_hash` (xxHash of raw bytes) | Provenance anchor; carries `filename`, `relative_path`, `path`, `mime_type`, `markdown_hash`, `token_count`, `section_count`, plus `description` and `summary`. |
+| `MarkdownSection` | `section_id` = `{markdown_hash}::{sequence}` | One heading-delimited section (heading + body up to the next heading). Carries `description`, `summary`, and `keywords` (3–7 search terms). |
+| `SectionChunk` | `chunk_id` = `{section_id}::{chunk_index}` | Optional chunk node created when `retrieval.embeddings_id` is configured (~1500 tokens). |
 
 Sections form a flat table with `parent_section_id`; the hierarchy is materialized as
 `HAS_SUBSECTION` edges. A section's `text` is its own content only (non-overlapping), so
@@ -43,8 +48,9 @@ re-ingesting unchanged files is a no-op MERGE. When an entity factory
 `Document` node for the same file, it MERGEs into the *same* node — provenance and extracted
 entities share one graph node.
 
-There are **no `Chunk` nodes** — no chunking or embeddings. Chunking/embedding RAG is a
-separate path (`DocumentDirectoryFactory` as a base for custom pipelines).
+**Tables & Images:** Embedded directly in section markdown. Large tables (>30 lines) are
+condensed during outline generation. Uncaptioned images (>10KB) are described via VLM and cached.
+Visual reasoning uses the `query_image` tool (max 3 calls).
 
 ## Factories
 
@@ -101,23 +107,22 @@ the CLI, an agent's tools, and the Textual TUI:
 ```python
 from genai_graph.kg.query.document_graph_tools import (
     list_documents,
+    get_folder_toc,
     get_document_toc,
     get_section_content,
-    reconstruct_document,
-    reconstruct_section,
     search_sections,
+    query_image,
     create_document_graph_tools,
 )
 ```
 
 Documents are addressed by content hash (full or prefix), `markdown_hash`, filename, or
-source path. `create_document_graph_tools(db_path)` wraps these as LangChain `BaseTool`s:
-`list_documents`, `get_document_toc`, `get_section_content`, `search_sections`. Wire them
+source path. `create_document_graph_tools(db_path, max_image_queries=3)` wraps these as LangChain `BaseTool`s:
+`get_folder_toc`, `get_document_toc`, `get_section_content`, `search_sections`, `query_image`. Wire them
 into an agent profile (see `kg-query` and `genai-tk/add-tool`).
 
-The agentic RAG loop: `list_documents` → `get_document_toc` (the map) →
-`get_section_content` (only the sections worth reading) → answer. No embeddings, no chunk
-retrieval — the agent reads exactly the section text it navigated to.
+The agentic RAG loop: `get_folder_toc` → `get_document_toc` (the map with descriptions and keywords) →
+`get_section_content` (only the sections worth reading) → `query_image` (if visual confirmation needed, max 3) → answer.
 
 ## CLI
 

@@ -80,9 +80,9 @@ uv run cli bench questions -p mistral_glm -t --trajectory             # TUI with
 ```
 
 1. **Fetch**: Retrieves questions from HuggingFace, CSV, or local files; caches raw PDFs.
-2. **Markdownize**: Converts documents using profile-configured strategy (`fast`, `medium`, `best`). For multimodal decks and papers, `MistralOCRConverter` extracts images with xxHash32 hex names into `images_dir` and inserts markdown comments `<--embed-workers and now creates the FTS index by Image: ... -->`.
-3. **Build Graph**: Parses markdown into `Folder ──CONTAINS──▶ Document ──HAS_SECTION──▶ MarkdownSection ──HAS_IMAGE──▶ Image` inside Ladybug DB.
-4. **Run Agent**: Dispatches questions to the agent harness with graph tools (`get_folder_toc`, `get_document_toc`, `get_section_content`, `search_sections`, `search_images`, `query_image`). Records tool calls, thinking traces, and token usage into `runs.jsonl`.
+2. **Markdownize**: Converts documents using profile-configured strategy (`fast`, `medium`, `best`). For multimodal documents, `MistralOCRConverter` extracts images with xxHash32 hex names into `images_dir`, detects and converts lossless HTML tables (`table_processor.py`), and describes uncaptioned images via VLM with KV-store caching (`image_describer.py`).
+3. **Build Graph**: Parses markdown into `Folder ──CONTAINS──▶ Document ──HAS_SECTION──▶ MarkdownSection (──HAS_CHUNK──▶ SectionChunk)` inside Ladybug DB, extracting section `keywords` via BAML and truncating large tables (>30 lines) in prompt context.
+4. **Run Agent**: Dispatches questions to the agent harness with graph tools (`get_folder_toc`, `get_document_toc`, `get_section_content`, `search_sections`, `query_image`). Records tool calls, thinking traces, and token usage into `runs.jsonl`.
 5. **Judge**: Evaluates outputs against `gold_answer` and `evidence` using domain rubrics, outputting `scores.jsonl`.
 6. **Aggregate**: Generates `scores_summary.json` with accuracy tiers, numeric match rates, groundedness rates, and failure taxonomy.
 
@@ -94,15 +94,11 @@ For document understanding benchmarks requiring visual chart, diagram, or line p
 
 1. **OCR Configuration (`config/markdownize.yaml`)**:
    Enable `include_image_base64: true` so the OCR converter extracts images to disk and generates metadata annotations.
-2. **Schema & Node Ingestion**:
-   `DocumentGraphFactory` creates `Image` nodes linked from parent `MarkdownSection` via `HAS_IMAGE`:
-   - `image_id`: Unique identifier (`{section_id}::{image_hash}`)
-   - `path`: Local image path (e.g. `data/markdown_multi/images/442947f8.jpeg`)
-   - `description`: Extracted caption / figure title
-   - `size`: Byte length of image file
+2. **Embedded Section Context & Keyword Extraction**:
+   Image descriptions and captions are embedded directly inside the enclosing `MarkdownSection` markdown and reflected in section `keywords`.
 3. **Navigation Tools**:
-   - `search_images(query, document_id, section_id, limit)`: Locate relevant figures by caption, title, or filename.
-   - `query_image(image, question, model)`: Dispatch visual question answering directly to a Vision-Language Model (e.g. `glm_5.3_flash@openrouter`) passing base64 image data.
+   - `get_section_content(section_ids)` / `search_sections(query)`: Locate and read sections containing table data or image descriptions.
+   - `query_image(image, question, model)`: Dispatch targeted visual question answering directly to a Vision-Language Model (e.g. `glm_5.3_flash@openrouter`) passing base64 image data. Enforces a per-task budget (max 3 calls) to control latency and token costs.
 
 ---
 

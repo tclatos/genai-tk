@@ -18,10 +18,12 @@ description: Build and run the genai-graph Document Graph deep agent — genai_g
 ## What it is
 
 A genai-tk `type: deep` agent (DeepAgents SDK) that answers questions by
-**navigating** the Ladybug Document Graph with read-only tools — no embeddings,
-no chunking. The agent orients with `get_folder_toc`, gets a document's section
-map with `get_document_toc`, reads only the relevant sections with
-`get_section_content`, and keyword-searches with `search_sections`.
+**navigating** the Ladybug Document Graph with read-only tools:
+- Orient with `get_folder_toc` (folder-level document overview)
+- Inspect section map, descriptions, and keywords with `get_document_toc`
+- Read section text with `get_section_content` (with line pagination)
+- Targeted hybrid search with `search_sections`
+- Visual chart/diagram examination with `query_image` (budgeted: max 3 calls)
 
 The navigation tools and target folder are **injected at runtime** by
 `create_docgraph_agent` (via the harness `extra_tools`) so `--db` / `--folder` /
