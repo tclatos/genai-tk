@@ -107,11 +107,47 @@ def save_cached_image_description(
             logger.warning(f"Error writing local image cache {cache_file}: {exc}")
 
 
+_UPSCALE_MAX_DIMENSION = 2000
+_UPSCALE_FACTOR = 3
+
+
+def upscale_small_image(path: Path) -> bytes:
+    """Return image bytes, 3x Lanczos-upscaled when the extraction is small.
+
+    Chart data labels in small OCR-extracted images are illegible to VLMs at
+    native size; upscaling restores label readability. Only JPEG and PNG
+    sources are upscaled (keeps the encoded bytes consistent with the file
+    extension). Falls back to the raw bytes when Pillow is unavailable or the
+    file is not a readable image.
+    """
+    raw_bytes = path.read_bytes()
+    if path.suffix.lower() not in (".jpg", ".jpeg", ".png"):
+        return raw_bytes
+    try:
+        import io
+
+        from PIL import Image
+
+        with Image.open(io.BytesIO(raw_bytes)) as img:
+            if max(img.size) >= _UPSCALE_MAX_DIMENSION:
+                return raw_bytes
+            resized = img.resize((img.width * _UPSCALE_FACTOR, img.height * _UPSCALE_FACTOR), Image.LANCZOS)
+            buffer = io.BytesIO()
+            if path.suffix.lower() == ".png":
+                resized.save(buffer, format="PNG")
+            else:
+                resized.convert("RGB").save(buffer, format="JPEG", quality=95)
+            return buffer.getvalue()
+    except Exception as exc:
+        logger.debug("Image upscale skipped for {}: {}", path.name, exc)
+        return raw_bytes
+
+
 def describe_image_with_vlm(
     image_path: Path,
     doc_title: str = "",
     section_title: str = "",
-    vlm_model: str = "glm_5.3_flash@openrouter",
+    vlm_model: str = "gemini-2.5-flash@openrouter",
     min_size_bytes: int = 10 * 1024,
     images_dir: Path | str | None = None,
     kvstore_id: str | None = None,
@@ -146,8 +182,8 @@ def describe_image_with_vlm(
         logger.debug(f"Reusing cached description for image {img_hash}")
         return cached
 
-    # Prepare VLM message
-    b64_str = base64.b64encode(raw_bytes).decode("utf-8")
+    # Prepare VLM message (upscaled so small chart labels stay legible to the VLM)
+    b64_str = base64.b64encode(upscale_small_image(image_path)).decode("utf-8")
     mime_type, _ = mimetypes.guess_type(str(image_path))
     if not mime_type or not mime_type.startswith("image/"):
         ext = image_path.suffix.lower()
