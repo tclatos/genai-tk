@@ -655,15 +655,58 @@ Our roadmap focuses on expanding multimodal capabilities for diagrams, connectin
 -->
 
 ---
-layout: atos-section
+layout: atos-two-cols
 ---
 
+<template v-slot:header>
+
 # Questions & Technical Discussion
-## Thank you for your attention
+## Key Documentation, Benchmark Artifacts & Architecture References
+
+</template>
+
 ::left::
 
-- **DocGraph & Benchmark Engine:** `genai_graph.kg` & `genai_graph.bench`
-- **Framework Architecture Guide:** `docs/benchmark_framework.md`
-- **Empirical Study & Evaluation Report:** `docs/benchmarks_financebench_officeqa.md`
-- **Interactive Dataset Explorer:** `cli bench tui`
+- **Core Framework & Graph Engine**
+  - Graph model, schema ingestion, and Ladybug DB backend: `genai_graph.kg`
+  - Multi-dataset benchmark harness and trajectories: `genai_graph.bench`
+
+- **Interactive Exploration & TUI**
+  - Terminal dataset explorer and forensic trajectory viewer: `cli bench tui`
+  - Live agent chat and graph navigation: `cli agent chat`
+
+<div class="mt-5 p-3.5 rounded-lg bg-[#0073E6]/10 border border-[#0073E6]/30">
+  <div class="font-bold text-[#00005B] text-sm mb-1">Thank You for Your Attention!</div>
+  <div class="text-xs text-[#161650]">
+    Open for questions, architectural deep-dive, and live demo requests.
+  </div>
+</div>
+
+::right::
+
+<div class="p-3.5 bg-gray-50 rounded-lg border border-[#0073E6]/30 space-y-2 text-xs">
+  <div class="font-bold text-[#0073E6] text-sm">Key Technical Documentation</div>
+
+  <div class="p-2 bg-white rounded border border-gray-200 text-[#161650]">
+    <strong>Framework Architecture Guide:</strong><br/>
+    <code>docs/benchmark_framework.md</code><br/>
+    <span class="text-gray-600">Pipeline stages, selection criteria, evaluation metrics & forensic logging.</span>
+  </div>
+
+  <div class="p-2 bg-white rounded border border-gray-200 text-[#161650]">
+    <strong>Empirical Evaluation Report:</strong><br/>
+    <code>docs/benchmarks_financebench_officeqa.md</code><br/>
+    <span class="text-gray-600">Detailed results, error analysis, cost breakdowns, and SOTA comparison.</span>
+  </div>
+
+  <div class="p-2.5 bg-white rounded border border-gray-200 text-[#161650]">
+    <strong>DocGraph Implementation Notes:</strong><br/>
+    <code>docs/graph-definition-guide.md</code><br/>
+    <span class="text-gray-600">Hierarchical schema authoring, document chunking, and TOC extraction.</span>
+  </div>
+</div>
+
+<!--
+Thank you for your time. We are now open for technical questions, deep-dive discussions on the DocGraph architecture, and live benchmark demonstrations.
+-->
 

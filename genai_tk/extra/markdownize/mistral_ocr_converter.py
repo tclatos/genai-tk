@@ -18,6 +18,8 @@ from loguru import logger
 from pydantic import Field
 
 from genai_tk.extra.markdownize.base import DocumentConverter
+from genai_tk.extra.markdownize.image_describer import describe_image_with_vlm
+from genai_tk.extra.markdownize.table_processor import process_markdown_tables
 from genai_tk.utils.hashing import buffer_digest
 
 _MISTRAL_SUPPORTED_EXTENSIONS = {
@@ -73,6 +75,18 @@ class MistralOCRConverter(DocumentConverter):
     )
     table_format: Literal["markdown", "html"] | None = Field(
         default=None, description="Table format for Mistral OCR ('markdown' or 'html')"
+    )
+    describe_uncaptioned_images: bool = Field(
+        default=False,
+        description="Whether to call VLM to describe uncaptioned images larger than min_image_desc_size_bytes",
+    )
+    min_image_desc_size_bytes: int = Field(
+        default=10 * 1024,
+        description="Minimum byte size of uncaptioned image to describe with VLM (default 10KB)",
+    )
+    vlm_model: str = Field(
+        default="glm_5.3_flash@openrouter",
+        description="VLM model identifier for uncaptioned image descriptions",
     )
 
     def supported_extensions(self) -> set[str]:
@@ -146,6 +160,8 @@ class MistralOCRConverter(DocumentConverter):
             if self.include_image_base64 and page_images:
                 page_markdown = self._process_page_images(page_markdown, page_images)
 
+            page_markdown = process_markdown_tables(page_markdown)
+
             parts.append(f"## Page {page_index + 1}\n\n{page_markdown}\n\n")
         return "".join(parts)
 
@@ -214,7 +230,22 @@ class MistralOCRConverter(DocumentConverter):
                 continue
 
             saved_target = str(target_dir / filename)
-            commentary = f"<!-- Image: {filename} (hash: {img_hash}) -->"
+            comment_parts = [f"<!-- Image: {filename} (hash: {img_hash}) -->"]
+
+            if self.describe_uncaptioned_images:
+                vlm_desc = describe_image_with_vlm(
+                    image_path=out_path,
+                    vlm_model=self.vlm_model,
+                    min_size_bytes=self.min_image_desc_size_bytes,
+                    images_dir=target_dir,
+                )
+                if vlm_desc and vlm_desc.description:
+                    comment_parts.append(f"<!-- Image Description: {vlm_desc.description} -->")
+                    if vlm_desc.keywords:
+                        kw_str = ", ".join(vlm_desc.keywords)
+                        comment_parts.append(f"<!-- Image Keywords: {kw_str} -->")
+
+            commentary = "\n".join(comment_parts)
 
             escaped_id = re.escape(img_id) if img_id else ""
             id_stem = re.escape(Path(img_id).stem) if img_id else ""
