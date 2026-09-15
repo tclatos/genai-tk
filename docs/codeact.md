@@ -56,7 +56,7 @@ Components (all under `genai_tk/agents/tools/python_executor/`):
 | `executor.evaluate_python_code` | AST walker that interprets a subset of Python: assignments, control flow, functions, classes, comprehensions, try/except, with |
 | `executor.LocalPythonExecutor` | Stateful executor: persists variables across calls, enforces timeouts and import allow-lists |
 | `tool.PythonExecutorTool` | LangChain `BaseTool` wrapper (name `python_interpreter`) that renders `CodeOutput` as text, with a `FINAL ANSWER:` marker on termination |
-| `factory.bind_executor_tools` | At agent-creation time, registers every sibling tool as a callable inside each executor sandbox |
+| `tool.create_python_executor_tools` | Tool factory accepting nested sandbox `tools` (e.g. search tools) exposed directly inside the interpreter |
 
 ## The protocol
 
@@ -92,7 +92,7 @@ Profiles live in `config/examples/agents/codeact.yaml`:
 
 - **`codeact`** — standalone deep agent. Tools: the Python executor plus
   `create_search_tool` (bound as `web_search(...)` inside the sandbox). Loads
-  the CodeAct skill from `skills/custom/` via `skill_directories`.
+  the CodeAct skill from `skills/runtime/` via `skill_directories`.
 - **`codeact-orchestrator`** — deep agent with a single `codeact` **subagent**
   (declared under `subagents:`) that owns the executor; the orchestrator only
   delegates via the `task` tool.
@@ -113,24 +113,31 @@ agents:
     type: deep
     description: "Solves tasks by writing Python code blocks in a sandbox; tools are plain functions, print() is the observation, final_answer(x) terminates"
     system_prompt: |
-      You are a CodeAct agent. You solve tasks by writing Python code and
-      executing it with the python_interpreter tool — never answer by prose alone.
+      You are a CodeAct agent. You solve tasks EXCLUSIVELY by writing Python code and
+      executing it with the `python_interpreter` tool — never answer by prose alone.
 
-      ## Protocol
+      ## CRITICAL RULES
 
-      1. Think about the next single step, then express it as a short Python code block.
-      2. Call python_interpreter with that code. Variables persist between calls.
-      3. Tools available in your profile (e.g. web_search) are plain functions
-         inside the sandbox: call them directly, e.g. `result = web_search("...")`.
-      4. Observe: print() output and the last expression value come back as the result.
-      5. If the result is an Error/traceback, fix the code and retry — do not give up.
-      6. When the task is solved, call final_answer(value) with the final result.
+      1. **Your ONLY action tool is `python_interpreter`**: Never call external tools (like `web_search`)
+         directly in the outer agentic loop.
+      2. **External tools are in-process Python functions**: All sibling tools (e.g. `web_search`)
+         are exposed as callable functions inside the Python environment. Call them in Python:
+         `result = web_search("...")`.
+      3. **Minimize turns**: Write comprehensive Python scripts that retrieve all needed data,
+         parse and process results, perform calculations, and call `final_answer(...)` in a
+         single or minimal execution turns. Do NOT take separate turns for individual lookups.
+      4. **Deterministic math**: Perform all calculations, unit conversions, and rounding in Python.
+      5. **Observability**: Use `print()` to log intermediate data and progress.
+      6. **Retry on error**: If a script fails, read the traceback, fix the code, and re-execute.
+      7. **Termination**: Call `final_answer(result)` to return the final answer.
 
     tools:
-      - factory: genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
+      - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+          tools:
+            - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
 
     skill_directories:          # progressive disclosure of the CodeAct skill
+      - ${paths.project}/skills/runtime
       - ${paths.project}/skills/custom
 
     enable_planning: true
@@ -169,9 +176,10 @@ agents:
           - On error, read the traceback, fix the code, and retry.
           - Terminate by calling final_answer(result).
 
-        tools:                        # resolved by _resolve_subagents and
-          - factory: genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
-          - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
+        tools:
+          - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+              tools:
+                - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
 ```
 
 Subagent dict fields supported by `_resolve_subagents`: `name` and

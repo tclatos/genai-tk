@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from importlib.util import find_spec
 from typing import Any
 
@@ -67,7 +66,7 @@ class PythonExecutorTool(BaseTool):
 def create_python_executor_tool(
     authorized_imports: list[str] | None = None,
     additional_authorized_imports: list[str] | None = None,
-    tools: dict[str, BaseTool | Callable[..., Any]] | list[BaseTool] | None = None,
+    tools: dict[str, Any] | list[Any] | None = None,
     timeout_seconds: int | None = 30,
     include_logs: bool = True,
     initial_state: dict[str, Any] | None = None,
@@ -77,7 +76,7 @@ def create_python_executor_tool(
     Args:
         authorized_imports: Additional module names allowed to be imported (e.g. ['pandas', 'numpy']).
         additional_authorized_imports: Alias for authorized_imports.
-        tools: LangChain tools or custom functions to expose inside the Python environment.
+        tools: Tools, tool factories, qualified names, or custom functions to expose inside Python.
         timeout_seconds: Max execution time allowed in seconds.
         include_logs: Whether stdout printed logs should be included in the tool output.
         initial_state: Initial variables injected into the execution state.
@@ -99,10 +98,11 @@ def create_python_executor_tool(
 def create_python_executor_tools(
     authorized_imports: list[str] | None = None,
     additional_authorized_imports: list[str] | None = None,
-    tools: dict[str, BaseTool | Callable[..., Any]] | list[BaseTool] | None = None,
+    tools: dict[str, Any] | list[Any] | None = None,
     timeout_seconds: int | None = 30,
     include_logs: bool = True,
     initial_state: dict[str, Any] | None = None,
+    llm: Any = "default",
 ) -> list[BaseTool]:
     """Factory returning a list of tools for agent profile integration."""
     return [

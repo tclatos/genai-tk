@@ -29,7 +29,7 @@ langchain_agents:
       - spec: web_search
         config:
           provider: tavily
-      - factory: my_package.tools.my_tools.create_tools
+      - my_package.tools.my_tools.create_tools
     mcp_servers: []
     middlewares: []
     checkpointer:
@@ -86,18 +86,13 @@ uv run cli agents run my_agent "What is the weather today?"
 
 ```yaml
 tools:
-  # Built-in tool specs (see docs/agents.md for full list)
-  - spec: web_search
-  - spec: python_repl
-  - spec: file_search
+  # Bare qualified function, factory, or tool class (auto-detected)
+  - mypackage.tools.create_tools
+  - langchain_community.tools.wikipedia.WikipediaQueryRun
 
-  # Custom tool factory (returns list of LangChain tools)
-  - factory: mypackage.tools.create_tools
-    config:
-      key: value
-
-  # Direct LangChain tool class
-  - tool_class: langchain_community.tools.wikipedia.WikipediaQueryRun
+  # Tool or factory with parameters
+  - mypackage.tools.create_tools:
+      api_key: ${oc.env:MY_API_KEY}
 ```
 
 ## Adding MCP Servers to Agent

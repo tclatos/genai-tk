@@ -69,7 +69,7 @@ agents:
       Be thorough, objective, and always cite your sources.
 
     tools:
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
 
     mcp_servers:
       - tavily-mcp
@@ -182,7 +182,7 @@ agents:
       Be thorough in your analysis and clearly communicate findings.
 
     tools:
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
 
     mcp_servers:
       - tavily-mcp
@@ -224,8 +224,8 @@ agents:
       Use the file system to organize your research notes and findings.
 
     tools:
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_webpage_tool
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_webpage_tool
 
     mcp_servers:
       - playwright
@@ -284,7 +284,7 @@ agents:
       Always ensure documentation is up-to-date, accurate, and helpful for users.
 
     tools:
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
 
     mcp_servers:
       - tavily-mcp
@@ -326,10 +326,10 @@ agents:
       Use the file system to organize your analysis and maintain research notes.
 
     tools:
-      - function: genai_tk.agents.tools.langchain.yfinance_tools.get_stock_info
-      - function: genai_tk.agents.tools.langchain.yfinance_tools.get_historical_price
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_webpage_tool
+      - genai_tk.agents.tools.langchain.yfinance_tools.get_stock_info
+      - genai_tk.agents.tools.langchain.yfinance_tools.get_historical_price
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_webpage_tool
 
     mcp_servers:
       - tavily-mcp

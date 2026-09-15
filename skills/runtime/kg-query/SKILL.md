@@ -84,12 +84,9 @@ agents:
     type: react
     llm: default
     tools:
-      - function: genai_graph.kg.query.create_kg_cypher_tool
-        kg_config_name: my_graph
+      - genai_graph.kg.query.create_kg_cypher_tool:
+          kg_config_name: my_graph
 ```
-
-Note: `create_kg_cypher_tool` is a factory returning a `BaseTool`; reference it via
-`function:` so the profile loader calls it. (The `factory:` spec expects a `list[BaseTool]`.)
 
 ## 4. Vector / semantic search
 

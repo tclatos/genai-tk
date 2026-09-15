@@ -24,7 +24,7 @@ agents:
       Workflow: plan → load cookies → navigate → interact → extract → report → save cookies
 
     tools:
-      - factory: genai_tk.agents.tools.sandbox_browser.factory.create_sandbox_browser_tools
+      - genai_tk.agents.tools.sandbox_browser.factory.create_sandbox_browser_tools
 
     skill_directories:
       - ${paths.project}/skills
@@ -74,7 +74,7 @@ agents:
       Workflow: plan → load cookies → navigate → interact → extract → report → save cookies
 
     tools:
-      - factory: genai_tk.agents.tools.direct_browser.factory.create_direct_browser_tools
+      - genai_tk.agents.tools.direct_browser.factory.create_direct_browser_tools
 
     skill_directories:
       - ${paths.project}/skills

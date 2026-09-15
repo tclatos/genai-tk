@@ -31,15 +31,15 @@ agents:
     type: deep                  # react (default) | deep | custom
     llm: gpt_41@openai
     tools:
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-        verbose: true            # extra keys become factory kwargs
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function:
+          verbose: true          # extra keys become constructor/factory kwargs
     skill_directories:
       - ${paths.project}/skills
 ```
 
-Tool specs are flat dicts discriminated by `class:` / `function:` / `factory:`
-key (see `genai_tk/agents/tools/tool_specs.py`); any other key is passed
-through as a constructor/factory kwarg.
+Tool specs are defined as bare qualified names or single-key dicts with kwargs
+(see `genai_tk/agents/tools/tool_specs.py`); the toolkit automatically determines
+whether the target is a tool class, function, or factory.
 
 ## Choosing the Agent Type — and Whether Skills Apply
 

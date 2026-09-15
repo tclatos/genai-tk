@@ -1593,24 +1593,62 @@ class LocalPythonExecutor:
                 f"Non-installed authorized modules: {', '.join(missing)}. Please install them or remove from authorized_imports."
             )
 
-    def _init_tools(self, tools: dict[str, BaseTool | Callable[..., Any]] | list[BaseTool] | None) -> None:
+    def _init_tools(self, tools: dict[str, Any] | list[Any] | None) -> None:
         adapted_tools: dict[str, Callable[..., Any]] = {}
         if isinstance(tools, list):
-            for t in tools:
+            resolved_tools: list[Any] = []
+            for item in tools:
+                if isinstance(item, BaseTool):
+                    resolved_tools.append(item)
+                elif isinstance(item, (str, dict)) or hasattr(item, "target") or hasattr(item, "tool_class"):
+                    from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
+
+                    resolved = process_langchain_tools_from_config([item])
+                    resolved_tools.extend(resolved)
+                elif callable(item):
+                    try:
+                        res = item()
+                        if isinstance(res, BaseTool):
+                            resolved_tools.append(res)
+                        elif isinstance(res, list) and all(isinstance(x, BaseTool) for x in res):
+                            resolved_tools.extend(res)
+                        else:
+                            resolved_tools.append(item)
+                    except Exception:
+                        resolved_tools.append(item)
+                else:
+                    resolved_tools.append(item)
+
+            for t in resolved_tools:
                 if isinstance(t, BaseTool):
                     adapted_tools[t.name] = LangChainToolAdapter(t)
                 elif callable(t):
-                    adapted_tools[getattr(t, "__name__", str(t))] = t
-        elif isinstance(tools, dict):
-            for name, t in tools.items():
-                if isinstance(t, BaseTool):
-                    adapted_tools[name] = LangChainToolAdapter(t)
-                elif callable(t):
+                    name = getattr(t, "__name__", str(t))
                     adapted_tools[name] = t
+        elif isinstance(tools, dict):
+            for name, item in tools.items():
+                if isinstance(item, BaseTool):
+                    adapted_tools[name] = LangChainToolAdapter(item)
+                elif isinstance(item, (str, dict)) or hasattr(item, "target") or hasattr(item, "tool_class"):
+                    from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
+
+                    resolved = process_langchain_tools_from_config([item])
+                    for t in resolved:
+                        if isinstance(t, BaseTool):
+                            adapted_tools[name] = LangChainToolAdapter(t)
+                elif callable(item):
+                    try:
+                        res = item()
+                        if isinstance(res, BaseTool):
+                            adapted_tools[name] = LangChainToolAdapter(res)
+                        else:
+                            adapted_tools[name] = item
+                    except Exception:
+                        adapted_tools[name] = item
 
         self.static_tools = {**BASE_PYTHON_TOOLS, **adapted_tools, **self.additional_functions}
 
-    def send_tools(self, tools: dict[str, BaseTool | Callable[..., Any]] | list[BaseTool]) -> None:
+    def send_tools(self, tools: dict[str, Any] | list[Any]) -> None:
         """Register or update tools available to the executor."""
         self._init_tools(tools)
 

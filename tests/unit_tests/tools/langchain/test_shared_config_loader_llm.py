@@ -154,6 +154,41 @@ class TestFactoryTools:
 
 
 # ---------------------------------------------------------------------------
+# Unified / string / dict tools
+# ---------------------------------------------------------------------------
+
+
+class TestUnifiedTools:
+    def test_bare_string_tool(self) -> None:
+        fake = _make_tool("bare_tool")
+        with patch("genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified", return_value=fake):
+            result = process_langchain_tools_from_config(["some.mod.bare_tool"])
+        assert result == [fake]
+
+    def test_single_key_dict_tool_with_params(self) -> None:
+        fake = _make_tool("dict_tool")
+        received_kwargs = {}
+
+        def factory_with_params(**kwargs):
+            received_kwargs.update(kwargs)
+            return [fake]
+
+        spec = {"some.mod.factory": {"param1": 100, "param2": "test"}}
+        with patch(
+            "genai_tk.agents.tools.langchain.shared_config_loader.import_from_qualified",
+            return_value=factory_with_params,
+        ):
+            result = process_langchain_tools_from_config([spec])
+        assert result == [fake]
+        assert received_kwargs == {"param1": 100, "param2": "test"}
+
+    def test_direct_basetool_in_list(self) -> None:
+        fake = _make_tool("direct_tool")
+        result = process_langchain_tools_from_config([fake])
+        assert result == [fake]
+
+
+# ---------------------------------------------------------------------------
 # Mixed tool types
 # ---------------------------------------------------------------------------
 

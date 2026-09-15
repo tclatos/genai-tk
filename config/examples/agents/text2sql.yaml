@@ -33,8 +33,8 @@ agents:
         fallback_llm: claude-haiku@openrouter
 
     tools:
-      - factory: genai_tk.agents.tools.langchain.sql_tool_factory.create_sql_toolkit_tools
-        database_uri: sqlite:///${paths.project}/tests/data/Chinook.sqlite
+      - genai_tk.agents.tools.langchain.sql_tool_factory.create_sql_toolkit_tools:
+          database_uri: sqlite:///${paths.project}/tests/data/Chinook.sqlite
 
     skill_directories:
       - ${paths.project}/skills/langchain_examples
@@ -63,12 +63,12 @@ agents:
     type: react
     description: "SQL agent for querying the Chinook music store database"
     tools:
-      - factory: genai_tk.agents.tools.langchain.sql_tool_factory.create_sql_tool_from_config
-        config:
-          database_uri: sqlite:///${paths.project}/tests/data/Chinook.sqlite
-          tool_name: "query_chinook"
-          tool_description: "Query the Chinook music database for information about artists, albums, tracks, customers, and invoices"
-          examples:
+      - genai_tk.agents.tools.langchain.sql_tool_factory.create_sql_tool_from_config:
+          config:
+            database_uri: sqlite:///${paths.project}/tests/data/Chinook.sqlite
+            tool_name: "query_chinook"
+            tool_description: "Query the Chinook music database for information about artists, albums, tracks, customers, and invoices"
+            examples:
             - input: "List all artists"
               query: "SELECT * FROM Artist LIMIT 10;"
             - input: "Find all albums for the artist 'AC/DC'"

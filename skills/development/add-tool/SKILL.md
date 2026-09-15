@@ -66,16 +66,17 @@ agents:
     harness: langchain
     type: react                # or deep
     tools:
-      # Option A: bare function reference
-      - function: my_project.tools.my_tool.my_tool
+      # Option A: bare function, factory, or tool class reference
+      - my_project.tools.my_tool.my_tool
 
-      # Option B: factory function — any extra keys become factory kwargs
-      - factory: my_project.tools.my_tool.create_my_tools
-        api_key: ${oc.env:MY_API_KEY,}
+      # Option B: tool or factory with arguments — extra keys become kwargs
+      - my_project.tools.my_tool.create_my_tools:
+          api_key: ${oc.env:MY_API_KEY,}
 ```
 
-See `genai_tk/agents/tools/tool_specs.py` for the full `class:` / `function:` /
-`factory:` discriminated spec format.
+See `genai_tk/agents/tools/tool_specs.py` for the unified spec format. Any Python
+qualified name (tool instance, tool class, function, or factory) is automatically
+resolved without requiring explicit discriminators.
 
 ## Step 3: Test the Tool Directly
 

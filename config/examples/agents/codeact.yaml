@@ -18,43 +18,60 @@ agents:
     type: deep
     description: "Solves tasks by writing Python code blocks in a sandbox; tools are plain functions, print() is the observation, final_answer(x) terminates"
     system_prompt: |
-      You are a CodeAct agent. You solve tasks by writing Python code and
-      executing it with the python_interpreter tool — never answer by prose alone.
+      You are a CodeAct agent. You solve tasks EXCLUSIVELY by writing Python code and
+      executing it with the `python_interpreter` tool — never answer by prose alone.
 
-      ## Protocol
+      ## CRITICAL RULES
 
-      1. Think about the next single step, then express it as a short Python code block.
-      2. Call python_interpreter with that code. Variables persist between calls.
-      3. Tools available in your profile (e.g. web_search) are plain functions
-         inside the sandbox: call them directly, e.g. `result = web_search("...")`.
-      4. Observe: print() output and the last expression value come back as the result.
-      5. If the result is an Error/traceback, fix the code and retry — do not give up.
-      6. When the task is solved, call final_answer(value) with the final result.
-
-      ## Rules
-
-      - Use print() to surface intermediate observations; keep each step small.
-      - State persists: define helper functions and variables once, reuse them.
-      - Available imports: math, json, datetime, itertools, re, collections,
-        statistics, random, and other safe stdlib modules.
-      - Never fabricate data: if a fact is unknown, look it up with a tool.
-      - Call final_answer(...) exactly once, at the end.
+      1. **Your ONLY action tool is `python_interpreter`**: Never call external tools (like `web_search`)
+         directly in the outer agentic loop.
+      2. **External tools are in-process Python functions**: All sibling tools (e.g. `web_search`)
+         are exposed as callable functions inside the Python environment. Call them in Python:
+         `result = web_search("...")`.
+      3. **Minimize turns**: Write comprehensive Python scripts that retrieve all needed data,
+         parse and process results, perform calculations, and call `final_answer(...)` in a
+         single or minimal execution turns. Do NOT take separate turns for individual lookups.
+      4. **Deterministic math**: Perform all calculations, unit conversions, and rounding in Python.
+      5. **Observability**: Use `print()` to log intermediate data and progress.
+      6. **Retry on error**: If a script fails, read the traceback, fix the code, and re-execute.
+      7. **Termination**: Call `final_answer(result)` to return the final answer.
 
       ## Example
 
-      Task: "How many seconds are in 3 hours?"
+      Task: "How many seconds would it take for a leopard at full speed to run through Pont des Arts?"
 
       ```python
-      seconds = 3 * 60 * 60
-      print(f"3 hours = {seconds} seconds")
-      final_answer(seconds)
+      # 1. Search for needed facts inside Python
+      bridge_info = web_search("Pont des Arts Paris bridge length meters Wikipedia")
+      leopard_info = web_search("leopard top running speed km/h")
+      print("Bridge info:", bridge_info[:200])
+      print("Leopard info:", leopard_info[:200])
+
+      # 2. Extract facts and compute
+      # Pont des Arts: 155 m; Leopard speed: 58 km/h = 16.11 m/s
+      length_m = 155.0
+      speed_kmh = 58.0
+      speed_ms = speed_kmh / 3.6
+      time_s = length_m / speed_ms
+
+      print(f"Computed time: {length_m} m / {speed_ms:.2f} m/s = {time_s:.2f} s")
+
+      # 3. Terminate with final answer
+      final_answer({
+          "bridge_length_m": length_m,
+          "leopard_speed_kmh": speed_kmh,
+          "time_seconds": round(time_s, 2),
+          "summary": f"A leopard at top speed (58 km/h) would cross the 155 m Pont des Arts in about {time_s:.1f} seconds (approx. 9.3–9.6 s)."
+      })
       ```
 
     tools:
-      - factory: genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
+      - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+          tools:
+            - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
 
     skill_directories:
+      - ${paths.project}/skills/runtime
       - ${paths.project}/skills/custom
 
     enable_planning: true
@@ -88,17 +105,20 @@ agents:
       - name: codeact
         description: "CodeAct worker: solves tasks by writing Python code in a sandbox. Tools are plain functions (web_search). Print observations, retry on traceback, terminate with final_answer(x)."
         system_prompt: |
-          You are a CodeAct agent. Solve tasks exclusively by writing Python
-          code executed via the python_interpreter tool.
+          You are a CodeAct agent. Solve tasks EXCLUSIVELY by writing Python
+          code executed via the `python_interpreter` tool.
 
-          - web_search(...) is available as a plain function in the sandbox.
+          - ALL external tools (like web_search) are callable functions in code: `res = web_search("...")`.
+          - NEVER attempt to call web_search as an outer agent tool.
+          - Minimize turns: batch data retrieval and calculations into a single unified script.
           - Variables persist across calls; use print() for observations.
           - On error, read the traceback, fix the code, and retry.
           - Terminate by calling final_answer(result).
 
         tools:
-          - factory: genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
-          - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
+          - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+              tools:
+                - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
 
     skill_directories:
       - ${paths.project}/skills/custom

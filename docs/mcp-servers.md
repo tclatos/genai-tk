@@ -22,8 +22,8 @@ mcp_expose_servers:
   search:
     description: "Web search tools exposed as MCP"
     tools:
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-        verbose: false
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function:
+          verbose: false
     agent:
       enabled: true
       name: run_search_agent
@@ -32,8 +32,8 @@ mcp_expose_servers:
       # profile: research        # use a langchain profile (by KEY)
 ```
 
-The `tools` syntax is identical to `config/agents.yaml` — a `factory` key plus
-any flat kwargs forwarded to the factory function.
+The `tools` syntax is identical to `config/agents.yaml` — bare qualified names or
+single-key dicts with kwargs forwarded to the tool/factory.
 
 OmegaConf variables (`${paths.project}`) are resolved against the global config
 before the definitions are loaded.

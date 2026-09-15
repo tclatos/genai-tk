@@ -10,8 +10,8 @@ agents:
     description: "Simple agents with web search"
     pre_prompt: "You are an agent having access to the Web."
     tools:
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-        verbose: true
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function:
+          verbose: true
 
   filesystem:
     harness: langchain
@@ -20,8 +20,8 @@ agents:
     description: "File system manipulation agent"
     pre_prompt: "You have the ability to manipulate the file system. If the user asks something else, refuse politely."
     tools:
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-        verbose: true
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function:
+          verbose: true
     mcp_servers:
       - "filesystem"
     examples:
@@ -40,8 +40,8 @@ agents:
     type: react
     description: "Weather assistant with web search"
     tools:
-      - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
-        verbose: true
+      - genai_tk.agents.tools.langchain.search_tools_factory.create_search_function:
+          verbose: true
     mcp_servers:
       - "filesystem"
     pre_prompt: "You are a helpful weather assistant. Always provide current weather information and be specific about locations and conditions."

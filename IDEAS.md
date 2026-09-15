@@ -1,4 +1,21 @@
+# tools
 
+In fact, it was an error to let the Python interpreter share the tools with the deep agent. It has it owns, passed as argument. 
+And the distinction between tool and tool factory is not so important - the toolkit can distinguised if the python qualified name provided is a tool class or a function returning one or several tools.
+So : 
+- Remove 'factory:' in all YAML file (in zll projects)
+- Make code accepting tools accept also factories of tools
+
+ codeact.yaml file could look like: 
+
+    tools:
+      - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
+           tools: 
+             - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
+
+and no more "excluded tools"
+
+Adap and rereun tests.
 
 
 ~/prj/ekg-atos ->   cli kg create one_rainbow 

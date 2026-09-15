@@ -68,24 +68,23 @@ from genai_tk.agents.tools.python_executor import create_python_executor_tool
 
 tool = create_python_executor_tool(
     additional_authorized_imports=["json"],
-    tools=[search_tool],  # siblings bound into the sandbox namespace
+    tools=[search_tool],  # tools exposed inside the sandbox namespace
     timeout_seconds=30,
 )
 # tool.name == "python_interpreter"; tool.invoke({"code": "..."}) -> str
 ```
 
-In agent profiles, declare it in YAML — the factory binds all sibling tools
-into the sandbox automatically (`bind_executor_tools` in
-`genai_tk/agents/langchain/factory.py`):
+In agent profiles, declare it in YAML with its internal tools configured directly:
 
 ```yaml
 tools:
-  - factory: genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
-  - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
+  - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+      tools:
+        - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
 ```
 
 The prompt-side protocol (print observations, retry on traceback, terminate
-with `final_answer`) lives in `skills/custom/codeact/SKILL.md`. End-to-end
+with `final_answer`) lives in `skills/runtime/codeact/SKILL.md`. End-to-end
 profiles: `config/examples/agents/codeact.yaml`.
 
 ## Safety envelope

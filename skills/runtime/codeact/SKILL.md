@@ -1,103 +1,150 @@
 ---
 name: codeact
-description: Execute multi-step reasoning and tool use via Python code blocks in a safe sandbox. Activate when user explicitly requests to "use the codeact skill" or similar phrases.
+description: Execute multi-step reasoning, data retrieval, and calculations via Python code blocks in a safe sandbox. Minimizes agentic loop turns by running tools (like web search) inside Python. Activate when user requests "use codeact skill" or needs programmatic multi-step problem solving.
 ---
 
 # CodeAct: Code Acts as Agents
 
-CodeAct is a SmolAgents-inspired skill that enables multi-step reasoning and tool use by composing actions as **Python code blocks** executed inside a safe sandbox. Instead of using discrete tool calls, agents write Python code that calls tools as ordinary functions and print observations to stdout.
+CodeAct is a SmolAgents-inspired paradigm where actions are composed and executed as **Python code blocks** inside a safe sandbox. Instead of making discrete tool calls in the outer agentic loop, the agent writes Python scripts that invoke tools as ordinary functions, manipulate data, and perform calculations directly in Python.
 
-## Design Philosophy
+## Core Principle: Minimize Agentic Loop Turns
 
-- **Code is the action language**: Multi-step reasoning, loops, conditionals, and stateful tool composition are all expressed naturally as Python code.
-- **Tools as callables**: All registered tools (web search, file I/O, etc.) are bound as plain Python functions inside the sandbox namespace.
-- **Print observations**: The agent prints intermediate results and observations, which become the next step's context.
-- **Traceback-driven retry**: If code raises an exception, the traceback becomes the next observation, and the agent retries.
-- **Termination via final_answer()**: The agent calls `final_answer(result)` to signal completion and return the result.
+The primary goal of CodeAct is to **minimize expensive LLM round-trips** and **eliminate arithmetic/reasoning errors** by delegating logic to the Python interpreter:
+
+1. **Zero Discrete Outer Tool Calls**: External tools (e.g. `web_search`, `fetch_webpage`, file readers, database queries) MUST NOT be invoked as top-level agent tool calls. They are exposed as plain Python functions inside the `python_interpreter` environment.
+2. **Unified Execution in Minimal Turns**: Rather than taking multiple turns for searches and computations (Turn 1: search bridge → Turn 2: search speed → Turn 3: compute → Turn 4: answer), write a unified Python script that searches, extracts values, computes the result, and terminates with `final_answer(...)` in a single execution.
+3. **Deterministic Math & Data Handling**: Never calculate numbers in LLM prose. Use Python's built-in math and string processing.
 
 ## How It Works
 
-### 1. Setup
+### 1. Setup & Environment
 
-The skill configures a **CodeAct agent** by:
-- Providing a Python executor tool that interprets code via safe AST evaluation (no `eval()`)
-- Binding all sibling tools (web_search, etc.) as Python callables in the sandbox
-- Injecting a `final_answer(x)` stub that signals completion
+- The only action tool the agent uses in the outer loop is `python_interpreter`.
+- All sibling tools registered in the profile (e.g. `web_search`) are automatically bound into the Python sandbox namespace as ordinary callables.
+- Standard safe libraries (`math`, `json`, `datetime`, `itertools`, `re`, `collections`, `statistics`, `random`, etc.) are pre-imported or importable.
+- State and variables persist across multiple code execution turns in the same session.
 
-### 2. The Loop
+### 2. The Execution Protocol
 
-Each turn of the agent loop:
+1. **Analyze the task**: Identify all data points, queries, and calculations needed.
+2. **Write a complete Python script**:
+   - Call sibling tools as functions (e.g. `res = web_search("query")`).
+   - Print observations with `print(...)` to log progress.
+   - Parse and process data using Python logic, regex, or string manipulation.
+   - Perform all arithmetic and conversions in Python.
+   - Conclude by calling `final_answer(result)`.
+3. **Execute via `python_interpreter`**: Run the code block in the sandbox.
+4. **Evaluate output**:
+   - If `final_answer(...)` was called, the execution terminates and returns the result.
+   - If an exception occurs, read the traceback, correct the script, and re-execute.
 
-1. **Write code**: The LLM generates Python code to solve the current task, making use of bound tools and prior state.
-2. **Execute code**: The code runs in the sandbox with:
-   - Print outputs captured as logs
-   - Tool calls executing inside the sandbox
-   - State (variables) persisting across turns
-3. **Observe result**: The printed logs and/or the code's final expression value become the observation.
-4. **Check for termination**: If the code called `final_answer(x)`, the run ends with result `x`. Otherwise, the loop continues.
-5. **On error**: If code raises an exception, the full traceback becomes the next observation, and the agent retries.
+## Comprehensive Example: Multi-Step Retrieval & Calculation
 
-### 3. Example Flow
+**Task**: *"How many seconds would it take for a leopard at full speed to run through Pont des Arts?"*
 
-**Task**: "How fast can a leopard run?"
-
-**Turn 1 – Agent writes code**:
+**Agent Action (Turn 1 — Single `python_interpreter` call)**:
 ```python
-# Search for leopard speed
-result = web_search("leopard running speed")
-print(f"Search results: {result}")
+# 1. Retrieve information via in-interpreter web search
+bridge_search = web_search("Pont des Arts Paris length meters Wikipedia")
+print("--- Bridge Search ---")
+print(bridge_search[:400])
+
+leopard_search = web_search("leopard top running speed km/h")
+print("\n--- Leopard Search ---")
+print(leopard_search[:400])
+
+# 2. Extract key parameters from search findings
+# Pont des Arts length is 155 meters
+bridge_length_m = 155.0
+
+# Leopard top speed in short bursts is ~58 km/h (range 58–60 km/h)
+speed_kmh = 58.0
+speed_ms = speed_kmh / 3.6  # convert km/h to m/s (16.11 m/s)
+
+# 3. Compute time
+time_seconds = bridge_length_m / speed_ms
+time_seconds_upper = bridge_length_m / (60.0 / 3.6)
+
+print(f"\nCalculation: {bridge_length_m}m / ({speed_kmh} km/h = {speed_ms:.2f} m/s) = {time_seconds:.2f}s")
+print(f"Upper bound (60 km/h): {time_seconds_upper:.2f}s")
+
+# 4. Conclude with final_answer()
+final_answer(
+    {
+        "bridge_length_m": bridge_length_m,
+        "leopard_speed_kmh": speed_kmh,
+        "time_seconds": round(time_seconds, 2),
+        "summary": f"A leopard running at top speed (58–60 km/h ≈ 16.1 m/s) would take approximately {time_seconds:.1f} seconds (about 9.3 to 9.6 s) to cross the 155-meter Pont des Arts.",
+    }
+)
 ```
 
-**Output**:
+**Observation**:
 ```
-Search results for 'leopard running speed':
+--- Bridge Search ---
+Search results for 'Pont des Arts Paris length meters Wikipedia':
+1. Pont des Arts - Wikipedia
+   Total length: 155 m (508.5 ft)...
 
-1. Leopard Speed
-   URL: https://example.com/leopard
-   Leopards can run at up to 58 km/h (36 mph) in short bursts...
-```
+--- Leopard Search ---
+Search results for 'leopard top running speed km/h':
+1. How Fast Can a Leopard Run?
+   Leopards can run up to 58 km/h (36 mph) in short bursts...
 
-**Turn 2 – Agent summarizes and terminates**:
-```python
-answer = "A leopard can run up to 45 miles per hour (72 km/h), making it one of the fastest land carnivores."
-final_answer(answer)
-```
+Calculation: 155.0m / (58.0 km/h = 16.11 m/s) = 9.62s
+Upper bound (60 km/h): 9.30s
 
-**Output**:
-```
 FINAL ANSWER:
-A leopard can run up to 45 miles per hour (72 km/h), making it one of the fastest land carnivores.
+{'bridge_length_m': 155.0, 'leopard_speed_kmh': 58.0, 'time_seconds': 9.62, 'summary': 'A leopard running at top speed (58–60 km/h ≈ 16.1 m/s) would take approximately 9.6 seconds (about 9.3 to 9.6 s) to cross the 155-meter Pont des Arts.'}
 ```
 
-Agent stops. Result returned.
+Task completed in **1 single turn**.
 
 ---
 
-## Configuration
+## Rules & Anti-Patterns
 
-### Profile Structure
+| Correct Pattern (CodeAct) | Anti-Pattern to Avoid |
+|---|---|
+| Call `web_search("...")` inside Python code in `python_interpreter` | ❌ Calling `web_search` as an outer agent tool call |
+| Batch queries and calculations in a unified script | ❌ Taking 4–5 separate turns for individual lookups |
+| Perform all math, unit conversions, and rounding in Python | ❌ Doing mental arithmetic or calculating in prose tokens |
+| Terminate with `final_answer(result)` | ❌ Outputting prose answers without calling `final_answer` |
+| Inspect tracebacks on error and fix code in the next block | ❌ Giving up or guessing when an error occurs |
 
-Use CodeAct in an agent profile by specifying the Python executor tool:
+---
+
+## Configuration & Profile Setup
+
+### Standalone CodeAct Profile
 
 ```yaml
 agents:
-  my_agent:
+  codeact:
     harness: langchain
-    type: react  # or deep
-    name: "My CodeAct Agent"
-    description: "Solves tasks by writing and executing Python code"
+    type: deep
+    name: "CodeAct"
+    description: "Solves tasks by writing Python code in a sandbox; tools are in-process functions"
     tools:
-      - factory: genai_tk.agents.tools.python_executor.create_python_executor_tools
+      - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+          tools:
+            - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
+    skill_directories:
+      - ${paths.project}/skills/runtime
+      - ${paths.project}/skills/custom
     system_prompt: |
-      You are a helpful assistant. Solve tasks by writing Python code.
-      Available tools are bound as functions in the sandbox (e.g., web_search(...)).
-      Use print() to show intermediate results.
-      Call final_answer(result) when done.
+      You are a CodeAct agent. You solve tasks EXCLUSIVELY by writing Python code
+      and executing it via the `python_interpreter` tool.
+
+      CRITICAL:
+      1. Your ONLY tool is `python_interpreter`. Never invoke external tools (like web_search) directly from the outer agent loop.
+      2. External tools (e.g. `web_search`) are exposed as callable functions inside the Python environment: invoke them in code as `web_search("query")`.
+      3. Minimize turns: Batch data retrieval, parsing, and arithmetic into a single unified Python script whenever possible.
+      4. Use `print()` to record intermediate observations.
+      5. Conclude by calling `final_answer(result)` with your final answer.
 ```
 
 ### Subagent with CodeAct Only
-
-For a dedicated CodeAct-only subagent:
 
 ```yaml
 agents:
@@ -109,10 +156,13 @@ agents:
       - name: codeact
         description: "CodeAct subagent for code-based reasoning"
         tools:
-          - factory: genai_tk.agents.tools.python_executor.create_python_executor_tools
-          - factory: genai_tk.agents.tools.langchain.search_tools_factory.create_search_function
+          - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+              tools:
+                - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
         system_prompt: |
-          Solve tasks via Python code. Print observations. Call final_answer(x) to return x.
+          Solve tasks via Python code executed in python_interpreter.
+          web_search(...) is available as a function in code.
+          Print observations. Call final_answer(x) to return x.
 ```
 
 ---
@@ -125,9 +175,9 @@ agents:
 - `final_answer(value)` – Signal completion; return `value`.
 - Standard library: `math`, `json`, `datetime`, `itertools`, `re`, `collections`, `statistics`, `random`, etc. (see `BASE_BUILTIN_MODULES` in the executor).
 
-### Registered Tools (Via Binding)
+### Registered Tools (Via Interpreter Configuration)
 
-When tools are registered in the profile, they become callables in the sandbox:
+When tools are passed to `create_python_executor_tools(tools=[...])`, they become callables in the sandbox:
 
 ```python
 # In code:
@@ -146,11 +196,11 @@ Declare additional authorized imports in the profile:
 agents:
   my_agent:
     tools:
-      - factory: genai_tk.agents.tools.python_executor.create_python_executor_tools
-        additional_authorized_imports:
-          - pandas
-          - numpy
-          - requests
+      - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+          additional_authorized_imports:
+            - pandas
+            - numpy
+            - requests
 ```
 
 ---
@@ -171,45 +221,15 @@ The executor uses **AST-based interpretation** (not `eval`), providing:
 
 If code raises an exception:
 
-1. **Traceback capture**: The full exception traceback (without sensitive internal details) is captured.
+1. **Traceback capture**: The full exception traceback is captured.
 2. **Observation**: The traceback becomes the next observation, given back to the LLM.
 3. **Retry mandate**: The agent is expected to revise the code and retry.
-
-Example:
-
-**Agent code (Turn 1)**:
-```python
-result = web_search("leopard speed")
-print(f"Top speed: {result[0]['speed']} km/h")  # Wrong: result is a string, not a list
-```
-
-**Error**:
-```
-Error: Code execution failed at line 'print(f"Top speed: {result[0]['speed']} km/h")' due to TypeError: string indices must be integers
-```
-
-**Agent code (Turn 2)** — revised after reading the traceback:
-```python
-result = web_search("leopard speed")
-print(result)  # Inspect the actual structure first
-speed = "Leopards can reach 58 km/h in short bursts."
-final_answer(speed)
-```
-
----
-
-## Tips and Best Practices
-
-1. **Leverage state persistence**: Variables defined in one code block remain available in the next. Use this to build up complex logic incrementally.
-2. **Print strategically**: Print intermediate results to see what's happening. The LLM reads these outputs.
-3. **Error messages are feedback**: When your code fails, read the traceback carefully and fix it in the next block.
-4. **Call final_answer() only once**: Once the agent calls `final_answer(x)`, the run ends.
-5. **Use loops and conditionals**: Python's control flow (for, while, if/else) works naturally for iterative refinement.
 
 ---
 
 ## See Also
 
-- **SmolAgents**: https://github.com/agentic-ai/smolagents  (system prompt : https://github.com/huggingface/smolagents/blob/30bb1161095dbae2271e6bc3cc4c219cc3897a57/src/smolagents/prompts/code_agent.yaml)
+- **SmolAgents**: https://github.com/agentic-ai/smolagents
 - **Executor module**: `genai_tk.agents.tools.python_executor`
 - **Factory function**: `genai_tk.agents.tools.python_executor.create_python_executor_tools`
+- **Documentation**: `docs/codeact.md`
