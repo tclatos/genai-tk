@@ -63,13 +63,6 @@ Then integrate it in ...
 - Nvidia harness ? 
 - Custom TUI made from the one in LC + Deerflow ?  
 
-# Image in Markdown / Mistral
-- include_image_base64=True 
-- image_min_size = 40_000 
-Saves extracted base64 encoded images into an _images subdirectory within the output folder for each PDF and updates markdown links to point to these local files.
-
-- ?? add parameter confidence_scores_granularity = "page"
-
 # Refactor Retriever 
 We want to completly refactor the RAG processing part of the toolkit, to ba able to deal with more complex use cases, backends and configuration. We want notably able to levearge the capabilities of hybrid rag of the zvec lib (genai_tk/core/vector_backends/zvec.py ), in addition of current use cases with PostgreSQL, ZeroEntropy, and vector store + bm25 +  reranker. 
 
