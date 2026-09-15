@@ -30,6 +30,7 @@ langchain_agents:
         config:
           provider: tavily
       - my_package.tools.my_tools.create_tools
++
     mcp_servers: []
     middlewares: []
     checkpointer:
