@@ -180,7 +180,7 @@ The ingestion pipeline converts unstructured documents into a queryable, content
      ```
      Folder ──CONTAINS──▶ Document ──HAS_SECTION──▶ MarkdownSection ──HAS_SUBSECTION──▶ MarkdownSection
      ```
-   - Sections are keyed by cryptographic hashes (`xxHash`), enabling deterministic deduplication.
+   - Sections are keyed by non-cryptographic hashes (`xxHash`), enabling deterministic deduplication.
    - Dual retrieval: Every section is indexed in both a **BM25 full-text engine** (exact financial/statutory terms) and a **dense vector store** (semantic intent).
    - **Vectorless Navigation Substrate**: Agents navigate the document hierarchy directly via TOC inspection and selective section retrieval, preserving natural table and footnote boundaries.
 
@@ -266,12 +266,12 @@ The framework decouples all models, OCR engines, and embedding backends into con
 
 ### A. Role-Based Model Selection Matrix
 
-| Role | Responsibility | Key Evaluation Criteria | Recommended Models |
+| Role | Responsibility | Key Evaluation Criteria | Model Examples  |
 |---|---|---|---|
-| **Agent Reasoning LLM** | Question comprehension, multi-step navigation, tool selection, synthesis | • Strong instruction following<br/>• Multi-turn tool calling reliability<br/>• Long-context handling ($\ge 128\text{k}$ tokens)<br/>• Balanced token pricing | `glm_5.2@openrouter`<br/>`deepseek_v3@openrouter`<br/>`claude-3-5-sonnet@anthropic`<br/>`gpt-4o@openai` |
-| **Independent Judge LLM** | Evaluating agent answers against ground truth under strict rubrics | • High factual fidelity & low hallucination<br/>• Strict adherence to equivalence rubrics<br/>• Configurable reasoning effort (avoiding token ceiling truncation)<br/>• Unbiased relative to agent model | `deepseek_v4_pro@openrouter`<br/>`gpt-4o@openai`<br/>`claude-3-5-sonnet@anthropic` |
-| **Outline & Summarization LLM** | Generating section outlines, summaries, and descriptions during graph build | • High throughput / low latency<br/>• Low per-token cost on high-volume batch processing<br/>• Concise structured JSON generation (BAML compatible) | `deepseek_v4_flash@openrouter`<br/>`gemini-2.0-flash@google`<br/>`gpt-4o-mini@openai` |
-| **Document Vision / OCR Engine** | Transforming complex PDFs into structured Markdown tables and text | • Accurate table grid extraction and cell alignment<br/>• Footnote and multi-column preservation<br/>• Scanned image and historical font robustness | `mistral-ocr`<br/>`docling`<br/>`markitdown` |
+| **Agent Reasoning LLM** | Question comprehension, multi-step navigation, tool selection, synthesis | • Strong instruction following<br/>• Multi-turn tool calling reliability<br/>• Long-context handling ($\ge 128\text{k}$ tokens)<br/>• Balanced token pricing | `glm_5.3_flash`<br/>`deepseek_v4_flash`<br/>`claude-sonnet@anthropic`<br/>`gpt-5@openai` |
+| **Independent Judge LLM** | Evaluating agent answers against ground truth under strict rubrics | • High factual fidelity & low hallucination<br/>• Strict adherence to equivalence rubrics<br/>• Configurable reasoning effort (avoiding token ceiling truncation)<br/>• Unbiased relative to agent model | `deepseek_v4_pro`<br/>`gpt-4o`<br/>`claude-opus` |
+| **Outline & Summarization LLM** | Generating section outlines, summaries, and descriptions during graph build | • High throughput / low latency<br/>• Low per-token cost on high-volume batch processing<br/>• Concise structured JSON generation (BAML compatible) | `deepseek_v4_flash`<br/>`gemini-2.0-flash`<br/>`gpt-4o-mini` |
+| **Document Vision / OCR Engine** | Transforming complex PDFs into structured Markdown tables and text | • Accurate table grid extraction and cell alignment<br/>• Footnote and multi-column preservation<br/>• Scanned image and historical font robustness | `mistral-ocr`<br/>`anydoc`<br/>`lightonocr` |
 | **Embeddings & Lexical Engine** | Section similarity matching and keyword lookups | • High retrieval precision on domain-specific vocabulary<br/>• Efficient local or hosted inference<br/>• Combined dense + BM25 hybrid indexing | `qwen3_06b@deepinfra`<br/>`text-embedding-3-small@openai`<br/>`BM25` (built-in) |
 
 ### B. OCR Engine Selection Criteria & Fallback Ladder
@@ -290,11 +290,11 @@ flowchart TD
 ```
 
 - **Mistral OCR (`mistral-ocr`)**: Multimodal document parser that excels at complex financial statements, nested headers, footnotes, and multi-column pages. Recommended for SEC filings and complex corporate reports.
-- **Docling / MarkItDown**: Fast, open-source document converters suitable for clean digital PDFs and standard multi-page documents without high-cost API dependencies.
+- **AnyDoc**: Fast, open-source document converters suitable for clean digital PDFs and standard multi-page documents without high-cost API dependencies.
 - **Direct Text / Markdown Loader**: For benchmark datasets that provide pre-processed text representations (e.g. OfficeQA Transformed Text), bypassing OCR eliminates conversion costs and preserves original text anchors.
 
 ### C. Agent vs. Judge Decoupling Best Practices
-1. **Never use the same model family for both Agent and Judge**: Prevents shared cognitive biases and self-grading favoritism.
+1. **Don't use the same model family for both Agent and Judge**: Prevents shared cognitive biases and self-grading favoritism.
 2. **Control Reasoning Token Ceilings**: For reasoning models (e.g. DeepSeek V4 Pro, o3-mini) used as judges, configure `reasoning: { effort: "low" }` or expand max completion tokens to prevent JSON truncation on lengthy evaluation traces.
 3. **Offload Math to CodeAct**: Require the agent to delegate all calculations to the `python_executor` tool rather than computing numbers in prompt tokens.
 
@@ -339,41 +339,66 @@ flowchart TD
 Configuration is declared in `config/bench.yaml` in each benchmark project. Supported fields:
 
 ```yaml
-default_profile: mistral_glm
-adapter: financebench.adapter.FinanceBenchAdapter
+# config/docgraph.yaml
+default_profile: default
+
+docgraph_profiles:
+  default:
+    description: "Ladybug Document Graph with Mistral OCR"
+    markdownize_profile: best
+    paths:
+      sources_dir: ${paths.data_root}/pdfs
+      markdown_dir: ${paths.data_root}/markdown_multi
+      kg_db: ${paths.data_root}/kg/financebench_multi.db
+      saved_markdown_dir: ~/OneDrive/prj/financebench/markdown
+    llms:
+      summary: deepseek-v4-flash-0731@openrouter
+      image: null
+    images:
+      enabled: false
+      describe_uncaptioned: false
+      min_size_bytes: 10240
+      max_queries_per_turn: 3
+    build:
+      structure_strategy: auto
+      generate_summaries: true
+      workers: 4
+      summary_min_tokens: 800
+      context_safety_ratio: 0.9
+      fts: true
+      chunk_size_tokens: 1500
+      skip_ocr: false
+      force: false
+```
+
+```yaml
+# config/bench.yaml
+default_profile: default
+dataset_adapter: financebench.adapter.FinanceBenchAdapter
 
 paths:
-  pdfs_dir: ${paths.data_root}/pdfs
-  markdown_dir: ${paths.data_root}/markdown_multi
-  kg_db: ${paths.data_root}/kg/financebench_multi.db
-  saved_markdown_dir: ~/OneDrive/prj/financebench/markdown   # Generic location for cached Markdown
-  onedrive_markdown_dir: ${paths.saved_markdown_dir}       # Backward-compatibility alias
   runs: ${paths.data_root}/financebench/{profile}/runs.jsonl
   scores: ${paths.data_root}/financebench/{profile}/scores.jsonl
   scores_summary: ${paths.data_root}/financebench/{profile}/scores_summary.json
 
 bench_profiles:
-  mistral_glm:
-    description: "GLM 5.2 agent with Mistral OCR and DeepSeek V4 Pro judge"
-    markdownize_profile: best
-    monitoring: null
-    llms:
-      agent: glm_5.2@openrouter
-      build: deepseek-v4-flash-0731@openrouter
-      judge: DeepSeek-V4-Pro-0813@openrouter
-    build:
-      skip_ocr: false
-      force: false
-      llm: deepseek-v4-flash-0731@openrouter
-      structure_strategy: auto
-      summaries: true
-      workers: 4
-      embeddings: qwen3_06b@deepinfra
-      fts: true
-      chunk_size_tokens: 1500
+  default:
+    description: "FinanceBench QA agent with DeepSeek V4 Pro grader"
+    docgraph_profile: default
+    agent_profile: default
     files:
       pathspecs:
         - "*"
+      docs: []
+      limit: null
+    runner:
+      concurrency: 10
+      folder_id: null
+      monitoring: null
+    grader:
+      enabled: true
+      llm: DeepSeek-V4-Pro-0813@openrouter
+      concurrency: 5
 ```
 
 ---
@@ -453,16 +478,13 @@ To test `genai-graph` against a new benchmark (e.g. `mybench`):
            ...
    ```
 
-2. **Configure `config/bench.yaml`**:
+2. **Configure `config/docgraph.yaml` & `config/bench.yaml`**:
    ```yaml
+   # config/bench.yaml
    default_profile: default
-   adapter: mybench.adapter.MyBenchAdapter
+   dataset_adapter: mybench.adapter.MyBenchAdapter
 
    paths:
-     pdfs_dir: ${paths.data_root}/pdfs
-     markdown_dir: ${paths.data_root}/markdown
-     kg_db: ${paths.data_root}/kg/mybench.db
-     saved_markdown_dir: ~/saved_markdown
      runs: ${paths.data_root}/mybench/{profile}/runs.jsonl
      scores: ${paths.data_root}/mybench/{profile}/scores.jsonl
      scores_summary: ${paths.data_root}/mybench/{profile}/scores_summary.json
@@ -470,9 +492,12 @@ To test `genai-graph` against a new benchmark (e.g. `mybench`):
    bench_profiles:
      default:
        description: "My Benchmark default profile"
-       llms:
-         agent: glm_5.2@openrouter
-         judge: DeepSeek-V4-Pro-0813@openrouter
+       docgraph_profile: default
+       agent_profile: default
+       grader:
+         enabled: true
+         llm: DeepSeek-V4-Pro-0813@openrouter
+         concurrency: 5
    ```
 
 3. **Register `BenchCommands` in `config/app_conf.yaml`**:

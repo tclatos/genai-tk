@@ -268,7 +268,7 @@ def get_stopwords(language_code: str = "en", *, fallback_to_english: bool = True
         if hasattr(lang_cls, "Defaults") and hasattr(lang_cls.Defaults, "stop_words"):
             return set(lang_cls.Defaults.stop_words)
     except Exception as exc:  # noqa: BLE001
-        logger.debug("Could not load spaCy stop words for '{}': {}", code, exc)
+        logger.warning("Could not load spaCy stop words for '{}': {}", code, exc)
 
     if fallback_to_english:
         try:

@@ -1,0 +1,34 @@
+# Document Graph building profiles
+default_profile: default
+
+docgraph_profiles:
+  default:
+    description: "Default Document Graph construction profile"
+    markdownize_profile: best
+
+    paths:
+      sources_dir: ${paths.data_root}/pdfs
+      markdown_dir: ${paths.data_root}/markdown_multi
+      kg_db: ${paths.data_root}/kg/{{ package_name }}.db
+      saved_markdown_dir: ~/OneDrive/prj/{{ package_name }}/markdown
+
+    llms:
+      summary: default
+      image: null
+
+    images:
+      enabled: false
+      describe_uncaptioned: false
+      min_size_bytes: 10240
+      max_queries_per_turn: 3
+
+    build:
+      structure_strategy: auto
+      generate_summaries: true
+      summary_min_tokens: 800
+      context_safety_ratio: 0.9
+      fts: true
+      chunk_size_tokens: 1500
+      workers: 4
+      skip_ocr: false
+      force: false

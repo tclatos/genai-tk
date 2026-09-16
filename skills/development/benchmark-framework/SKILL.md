@@ -177,57 +177,88 @@ class MyBenchmarkAdapter(BaseBenchmarkAdapter):
 
 ---
 
-## Configuring `config/bench.yaml`
+## Configuring `config/docgraph.yaml` & `config/bench.yaml`
+
+Benchmark configuration cleanly separates **DocGraph construction** (`config/docgraph.yaml`) from **benchmark execution** (`config/bench.yaml`), avoiding duplication and dead fields.
+
+### `config/docgraph.yaml` (Document Graph Construction)
 
 ```yaml
-default_profile: mistral_glm
-adapter: mmlongbench.adapter.MMLongBenchAdapter
+default_profile: default
 
-bench_profiles:
-  mistral_glm:
-    description: "GLM 5.3 Flash agent with Mistral OCR and DeepSeek V4 Pro judge"
+docgraph_profiles:
+  default:
+    description: "Ladybug Document Graph with Mistral OCR & LLM outline extraction"
     markdownize_profile: best
-    monitoring: null
+
+    paths:
+      sources_dir: ${paths.data_root}/pdfs
+      markdown_dir: ${paths.data_root}/markdown_multi
+      kg_db: ${paths.data_root}/kg/bench.db
+      saved_markdown_dir: ~/OneDrive/prj/bench/markdown
 
     llms:
-      agent: glm_5.3_flash@openrouter
-      build: deepseek-v4-flash-0731@openrouter
-      judge: DeepSeek-V4-Pro-0813@openrouter
+      summary: deepseek-v4-flash-0731@openrouter  # Outline structure & section summaries
+      image: gemini-2.5-flash@openrouter          # VLM for uncaptioned image descriptions / query_image (or null)
+
+    images:
+      enabled: true                               # true for multimodal datasets (MMLongBench)
+      describe_uncaptioned: true                  # generate descriptions for uncaptioned images >10KB
+      min_size_bytes: 10240
+      max_queries_per_turn: 3
 
     build:
-      skip_ocr: false
-      force: false
-      llm: deepseek-v4-flash-0731@openrouter
-      structure_strategy: auto  # auto | algo | toc_preamble | llm_full
-      summaries: true
-      workers: 4
+      structure_strategy: auto                    # auto | algo | toc_preamble | llm_full
+      generate_summaries: true                    # generate section descriptions for TOC navigation
       summary_min_tokens: 800
       context_safety_ratio: 0.9
-      embeddings: qwen3_06b@deepinfra
-      fts: true
+      fts: true                                   # native BM25/FTS index over MarkdownSection
       chunk_size_tokens: 1500
-
-    files:
-      pathspecs: ["*"]          # glob / pathspec pattern
-      limit: null
-
-    agent:
-      profile: default
-      folder_id: null
-      concurrency: 10
-
-    judge:
-      enabled: true
-      concurrency: 5
+      workers: 8
+      skip_ocr: false
+      force: false
 ```
 
-### Path Interpolation in `bench.yaml`
+### `config/bench.yaml` (Benchmark Execution & Grading)
+
+```yaml
+default_profile: default
+dataset_adapter: mmlongbench.adapter.MMLongBenchAdapter
+
+paths:
+  runs: ${paths.data_root}/mmlongbench/{profile}/runs.jsonl
+  scores: ${paths.data_root}/mmlongbench/{profile}/scores.jsonl
+  scores_summary: ${paths.data_root}/mmlongbench/{profile}/scores_summary.json
+
+bench_profiles:
+  default:
+    description: "Benchmark evaluation on MMLongBench-Doc"
+    docgraph_profile: default                     # references docgraph_profiles.default in docgraph.yaml
+    agent_profile: default                        # references agents.default in agents.yaml (resolves Agent LLM)
+
+    files:
+      pathspecs: ["*"]                            # glob / pathspec pattern
+      docs: []
+      limit: null
+
+    runner:
+      concurrency: 12
+      folder_id: null
+      monitoring: null
+
+    grader:
+      enabled: true
+      llm: DeepSeek-V4-Pro-0813@openrouter
+      concurrency: 8
+```
+
+### Path Interpolation
 The `{profile}` placeholder in directory paths is automatically substituted at runtime:
 - Raw PDFs: `data/pdfs/`
 - Markdown files: `data/markdown_multi/`
-- Knowledge Graph DB: `data/kg/{profile}/lbug/` or `data/kg/mmlongbench_multi.db`
-- Execution Traces: `data/mmlongbench/{profile}/runs.jsonl`
-- Scored Verdicts: `data/mmlongbench/{profile}/scores.jsonl`
+- Knowledge Graph DB: `data/kg/bench.db`
+- Execution Traces: `data/bench/{profile}/runs.jsonl`
+- Scored Verdicts: `data/bench/{profile}/scores.jsonl`
 
 ---
 

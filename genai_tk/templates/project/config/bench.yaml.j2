@@ -1,24 +1,28 @@
 default_profile: default
+dataset_adapter: {{ package_name }}.adapter.DefaultBenchmarkAdapter
 
-adapter: {{ package_name }}.adapter.DefaultBenchmarkAdapter
+paths:
+  runs: ${paths.data_root}/{{ package_name }}/{profile}/runs.jsonl
+  scores: ${paths.data_root}/{{ package_name }}/{profile}/scores.jsonl
+  scores_summary: ${paths.data_root}/{{ package_name }}/{profile}/scores_summary.json
 
 bench_profiles:
   default:
-    llms:
-      agent: default
-      judge: default
-    build:
-      skip_ocr: false
-      structure_strategy: auto
-      summaries: true
-      workers: 4
+    description: "Default benchmark profile for {{ package_name }}"
+    docgraph_profile: default
+    agent_profile: default
+
     files:
       pathspecs: ["*"]
+      docs: []
       limit: null
-    agent:
-      profile: default
+
+    runner:
+      concurrency: 5
       folder_id: null
+      monitoring: null
+
+    grader:
+      enabled: true
+      llm: default
       concurrency: 5
-    judge:
-      concurrency: 5
-    monitoring: null

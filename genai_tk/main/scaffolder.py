@@ -179,6 +179,7 @@ class ProjectScaffolder:
                 {
                     "adapter.py.j2": f"{pkg}/adapter.py",
                     "commands/bench_commands.py.j2": f"{pkg}/commands/bench_commands.py",
+                    "config/docgraph.yaml.j2": "config/docgraph.yaml",
                     "config/bench.yaml.j2": "config/bench.yaml",
                 }
             )
