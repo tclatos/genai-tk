@@ -329,6 +329,109 @@ def test_mistral_ocr_converter_prepare_batch_request(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_mistral_ocr_converter_table_inlining_simple(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test inlining simple HTML tables from page.tables into markdown table syntax."""
+    test_file = tmp_path / "table_doc.pdf"
+    test_file.write_bytes(b"%PDF-1.4 sample table")
+
+    fake_table = MagicMock()
+    fake_table.id = "tbl-0.html"
+    fake_table.content = (
+        "<table><thead><tr><th>Quarter</th><th>Revenue</th></tr></thead>"
+        "<tbody><tr><td>Q1</td><td>$10M</td></tr><tr><td>Q2</td><td>$15M</td></tr></tbody></table>"
+    )
+
+    fake_page = MagicMock()
+    fake_page.index = 0
+    fake_page.markdown = "# Financial Results\n\n[tbl-0.html](tbl-0.html)\n\nEnd of quarterly summary."
+    fake_page.tables = [fake_table]
+    fake_page.images = []
+
+    fake_response = MagicMock(pages=[fake_page])
+    fake_client = MagicMock()
+    fake_client.ocr.process.return_value = fake_response
+
+    converter = MistralOCRConverter(api_key="fake-key", table_format="html")
+    monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
+
+    md = await converter.convert(test_file)
+
+    # 1. Check table was inlined as markdown table
+    assert "| Quarter | Revenue |" in md or ("| Quarter" in md and "| Revenue" in md)
+    assert "| Q1 | $10M |" in md or ("Q1" in md and "$10M" in md)
+    assert "| Q2 | $15M |" in md or ("Q2" in md and "$15M" in md)
+    # 2. Check bare link was replaced
+    assert "[tbl-0.html](tbl-0.html)" not in md
+    assert "End of quarterly summary." in md
+
+
+@pytest.mark.asyncio
+async def test_mistral_ocr_converter_table_inlining_complex(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test inlining complex multi-span tables with dimension comments retained as HTML."""
+    test_file = tmp_path / "complex_table.pdf"
+    test_file.write_bytes(b"%PDF-1.4 complex table")
+
+    fake_table = MagicMock()
+    fake_table.id = "tbl-1.html"
+    fake_table.content = (
+        '<table><tr><th colspan="2">Consolidated Statement</th></tr><tr><td>Assets</td><td>$50B</td></tr></table>'
+    )
+
+    fake_page = MagicMock()
+    fake_page.index = 0
+    fake_page.markdown = "## Overview\n\n[tbl-1.html](tbl-1.html)\n\nNote 1 follows."
+    fake_page.tables = [fake_table]
+    fake_page.images = []
+
+    fake_response = MagicMock(pages=[fake_page])
+    fake_client = MagicMock()
+    fake_client.ocr.process.return_value = fake_response
+
+    converter = MistralOCRConverter(api_key="fake-key", table_format="html")
+    monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
+
+    md = await converter.convert(test_file)
+
+    # 1. Complex table retains HTML with dimensions comment
+    assert "<!-- Table: 2x2 -->" in md
+    assert '<th colspan="2">Consolidated Statement</th>' in md
+    # 2. Placeholder link is replaced
+    assert "[tbl-1.html](tbl-1.html)" not in md
+
+
+@pytest.mark.asyncio
+async def test_mistral_ocr_converter_with_sample_pdf_and_tables(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test conversion on a real sample PDF file with mock OCR output containing inlined tables."""
+    sample_pdf = Path("/home/tcl/prj/genai-graph/tests/data/sample-pdf-a4-size.pdf")
+    assert sample_pdf.exists(), f"Sample PDF not found at {sample_pdf}"
+
+    fake_table = MagicMock()
+    fake_table.id = "tbl-0"
+    fake_table.content = "<table><tr><th>Metric</th><th>2024</th></tr><tr><td>Growth</td><td>12%</td></tr></table>"
+
+    fake_page = MagicMock()
+    fake_page.index = 0
+    fake_page.markdown = "# Sample Document\n\n[tbl-0](tbl-0)\n\nSummary text."
+    fake_page.tables = [fake_table]
+    fake_page.images = []
+
+    fake_response = MagicMock(pages=[fake_page])
+    fake_client = MagicMock()
+    fake_client.ocr.process.return_value = fake_response
+
+    converter = MistralOCRConverter(api_key="fake-key", table_format="html")
+    monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
+
+    md = await converter.convert(sample_pdf)
+    assert "## Page 1" in md
+    assert "Metric" in md
+    assert "Growth" in md
+    assert "[tbl-0](tbl-0)" not in md
+
+
+@pytest.mark.asyncio
 async def test_lighton_ocr_converter_sync(tmp_path: Path) -> None:
     test_file = tmp_path / "invoice.pdf"
     test_file.write_bytes(b"%PDF-1.4 invoice")

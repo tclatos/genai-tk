@@ -150,20 +150,52 @@ class MistralOCRConverter(DocumentConverter):
         return self._format_ocr_pages(ocr_response.pages)
 
     def _format_ocr_pages(self, pages: list) -> str:
-        """Format Mistral OCR pages into a unified Markdown string, optionally extracting images."""
+        """Format Mistral OCR pages into a unified Markdown string, optionally extracting images and inlining tables."""
         parts: list[str] = []
         for page in pages:
             page_index = getattr(page, "index", 0) if not isinstance(page, dict) else page.get("index", 0)
             page_markdown = getattr(page, "markdown", "") if not isinstance(page, dict) else page.get("markdown", "")
             page_images = getattr(page, "images", None) if not isinstance(page, dict) else page.get("images", None)
+            page_tables = getattr(page, "tables", None) if not isinstance(page, dict) else page.get("tables", None)
 
             if self.include_image_base64 and page_images:
                 page_markdown = self._process_page_images(page_markdown, page_images)
+
+            if page_tables:
+                page_markdown = self._process_page_tables(page_markdown, page_tables)
 
             page_markdown = process_markdown_tables(page_markdown)
 
             parts.append(f"## Page {page_index + 1}\n\n{page_markdown}\n\n")
         return "".join(parts)
+
+    def _process_page_tables(self, markdown: str, tables: list) -> str:
+        """Inline table content from OCR page.tables into markdown placeholders."""
+        for tbl in tables:
+            tbl_id = getattr(tbl, "id", "") if not isinstance(tbl, dict) else tbl.get("id", "")
+            tbl_content = getattr(tbl, "content", "") if not isinstance(tbl, dict) else tbl.get("content", "")
+
+            if not tbl_content:
+                continue
+
+            tbl_content = tbl_content.strip()
+
+            replaced = False
+            if tbl_id:
+                escaped_id = re.escape(tbl_id)
+                id_stem = re.escape(Path(tbl_id).stem)
+                pattern = re.compile(
+                    rf"!*\[(?P<alt>[^\]]*)\]\((?P<url>{escaped_id}|{id_stem}(?:\.html?)?)(?:\s+[\"'][^\"']*[\"'])?\)",
+                    re.IGNORECASE,
+                )
+                if pattern.search(markdown):
+                    markdown = pattern.sub(lambda _, c=tbl_content: f"\n\n{c}\n\n", markdown)
+                    replaced = True
+
+            if not replaced:
+                markdown = f"{markdown}\n\n{tbl_content}\n\n"
+
+        return markdown
 
     def _process_page_images(self, markdown: str, images: list) -> str:
         """Extract base64 images, compute xxhash32, save to disk, and annotate markdown."""
