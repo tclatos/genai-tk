@@ -279,14 +279,45 @@ async def test_mistral_ocr_converter_batch(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
 
     async def _mock_submit(client, requests, files):
-        return {str(f1): "## Page 1\n\nContent 1", str(f2): "## Page 1\n\nContent 2"}
+        return {str(f): f"## Page 1\n\nContent {f.name}" for f in files}
 
     monkeypatch.setattr(converter, "_submit_and_poll_batch", _mock_submit)
 
     results = await converter.batch_convert([f1, f2])
     assert str(f1) in results
     assert str(f2) in results
-    assert results[str(f1)] == "## Page 1\n\nContent 1"
+    assert results[str(f1)] == "## Page 1\n\nContent 1.pdf"
+    assert results[str(f2)] == "## Page 1\n\nContent 2.pdf"
+
+
+@pytest.mark.asyncio
+async def test_mistral_ocr_converter_batch_chunking_and_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    f1 = tmp_path / "1.pdf"
+    f2 = tmp_path / "2.pdf"
+    f3 = tmp_path / "3.pdf"
+    f1.write_bytes(b"%PDF-1.4 1")
+    f2.write_bytes(b"%PDF-1.4 2")
+    f3.write_bytes(b"%PDF-1.4 3")
+
+    converter = MistralOCRConverter(api_key="fake-key", use_batch_api=True, batch_size=2)
+    fake_client = MagicMock()
+    monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
+
+    calls = []
+
+    async def _mock_submit(client, requests, files):
+        calls.append(files)
+        return {str(f): f"## Page 1\n\nContent {f.name}" for f in files}
+
+    monkeypatch.setattr(converter, "_submit_and_poll_batch", _mock_submit)
+
+    results = await converter.batch_convert([f1, f2, f3])
+    assert len(calls) == 2  # Split into [f1, f2] and [f3]
+    assert len(results) == 3
+    assert results[str(f1)] == "## Page 1\n\nContent 1.pdf"
+    assert results[str(f3)] == "## Page 1\n\nContent 3.pdf"
 
 
 @pytest.mark.asyncio

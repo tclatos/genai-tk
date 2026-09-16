@@ -50,6 +50,33 @@ def _pace_request_start(min_interval: float) -> None:
         _ocr_next_start = time.monotonic() + min_interval
 
 
+def _chunk_batch_files(paths: list[Path], max_count: int, max_bytes: int) -> list[list[Path]]:
+    """Partition paths into batches bounded by both count and total raw byte size."""
+    batches: list[list[Path]] = []
+    current_batch: list[Path] = []
+    current_bytes = 0
+
+    for p in paths:
+        try:
+            size = p.stat().st_size
+        except OSError:
+            size = 0
+
+        # If adding this file would exceed max_count or max_bytes (and current_batch is not empty)
+        if current_batch and (len(current_batch) >= max_count or (current_bytes + size > max_bytes)):
+            batches.append(current_batch)
+            current_batch = []
+            current_bytes = 0
+
+        current_batch.append(p)
+        current_bytes += size
+
+    if current_batch:
+        batches.append(current_batch)
+
+    return batches
+
+
 class MistralOCRConverter(DocumentConverter):
     """Document converter using Mistral's OCR and Batch APIs."""
 
@@ -59,7 +86,11 @@ class MistralOCRConverter(DocumentConverter):
         description="Minimum spacing between OCR API request starts across threads to avoid rate limits",
     )
     model: str = Field(default="mistral-ocr-latest", description="Mistral OCR model name")
-    batch_size: int = Field(default=100, description="Maximum files per batch API request")
+    batch_size: int = Field(default=25, description="Maximum files per batch API request")
+    max_batch_bytes: int = Field(
+        default=100 * 1024 * 1024,
+        description="Maximum total raw file size in bytes per batch request (default 100MB, safely under Mistral's 512MB limit)",
+    )
     use_batch_api: bool = Field(default=True, description="Whether to use the Mistral Batch API for batch conversions")
     poll_interval_seconds: float = Field(default=2.0, description="Polling interval in seconds for batch jobs")
     max_poll_attempts: int = Field(default=300, description="Maximum polling attempts for batch jobs")
@@ -315,23 +346,39 @@ class MistralOCRConverter(DocumentConverter):
             return await super().batch_convert(paths)
 
         client = self._get_client()
-        results: dict[str, str] = {}
+        chunks = _chunk_batch_files(paths, max_count=self.batch_size, max_bytes=self.max_batch_bytes)
+        logger.info(f"Submitting {len(chunks)} Mistral OCR batch job(s) for {len(paths)} file(s)")
 
-        for start in range(0, len(paths), self.batch_size):
-            batch_files = paths[start : start + self.batch_size]
-            logger.info(f"Submitting Mistral OCR batch of {len(batch_files)} file(s)")
-            requests = [self._prepare_batch_request(p, i) for i, p in enumerate(batch_files)]
-            batch_results = await self._submit_and_poll_batch(client, requests, batch_files)
-            results.update(batch_results)
+        async def _run_chunk(chunk_files: list[Path], chunk_idx: int) -> dict[str, str]:
+            logger.info(f"Submitting Mistral OCR batch #{chunk_idx + 1} of {len(chunk_files)} file(s)")
+            requests = [self._prepare_batch_request(p, i) for i, p in enumerate(chunk_files)]
+            try:
+                return await self._submit_and_poll_batch(client, requests, chunk_files)
+            except Exception as e:
+                logger.warning(
+                    f"Mistral OCR batch #{chunk_idx + 1} failed ({e}); falling back to single conversions for these files"
+                )
+                return await super(MistralOCRConverter, self).batch_convert(chunk_files)
+
+        chunk_results = await asyncio.gather(*[_run_chunk(chunk, idx) for idx, chunk in enumerate(chunks)])
+        results: dict[str, str] = {}
+        for res in chunk_results:
+            results.update(res)
 
         return results
 
     def _prepare_batch_request(self, file_path: Path, index: int) -> str:
         """Prepare a single JSONL batch request line."""
         document_url = self._document_data_url(file_path)
+        suffix = file_path.suffix.lower()
+        if suffix in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+            doc_field: dict[str, Any] = {"type": "image_url", "image_url": document_url}
+        else:
+            doc_field = {"type": "document_url", "document_url": document_url}
+
         body: dict[str, Any] = {
             "model": self.model,
-            "document": {"type": "document_url", "document_url": document_url},
+            "document": doc_field,
         }
         if self.include_image_base64:
             body["include_image_base64"] = True
@@ -359,21 +406,23 @@ class MistralOCRConverter(DocumentConverter):
                 f.write(request + "\n")
             batch_file_path = f.name
 
+        batch_data_id = None
         try:
             with open(batch_file_path, "rb") as f:
                 batch_data = client.files.upload(
                     file={"file_name": os.path.basename(batch_file_path), "content": f},
                     purpose="batch",
                 )
+            batch_data_id = batch_data.id
 
             job = client.batch.jobs.create(
-                input_files=[batch_data.id],
+                input_files=[batch_data_id],
                 model=self.model,
                 endpoint="/v1/ocr",
                 metadata={"job_type": "pdf_ocr_batch"},
             )
 
-            logger.info(f"Polling Mistral batch job {job.id} for completion")
+            logger.info(f"Polling Mistral batch job {job.id} for completion ({len(file_paths)} files)")
             if not await self._poll_job(client, job.id):
                 raise RuntimeError(f"Mistral OCR batch job {job.id} failed to complete")
 
@@ -384,22 +433,37 @@ class MistralOCRConverter(DocumentConverter):
         finally:
             if os.path.exists(batch_file_path):
                 os.remove(batch_file_path)
+            if batch_data_id:
+                try:
+                    client.files.delete(file_id=batch_data_id)
+                except Exception as exc:
+                    logger.debug(f"Could not delete temporary batch input file {batch_data_id}: {exc}")
 
         return results
 
     async def _poll_job(self, client, job_id: str) -> bool:
         """Poll job status until completion."""
-        for _attempt in range(self.max_poll_attempts):
+        for attempt in range(self.max_poll_attempts):
             job = client.batch.jobs.get(job_id=job_id)
-            if job.status == "SUCCESS":
-                logger.success(f"Mistral batch job {job_id} completed successfully")
+            status = getattr(job, "status", None) or str(job.status)
+            total = getattr(job, "total_requests", 0) or 0
+            succeeded = getattr(job, "succeeded_requests", 0) or 0
+            failed = getattr(job, "failed_requests", 0) or 0
+
+            if status == "SUCCESS":
+                logger.success(f"Mistral batch job {job_id} completed successfully ({succeeded}/{total} succeeded)")
                 return True
-            if job.status == "FAILED":
-                logger.error(f"Mistral batch job {job_id} failed")
+            if status in ("FAILED", "TIMEOUT_EXCEEDED", "CANCELLED", "CANCELLATION_REQUESTED"):
+                logger.error(f"Mistral batch job {job_id} failed with status {status} (failed: {failed}/{total})")
                 return False
+
+            if attempt == 0 or (attempt + 1) % 5 == 0:
+                logger.info(f"Mistral batch job {job_id}: status={status}, progress={succeeded + failed}/{total}")
             await asyncio.sleep(self.poll_interval_seconds)
 
-        logger.error(f"Mistral batch job {job_id} timed out")
+        logger.error(
+            f"Mistral batch job {job_id} timed out after {self.max_poll_attempts * self.poll_interval_seconds}s"
+        )
         return False
 
     def _parse_batch_results(self, client, output_file_id: str, file_paths: list[Path]) -> dict[str, str]:
@@ -408,14 +472,44 @@ class MistralOCRConverter(DocumentConverter):
 
         results: dict[str, str] = {}
         output_stream = client.files.download(file_id=output_file_id)
-        response_content = output_stream.read().decode("utf-8")
+        if hasattr(output_stream, "read"):
+            content_bytes = output_stream.read()
+            response_content = content_bytes.decode("utf-8") if isinstance(content_bytes, bytes) else str(content_bytes)
+        elif hasattr(output_stream, "text"):
+            response_content = output_stream.text
+        elif hasattr(output_stream, "content"):
+            raw_c = output_stream.content
+            response_content = raw_c.decode("utf-8") if isinstance(raw_c, bytes) else str(raw_c)
+        else:
+            response_content = str(output_stream)
 
         for line in response_content.strip().split("\n"):
             if not line:
                 continue
-            result = json.loads(line)
-            file_path = file_paths[int(result["custom_id"])]
-            response_body = result.get("response", {}).get("body", {})
+            try:
+                result = json.loads(line)
+            except Exception as e:
+                logger.warning(f"Failed to parse batch response line as JSON: {e}")
+                continue
+
+            custom_id_str = result.get("custom_id")
+            if custom_id_str is None:
+                continue
+            try:
+                custom_id = int(custom_id_str)
+            except (ValueError, TypeError):
+                continue
+
+            if custom_id < 0 or custom_id >= len(file_paths):
+                continue
+            file_path = file_paths[custom_id]
+            response_info = result.get("response", {})
+            status_code = response_info.get("status_code", 200)
+            if status_code != 200:
+                logger.warning(f"Batch item for {file_path.name} failed with status {status_code}: {response_info}")
+                continue
+
+            response_body = response_info.get("body", {})
             try:
                 ocr_response = OCRResponse.model_validate(response_body)
                 results[str(file_path)] = self._format_ocr_pages(ocr_response.pages)

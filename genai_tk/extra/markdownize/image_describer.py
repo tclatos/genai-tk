@@ -7,6 +7,7 @@ import base64
 import json
 import mimetypes
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,9 @@ class ImageDescriptionCache(BaseModel):
     description: str = Field(..., description="VLM or caption description of the image")
     keywords: list[str] = Field(default_factory=list, description="Extracted keywords for search")
     model: str | None = Field(default=None, description="VLM model identifier used")
+
+
+_image_cache_lock = threading.Lock()
 
 
 def _get_local_cache_file(images_dir: Path | str | None) -> Path | None:
@@ -61,12 +65,13 @@ def load_cached_image_description(
     # 2. File-based cache fallback
     cache_file = _get_local_cache_file(images_dir)
     if cache_file and cache_file.exists():
-        try:
-            data = json.loads(cache_file.read_text(encoding="utf-8"))
-            if image_hash in data:
-                return ImageDescriptionCache.model_validate(data[image_hash])
-        except Exception as exc:
-            logger.warning(f"Error reading local image cache {cache_file}: {exc}")
+        with _image_cache_lock:
+            try:
+                data = json.loads(cache_file.read_text(encoding="utf-8"))
+                if image_hash in data:
+                    return ImageDescriptionCache.model_validate(data[image_hash])
+            except Exception as exc:
+                logger.warning(f"Error reading local image cache {cache_file}: {exc}")
 
     return None
 
@@ -93,18 +98,21 @@ def save_cached_image_description(
     # 2. Local file cache
     cache_file = _get_local_cache_file(images_dir)
     if cache_file:
-        try:
-            cache_file.parent.mkdir(parents=True, exist_ok=True)
-            data: dict[str, Any] = {}
-            if cache_file.exists():
-                try:
-                    data = json.loads(cache_file.read_text(encoding="utf-8"))
-                except Exception:
-                    data = {}
-            data[desc.image_hash] = desc.model_dump()
-            cache_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        except Exception as exc:
-            logger.warning(f"Error writing local image cache {cache_file}: {exc}")
+        with _image_cache_lock:
+            try:
+                cache_file.parent.mkdir(parents=True, exist_ok=True)
+                data: dict[str, Any] = {}
+                if cache_file.exists():
+                    try:
+                        data = json.loads(cache_file.read_text(encoding="utf-8"))
+                    except Exception:
+                        data = {}
+                data[desc.image_hash] = desc.model_dump()
+                tmp_file = cache_file.with_suffix(".tmp")
+                tmp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                tmp_file.replace(cache_file)
+            except Exception as exc:
+                logger.warning(f"Error writing local image cache {cache_file}: {exc}")
 
 
 _UPSCALE_MAX_DIMENSION = 2000
