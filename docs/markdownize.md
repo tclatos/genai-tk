@@ -53,13 +53,14 @@ The toolkit provides 7 document converter engines in `genai_tk.extra.markdownize
 - In the generated Markdown, an HTML commentary `<!-- Image: {filename} (hash: {hash}) -->` is added adjacent to the image reference, and the link target is updated to the saved file path.
 - **Uncaptioned Image Description (`genai_tk.extra.markdownize.image_describer`)**: Uncaptioned images ($>10\text{ KB}$) can be automatically described with a VLM (extracting chart legends, axes, and numerical values). Descriptions are cached content-addressed in a KV-store / sidecar cache (`ImageDescriptionCache`) so re-runs never repeat expensive VLM calls.
 
-### Lossless HTML Table Processing
+### Lossless HTML Table Processing & Matrix Expansion
 
-`genai_tk.extra.markdownize.table_processor` processes HTML tables produced by OCR engines or Web conversions:
+`genai_tk.extra.markdownize.table_processor` processes HTML tables produced by OCR engines (e.g. Mistral OCR `table_format: html`) or Web conversions:
 - **`is_markdown_table(html)`**: Checks whether an HTML table can be converted to standard Markdown without loss of layout or semantic information (i.e. no `colspan`, `rowspan`, or nested tables).
-- **`convert_html_table(html)`**: Losslessly converts simple HTML tables to standard Markdown tables (`markdownify`), stripping redundant links and saving substantial LLM prompt tokens.
-- **Complex Tables**: Tables with merged cells or nested hierarchies are preserved in clean HTML, annotated with dimensional comments `<!-- Table: {rows}x{cols} -->`, while noisy anchor tags and unwanted formatting are stripped.
-- **`process_markdown_tables(text)`**: Scans entire Markdown documents and processes all embedded HTML `<table>...</table>` blocks automatically.
+- **`expand_html_table_to_grid(table_tag)`**: Expands `colspan` and `rowspan` into a rectangular 2D matrix of Markdown cells, preserving hierarchical headers and repeating categorical row labels for optimal LLM readability.
+- **`convert_html_table(html, table_expanded=True)`**: Converts simple and merged HTML tables to standard Markdown pipe tables, formatting multi-line cells into single-line Markdown rows and escaping pipe characters.
+- **Conservative Nested Handling**: Tables containing nested `<table>` blocks or unflattenable layouts retain structured HTML annotated with dimensional comments `<!-- Table: {rows}x{cols} -->`.
+- **`process_markdown_tables(text, table_expanded=True)`**: Scans entire Markdown documents and processes all embedded HTML `<table>...</table>` blocks automatically.
 
 Example configuration in `config/markdownize.yaml`:
 
@@ -74,6 +75,8 @@ markdownize_converters:
       include_image_base64: true
       image_min_size: 100
       images_dir: data/extracted_images
+      table_format: html
+      table_expanded: true
 ```
 
 ## Profiles

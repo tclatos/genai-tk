@@ -82,10 +82,32 @@ def test_convert_html_table_simple():
 
 
 @pytest.mark.unit
-def test_convert_html_table_complex_retains_html_and_adds_comment():
+def test_convert_html_table_complex_expanded_to_markdown():
+    complex_html = (
+        '<table><tr><th colspan="2">Header</th><th>Value</th></tr>'
+        '<tr><td rowspan="2">Group</td><td>A</td><td>1</td></tr>'
+        "<tr><td>B</td><td>2</td></tr></table>"
+    )
+    converted = convert_html_table(complex_html, table_expanded=True)
+    assert "| Header | Header | Value |" in converted
+    assert "| Group | A | 1 |" in converted
+    assert "| Group | B | 2 |" in converted
+    assert "<table" not in converted
+
+
+@pytest.mark.unit
+def test_convert_html_table_complex_retains_html_when_not_expanded():
     complex_html = '<table><tr><th colspan="2">Header</th></tr><tr><td>1</td><td>2</td></tr></table>'
-    converted = convert_html_table(complex_html)
+    converted = convert_html_table(complex_html, table_expanded=False)
     assert "<!-- Table: 2x2 -->" in converted
+    assert "<table" in converted
+
+
+@pytest.mark.unit
+def test_convert_html_table_nested_retains_html():
+    nested_html = "<table><tr><td>Outer</td><td><table><tr><td>Inner</td></tr></table></td></tr></table>"
+    converted = convert_html_table(nested_html, table_expanded=True)
+    assert "<!-- Table:" in converted
     assert "<table" in converted
 
 
@@ -99,11 +121,12 @@ def test_process_markdown_tables():
         "And complex table 2:\n"
         '<table><tr><td rowspan="2">X</td><td>Y</td></tr><tr><td>Z</td></tr></table>\n'
     )
-    processed = process_markdown_tables(md)
+    processed = process_markdown_tables(md, table_expanded=True)
     # Simple table converted
     assert "| A | B |" in processed or ("| A" in processed and "| B" in processed)
     # Table link removed
     assert "table_1.html" not in processed
-    # Complex table tagged
-    assert "<!-- Table: 2x2 -->" in processed
-    assert '<td rowspan="2">X</td>' in processed
+    # Complex table expanded to rectangular markdown table
+    assert "| X | Y |" in processed
+    assert "| X | Z |" in processed
+    assert "<table" not in processed

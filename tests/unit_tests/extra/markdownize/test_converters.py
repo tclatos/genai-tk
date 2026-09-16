@@ -366,8 +366,10 @@ async def test_mistral_ocr_converter_table_inlining_simple(tmp_path: Path, monke
 
 
 @pytest.mark.asyncio
-async def test_mistral_ocr_converter_table_inlining_complex(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test inlining complex multi-span tables with dimension comments retained as HTML."""
+async def test_mistral_ocr_converter_table_inlining_complex_expanded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test inlining complex multi-span tables with default table_expanded=True expanding to Markdown."""
     test_file = tmp_path / "complex_table.pdf"
     test_file.write_bytes(b"%PDF-1.4 complex table")
 
@@ -387,7 +389,44 @@ async def test_mistral_ocr_converter_table_inlining_complex(tmp_path: Path, monk
     fake_client = MagicMock()
     fake_client.ocr.process.return_value = fake_response
 
-    converter = MistralOCRConverter(api_key="fake-key", table_format="html")
+    converter = MistralOCRConverter(api_key="fake-key", table_format="html", table_expanded=True)
+    monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
+
+    md = await converter.convert(test_file)
+
+    # 1. Complex table is expanded to rectangular Markdown table
+    assert "| Consolidated Statement | Consolidated Statement |" in md
+    assert "| Assets | $50B |" in md
+    assert "<table" not in md
+    # 2. Placeholder link is replaced
+    assert "[tbl-1.html](tbl-1.html)" not in md
+
+
+@pytest.mark.asyncio
+async def test_mistral_ocr_converter_table_inlining_complex_unexpanded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test inlining complex multi-span tables with table_expanded=False retaining HTML."""
+    test_file = tmp_path / "complex_table.pdf"
+    test_file.write_bytes(b"%PDF-1.4 complex table")
+
+    fake_table = MagicMock()
+    fake_table.id = "tbl-1.html"
+    fake_table.content = (
+        '<table><tr><th colspan="2">Consolidated Statement</th></tr><tr><td>Assets</td><td>$50B</td></tr></table>'
+    )
+
+    fake_page = MagicMock()
+    fake_page.index = 0
+    fake_page.markdown = "## Overview\n\n[tbl-1.html](tbl-1.html)\n\nNote 1 follows."
+    fake_page.tables = [fake_table]
+    fake_page.images = []
+
+    fake_response = MagicMock(pages=[fake_page])
+    fake_client = MagicMock()
+    fake_client.ocr.process.return_value = fake_response
+
+    converter = MistralOCRConverter(api_key="fake-key", table_format="html", table_expanded=False)
     monkeypatch.setattr(converter, "_get_client", lambda: fake_client)
 
     md = await converter.convert(test_file)

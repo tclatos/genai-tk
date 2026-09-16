@@ -76,6 +76,10 @@ class MistralOCRConverter(DocumentConverter):
     table_format: Literal["markdown", "html"] | None = Field(
         default=None, description="Table format for Mistral OCR ('markdown' or 'html')"
     )
+    table_expanded: bool = Field(
+        default=True,
+        description="Whether to expand rowspan/colspan in HTML tables into rectangular Markdown tables",
+    )
     describe_uncaptioned_images: bool = Field(
         default=False,
         description="Whether to call VLM to describe uncaptioned images larger than min_image_desc_size_bytes",
@@ -164,7 +168,7 @@ class MistralOCRConverter(DocumentConverter):
             if page_tables:
                 page_markdown = self._process_page_tables(page_markdown, page_tables)
 
-            page_markdown = process_markdown_tables(page_markdown)
+            page_markdown = process_markdown_tables(page_markdown, table_expanded=self.table_expanded)
 
             parts.append(f"## Page {page_index + 1}\n\n{page_markdown}\n\n")
         return "".join(parts)
