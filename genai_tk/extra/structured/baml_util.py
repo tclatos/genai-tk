@@ -56,6 +56,7 @@ _BAML_RUNTIME_CLIENT_NAME = "runtime_llm_override"
 # quiet unless the developer explicitly opts into verbose BAML logging via
 # BAML_LOG (debug/info/trace).
 if os.environ.get("BAML_LOG", "").lower() not in {"debug", "info", "trace"}:
+    os.environ["BAML_LOG"] = "ERROR"
     set_log_level("ERROR")
 
 
@@ -220,6 +221,10 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
             options["temperature"] = llm_dict["temperature"]
         if "openai_api_base" in llm_dict:
             options["base_url"] = llm_dict["openai_api_base"]
+        if "default_headers" in llm_dict and llm_dict["default_headers"]:
+            options["headers"] = dict(llm_dict["default_headers"])
+        if hasattr(llm, "extra_body") and llm.extra_body:
+            options["extra_body"] = dict(llm.extra_body)
         options["http"] = dict(_DEFAULT_BAML_HTTP_OPTIONS)
 
         cr = ClientRegistry()

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import re
+import warnings
 
 import markdownify
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning, Tag
+
+warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
 _HTML_TABLE_PATTERN = re.compile(r"<table(?:\s+[^>]*)?>(.*?)</table>", re.DOTALL | re.IGNORECASE)
 _MISTRAL_TABLE_LINK_PATTERN = re.compile(
