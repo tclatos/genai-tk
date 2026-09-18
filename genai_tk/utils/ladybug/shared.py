@@ -9,6 +9,8 @@ as transactions touch disjoint rows.
 from __future__ import annotations
 
 import atexit
+import os
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -38,12 +40,28 @@ def preload_ladybug_extensions(
                     logger.debug("Could not load extension {}: {}", ext, exc)
 
 
+def _parse_buffer_pool_size(value: int | str) -> int:
+    """Parse a buffer-pool size into bytes.
+
+    Accepts an int (bytes) or a human string like ``"4GB"``, "512MB", "64KB".
+    """
+    if isinstance(value, int):
+        return value
+    text = value.strip().upper().replace(" ", "").replace("IB", "B")
+    match = re.fullmatch(r"([0-9.]+)(B|KB|MB|GB|TB)?", text)
+    if not match:
+        raise ValueError(f"Invalid buffer pool size: {value!r} (use bytes, '4GB', '512MB', ...)")
+    factor = {"": 1, "B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}[match.group(2) or ""]
+    return int(float(match.group(1)) * factor)
+
+
 def get_shared_database(
     db_path: str,
     *,
     enable_multi_writes: bool = True,
     preload_extensions: tuple[str, ...] | list[str] = ("vector", "fts"),
     read_only: bool = False,
+    buffer_pool_size: int | str | None = None,
 ) -> Any:
     """Return a process-shared ``ladybug.Database`` instance for *db_path*.
 
@@ -58,8 +76,18 @@ def get_shared_database(
         preload_extensions: Extensions to install and load on creation.
         read_only: Open the database read-only (no WAL, no checkpointing;
             several read-only handles may coexist for the same file).
+        buffer_pool_size: Explicit buffer-pool size (bytes or like "4GB"). When
+            None, read from ``LADYBUG_BUFFER_POOL_SIZE``; when neither is set,
+            use the engine default (~80% of system memory, which can squeeze
+            the host process on long concurrent runs).
     """
     import ladybug
+
+    if buffer_pool_size is None:
+        env_size = os.getenv("LADYBUG_BUFFER_POOL_SIZE", "").strip()
+        buffer_pool_size = _parse_buffer_pool_size(env_size) if env_size else None
+    else:
+        buffer_pool_size = _parse_buffer_pool_size(buffer_pool_size)
 
     norm_path = db_path if db_path == ":memory:" else str(Path(db_path).resolve())
     key = (norm_path, read_only)
@@ -68,6 +96,7 @@ def get_shared_database(
         if db is None:
             db = ladybug.Database(
                 norm_path,
+                buffer_pool_size=buffer_pool_size,
                 enable_multi_writes=False if read_only else enable_multi_writes,
                 read_only=read_only,
             )
