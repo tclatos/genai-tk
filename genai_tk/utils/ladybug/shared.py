@@ -15,7 +15,7 @@ from typing import Any
 
 from loguru import logger
 
-_SHARED_DATABASES: dict[str, Any] = {}
+_SHARED_DATABASES: dict[tuple[str, bool], Any] = {}
 _DB_LOCK = threading.Lock()
 
 
@@ -43,28 +43,37 @@ def get_shared_database(
     *,
     enable_multi_writes: bool = True,
     preload_extensions: tuple[str, ...] | list[str] = ("vector", "fts"),
+    read_only: bool = False,
 ) -> Any:
     """Return a process-shared ``ladybug.Database`` instance for *db_path*.
 
-    Ensures only a single ``Database`` handle is opened per file path across all
-    worker threads in the current process, pre-loading requested extensions on
-    first initialization.
+    Ensures only a single ``Database`` handle is opened per (file path,
+    read-only) pair across all worker threads in the current process,
+    pre-loading requested extensions on first initialization.
 
     Args:
         db_path: Database file path or ``:memory:``.
         enable_multi_writes: Enable multi-write support on the shared Database.
+            Ignored (treated as False) when ``read_only`` is True.
         preload_extensions: Extensions to install and load on creation.
+        read_only: Open the database read-only (no WAL, no checkpointing;
+            several read-only handles may coexist for the same file).
     """
     import ladybug
 
     norm_path = db_path if db_path == ":memory:" else str(Path(db_path).resolve())
+    key = (norm_path, read_only)
     with _DB_LOCK:
-        db = _SHARED_DATABASES.get(norm_path)
+        db = _SHARED_DATABASES.get(key)
         if db is None:
-            db = ladybug.Database(norm_path, enable_multi_writes=enable_multi_writes)
+            db = ladybug.Database(
+                norm_path,
+                enable_multi_writes=False if read_only else enable_multi_writes,
+                read_only=read_only,
+            )
             if preload_extensions:
                 preload_ladybug_extensions(db, extensions=preload_extensions)
-            _SHARED_DATABASES[norm_path] = db
+            _SHARED_DATABASES[key] = db
         return db
 
 
