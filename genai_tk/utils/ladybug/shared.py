@@ -85,7 +85,7 @@ def get_shared_database(
 
     if buffer_pool_size is None:
         env_size = os.getenv("LADYBUG_BUFFER_POOL_SIZE", "").strip()
-        buffer_pool_size = _parse_buffer_pool_size(env_size) if env_size else None
+        buffer_pool_size = _parse_buffer_pool_size(env_size) if env_size else 0
     else:
         buffer_pool_size = _parse_buffer_pool_size(buffer_pool_size)
 
