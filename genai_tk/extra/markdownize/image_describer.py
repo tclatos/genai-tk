@@ -155,7 +155,7 @@ def describe_image_with_vlm(
     image_path: Path,
     doc_title: str = "",
     section_title: str = "",
-    vlm_model: str = "gemini-2.5-flash@openrouter",
+    vlm_model: str = "default_vlm",
     min_size_bytes: int = 10 * 1024,
     images_dir: Path | str | None = None,
     kvstore_id: str | None = None,

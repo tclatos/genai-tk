@@ -120,8 +120,8 @@ class MistralOCRConverter(DocumentConverter):
         description="Minimum byte size of uncaptioned image to describe with VLM (default 10KB)",
     )
     vlm_model: str = Field(
-        default="gemini-2.5-flash@openrouter",
-        description="VLM model identifier for uncaptioned image descriptions",
+        default="default_vlm",
+        description="LLM tag or model id used to describe uncaptioned images (defaults to the 'default_vlm' config tag)",
     )
 
     def supported_extensions(self) -> set[str]:
