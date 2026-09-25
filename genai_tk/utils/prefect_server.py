@@ -176,18 +176,21 @@ class PrefectServer:
             return
 
         # Background daemon — detach from parent process group so it survives
-        # the CLI process exiting.
+        # the CLI process exiting.  Output is captured in a log file so startup
+        # failures (e.g. database migration errors) can be diagnosed.
         logger.info("Starting Prefect server at {} (background daemon)", self.ui_url)
         # Ensure localhost bypasses any corporate proxy in the subprocess environment
         spawn_env = dict(os.environ)
         _ensure_no_proxy(self.host, spawn_env)
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
-            env=spawn_env,
-        )
+        log_file = self._pid_file.with_suffix(".log")
+        with log_file.open("ab") as log:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                env=spawn_env,
+            )
         self._write_pid(proc.pid)
 
         # Poll until ready (up to 45 seconds)
@@ -196,10 +199,18 @@ class PrefectServer:
             if self.is_running():
                 logger.info("Prefect server ready at {}", self.ui_url)
                 return
+            if proc.poll() is not None:
+                self._pid_file.unlink(missing_ok=True)
+                raise RuntimeError(
+                    f"Prefect server exited during startup (code {proc.returncode})."
+                    f" See log: {log_file}"
+                )
 
         logger.warning(
-            "Prefect server started but may not be fully ready yet. Check health at {}/health",
+            "Prefect server started but may not be fully ready yet. Check health at {}/health"
+            " and log at {}",
             self.api_url,
+            log_file,
         )
 
     def stop(self) -> None:
