@@ -10,6 +10,7 @@ from genai_tk.extra.nlp.stopwords import (
     get_ladybug_stemmer,
     get_stopwords,
     get_stopwords_union,
+    stem_stopwords,
 )
 
 
@@ -109,3 +110,26 @@ class TestStopwordsAndStemmers:
         assert get_dominant_language(["en", "en", "fr"]) == "en"
         assert get_dominant_language([]) == "en"
         assert get_dominant_language([], default="fr") == "fr"
+
+    def test_stem_stopwords_english(self):
+        stops = get_stopwords("en")
+        stemmed = stem_stopwords(stops, "english")
+        assert "the" in stemmed
+        assert "have" in stemmed  # 'having' stems to 'have'
+        assert "having" not in stemmed
+        assert len(stemmed) < len(stops)  # stemming collapses inflected forms
+
+    def test_stem_stopwords_french(self):
+        stops = get_stopwords("fr")
+        stemmed = stem_stopwords(stops, "french")
+        assert "le" in stemmed  # 'les' stems to 'le'
+        assert "lès" not in stemmed  # 'lès' stems to 'les'
+        assert len(stemmed) < len(stops)  # stemming collapses inflected forms
+
+    def test_stem_stopwords_none_stemmer_returns_input(self):
+        raw = {"having", "les"}
+        assert stem_stopwords(raw, "none") == raw
+
+    def test_stem_stopwords_unknown_stemmer_returns_input(self):
+        raw = {"having"}
+        assert stem_stopwords(raw, "not_a_snowball_language") == raw

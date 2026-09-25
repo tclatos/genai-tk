@@ -12,6 +12,11 @@ from typing import Sequence
 
 from loguru import logger
 
+try:
+    import snowballstemmer
+except ImportError:  # pragma: no cover
+    snowballstemmer = None  # type: ignore[assignment]
+
 # Map ISO 639-1 code to Ladybug / Snowball stemmer names
 # Supported Snowball stemmers in Ladybug:
 # arabic, basque, catalan, danish, dutch, english, finnish, french, german,
@@ -311,6 +316,50 @@ def get_ladybug_stemmer(language_code: str = "en", default: str = "english") -> 
     """
     code = _normalize_lang_code(language_code)
     return _ISO_TO_LADYBUG_STEMMER.get(code, default)
+
+
+@functools.lru_cache(maxsize=32)
+def _get_stemmer(stemmer_name: str) -> object | None:
+    """Return a cached Snowball stemmer for a Ladybug stemmer name.
+
+    Args:
+        stemmer_name: Ladybug/Snowball stemmer name (e.g. ``"english"``, ``"french"``).
+
+    Returns:
+        A Snowball stemmer instance, or ``None`` when the snowballstemmer package
+        is not installed or the name is not a known Snowball stemmer.
+    """
+    if snowballstemmer is None:
+        return None
+    try:
+        return snowballstemmer.stemmer(stemmer_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Unknown Snowball stemmer '{}': {}", stemmer_name, exc)
+        return None
+
+
+def stem_stopwords(stopwords: set[str], stemmer_name: str) -> set[str]:
+    """Return the stop words reduced to the form Ladybug's FTS index compares against.
+
+    Ladybug stems indexed tokens with the index's Snowball stemmer before matching
+    them against the stop-word list, so stop words should be provided in their
+    stemmed form for best accuracy (see the FTS extension documentation).
+
+    Args:
+        stopwords: Stop words (lowercased), e.g. from `get_stopwords` or `get_stopwords_union`.
+        stemmer_name: Ladybug/Snowball stemmer name (e.g. ``"english"``, ``"french"``,
+            ``"porter"``), or ``"none"``.
+
+    Returns:
+        The set of stemmed stop words (duplicates collapsed). Returned unchanged
+        when the stemmer is ``"none"`` or snowballstemmer is not installed.
+    """
+    if not stopwords or stemmer_name == "none":
+        return set(stopwords)
+    stemmer = _get_stemmer(stemmer_name)
+    if stemmer is None:
+        return set(stopwords)
+    return {stemmer.stemWord(word) for word in stopwords}
 
 
 def get_dominant_language(language_codes: Sequence[str], default: str = "en") -> str:

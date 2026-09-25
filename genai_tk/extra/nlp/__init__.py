@@ -32,6 +32,7 @@ from genai_tk.extra.nlp.stopwords import (
     get_ladybug_stemmer,
     get_stopwords,
     get_stopwords_union,
+    stem_stopwords,
 )
 
 __all__ = [
@@ -53,5 +54,6 @@ __all__ = [
     "get_stopwords",
     "get_stopwords_union",
     "make_fake_value",
+    "stem_stopwords",
     "nlp_config",
 ]
