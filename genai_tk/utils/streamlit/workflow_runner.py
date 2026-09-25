@@ -1,8 +1,9 @@
 """Reusable 'run a workflow and show live Prefect progress' Streamlit component.
 
 Runs a genai-tk YAML workflow in a background thread (so the Streamlit main thread
-remains free to re-render) while polling the Prefect API for task states and
-updating ``st.status`` / ``st.progress`` widgets on every refresh.
+remains free to re-render) while polling the Prefect API for task states.  The
+live progress panel renders as a Streamlit fragment that re-renders itself while
+the workflow runs, keeping the rest of the page interactive.
 
 Usage in any Streamlit page::
 
@@ -27,7 +28,6 @@ from __future__ import annotations
 
 import re
 import threading
-import time
 from typing import Any
 
 from loguru import logger
@@ -201,16 +201,15 @@ class WorkflowRunner:
     # Rendering
     # ------------------------------------------------------------------
 
-    def render_progress(self, *, auto_rerun: bool = True, rerun_interval: float = _POLL_INTERVAL) -> None:
+    def render_progress(self) -> None:
         """Render live progress widgets.
 
-        Syncs from the thread store first, then renders ``st.status`` with
-        per-task progress.  When running, polls Prefect and schedules a page
-        rerun every *rerun_interval* seconds so the display stays live.
-
-        Args:
-            auto_rerun: If True, calls ``st.rerun()`` while the workflow runs.
-            rerun_interval: Seconds to wait between page reruns during execution.
+        Syncs from the thread store first, then renders an ``st.status`` block
+        with per-task progress.  While the workflow runs, the block renders as
+        a Streamlit fragment that polls Prefect and re-renders itself every
+        ``_POLL_INTERVAL`` seconds — the rest of the page stays interactive.
+        When the workflow finishes, the fragment promotes to a full page rerun,
+        which renders the final state and stops the polling.
         """
         # Always pull the latest data written by the background thread
         self._sync_from_thread_store()
@@ -218,6 +217,13 @@ class WorkflowRunner:
         if self.idle:
             return
 
+        if self.running:
+            _running_progress(self._key)
+        else:
+            self._render_progress_body()
+
+    def _render_progress_body(self) -> None:
+        """Render the ``st.status`` block with per-task progress (no polling)."""
         status = self._state["status"]
         task_runs = self.task_runs
         flow_info = self.flow_info
@@ -299,13 +305,6 @@ class WorkflowRunner:
 
             if status == _FAILED and self.error_message:
                 st.error(self.error_message)
-
-        # Poll & schedule rerun while running
-        if status == _RUNNING:
-            self._poll_prefect()
-            if auto_rerun:
-                time.sleep(rerun_interval)
-                st.rerun()
 
     # ------------------------------------------------------------------
     # Private
@@ -434,3 +433,21 @@ class WorkflowRunner:
 
 
 # _prefect_ui_url is no longer used directly — callers now use prefect_server().ui_url
+
+
+@st.fragment(run_every=_POLL_INTERVAL)
+def _running_progress(key: str) -> None:
+    """Live-progress fragment: poll Prefect and re-render without a page rerun.
+
+    Auto-reruns every ``_POLL_INTERVAL`` seconds while displayed.  As soon as
+    the workflow is no longer running, promotes to a full page rerun so the
+    page renders the final state; the fragment then leaves the render tree,
+    which stops the auto-rerun timer.
+    """
+    runner = WorkflowRunner(key)
+    runner._sync_from_thread_store()
+    if not runner.running:
+        st.rerun()
+        return
+    runner._poll_prefect()
+    runner._render_progress_body()
