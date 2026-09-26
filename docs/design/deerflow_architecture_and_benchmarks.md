@@ -78,24 +78,24 @@ sequenceDiagram
     autonumber
     participant Agent as Agent (DeerFlow / DeepAgent)
     participant Tool as PythonExecutorTool
-    participant Bridge as HostToolBridge (:9200)
-    participant Worker as Container PyWorker (:9199)
-    participant Sandbox as Docker Sandbox (execd)
+    participant Bridge as HostToolBridge
+    participant Worker as Container PyWorker
+    participant Sandbox as Docker Sandbox
 
-    Agent->>Tool: execute_python("result = sum([...]); final_answer(result)")
-    alt First Run (Worker Bootstrap)
-        Tool->>Sandbox: Deploy in-memory HTTP worker daemon (/tmp/genai_tk_pyworker.py)
-        Sandbox->>Worker: Start worker listening on 127.0.0.1:9199
+    Agent->>Tool: Execute Python code
+    alt First Run - Worker Bootstrap
+        Tool->>Sandbox: Deploy in-memory HTTP worker daemon
+        Sandbox->>Worker: Start worker on port 9199
     end
-    Tool->>Bridge: Register available Host Tools (e.g., web_search, search_sections)
-    Tool->>Worker: POST /execute {code, timeout}
-    opt Script calls Host Tool (CodeAct pattern)
-        Worker->>Bridge: HTTP POST /call_tool {tool, args}
+    Tool->>Bridge: Register available Host Tools
+    Tool->>Worker: POST execute request with code and timeout
+    opt Script calls Host Tool - CodeAct pattern
+        Worker->>Bridge: POST call_tool request
         Bridge->>Tool: Execute LangChain host tool
-        Bridge-->>Worker: Return JSON result
+        Bridge-->>Worker: Return tool JSON result
     end
-    Worker-->>Tool: Return {stdout, stderr, result, is_final, final_answer}
-    Tool-->>Agent: Observation with calculation outputs & persistent variables
+    Worker-->>Tool: Return execution result, logs, and final answer
+    Tool-->>Agent: Return observation with calculation outputs
 ```
 
 **Key Capabilities:**
