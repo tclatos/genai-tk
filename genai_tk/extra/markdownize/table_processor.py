@@ -10,11 +10,57 @@ from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning, Tag
 
 warnings.filterwarnings("ignore", category=MarkupResemblesLocatorWarning)
 
-_HTML_TABLE_PATTERN = re.compile(r"<table(?:\s+[^>]*)?>(.*?)</table>", re.DOTALL | re.IGNORECASE)
+_TABLE_OPEN_PATTERN = re.compile(r"<table\b[^>]*>", re.IGNORECASE)
+_TABLE_CLOSE_PATTERN = re.compile(r"</table\s*>", re.IGNORECASE)
 _MISTRAL_TABLE_LINK_PATTERN = re.compile(
     r"(?:!?\[(?P<alt>[^\]]*)\]\((?P<url>[^\s\)\"\']+\.html?)(?:\s+[\"'][^\"']*[\"'])?\))",
     re.IGNORECASE,
 )
+
+
+def find_html_table_spans(text: str) -> list[tuple[int, int]]:
+    """Locate top-level HTML tables in a text, correctly handling nested tables.
+
+    Args:
+        text: Text that may contain one or more HTML tables.
+
+    Returns:
+        List of (start, end) character spans, one per top-level table. Each span
+        covers the complete outer `<table>...</table>` block including any nested tables.
+    """
+    spans: list[tuple[int, int]] = []
+    search_from = 0
+    while open_match := _TABLE_OPEN_PATTERN.search(text, search_from):
+        start = open_match.start()
+        depth = 1
+        cursor = open_match.end()
+        end: int | None = None
+        while depth > 0:
+            open_next = _TABLE_OPEN_PATTERN.search(text, cursor)
+            close_next = _TABLE_CLOSE_PATTERN.search(text, cursor)
+            if close_next is None:  # Unclosed table: stop scanning
+                break
+            if open_next is not None and open_next.start() < close_next.start():
+                depth += 1
+                cursor = open_next.end()
+            else:
+                depth -= 1
+                cursor = close_next.end()
+                if depth == 0:
+                    end = cursor
+        if end is None:  # Unbalanced markup: leave the remainder untouched
+            break
+        spans.append((start, end))
+        search_from = end
+    return spans
+
+
+def _escape_cell_pipes(table_tag: Tag) -> None:
+    """Escape pipe characters in cell text so they do not break the Markdown grid."""
+    for cell in table_tag.find_all(["td", "th"]):
+        for text_node in cell.find_all(string=True):
+            if "|" in text_node:
+                text_node.replace_with(text_node.replace("|", "\\|"))
 
 
 def is_markdown_table(html_or_tag: str | Tag) -> bool:
@@ -218,6 +264,7 @@ def convert_html_table(table_html: str, *, table_expanded: bool = True) -> str:
 
     if is_markdown_table(table_tag):
         # Convert simple grid to markdown using markdownify
+        _escape_cell_pipes(table_tag)
         md_text = markdownify.markdownify(str(table_tag), strip=["style", "script"]).strip()
         return md_text
 
@@ -249,12 +296,19 @@ def process_markdown_tables(markdown: str, *, table_expanded: bool = True) -> st
     if not markdown:
         return ""
 
-    def _replace_table(match: re.Match) -> str:
-        table_html = match.group(0)
-        return convert_html_table(table_html, table_expanded=table_expanded)
-
-    # Replace HTML tables
-    result = _HTML_TABLE_PATTERN.sub(_replace_table, markdown)
+    # Replace top-level HTML tables (nested tables are matched in full, never truncated)
+    spans = find_html_table_spans(markdown)
+    if not spans:
+        result = markdown
+    else:
+        pieces: list[str] = []
+        last_end = 0
+        for start, end in spans:
+            pieces.append(markdown[last_end:start])
+            pieces.append(convert_html_table(markdown[start:end], table_expanded=table_expanded))
+            last_end = end
+        pieces.append(markdown[last_end:])
+        result = "".join(pieces)
 
     # Remove standalone Mistral HTML table links
     result = _MISTRAL_TABLE_LINK_PATTERN.sub("", result)

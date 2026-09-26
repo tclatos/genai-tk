@@ -4,6 +4,7 @@ import pytest
 
 from genai_tk.extra.markdownize.table_processor import (
     convert_html_table,
+    find_html_table_spans,
     get_table_dimensions,
     is_markdown_table,
     process_markdown_tables,
@@ -109,6 +110,61 @@ def test_convert_html_table_nested_retains_html():
     converted = convert_html_table(nested_html, table_expanded=True)
     assert "<!-- Table:" in converted
     assert "<table" in converted
+
+
+@pytest.mark.unit
+def test_convert_html_table_escapes_pipes_in_cells():
+    html = '<table><tr><th>A</th><th>B</th></tr><tr><td>x|y</td><td>2</td></tr></table>'
+    converted = convert_html_table(html)
+    data_row = converted.splitlines()[-1]
+    assert data_row == "| x\\|y | 2 |"
+
+
+@pytest.mark.unit
+def test_find_html_table_spans_handles_nesting_and_siblings():
+    nested = "<table><tr><td>x<table><tr><td>y</td></tr></table></td></tr></table>"
+    plain = "<table><tr><td>z</td></tr></table>"
+    text = f"a{nested}b{plain}"
+    spans = find_html_table_spans(text)
+    assert len(spans) == 2
+    first, second = spans
+    assert text[first[0] : first[1]] == nested
+    assert text[second[0] : second[1]] == plain
+
+
+@pytest.mark.unit
+def test_find_html_table_spans_unclosed():
+    assert find_html_table_spans("a <table> unclosed markup") == []
+
+
+@pytest.mark.unit
+def test_process_markdown_tables_nested_no_stray_markup():
+    nested = "<table><tr><td>Outer</td><td><table><tr><td>Inner</td></tr></table></td></tr></table>"
+    processed = process_markdown_tables(f"Before\n{nested}\nAfter", table_expanded=True)
+    assert "Before" in processed
+    assert "After" in processed
+    assert "<!-- Table:" in processed
+    # The full nested table is retained exactly once, without stray closing fragments
+    assert processed.count("<table") == 2
+    assert processed.count("</table>") == 2
+    assert processed.count("</td>") == 3
+
+
+@pytest.mark.unit
+def test_process_markdown_tables_mixed_nested_and_simple():
+    md = (
+        "<table><tr><td>A<table><tr><td>B</td></tr></table></td></tr></table>\n\n"
+        "text between\n\n"
+        "<table><tr><th>C</th></tr><tr><td>1</td></tr></table>"
+    )
+    processed = process_markdown_tables(md, table_expanded=True)
+    # Nested table retained as HTML
+    assert "<table" in processed
+    assert processed.count("<table") == 2
+    # Simple table between the nested one and the text is still converted
+    assert "text between" in processed
+    assert "| C |" in processed
+    assert "| 1 |" in processed
 
 
 @pytest.mark.unit

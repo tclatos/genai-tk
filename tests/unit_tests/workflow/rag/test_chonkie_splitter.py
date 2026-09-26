@@ -284,3 +284,49 @@ class TestMarkdownTableSplitting:
         for td in table_docs:
             assert "| Country | 2010 | 2011 |" in td.page_content
             assert "| --- | --- | --- |" in td.page_content
+
+
+class TestHtmlTableSplitting:
+    """Test splitting of large retained HTML tables."""
+
+    def _big_html_table(self, n_rows: int = 40) -> str:
+        rows = "".join(
+            f"<tr><td>item {i}</td><td>{'lorem ipsum dolor sit amet ' * 5}</td></tr>" for i in range(n_rows)
+        )
+        return f"<table><tr><th>Item</th><th>Desc</th></tr>{rows}</table>"
+
+    def test_split_markdown_table_handles_html_with_repeated_headers(self) -> None:
+        from genai_tk.workflow.rag.chonkie_splitter import split_markdown_table
+
+        chunks = split_markdown_table(self._big_html_table(), max_tokens=200)
+        assert len(chunks) > 1
+        for chunk in chunks:
+            assert chunk.startswith("<table>")
+            assert "<th>Item</th>" in chunk
+
+    def test_split_markdown_table_thead_variant(self) -> None:
+        from genai_tk.workflow.rag.chonkie_splitter import split_markdown_table
+
+        table = self._big_html_table().replace(
+            "<tr><th>Item</th><th>Desc</th></tr>",
+            "<thead><tr><th>Item</th><th>Desc</th></tr></thead>",
+        )
+        chunks = split_markdown_table(table, max_tokens=200)
+        assert len(chunks) > 1
+        for chunk in chunks:
+            assert "<th>Item</th>" in chunk
+
+    def test_chonkie_splitter_html_table_chunking(self) -> None:
+        text = f"# Report\n\nIntro.\n\n{self._big_html_table()}\n\nFooter."
+        splitter = ChonkieTextSplitter(chunker_type="markdown", max_tokens=300, repeat_table_headers=True)
+        docs = splitter.create_documents([text])
+
+        table_docs = [d for d in docs if d.metadata.get("chunk_type") == "table"]
+        assert len(table_docs) > 1
+        for td in table_docs:
+            # The first table chunk may carry preceding intro text merged in
+            assert "<table>" in td.page_content
+            assert "<th>Item</th>" in td.page_content
+        # Surrounding text is preserved as its own chunks
+        assert any("Intro." in d.page_content for d in docs)
+        assert any("Footer." in d.page_content for d in docs)

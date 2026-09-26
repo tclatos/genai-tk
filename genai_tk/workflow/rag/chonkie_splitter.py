@@ -16,13 +16,16 @@ substantial chunk to keep headers and introductory text with their content.
 
 from __future__ import annotations
 
+import re
 import warnings
+from types import SimpleNamespace
 from typing import Any
 
 from chonkie import BaseChunker, MarkdownChef, RecursiveChunker, TableChunker
 from langchain_core.documents import Document
 from langchain_text_splitters import TextSplitter
 
+from genai_tk.extra.markdownize.table_processor import find_html_table_spans
 from genai_tk.utils.tokens import count_tokens as _count_tokens
 from genai_tk.utils.tokens import get_tiktoken_encoding as _get_tiktoken_encoding
 
@@ -49,6 +52,35 @@ def is_markdown_table(text: str) -> bool:
     return False
 
 
+def _find_html_header_row(table_text: str) -> str | None:
+    """Extract the header row of an HTML table as a `<tr>...</tr>` string.
+
+    Args:
+        table_text: Full HTML table text (Markdown tables yield None).
+
+    Returns:
+        The first `<tr>` containing `<th>` cells (preferring `<thead>`), or None.
+    """
+    thead_match = re.search(r"<thead\b[^>]*>(.*?)</thead>", table_text, re.DOTALL | re.IGNORECASE)
+    scope = thead_match.group(1) if thead_match else table_text
+    row_match = re.search(r"<tr\b[^>]*>.*?</tr>", scope, re.DOTALL | re.IGNORECASE)
+    if row_match is None:
+        return None
+    row = row_match.group(0)
+    return row if re.search(r"<th[\s>]", row, re.IGNORECASE) else None
+
+
+def _ensure_html_header_row(table_html: str, header_row: str) -> str:
+    """Prepend a header row to an HTML sub-table that lacks one."""
+    if re.search(r"<th[\s>]", table_html, re.IGNORECASE):
+        return table_html
+    open_match = re.search(r"<table\b[^>]*>", table_html, re.IGNORECASE)
+    if open_match is None:
+        return table_html
+    pos = open_match.end()
+    return table_html[:pos] + "<thead>" + header_row + "</thead>" + table_html[pos:]
+
+
 def split_markdown_table(
     table_text: str,
     *,
@@ -72,7 +104,11 @@ def split_markdown_table(
     tokenizer = _get_tiktoken_encoding(encoding_name)
     chunker = TableChunker(tokenizer=tokenizer, chunk_size=max_tokens)
     chunks = chunker.chunk(table_text)
-    return [c.text for c in chunks if c.text and c.text.strip()]
+    chunk_texts = [c.text for c in chunks if c.text and c.text.strip()]
+    header_row = _find_html_header_row(table_text)
+    if header_row is not None:
+        chunk_texts = [_ensure_html_header_row(c, header_row) for c in chunk_texts]
+    return chunk_texts
 
 
 class ChonkieTextSplitter(TextSplitter):
@@ -199,12 +235,15 @@ class ChonkieTextSplitter(TextSplitter):
             for elem in raw_elements:
                 elem_text = getattr(elem, "text", None) or getattr(elem, "content", None) or ""
                 elem_type = self._infer_chunk_type(elem)
-                if self.repeat_table_headers and (elem_type == "table" or is_markdown_table(elem_text)):
-                    if _count_tokens(elem_text, self.encoding_name) > self.max_tokens:
-                        table_chunks = self.table_chunker.chunk(elem_text)
-                        for tc in table_chunks:
-                            tc.chunk_type = "table"
-                        chunks.extend(table_chunks)
+                if self.repeat_table_headers and elem_type != "code":
+                    if (elem_type == "table" or is_markdown_table(elem_text)) and _count_tokens(
+                        elem_text, self.encoding_name
+                    ) > self.max_tokens:
+                        chunks.extend(self._chunk_large_table(elem_text))
+                        continue
+                    segments = self._split_out_html_tables(elem, elem_text)
+                    if segments is not None:
+                        chunks.extend(segments)
                         continue
                 chunks.append(elem)
             return chunks
@@ -217,13 +256,66 @@ class ChonkieTextSplitter(TextSplitter):
             for chunk in raw_chunks:
                 chunk_text = getattr(chunk, "text", None) or getattr(chunk, "content", None) or ""
                 if is_markdown_table(chunk_text) and _count_tokens(chunk_text, self.encoding_name) > self.max_tokens:
-                    table_chunks = self.table_chunker.chunk(chunk_text)
-                    for tc in table_chunks:
-                        tc.chunk_type = "table"
-                    chunks.extend(table_chunks)
+                    chunks.extend(self._chunk_large_table(chunk_text))
+                    continue
+                segments = self._split_out_html_tables(chunk, chunk_text)
+                if segments is not None:
+                    chunks.extend(segments)
                 else:
                     chunks.append(chunk)
             return chunks
+
+    def _chunk_large_table(self, table_text: str) -> list[Any]:
+        """Split a large Markdown or HTML table into sub-table chunks with repeated headers."""
+        table_chunks = self.table_chunker.chunk(table_text)
+        header_row = _find_html_header_row(table_text)
+        for tc in table_chunks:
+            if header_row is not None and tc.text:
+                tc.text = _ensure_html_header_row(tc.text, header_row)
+            tc.chunk_type = "table"
+        return table_chunks
+
+    def _split_out_html_tables(self, elem: Any, elem_text: str) -> list[Any] | None:
+        """Split an element containing complete HTML table blocks into text and table chunks.
+
+        Large tables are re-chunked with the table chunker; small ones are emitted as
+        table chunks untouched.
+
+        Args:
+            elem: Original chunk object the text came from.
+            elem_text: Text of the chunk.
+
+        Returns:
+            New chunk segments, or None when the element should be kept intact
+            (no HTML table block, or the whole element fits within max_tokens).
+        """
+        if "<table" not in elem_text.lower():
+            return None
+        spans = find_html_table_spans(elem_text)
+        if not spans or _count_tokens(elem_text, self.encoding_name) <= self.max_tokens:
+            return None
+
+        elem_start = getattr(elem, "start_index", 0)
+        segments: list[Any] = []
+        last_end = 0
+        for start, end in spans:
+            if start > last_end:
+                segments.append(
+                    SimpleNamespace(
+                        text=elem_text[last_end:start], start_index=elem_start + last_end, chunk_type="text"
+                    )
+                )
+            table_text = elem_text[start:end]
+            if _count_tokens(table_text, self.encoding_name) > self.max_tokens:
+                segments.extend(self._chunk_large_table(table_text))
+            else:
+                segments.append(SimpleNamespace(text=table_text, start_index=elem_start + start, chunk_type="table"))
+            last_end = end
+        if last_end < len(elem_text):
+            segments.append(
+                SimpleNamespace(text=elem_text[last_end:], start_index=elem_start + last_end, chunk_type="text")
+            )
+        return segments
 
     def create_documents(
         self,
