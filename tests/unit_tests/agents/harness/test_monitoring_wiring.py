@@ -275,4 +275,3 @@ async def test_deerflow_harness_aclose_flushes_nemo_relay() -> None:
     with patch("genai_tk.utils.nemo_relay_setup.flush_nemo_relay_async", new_callable=AsyncMock) as mock_flush:
         await harness.aclose()
         mock_flush.assert_awaited_once()
-

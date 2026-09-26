@@ -85,9 +85,7 @@ async def test_deerflow_emits_nemo_relay_atof_events(deer_flow_config: Path, tmp
 
     # Check for DeerFlow mark event
     marks = [ev for ev in events if ev.get("kind") == "mark"]
-    deerflow_marks = [
-        m for m in marks if m.get("metadata", {}).get("integration") == "deerflow"
-    ]
+    deerflow_marks = [m for m in marks if m.get("metadata", {}).get("integration") == "deerflow"]
     assert deerflow_marks, f"Expected at least one DeerFlow mark event, got marks={marks}"
     assert deerflow_marks[0]["data"]["harness"] == "deerflow"
     assert deerflow_marks[0]["data"]["agent_name"] == "deerflow_test"

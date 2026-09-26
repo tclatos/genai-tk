@@ -13,9 +13,11 @@ import shutil
 import subprocess
 
 from loguru import logger
+from pydantic import BaseModel, ConfigDict, Field
 
 from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
 from genai_tk.agents.sandbox.models import DockerAioSettings
+from genai_tk.utils.singleton import once
 
 # Context variable to bind an active sandbox backend from the enclosing harness
 active_sandbox_backend: contextvars.ContextVar[AioSandboxBackend | None] = contextvars.ContextVar(
@@ -23,11 +25,21 @@ active_sandbox_backend: contextvars.ContextVar[AioSandboxBackend | None] = conte
 )
 
 
-class DockerSandboxManager:
+class DockerSandboxManager(BaseModel):
     """Singleton manager for shared Docker sandbox backend instances."""
 
-    _shared_backend: AioSandboxBackend | None = None
-    _lock: asyncio.Lock | None = None
+    config: DockerAioSettings | None = Field(default=None)
+    backend: AioSandboxBackend | None = Field(default=None, repr=False)
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    @once
+    def singleton() -> DockerSandboxManager:
+        """Returns the thread-safe singleton instance of DockerSandboxManager."""
+        from genai_tk.agents.sandbox.config import get_docker_aio_settings
+
+        cfg = get_docker_aio_settings()
+        return DockerSandboxManager(config=cfg)
 
     @classmethod
     def is_docker_available(cls) -> bool:
@@ -46,12 +58,8 @@ class DockerSandboxManager:
         except Exception:
             return False
 
-    @classmethod
-    async def aget_shared_backend(
-        cls,
-        config: DockerAioSettings | None = None,
-    ) -> AioSandboxBackend:
-        """Get or lazily start the shared AioSandboxBackend.
+    async def aget_backend(self, config: DockerAioSettings | None = None) -> AioSandboxBackend:
+        """Get or lazily start the managed AioSandboxBackend.
 
         If a harness has bound an active backend into `active_sandbox_backend`,
         that backend is returned immediately.
@@ -63,61 +71,85 @@ class DockerSandboxManager:
                 await ctx_backend.start()
             return ctx_backend
 
-        # 2. Re-use existing shared backend if active and healthy
-        if cls._shared_backend is not None:
-            if getattr(cls._shared_backend, "_sandbox", None) is not None:
-                return cls._shared_backend
+        # 2. Re-use existing backend if active and healthy
+        if self.backend is not None:
+            if getattr(self.backend, "_sandbox", None) is not None:
+                return self.backend
 
-        # 3. Create and start a new shared backend
+        # 3. Create and start a new backend
         from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
         from genai_tk.agents.sandbox.config import get_docker_aio_settings
 
-        cfg = config or get_docker_aio_settings()
+        cfg = config or self.config or get_docker_aio_settings()
+        self.config = cfg
         backend = AioSandboxBackend(config=cfg)
         logger.info("Starting shared Docker AioSandboxBackend...")
         await backend.start()
-        cls._shared_backend = backend
+        self.backend = backend
         return backend
 
-    @classmethod
-    def get_shared_backend(
-        cls,
-        config: DockerAioSettings | None = None,
-    ) -> AioSandboxBackend:
-        """Synchronous wrapper to get or lazily start the shared AioSandboxBackend."""
+    def get_backend(self, config: DockerAioSettings | None = None) -> AioSandboxBackend:
+        """Synchronous wrapper to get or lazily start the managed AioSandboxBackend."""
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             loop = None
 
         if loop is not None and loop.is_running():
-            # Running inside an existing event loop: run in executor or nest
             import nest_asyncio
 
             nest_asyncio.apply()
-            return asyncio.run(cls.aget_shared_backend(config))
-        return asyncio.run(cls.aget_shared_backend(config))
+            return asyncio.run(self.aget_backend(config))
+        return asyncio.run(self.aget_backend(config))
 
-    @classmethod
-    async def aclose_shared_backend(cls) -> None:
+    async def aclose_backend(self) -> None:
         """Stop and clean up the shared backend if running."""
-        if cls._shared_backend is not None:
-            backend = cls._shared_backend
-            cls._shared_backend = None
+        if self.backend is not None:
+            backend = self.backend
+            self.backend = None
             try:
                 await backend.stop()
                 logger.info("Shared Docker AioSandboxBackend stopped.")
             except Exception as exc:
                 logger.debug(f"Error stopping shared sandbox: {exc}")
 
+    def close_backend(self) -> None:
+        """Synchronously stop the shared backend."""
+        if self.backend is not None:
+            try:
+                asyncio.run(self.aclose_backend())
+            except Exception as exc:
+                logger.debug(f"Error closing shared backend sync: {exc}")
+
+    @classmethod
+    async def aget_shared_backend(
+        cls,
+        config: DockerAioSettings | None = None,
+    ) -> AioSandboxBackend:
+        """Get or lazily start the shared AioSandboxBackend from singleton."""
+        mgr = cls.singleton()
+        return await mgr.aget_backend(config)
+
+    @classmethod
+    def get_shared_backend(
+        cls,
+        config: DockerAioSettings | None = None,
+    ) -> AioSandboxBackend:
+        """Synchronous wrapper to get or lazily start the shared AioSandboxBackend from singleton."""
+        mgr = cls.singleton()
+        return mgr.get_backend(config)
+
+    @classmethod
+    async def aclose_shared_backend(cls) -> None:
+        """Stop and clean up the shared backend if running."""
+        mgr = cls.singleton()
+        await mgr.aclose_backend()
+
     @classmethod
     def close_shared_backend(cls) -> None:
         """Synchronously stop the shared backend."""
-        if cls._shared_backend is not None:
-            try:
-                asyncio.run(cls.aclose_shared_backend())
-            except Exception as exc:
-                logger.debug(f"Error closing shared backend sync: {exc}")
+        mgr = cls.singleton()
+        mgr.close_backend()
 
 
 def get_active_sandbox() -> AioSandboxBackend | None:
@@ -125,4 +157,5 @@ def get_active_sandbox() -> AioSandboxBackend | None:
     ctx_backend = active_sandbox_backend.get()
     if ctx_backend is not None:
         return ctx_backend
-    return DockerSandboxManager._shared_backend
+    mgr = DockerSandboxManager.singleton()
+    return mgr.backend

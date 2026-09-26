@@ -417,11 +417,13 @@ class DockerPythonExecutor:
                 f"http://172.25.240.1:{bridge_port}",
                 f"http://172.25.253.111:{bridge_port}",
             ]
-            reg_payload = json.dumps({
-                "action": "register_tools",
-                "tools": list(self.static_tools.keys()),
-                "host_urls": candidate_urls,
-            })
+            reg_payload = json.dumps(
+                {
+                    "action": "register_tools",
+                    "tools": list(self.static_tools.keys()),
+                    "host_urls": candidate_urls,
+                }
+            )
             await self._write_file(backend, "/tmp/reg_payload.json", reg_payload)
             await backend.aexecute(
                 "curl -s -X POST http://127.0.0.1:9199/ -H 'Content-Type: application/json' --data-binary @/tmp/reg_payload.json"
@@ -429,10 +431,16 @@ class DockerPythonExecutor:
 
         # 3. Inject initial variables if any
         if self.initial_state:
-            vars_payload = json.dumps({
-                "action": "set_variables",
-                "variables": {k: v for k, v in self.initial_state.items() if isinstance(v, (str, int, float, bool, list, dict))},
-            })
+            vars_payload = json.dumps(
+                {
+                    "action": "set_variables",
+                    "variables": {
+                        k: v
+                        for k, v in self.initial_state.items()
+                        if isinstance(v, (str, int, float, bool, list, dict))
+                    },
+                }
+            )
             await self._write_file(backend, "/tmp/vars_payload.json", vars_payload)
             await backend.aexecute(
                 "curl -s -X POST http://127.0.0.1:9199/ -H 'Content-Type: application/json' --data-binary @/tmp/vars_payload.json"
@@ -447,11 +455,13 @@ class DockerPythonExecutor:
             if not self._worker_ready:
                 await self._ensure_worker(backend)
 
-            exec_payload = json.dumps({
-                "action": "execute",
-                "code": code,
-                "max_output_len": self.max_print_outputs_length,
-            })
+            exec_payload = json.dumps(
+                {
+                    "action": "execute",
+                    "code": code,
+                    "max_output_len": self.max_print_outputs_length,
+                }
+            )
             await self._write_file(backend, "/tmp/exec_input.json", exec_payload)
 
             res = await backend.aexecute(
@@ -470,7 +480,9 @@ class DockerPythonExecutor:
                 if start != -1 and end != -1:
                     data = json.loads(raw[start : end + 1])
                 else:
-                    return CodeOutput(output=None, logs=raw, is_final_answer=False, error=f"Invalid worker JSON response: {raw}")
+                    return CodeOutput(
+                        output=None, logs=raw, is_final_answer=False, error=f"Invalid worker JSON response: {raw}"
+                    )
 
             raw_out = data.get("raw_output")
             is_final = data.get("is_final_answer", False)
@@ -489,7 +501,7 @@ class DockerPythonExecutor:
                     f"Docker sandbox Python execution failed ({exc}); falling back to local Python executor."
                 )
                 try:
-                    return self._get_local_fallback().execute_code(code)
+                    return self._get_local_fallback()(code)
                 except Exception as local_exc:
                     logger.error(f"Local Python executor fallback exception: {local_exc}")
                     return CodeOutput(output=None, logs="", is_final_answer=False, error=str(local_exc))
