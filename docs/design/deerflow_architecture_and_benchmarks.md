@@ -32,10 +32,14 @@ flowchart TD
         DeerFlowAdapter["DeerFlow Adapter<br/>(DeerFlowClient + Context Mapper)"]
     end
 
+    subgraph GenAIGraphLayer["genai-graph & Document Graph (Ladybug DB)"]
+        DocGraph["Document Graph Engine (genai-graph)<br/>(Hierarchical Sections, Tables, Images, TOC)"]
+        DocGraphTools["Document Graph Navigation Tools<br/>(get_document_toc, get_section_content, search_sections)"]
+        VisionTools["Multimodal Vision Tools<br/>(query_image, VLM Inspection)"]
+    end
+
     subgraph SkillsAndTools["Skills & Tools Framework"]
         SkillRegistry["Progressive Disclosure Skills (SKILL.md)<br/>Staged in Workspace /skills"]
-        DocGraphTools["Document Graph Navigation Tools<br/>(TOC, Sections, BM25/Vector Search)"]
-        VisionTools["Multimodal Vision Tools<br/>(query_image, VLM Inspection)"]
         PyTool["Python Executor Tool<br/>(CodeAct / Calculation)"]
     end
 
@@ -53,12 +57,16 @@ flowchart TD
 
     ConfigLayer --> MetaHarness
     MetaHarness --> SkillsAndTools
+    MetaHarness --> GenAIGraphLayer
+    DocGraph --> DocGraphTools
+    DocGraph --> VisionTools
     LangChainAdapter --> PyTool
     DeerFlowAdapter --> PyTool
     PyTool --> SandboxMgr
     SandboxMgr --> DockerContainer
     DockerContainer <--> HostBridge
     HostBridge --> SkillsAndTools
+    HostBridge --> GenAIGraphLayer
     MetaHarness --> ObservabilityLayer
 ```
 
@@ -104,14 +112,71 @@ sequenceDiagram
 * **CodeAct Support:** Implements the `final_answer(value)` protocol to signal task completion directly from executable code.
 * **Zero Container Thrashing:** Managed via `DockerSandboxManager` as a shared singleton or context variable, eliminating per-query container launch overhead.
 
-### 2.3 Skills Framework & Progressive Disclosure
+### 2.3 genai-graph & The Document Graph: Why Graph Navigation Beats Traditional RAG
+
+A core differentiator in the genai-tk ecosystem is its integration with **genai-graph** and its **Document Graph** paradigm (persisted in the high-performance embedded graph database **Ladybug / Kùzu**).
+
+#### The Limits of Traditional Chunk-Based RAG
+
+Traditional RAG systems slice documents into fixed-size character or token chunks (e.g., 512 tokens with 50-token overlap), embed them into a vector index, and perform top-$k$ nearest neighbor retrieval:
+* **Loss of Structural Context:** Splitting a 100-page financial filing or research paper at arbitrary line boundaries severs the relationship between headings, sub-headings, parent sections, and footnotes.
+* **Table & Financial Destruction:** Tables split mid-row or separated from their header definitions lose numeric alignment, resulting in hallucinated data points.
+* **Visual Isolation:** Figures and diagrams lose their narrative anchors (e.g., "see Figure 3 on page 14"), making multimodal correlation impossible.
+* **Blind Vector Drift:** Semantic search frequently retrieves superficial keyword matches from unrelated chapters while missing the authoritative table in an appendix.
+
+```mermaid
+flowchart LR
+    subgraph TraditionalRAG["Traditional Chunk-based RAG (Flat Vector Search)"]
+        RawDoc["100-page Document"] --> Splitter["Fixed-Size Chunker<br/>(512 tokens)"]
+        Splitter --> BrokenChunks["Disconnected Chunks<br/>(Broken tables, missing section headers)"]
+        BrokenChunks --> TopK["Top-k Vector Similarity"]
+        TopK --> BlindStuffed["Noisy Context Window Stuffed with Disconnected Snippets"]
+    end
+
+    subgraph DocGraphFlow["genai-graph Document Graph (Structured Agentic Navigation)"]
+        RawDoc2["100-page Document"] --> Markdownize["Layout-Aware Markdownize & OCR"]
+        Markdownize --> GraphIngest["Document Graph Compiler<br/>(Ladybug Graph DB)"]
+        GraphIngest --> GraphNodes["Hierarchical Tree<br/>Document ➔ Section ➔ Table ➔ Figure"]
+        GraphNodes --> AgentNav["Agentic Navigation<br/>(TOC ➔ Candidate Branch ➔ Exact Section & Visual)"]
+        AgentNav --> AccurateCtx["Precise, Coherent & Grounded Context"]
+    end
+```
+
+#### The Document Graph Advantage
+
+Instead of treating documents as a flat bag of text chunks, **genai-graph** parses and compiles documents into a structured **hierarchical graph**:
+1. **Document & Folder Nodes:** Maintain file-level metadata, summary embeddings, and global hierarchy.
+2. **Section Hierarchy (`HAS_SUBSECTION`, `PARENT_SECTION`):** Headings form an explicit outline tree (H1 $\rightarrow$ H2 $\rightarrow$ H3), preserving breadcrumb paths (`[hash::sequence]`).
+3. **Structured Tables & Content:** Markdown/HTML tables remain intact with full row/column semantics, linked directly to their enclosing section.
+4. **First-Class Visual Entities:** Figures, charts, and diagrams are stored with image hashes, bounding boxes, and VLM-generated descriptions, enabling precise multimodal tool calls (`query_image`).
+
+#### Agentic Navigation Workflow
+
+Agents like **DeerFlow** and **DeepAgent** navigate the document graph iteratively like human experts:
+* **Phase 1 — Discovery (`get_folder_toc`, `list_documents`):** Filter 100+ documents down to candidate files.
+* **Phase 2 — Structural Routing (`get_document_toc`):** Inspect the table of contents down to `max_level=2` to pinpoint relevant chapters without ingesting megabytes of text.
+* **Phase 3 — Targeted Reading (`get_section_content`):** Fetch the complete coherent section (including tables and figure references).
+* **Phase 4 — Selective Fallback (`search_sections`):** Perform hybrid BM25 + dense embedding queries only when the TOC is ambiguous, returning exact section anchors.
+* **Phase 5 — Visual Inspection (`query_image`):** Directly query image nodes with targeted visual questions when chart values or diagram layouts require pixel-level resolution.
+
+| Capability | Traditional Chunk-based RAG | genai-graph Document Graph |
+| :--- | :--- | :--- |
+| **Document Representation** | Flat list of $N$-token chunks | Hierarchical outline tree (Docs $\rightarrow$ Sections $\rightarrow$ Tables $\rightarrow$ Images) |
+| **Table Integrity** | High risk of split rows/columns | Tables preserved as complete structured units |
+| **Context Awareness** | None (chunk knows nothing of its chapter) | Full breadcrumb hierarchy (Parent section, TOC path) |
+| **Multimodal Retrieval** | Disconnected OCR text or ignored images | Images are first-class nodes with captions & image routing |
+| **Retrieval Strategy** | Passive one-shot top-$k$ similarity | Active agentic navigation (TOC $\rightarrow$ Section $\rightarrow$ Inspection) |
+| **Token Efficiency** | Stuffs 10–20 disconnected chunks into prompt | Ingests only the single exact section required |
+| **Citation Precision** | Chunk indices without provenance | Exact section anchors `[hash::sequence]` and page numbers |
+
+### 2.4 Skills Framework & Progressive Disclosure
 
 Rather than overwhelming the system prompt with hundreds of domain instructions, genai-tk uses **SKILL.md progressive disclosure**:
 * Skills are organized in tiered directories (`skills/custom/`, `skills/community/`, `genai_graph/agent/skills/`).
 * At runtime, skill files are staged into the agent's active sandbox or workspace directory (`/skills/<skill-name>/SKILL.md`).
 * The system prompt provides a lightweight table of available skills. Agents read the relevant skill on demand via standard file or graph tools.
 
-### 2.4 Trajectory Capture & Observability
+### 2.5 Trajectory Capture & Observability
 
 Both harnesses stream structured events into a unified trajectory pipeline:
 * **ATOF (Agent Trajectory Open Format) & NeMo Relay:** Captures the full trajectory of system prompts, user turns, tool inputs/outputs, latency, and token metrics.
