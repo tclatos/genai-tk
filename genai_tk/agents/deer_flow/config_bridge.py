@@ -329,6 +329,7 @@ def write_deer_flow_config(
     sandbox: str = "local",
     selected_llm: str | None = None,
     skills_path: str | None = None,
+    system_prompt: str | None = None,
     warnings: ConfigSetupWarnings | None = None,
 ) -> Path:
     """Write a complete Deer-flow config.yaml.
@@ -343,6 +344,7 @@ def write_deer_flow_config(
         skills_path: Explicit skills root directory to mount in the sandbox.  When
             provided this takes precedence over ``deerflow.skills.directories`` in
             the global config (which is not merged at startup).
+        system_prompt: Optional custom agent system prompt written to SOUL.md.
         warnings: Optional ConfigSetupWarnings object to collect warnings into.
 
     Returns:
@@ -524,6 +526,11 @@ def write_deer_flow_config(
     with open(config_path, "w") as f:
         yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
 
+    if system_prompt:
+        soul_path = Path(config_dir) / "SOUL.md"
+        soul_path.write_text(system_prompt.strip(), encoding="utf-8")
+        logger.debug(f"Wrote Deer-flow SOUL.md ({len(system_prompt)} chars) to {soul_path}")
+
     logger.debug(f"Wrote Deer-flow config to {config_path}")
     return config_path
 
@@ -564,6 +571,8 @@ def setup_deer_flow_config(
     config_dir: str | None = None,
     sandbox: str = "local",
     selected_llm: str | None = None,
+    system_prompt: str | None = None,
+    tool_groups: list[str] | None = None,
     warnings: ConfigSetupWarnings | None = None,
 ) -> tuple[Path, Path, ConfigSetupWarnings]:
     """Generate both Deer-flow config files in one call.
@@ -578,6 +587,8 @@ def setup_deer_flow_config(
         config_dir: Override output directory. Defaults to a temporary directory.
         sandbox: Sandbox provider: ``"local"`` or ``"docker"``.
         selected_llm: Resolved GenAI-tk model ID; when set only that model is written.
+        system_prompt: Optional custom agent system prompt written to SOUL.md.
+        tool_groups: Optional list of tool groups to enable (e.g. ["web"]).
         warnings: Optional ConfigSetupWarnings object to collect warnings into.
 
     Returns:
@@ -611,6 +622,8 @@ def setup_deer_flow_config(
         sandbox=sandbox,
         selected_llm=selected_llm,
         skills_path=resolved_skills_path,
+        system_prompt=system_prompt,
+        tool_groups=tool_groups,
         warnings=warnings,
     )
 

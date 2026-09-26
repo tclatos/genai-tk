@@ -1,7 +1,9 @@
 """LangChain integration for the Python executor tool."""
 
+from genai_tk.agents.sandbox.manager import DockerSandboxManager
 from genai_tk.agents.tools.python_executor import (
     CodeOutput,
+    DockerPythonExecutor,
     ExecutionTimeoutError,
     FinalAnswerException,
     InterpreterError,
@@ -15,6 +17,8 @@ from genai_tk.agents.tools.python_executor import (
 
 __all__ = [
     "CodeOutput",
+    "DockerPythonExecutor",
+    "DockerSandboxManager",
     "ExecutionTimeoutError",
     "FinalAnswerException",
     "InterpreterError",

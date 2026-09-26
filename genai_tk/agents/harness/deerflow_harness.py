@@ -30,31 +30,36 @@ class DeerFlowHarness(BaseHarness):
     """Harness session backed by the embedded DeerFlow client.
 
     Args:
-        profile_name: Name of a DeerFlow profile in the unified ``agents:`` config.
+        profile_name: Name of a DeerFlow profile in the unified ``agents:`` config,
+            or a pre-configured :class:`DeerFlowProfile` instance.
         llm_override: LLM identifier that takes precedence over ``profile.llm``.
         mode_override: Reasoning mode override (``flash`` | ``thinking`` | ``pro``
             | ``ultra``); ``None`` keeps the profile's configured mode.
         sandbox_override: Sandbox override (``local`` | ``docker``); ``None`` keeps
             the profile's configured sandbox.
         extra_mcp: Additional MCP server names appended to the profile's servers.
+        extra_tools: Additional BaseTool instances appended after profile tools.
     """
 
     name = "deerflow"
 
     def __init__(
         self,
-        profile_name: str,
+        profile_name: str | DeerFlowProfile,
         *,
         llm_override: str | None = None,
         mode_override: str | None = None,
         sandbox_override: str | None = None,
         extra_mcp: list[str] | None = None,
+        extra_tools: list[Any] | None = None,
     ) -> None:
-        self._profile_name = profile_name
+        self._profile_name = profile_name.name if isinstance(profile_name, DeerFlowProfile) else profile_name
+        self._profile_obj = profile_name if isinstance(profile_name, DeerFlowProfile) else None
         self._llm_override = llm_override
         self._mode_override = mode_override
         self._sandbox_override = sandbox_override
         self._extra_mcp = list(extra_mcp or [])
+        self._extra_tools = list(extra_tools or [])
         self._client: Any = None
         self._profile: DeerFlowProfile | None = None
         self._model_name: str | None = None
@@ -81,10 +86,11 @@ class DeerFlowHarness(BaseHarness):
         if self._client is None:
             from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
             from genai_tk.agents.deer_flow.runtime import build_cli_middlewares, prepare_profile
+            from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
             from genai_tk.utils.tracing import HarnessTraceMetadata, apply_harness_trace_metadata
 
             profile, model_name, config_path, _warnings = await prepare_profile(
-                profile_name=self._profile_name,
+                profile_name=self._profile_obj or self._profile_name,
                 llm_override=self._llm_override,
                 extra_mcp=self._extra_mcp,
                 mode_override=self._mode_override,
@@ -99,13 +105,30 @@ class DeerFlowHarness(BaseHarness):
                     environment=os.environ.get("GENAI_TK_ENV"),
                 )
             )
+            from genai_tk.agents.deer_flow.relay import add_deerflow_nemo_relay_integration
+
             middlewares = build_cli_middlewares(profile.middlewares)
+            middlewares = add_deerflow_nemo_relay_integration(
+                middlewares,
+                agent_name=profile.name,
+                mode=profile.mode,
+                skills=list(profile.available_skills or ()),
+                sandbox=profile.sandbox,
+            )
             available_skills = set(profile.available_skills) if profile.available_skills is not None else None
+
+            # Resolve tools declared in profile and merge with extra_tools
+            profile_tools: list[Any] = []
+            if profile.tools:
+                profile_tools = process_langchain_tools_from_config(profile.tools, llm=model_name)
+            all_tools = profile_tools + self._extra_tools
+
             self._client = EmbeddedDeerFlowClient(
                 config_path=config_path,
                 model_name=model_name,
                 middlewares=middlewares,
                 available_skills=available_skills,
+                extra_tools=all_tools,
             )
             self._profile = profile
             self._model_name = model_name
@@ -124,12 +147,19 @@ class DeerFlowHarness(BaseHarness):
                 mode=profile.mode,
                 subagent_enabled=profile.subagent_enabled,
                 plan_mode=profile.plan_mode,
+                recursion_limit=getattr(profile, "recursion_limit", 160),
             ):
                 yield event
         except Exception as exc:
             logger.opt(exception=True).warning(f"DeerFlowHarness stream error: {exc}")
             yield ErrorEvent(message=str(exc))
         yield EndEvent()
+
+    async def aclose(self) -> None:
+        """Release any resources and flush queued NeMo Relay ATOF events."""
+        from genai_tk.utils.nemo_relay_setup import flush_nemo_relay_async
+
+        await flush_nemo_relay_async()
 
     async def list_models(self) -> list[HarnessModel]:
         client = await self._ensure_client()

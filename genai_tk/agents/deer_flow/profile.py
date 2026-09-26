@@ -47,6 +47,7 @@ class DeerFlowProfile(BaseModel):
     # Embedded-client behaviour flags (can be set per-profile)
     subagent_enabled: bool = False
     plan_mode: bool = False
+    recursion_limit: int = 160
 
     sandbox: DeerFlowSandbox = "local"
 

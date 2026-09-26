@@ -48,9 +48,11 @@ from genai_tk.agents.harness.events import (
     ClarificationEvent,
     ErrorEvent,
     NodeEvent,
+    ThinkingEvent,
     TokenEvent,
     ToolCallEvent,
     ToolResultEvent,
+    UsageEvent,
 )
 from genai_tk.utils.singleton import once
 
@@ -299,6 +301,7 @@ class EmbeddedDeerFlowClient:
         model_name: str | None = None,
         middlewares: list | None = None,
         available_skills: set[str] | None = None,
+        extra_tools: list[Any] | None = None,
     ) -> None:
         """Initialize the embedded client.
 
@@ -310,6 +313,8 @@ class EmbeddedDeerFlowClient:
                 inject into the agent (forwarded to ``DeerFlowClient``).
             available_skills: Optional set of skill names to make available.
                 ``None`` means all discovered skills are available (default).
+            extra_tools: Optional additional BaseTool instances injected into
+                the lead agent.
         """
         _prepare_deer_flow_environment()
         checkpointer = _build_checkpointer()
@@ -326,10 +331,59 @@ class EmbeddedDeerFlowClient:
 
         self._checkpointer = checkpointer
 
+        cfg_p = Path(config_path).resolve()
+        cfg_dir = cfg_p.parent
+        os.environ["DEER_FLOW_CONFIG_PATH"] = str(cfg_p)
+        os.environ["DEER_FLOW_HOME"] = str(cfg_dir)
+        try:
+            import deerflow.config.paths as dp
+
+            dp._paths = dp.Paths(cfg_dir)
+        except Exception:
+            pass
+
+        class _WrappedDeerFlowClient(_DeerFlowClient):
+            def __init__(self, *args: Any, extra_tools: list[Any] | None = None, **kwargs: Any) -> None:
+                super().__init__(*args, **kwargs)
+                self._extra_tools = list(extra_tools or [])
+
+            def _get_tools(self, *, model_name: str | None, subagent_enabled: bool) -> list[Any]:
+                base_tools = super()._get_tools(model_name=model_name, subagent_enabled=subagent_enabled)
+                existing_names = {getattr(t, "name", str(t)) for t in base_tools}
+                combined = list(base_tools)
+                for t in self._extra_tools:
+                    t_name = getattr(t, "name", str(t))
+                    if t_name not in existing_names:
+                        combined.append(t)
+                        existing_names.add(t_name)
+                return combined
+
+            def _get_runnable_config(self, thread_id: str, **overrides: Any) -> Any:
+                config = super()._get_runnable_config(thread_id, **overrides)
+                try:
+                    from genai_tk.utils.nemo_relay_setup import get_relay_callback_handler
+
+                    relay_handler = get_relay_callback_handler()
+                    if relay_handler is not None:
+                        existing = list(config.get("callbacks") or [])
+                        if relay_handler not in existing:
+                            config["callbacks"] = [*existing, relay_handler]
+                except Exception as exc:
+                    logger.debug(f"Could not attach NeMo Relay callback handler: {exc}")
+                return config
+
         # Build kwargs dynamically — the upstream DeerFlowClient evolves; pass
         # only parameters whose names appear in the constructor signature so
         # this wrapper works with both older and newer deer-flow installs.
         import inspect
+
+        from genai_tk.agents.deer_flow.relay import add_deerflow_nemo_relay_integration
+
+        resolved_middlewares = add_deerflow_nemo_relay_integration(
+            middlewares,
+            agent_name=model_name,
+            skills=list(available_skills or ()) if available_skills is not None else None,
+        )
 
         _supported = set(inspect.signature(_DeerFlowClient.__init__).parameters)
         _upstream_kwargs: dict[str, Any] = {
@@ -338,7 +392,7 @@ class EmbeddedDeerFlowClient:
             "model_name": model_name,
         }
         if "middlewares" in _supported:
-            _upstream_kwargs["middlewares"] = middlewares or []
+            _upstream_kwargs["middlewares"] = resolved_middlewares
         elif middlewares:
             logger.warning(
                 "This deer-flow version does not support the 'middlewares' parameter — ignoring. "
@@ -352,7 +406,7 @@ class EmbeddedDeerFlowClient:
                 "Update your deer-flow clone to enable skill filtering."
             )
 
-        self._client = _DeerFlowClient(**_upstream_kwargs)
+        self._client = _WrappedDeerFlowClient(**_upstream_kwargs, extra_tools=extra_tools)
         self._middlewares_kwarg = middlewares  # kept for callers that inspect injected middlewares
         self._middlewares_supported = "middlewares" in _supported
         self._available_skills_supported = "available_skills" in _supported
@@ -424,6 +478,7 @@ class EmbeddedDeerFlowClient:
         mode: str = "flash",
         subagent_enabled: bool | None = None,
         plan_mode: bool | None = None,
+        recursion_limit: int | None = None,
     ) -> AsyncIterator[TokenEvent | NodeEvent | ToolCallEvent | ToolResultEvent | ErrorEvent]:
         """Stream a single conversation turn, yielding typed events.
 
@@ -437,6 +492,7 @@ class EmbeddedDeerFlowClient:
             mode: Agent mode (flash | thinking | pro | ultra).
             subagent_enabled: Override subagent flag; falls back to mode default.
             plan_mode: Override plan_mode flag; falls back to mode default.
+            recursion_limit: Maximum LangGraph graph steps (default: 160).
 
         Yields:
             Typed event objects: ``TokenEvent``, ``ToolCallEvent``,
@@ -448,6 +504,10 @@ class EmbeddedDeerFlowClient:
             "plan_mode": plan_mode if plan_mode is not None else flags["is_plan_mode"],
             "subagent_enabled": subagent_enabled if subagent_enabled is not None else flags["subagent_enabled"],
         }
+        if recursion_limit is not None:
+            kwargs["recursion_limit"] = recursion_limit
+        if model_name:
+            kwargs["model_name"] = model_name
         if model_name:
             kwargs["model_name"] = model_name
 
@@ -586,20 +646,25 @@ def _translate_event(ev: Any) -> list[StreamEvent]:
         if msg_type == "ai":
             results: list[StreamEvent] = []
             content = data.get("content", "")
+            reasoning = data.get("additional_kwargs", {}).get("reasoning_content") or data.get(
+                "response_metadata", {}
+            ).get("reasoning_content")
+            if reasoning:
+                results.append(ThinkingEvent(text=reasoning))
             if content:
                 results.append(TokenEvent(text=content))
             for tc in data.get("tool_calls", []):
                 results.append(
                     ToolCallEvent(
-                        tool_name=tc.get("name", ""),
-                        args=tc.get("args", {}),
-                        call_id=tc.get("id", ""),
+                        tool_name=tc.get("name", "") or "",
+                        args=tc.get("args", {}) or {},
+                        call_id=str(tc.get("id") or ""),
                     )
                 )
             return results
 
         if msg_type == "tool":
-            tool_name = data.get("name", "")
+            tool_name = data.get("name", "") or ""
             content = str(data.get("content", ""))
             # ask_clarification is intercepted by ClarificationMiddleware and halts
             # the graph — surface it as a dedicated event so callers can implement HITL.
@@ -608,12 +673,23 @@ def _translate_event(ev: Any) -> list[StreamEvent]:
             return [
                 ToolResultEvent(
                     tool_name=tool_name,
-                    content=content[:500],
-                    call_id=data.get("tool_call_id", ""),
+                    content=content,
+                    call_id=str(data.get("tool_call_id") or data.get("id") or ""),
                 )
             ]
 
-    # "values" and "end" events carry no displayable incremental info
+    if ev.type == "end":
+        data = ev.data or {}
+        usage = data.get("usage") or {}
+        if usage:
+            return [
+                UsageEvent(
+                    input_tokens=int(usage.get("input_tokens") or 0),
+                    output_tokens=int(usage.get("output_tokens") or 0),
+                )
+            ]
+
+    # "values" events carry no displayable incremental info
     return []
 
 

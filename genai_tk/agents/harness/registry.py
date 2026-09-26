@@ -115,14 +115,13 @@ def create_harness(
     if profile.harness == "deerflow":
         from genai_tk.agents.harness.deerflow_harness import DeerFlowHarness
 
-        if extra_tools:
-            logger.warning(f"extra_tools is not supported for DeerFlow profiles — ignoring for '{key}'")
         return DeerFlowHarness(
-            profile.name,
+            profile,
             llm_override=llm_override,
             mode_override=mode_override,
             sandbox_override=sandbox_override,
             extra_mcp=extra,
+            extra_tools=extra_tools,
         )
     raise ValueError(f"Unknown harness '{profile.harness}' for profile '{key}'")
 

@@ -219,3 +219,4 @@ Current docs index:
 | `docs/TESTING_GUIDE.md` | Pytest fixtures, fake LLM/embeddings, async tests |
 | `docs/benchmark_framework.md` | Unified multi-dataset benchmark framework architecture, pipeline stages, selection criteria, and CLI/TUI |
 | `docs/benchmarks_financebench_officeqa.md` | Benchmark implementation studies & empirical evaluation on FinanceBench and OfficeQA Pro |
+| `docs/design/deerflow_architecture_and_benchmarks.md` | DeerFlow & meta-harness architecture, sandboxed Python calculations, and benchmark evaluation report |

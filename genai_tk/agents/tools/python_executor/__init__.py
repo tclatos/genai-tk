@@ -1,5 +1,7 @@
-"""Python executor package: in-process safe execution tool for LangChain agents."""
+"""Python executor package: Docker sandbox and safe in-process execution tools for agents."""
 
+from genai_tk.agents.sandbox.manager import DockerSandboxManager
+from genai_tk.agents.tools.python_executor.docker_executor import DockerPythonExecutor
 from genai_tk.agents.tools.python_executor.executor import (
     ExecutionTimeoutError,
     FinalAnswerException,
@@ -16,6 +18,8 @@ from genai_tk.agents.tools.python_executor.tool import (
 
 __all__ = [
     "CodeOutput",
+    "DockerPythonExecutor",
+    "DockerSandboxManager",
     "ExecutionTimeoutError",
     "FinalAnswerException",
     "InterpreterError",

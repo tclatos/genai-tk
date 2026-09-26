@@ -264,3 +264,15 @@ async def test_deerflow_harness_prepare_profile_calls_setup_monitoring() -> None
 
     mock_prepare.assert_awaited_once()
     mock_apply.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_deerflow_harness_aclose_flushes_nemo_relay() -> None:
+    """DeerFlowHarness.aclose() calls flush_nemo_relay_async()."""
+    from genai_tk.agents.harness.deerflow_harness import DeerFlowHarness
+
+    harness = DeerFlowHarness("Research Assistant")
+    with patch("genai_tk.utils.nemo_relay_setup.flush_nemo_relay_async", new_callable=AsyncMock) as mock_flush:
+        await harness.aclose()
+        mock_flush.assert_awaited_once()
+

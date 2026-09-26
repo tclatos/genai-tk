@@ -195,7 +195,7 @@ class SetupWarnings:
 
 
 async def prepare_profile(
-    profile_name: str,
+    profile_name: str | DeerFlowProfile,
     llm_override: str | None,
     extra_mcp: list[str],
     mode_override: str | None,
@@ -214,7 +214,7 @@ async def prepare_profile(
     embedded client.
 
     Args:
-        profile_name: Profile name from deerflow.yaml.
+        profile_name: Profile name string or pre-constructed DeerFlowProfile.
         llm_override: LLM identifier override (ID or tag).
         extra_mcp: Additional MCP server names.
         mode_override: Mode override string.
@@ -229,6 +229,7 @@ async def prepare_profile(
 
     from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
     from genai_tk.agents.deer_flow.profile import (
+        DeerFlowProfile,
         validate_mcp_servers,
         validate_mode,
         validate_profile_name,
@@ -245,8 +246,11 @@ async def prepare_profile(
 
     require_deer_flow_installed()
 
-    profiles = load_deerflow_profiles()
-    profile = validate_profile_name(profile_name, profiles)
+    if isinstance(profile_name, DeerFlowProfile):
+        profile = profile_name.model_copy(deep=True)
+    else:
+        profiles = load_deerflow_profiles()
+        profile = validate_profile_name(profile_name, profiles)
 
     # Initialise all active monitoring backends (idempotent). Per-profile trace
     # project naming is owned by the harness layer (see
@@ -276,6 +280,8 @@ async def prepare_profile(
         skill_directories=profile.skill_directories,
         sandbox=profile.sandbox,
         selected_llm=model_name,
+        system_prompt=profile.system_prompt,
+        tool_groups=profile.tool_groups,
     )
     _sandbox_warn = verify_written_sandbox(config_path, profile.sandbox)
 
