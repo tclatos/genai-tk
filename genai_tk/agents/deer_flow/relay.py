@@ -64,11 +64,47 @@ class NemoRelayDeerFlowMiddleware(NemoRelayMiddleware):
 
     def before_agent(self, state: Any, runtime: Any) -> None:
         """Emit run configuration metadata for sync DeerFlow runs."""
+        try:
+            import nemo_relay
+
+            nemo_relay.scope.push(
+                name=self._agent_name or "deerflow",
+                scope_type=nemo_relay.scope.ScopeType.Agent,
+            )
+        except Exception:
+            pass
         self._emit_agent_configuration()
+
+    def after_agent(self, state: Any, runtime: Any) -> None:
+        """Close agent scope for sync DeerFlow runs."""
+        try:
+            import nemo_relay
+
+            nemo_relay.scope.pop()
+        except Exception:
+            pass
 
     async def abefore_agent(self, state: Any, runtime: Any) -> None:
         """Emit run configuration metadata for async DeerFlow runs."""
+        try:
+            import nemo_relay
+
+            nemo_relay.scope.push(
+                name=self._agent_name or "deerflow",
+                scope_type=nemo_relay.scope.ScopeType.Agent,
+            )
+        except Exception:
+            pass
         self._emit_agent_configuration()
+
+    async def aafter_agent(self, state: Any, runtime: Any) -> None:
+        """Close agent scope for async DeerFlow runs."""
+        try:
+            import nemo_relay
+
+            nemo_relay.scope.pop()
+        except Exception:
+            pass
 
     def _emit_agent_configuration(self) -> None:
         """Emit a DeerFlow configured mark event to the active NeMo Relay scope."""

@@ -147,3 +147,94 @@ def test_rag_flow_exclude_patterns_filter_all_files(tmp_path: Path) -> None:
         exclude_patterns=["**/*"],
     )
     assert result["total_files"] == 0
+
+
+# ---------------------------------------------------------------------------
+# process_file_task & error / downtime paths
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_files_chroma_exception_gracefully_handled(tmp_path: Path) -> None:
+    """When vector store collection.get() raises an error (e.g. DB downtime), prepare_files still succeeds."""
+    from unittest.mock import MagicMock
+
+    f = tmp_path / "doc.md"
+    f.write_text("content", encoding="utf-8")
+
+    mock_collection = MagicMock()
+    mock_collection.get.side_effect = ConnectionError("Chroma server unreachable")
+
+    mock_vs = MagicMock()
+    mock_vs._collection = mock_collection
+
+    managed = ManagedRetriever(retriever=_EmptyRetriever(), vector_store=mock_vs)
+
+    to_process, skipped = _prepare_files([f], force=False, managed=managed)
+    assert len(to_process) == 1
+    assert skipped == 0
+    assert to_process[0].path == f
+
+
+def test_process_file_task_unknown_chunker_raises(tmp_path: Path) -> None:
+    """When chunker configuration is invalid, process_file_task raises KeyError."""
+    from genai_tk.workflow.prefect.flows.rag_flow import process_file_task
+
+    f = tmp_path / "test.custom_ext"
+    f.write_text("some content", encoding="utf-8")
+    info = FileToProcess(path=f, content_hash="hash123", content="some content")
+
+    with pytest.raises(KeyError):
+        process_file_task.fn(
+            file_info=info,
+            retriever_name="default",
+            max_chunk_tokens=100,
+            chunker_name="non_existent_chunker_xyz",
+        )
+
+
+def test_process_file_task_empty_document_returns_zero(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When chunker returns empty document list, returns 0 chunks without error."""
+    from unittest.mock import MagicMock
+
+    from genai_tk.core.factories.chunker_factory import ChunkerFactory
+    from genai_tk.workflow.prefect.flows.rag_flow import process_file_task
+
+    mock_splitter = MagicMock()
+    mock_splitter.create_documents.return_value = []
+    monkeypatch.setattr(ChunkerFactory, "create_for_file", lambda *a, **kw: mock_splitter)
+
+    f = tmp_path / "empty.txt"
+    f.write_text("", encoding="utf-8")
+    info = FileToProcess(path=f, content_hash="h1", content="")
+
+    count = process_file_task.fn(
+        file_info=info,
+        retriever_name="default",
+        max_chunk_tokens=100,
+        chunker_name="auto",
+    )
+    assert count == 0
+
+
+def test_process_file_task_vector_store_downtime_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When retriever/vector store fails (e.g. timeout / downtime), process_file_task propagates the error."""
+    from unittest.mock import MagicMock
+
+    from genai_tk.core.factories.retriever_factory import RetrieverFactory
+    from genai_tk.workflow.prefect.flows.rag_flow import process_file_task
+
+    mock_managed = MagicMock()
+    mock_managed.add_documents.side_effect = TimeoutError("Vector store request timed out")
+    monkeypatch.setattr(RetrieverFactory, "create", lambda *a, **kw: mock_managed)
+
+    f = tmp_path / "doc.md"
+    f.write_text("important information", encoding="utf-8")
+    info = FileToProcess(path=f, content_hash="h2", content="important information")
+
+    with pytest.raises(TimeoutError, match="Vector store request timed out"):
+        process_file_task.fn(
+            file_info=info,
+            retriever_name="default",
+            max_chunk_tokens=100,
+            chunker_name="auto",
+        )

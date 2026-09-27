@@ -38,7 +38,7 @@ def test_docker_sandbox_manager_availability() -> None:
 
 @pytest.mark.docker
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_docker_python_executor_arithmetic_and_numpy() -> None:
     executor = DockerPythonExecutor()
     code = """
@@ -56,7 +56,7 @@ int(y)
 
 @pytest.mark.docker
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_docker_python_executor_state_persistence() -> None:
     executor = DockerPythonExecutor()
     res1 = await executor.aexecute_code("val = 42\nprint('stored val')\nval")
@@ -70,7 +70,7 @@ async def test_docker_python_executor_state_persistence() -> None:
 
 @pytest.mark.docker
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_docker_python_executor_final_answer() -> None:
     executor = DockerPythonExecutor()
     code = """
@@ -87,7 +87,7 @@ final_answer({"time": round(time, 2), "unit": "seconds"})
 
 @pytest.mark.docker
 @pytest.mark.integration
-@pytest.mark.asyncio
+@pytest.mark.asyncio(loop_scope="module")
 async def test_docker_python_executor_host_tool_bridging() -> None:
     @tool
     def web_search(query: str) -> str:

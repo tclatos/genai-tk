@@ -79,7 +79,10 @@ class SandboxBackendFactory:
         if normalized in ("docker", "aio_sandbox") and "config" not in kwargs:
             from genai_tk.agents.sandbox.config import get_docker_aio_settings
 
-            kwargs["config"] = get_docker_aio_settings()
+            cfg = get_docker_aio_settings()
+            if kwargs:
+                cfg = cfg.model_copy(update=kwargs)
+            kwargs = {"config": cfg}
 
         logger.debug(f"Instantiating sandbox backend '{normalized}' using class {class_path}")
         backend_cls = ImportResolver.import_from_qualified(class_path)

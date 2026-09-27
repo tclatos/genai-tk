@@ -89,3 +89,41 @@ class TestInfoLs:
         assert result.exit_code == 0
         assert "beta.md" in result.stdout
         assert "alpha.txt" not in result.stdout
+
+
+class TestInfoConfigKeys:
+    def test_config_keys_runs_and_lists_keys(self, info_app, runner) -> None:
+        result = runner.invoke(info_app, ["info", "config-keys"])
+        assert result.exit_code == 0
+        assert len(result.stdout) > 0
+
+    def test_config_keys_with_query_filter(self, info_app, runner) -> None:
+        result = runner.invoke(info_app, ["info", "config-keys", "--query", "llm"])
+        assert result.exit_code == 0
+        assert "llm" in result.stdout.lower()
+
+    def test_config_keys_with_type_filter(self, info_app, runner) -> None:
+        result = runner.invoke(info_app, ["info", "config-keys", "--type", "models"])
+        assert result.exit_code == 0
+
+
+class TestInfoLlmProfile:
+    def test_llm_profile_runs_default(self, info_app, runner) -> None:
+        result = runner.invoke(info_app, ["info", "llm-profile"])
+        assert result.exit_code == 0
+        assert len(result.stdout) > 0
+
+    def test_llm_profile_with_known_model(self, info_app, runner) -> None:
+        result = runner.invoke(info_app, ["info", "llm-profile", "--model", "parrot_local@fake"])
+        assert result.exit_code == 0
+        assert "parrot_local" in result.stdout or "fake" in result.stdout
+
+    def test_llm_profile_with_all_flag(self, info_app, runner) -> None:
+        result = runner.invoke(info_app, ["info", "llm-profile", "--all"])
+        assert result.exit_code == 0
+
+
+class TestInfoMcpTools:
+    def test_mcp_tools_runs_and_reports_status(self, info_app, runner) -> None:
+        result = runner.invoke(info_app, ["info", "mcp-tools"])
+        assert result.exit_code == 0

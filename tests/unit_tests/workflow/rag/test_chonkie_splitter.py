@@ -290,9 +290,7 @@ class TestHtmlTableSplitting:
     """Test splitting of large retained HTML tables."""
 
     def _big_html_table(self, n_rows: int = 40) -> str:
-        rows = "".join(
-            f"<tr><td>item {i}</td><td>{'lorem ipsum dolor sit amet ' * 5}</td></tr>" for i in range(n_rows)
-        )
+        rows = "".join(f"<tr><td>item {i}</td><td>{'lorem ipsum dolor sit amet ' * 5}</td></tr>" for i in range(n_rows))
         return f"<table><tr><th>Item</th><th>Desc</th></tr>{rows}</table>"
 
     def test_split_markdown_table_handles_html_with_repeated_headers(self) -> None:

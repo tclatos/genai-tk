@@ -114,7 +114,7 @@ def test_convert_html_table_nested_retains_html():
 
 @pytest.mark.unit
 def test_convert_html_table_escapes_pipes_in_cells():
-    html = '<table><tr><th>A</th><th>B</th></tr><tr><td>x|y</td><td>2</td></tr></table>'
+    html = "<table><tr><th>A</th><th>B</th></tr><tr><td>x|y</td><td>2</td></tr></table>"
     converted = convert_html_table(html)
     data_row = converted.splitlines()[-1]
     assert data_row == "| x\\|y | 2 |"

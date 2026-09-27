@@ -430,7 +430,10 @@ async def instantiate_backend(config: BackendConfig | None) -> BackendProtocol |
     from genai_tk.agents.sandbox.factory import SandboxBackendFactory
 
     overrides = {**config.kwargs, **config.extra_kwargs}
-    return SandboxBackendFactory.create(config.type, **overrides)
+    try:
+        return SandboxBackendFactory.create(config.type, **overrides)
+    except KeyError as exc:
+        raise ValueError(f"Unknown backend type '{config.type}'") from exc
 
 
 async def create_backend(config: BackendConfig | None) -> BackendProtocol | None:

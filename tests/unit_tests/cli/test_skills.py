@@ -278,6 +278,13 @@ class TestInitCommandDeerFlow:
 
 
 class TestScaffolderNoIdeFiles:
+    @pytest.fixture(autouse=True)
+    def mock_subprocess_run(self, monkeypatch):
+        """Prevent uv sync from creating real virtualenvs in tmp_path during unit tests."""
+        import subprocess
+
+        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a, 0, stdout="", stderr=""))
+
     def test_no_cursor_file_generated(self, tmp_path: Path):
         from genai_tk.main.scaffolder import ProjectScaffolder
 
@@ -359,6 +366,63 @@ class TestDeerFlowCLI:
         assert "os.environ" not in src
         assert "expanduser" not in src
         assert "exists()" not in src
+
+
+# ---------------------------------------------------------------------------
+# Skills CLI Commands (CliRunner)
+# ---------------------------------------------------------------------------
+
+
+class TestSkillsCommandsCliRunner:
+    @pytest.fixture
+    def skills_app(self) -> typer.Typer:
+        import typer
+
+        from genai_tk.cli.commands_skills import SkillsCommands
+
+        app = typer.Typer()
+        SkillsCommands().register(app)
+        return app
+
+    @pytest.fixture
+    def runner(self):
+        from typer.testing import CliRunner
+
+        return CliRunner()
+
+    def test_skills_help(self, skills_app, runner):
+        result = runner.invoke(skills_app, ["skills", "--help"])
+        assert result.exit_code == 0
+        assert "list" in result.stdout
+        assert "validate" in result.stdout
+
+    def test_skills_list(self, skills_app, runner):
+        result = runner.invoke(skills_app, ["skills", "list"])
+        assert result.exit_code == 0
+        assert len(result.stdout) > 0
+
+    def test_skills_list_with_category_filter(self, skills_app, runner):
+        result = runner.invoke(skills_app, ["skills", "list", "--category", "runtime"])
+        assert result.exit_code == 0
+
+    def test_skills_info_nonexistent(self, skills_app, runner):
+        result = runner.invoke(skills_app, ["skills", "info", "definitely-not-a-real-skill-12345"])
+        assert result.exit_code == 1
+        assert "not found" in result.stdout.lower()
+
+    def test_skills_search(self, skills_app, runner):
+        result = runner.invoke(skills_app, ["skills", "search", "python"])
+        assert result.exit_code == 0
+
+    def test_skills_create(self, skills_app, runner, tmp_path, monkeypatch):
+        import genai_tk.cli.commands_skills as skills_cmd_mod
+
+        monkeypatch.setattr(skills_cmd_mod, "_project_dir", lambda: tmp_path)
+        result = runner.invoke(skills_app, ["skills", "create", "test-new-skill", "--category", "custom"])
+        assert result.exit_code == 0
+        created = tmp_path / "skills" / "custom" / "test-new-skill" / "SKILL.md"
+        assert created.exists()
+        assert "test-new-skill" in created.read_text()
 
     def test_prepare_profile_uses_new_check(self):
         """prepare_profile calls require_deer_flow_installed, not _require_deer_flow_path."""

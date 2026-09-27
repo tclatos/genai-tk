@@ -198,3 +198,31 @@ def test_anonymize_files_flow_skips_cached_without_processing(tmp_path: Path) ->
     assert str(f) in result.records
     # no anonymized output file written (only the pre-existing manifest)
     assert not (out / "a.txt").exists()
+
+
+@pytest.mark.requires_feature("nlp")
+@pytest.mark.fake_models
+def test_anonymize_file_task_detector_exception_propagates_or_handles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When detector fails unexpectedly, error is caught and None or exception is raised properly."""
+    import genai_tk.workflow.prefect.flows.anonymize_flow as anon_module
+
+    src = tmp_path / "src"
+    src.mkdir()
+    f = src / "doc.txt"
+    f.write_text("Hello John", encoding="utf-8")
+    out = tmp_path / "out"
+
+    def _failing_anonymize(*args, **kwargs):
+        raise RuntimeError("Presidio engine service crashed")
+
+    monkeypatch.setattr(anon_module, "anonymize_text", _failing_anonymize)
+
+    with pytest.raises(RuntimeError, match="Presidio engine service crashed"):
+        anonymize_file_task(
+            source_path=str(f),
+            output_dir=str(out),
+            root_dir=str(src),
+            config=_config(),
+        )

@@ -37,6 +37,11 @@ llm:
       providers:
         - fake: parrot
 
+    - model_id: claude-haiku
+      providers:
+        - openrouter: anthropic/claude-haiku-4.5
+        - edenai: anthropic/claude-haiku-4-5
+
     - model_id: mistral_7b
       providers:
         - custom:  # ChatOpenAI class parameters - see https://python.langchain.com/api_reference/openai/chat_models/langchain_openai.chat_models.base.ChatOpenAI.html

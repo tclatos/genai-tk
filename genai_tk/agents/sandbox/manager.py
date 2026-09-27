@@ -78,8 +78,15 @@ class SandboxManager(BaseModel):
         # 2. Re-use existing backend if active and healthy
         if self.backend is not None:
             if hasattr(self.backend, "_sandbox") and getattr(self.backend, "_sandbox", None) is not None:
-                return self.backend
-            if not hasattr(self.backend, "_sandbox"):
+                # If the event loop that created the backend was closed, reset it so we create a fresh one
+                sandbox_obj = getattr(self.backend, "_sandbox", None)
+                adapter = getattr(sandbox_obj, "command", None)
+                client = getattr(adapter, "_client", None)
+                if client is not None and getattr(client, "is_closed", False):
+                    self.backend = None
+                else:
+                    return self.backend
+            elif not hasattr(self.backend, "_sandbox"):
                 return self.backend
 
         # 3. Create and start a new backend using SandboxBackendFactory

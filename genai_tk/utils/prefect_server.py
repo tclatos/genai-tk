@@ -202,13 +202,11 @@ class PrefectServer:
             if proc.poll() is not None:
                 self._pid_file.unlink(missing_ok=True)
                 raise RuntimeError(
-                    f"Prefect server exited during startup (code {proc.returncode})."
-                    f" See log: {log_file}"
+                    f"Prefect server exited during startup (code {proc.returncode}). See log: {log_file}"
                 )
 
         logger.warning(
-            "Prefect server started but may not be fully ready yet. Check health at {}/health"
-            " and log at {}",
+            "Prefect server started but may not be fully ready yet. Check health at {}/health and log at {}",
             self.api_url,
             log_file,
         )

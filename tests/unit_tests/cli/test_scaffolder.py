@@ -7,6 +7,14 @@ from pathlib import Path
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def mock_subprocess_run(monkeypatch):
+    """Prevent uv sync from creating real virtualenvs in tmp_path during unit tests."""
+    import subprocess
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: subprocess.CompletedProcess(a, 0, stdout="", stderr=""))
+
+
 @pytest.fixture()
 def project_dir(tmp_path: Path) -> Path:
     """Create a minimal project directory with config/ that mimics cli init config copy."""
