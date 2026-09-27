@@ -21,52 +21,38 @@ genai-tk unifies agent definition, tool binding, skill injection, execution sand
 
 ```mermaid
 flowchart TD
-    subgraph ConfigLayer["Configuration & Profile Layer"]
+    subgraph ConfigLayer["1. Configuration & Profile Layer"]
         YAML["Agent Profile (YAML)<br/>System Prompt + Tools + Skills + Models"]
         ConfigMngr["Unified Config Manager (OmegaConf)"]
     end
 
-    subgraph MetaHarness["Unified Meta-Harness Layer (BaseHarness)"]
+    subgraph MetaHarness["2. Unified Meta-Harness Layer (BaseHarness)"]
         HarnessFactory["HarnessFactory.create()"]
-        LangChainAdapter["LangChain / DeepAgents Adapter<br/>(LangGraph + Middleware Pipeline)"]
+        LangChainAdapter["LangChain / DeepAgents Adapter<br/>(LangGraph + Composable Middleware)"]
         DeerFlowAdapter["DeerFlow Adapter<br/>(DeerFlowClient + Context Mapper)"]
     end
 
-    subgraph GenAIGraphLayer["genai-graph & Document Graph (Ladybug DB)"]
+    subgraph DomainLayer["3. Domain Assets & Intelligence"]
         DocGraph["Document Graph Engine (genai-graph)<br/>(Hierarchical Sections, Tables, Images, TOC)"]
-        DocGraphTools["Document Graph Navigation Tools<br/>(get_document_toc, get_section_content, search_sections)"]
-        VisionTools["Multimodal Vision Tools<br/>(query_image, VLM Inspection)"]
+        SkillRegistry["Progressive Skills Framework<br/>(Dynamic SKILL.md Discovery & Staging)"]
+        ToolRegistry["Agent Tools & Actions<br/>(Navigation, Vision, Python Actions)"]
     end
 
-    subgraph SkillsAndTools["Skills & Tools Framework"]
-        SkillRegistry["Progressive Disclosure Skills (SKILL.md)<br/>Staged in Workspace /skills"]
-        PyTool["Python Executor Tool<br/>(CodeAct / Calculation)"]
+    subgraph ExecutionLayer["4. Pluggable Execution & Isolation Layer"]
+        SandboxFactory["SandboxBackendFactory & SandboxManager"]
+        LocalExec["Local In-Process Runtime<br/>(AST Safe Evaluation)"]
+        ContainerExec["Isolated Sandboxes<br/>(OpenSandbox Docker / E2B / Modal)"]
     end
 
-    subgraph ExecutionLayer["Sandboxed Execution Layer"]
-        SandboxMgr["DockerSandboxManager (Singleton / ContextVar)"]
-        DockerContainer["Docker Sandbox (ghcr.io/agent-infra/sandbox)<br/>In-Container Persistent HTTP Worker (:9199)"]
-        HostBridge["Host Tool RPC Bridge (:9200)<br/>Bi-directional Tool Invocation"]
-    end
-
-    subgraph ObservabilityLayer["Observability & Trajectories"]
-        NeMoRelay["NeMo Relay (ATOF Format)"]
-        TraceStore["Unified Trajectory Store (.jsonl)"]
+    subgraph ObservabilityLayer["5. Observability & Evaluation"]
+        NeMoRelay["NeMo Relay (ATOF Trajectory Format)"]
+        TraceStore["Trajectory Store (.jsonl)"]
         Judges["LLM-as-a-Judge Evaluation (DeepSeek / Claude)"]
     end
 
     ConfigLayer --> MetaHarness
-    MetaHarness --> SkillsAndTools
-    MetaHarness --> GenAIGraphLayer
-    DocGraph --> DocGraphTools
-    DocGraph --> VisionTools
-    LangChainAdapter --> PyTool
-    DeerFlowAdapter --> PyTool
-    PyTool --> SandboxMgr
-    SandboxMgr --> DockerContainer
-    DockerContainer <--> HostBridge
-    HostBridge --> SkillsAndTools
-    HostBridge --> GenAIGraphLayer
+    MetaHarness --> DomainLayer
+    DomainLayer --> ExecutionLayer
     MetaHarness --> ObservabilityLayer
 ```
 
@@ -79,35 +65,33 @@ flowchart TD
 
 ### 2.2 Sandboxed Python Execution Engine & CodeAct
 
-In complex document benchmarks (e.g. OfficeQA and FinanceBench), agents cannot rely on LLM mental arithmetic for multi-year financial tables, percentage changes, or aggregate sums. genai-tk provides a **persistent Docker Python sandbox**:
+In complex document benchmarks (e.g. OfficeQA and FinanceBench), agents cannot rely on LLM mental arithmetic for multi-year financial tables, percentage changes, or aggregate sums. genai-tk provides a **stateful sandboxed Python execution engine**:
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Agent as Agent (DeerFlow / DeepAgent)
     participant Tool as PythonExecutorTool
-    participant Bridge as HostToolBridge
-    participant Worker as Container PyWorker
-    participant Sandbox as Docker Sandbox
+    participant Executor as SandboxedPythonExecutor
+    participant Sandbox as Sandbox Runtime (Docker / E2B / Modal)
 
-    Agent->>Tool: Execute Python code
-    alt First Run - Worker Bootstrap
-        Tool->>Sandbox: Deploy in-memory HTTP worker daemon
-        Sandbox->>Worker: Start worker on port 9199
+    Agent->>Tool: Execute Python code block
+    Tool->>Executor: Delegate execution to active backend
+    Executor->>Sandbox: Execute code in persistent namespace
+    opt Script invokes Host Tool (CodeAct pattern)
+        Sandbox->>Tool: Request host tool invocation via RPC bridge
+        Tool-->>Sandbox: Return tool result to in-sandbox namespace
     end
-    Tool->>Bridge: Register available Host Tools
-    Tool->>Worker: POST execute request with code and timeout
-    opt Script calls Host Tool - CodeAct pattern
-        Worker->>Bridge: POST call_tool request
-        Bridge->>Tool: Execute LangChain host tool
-        Bridge-->>Worker: Return tool JSON result
-    end
-    Worker-->>Tool: Return execution result, logs, and final answer
-    Tool-->>Agent: Return observation with calculation outputs
+    Sandbox-->>Executor: Return execution output, logs & final answer
+    Executor-->>Tool: Format structured observation
+    Tool-->>Agent: Observation with exact calculation outputs
 ```
 
 **Key Capabilities:**
-* **Persistent In-Container Namespace:** Variables, imported modules (NumPy, SciPy, Pandas), and helper functions persist across multiple turns within a session without re-instantiating the container or restarting the Python process.
+* **Persistent In-Sandbox Namespace:** Variables, imported modules (NumPy, SciPy, Pandas), and helper functions persist across multiple turns within a session without re-instantiating the environment.
+* **Bi-directional Host Tool Bridge:** Python scripts running in the sandbox can invoke host tools (such as web search or document graph queries) directly as native Python functions via an ephemeral RPC bridge.
+* **CodeAct Support:** Implements the `final_answer(value)` protocol to signal task completion directly from executable code.
+* **Pluggable & Managed Lifecycle:** Managed via `SandboxManager` and `SandboxBackendFactory`, supporting local execution, OpenSandbox Docker, or remote cloud sandboxes (E2B, Modal) with zero per-turn overhead.
 * **Bi-directional Host Tool Bridge:** Python scripts running in Docker can invoke host tools (such as web search or document graph queries) directly as native Python functions via an ephemeral HTTP RPC bridge.
 * **CodeAct Support:** Implements the `final_answer(value)` protocol to signal task completion directly from executable code.
 * **Zero Container Thrashing:** Managed via `DockerSandboxManager` as a shared singleton or context variable, eliminating per-query container launch overhead.

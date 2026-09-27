@@ -67,7 +67,9 @@ class PromptCacheMiddleware(AgentMiddleware):
             is_target = isinstance(msg, SystemMessage) and (self._tag_all_system or not tagged)
             if is_target and not already_tagged:
                 new_messages.append(
-                    msg.model_copy(update={"additional_kwargs": {**msg.additional_kwargs, "cache_control": self._cache_control}})
+                    msg.model_copy(
+                        update={"additional_kwargs": {**msg.additional_kwargs, "cache_control": self._cache_control}}
+                    )
                 )
                 tagged = True
             else:

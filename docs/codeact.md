@@ -39,9 +39,9 @@ uv run cli agents run codeact "..." -m glm5.2@openrouter --json
 ## Architecture
 
 ```text
-LLM turn 1..N                    Sandbox (in-process)              Tools
-─────────────                    ────────────────────              ─────
-write python code block  ─────►  AST interpreter (no eval)
+LLM turn 1..N                    Python Executor (BasePythonExecutor)      Tools
+─────────────                    ────────────────────────────────────      ─────
+write python code block  ─────►  Local AST / Sandboxed Container
                                          │
                                          ├── web_search(...)  ───► search provider
                                          ├── final_answer(x)  ──► stop, return x
@@ -53,8 +53,9 @@ Components (all under `genai_tk/agents/tools/python_executor/`):
 
 | Piece | Role |
 |---|---|
-| `executor.evaluate_python_code` | AST walker that interprets a subset of Python: assignments, control flow, functions, classes, comprehensions, try/except, with |
-| `executor.LocalPythonExecutor` | Stateful executor: persists variables across calls, enforces timeouts and import allow-lists |
+| `base.BasePythonExecutor` | Common protocol interface (`aexecute_code`, `reset`, `send_tools`, `send_variables`) |
+| `executor.LocalPythonExecutor` | In-process AST safe executor: persists variables across calls, enforces timeouts and import allow-lists |
+| `docker_executor.SandboxedPythonExecutor` | Sandboxed executor: runs inside any `SandboxBackendProtocol` runtime with stateful NumPy/Pandas and host tool RPC bridge |
 | `tool.PythonExecutorTool` | LangChain `BaseTool` wrapper (name `python_interpreter`) that renders `CodeOutput` as text, with a `FINAL ANSWER:` marker on termination |
 | `tool.create_python_executor_tools` | Tool factory accepting nested sandbox `tools` (e.g. search tools) exposed directly inside the interpreter |
 

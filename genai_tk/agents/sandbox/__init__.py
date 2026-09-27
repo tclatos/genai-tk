@@ -59,6 +59,8 @@ from genai_tk.agents.sandbox.config import (  # noqa: E402
     load_sandbox_config,
     resolve_sandbox_name,
 )
+from genai_tk.agents.sandbox.factory import SandboxBackendFactory  # noqa: E402
+from genai_tk.agents.sandbox.manager import DockerSandboxManager, SandboxManager  # noqa: E402
 from genai_tk.agents.sandbox.models import (  # noqa: E402
     DockerAioSettings,
     DockerSandboxSettings,
@@ -69,6 +71,10 @@ from genai_tk.agents.sandbox.models import (  # noqa: E402
 )
 
 __all__ = [
+    # Factory & Manager
+    "SandboxBackendFactory",
+    "SandboxManager",
+    "DockerSandboxManager",
     # Backend (lazy-loaded)
     "AioSandboxBackend",
     "SandboxToolResult",

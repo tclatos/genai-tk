@@ -18,8 +18,7 @@ from typing import Any
 from langchain_core.tools import BaseTool
 from loguru import logger
 
-from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
-from genai_tk.agents.sandbox.manager import DockerSandboxManager
+from genai_tk.agents.sandbox.manager import SandboxManager
 from genai_tk.agents.tools.python_executor.executor import (
     DEFAULT_MAX_LEN_OUTPUT,
     MAX_EXECUTION_TIME_SECONDS,
@@ -266,12 +265,12 @@ class HostToolBridge:
             logger.debug("HostToolBridge stopped")
 
 
-class DockerPythonExecutor:
-    """Stateful Python code executor running inside the all-in-one Docker sandbox."""
+class SandboxedPythonExecutor:
+    """Stateful Python code executor running inside an isolated sandbox conforming to SandboxBackendProtocol."""
 
     def __init__(
         self,
-        backend: AioSandboxBackend | None = None,
+        backend: Any | None = None,
         additional_authorized_imports: list[str] | None = None,
         max_print_outputs_length: int = DEFAULT_MAX_LEN_OUTPUT,
         additional_functions: dict[str, Callable[..., Any]] | None = None,
@@ -372,21 +371,28 @@ class DockerPythonExecutor:
         self.initial_state.update(variables)
         self._worker_ready = False
 
-    async def _get_backend(self) -> AioSandboxBackend:
+    async def _get_backend(self) -> Any:
         if self.backend is not None:
-            if not getattr(self.backend, "_sandbox", None):
+            if hasattr(self.backend, "start") and not getattr(self.backend, "_sandbox", None):
                 await self.backend.start()
             return self.backend
-        return await DockerSandboxManager.aget_shared_backend()
+        return await SandboxManager.aget_shared_backend()
 
-    async def _write_file(self, backend: AioSandboxBackend, file_path: str, content: str) -> None:
-        """Write or overwrite a file in the sandbox container."""
-        if getattr(backend, "_sandbox", None) is not None:
+    async def _write_file(self, backend: Any, file_path: str, content: str) -> None:
+        """Write or overwrite a file in the sandbox environment using standard protocol."""
+        if hasattr(backend, "awrite"):
+            await backend.awrite(file_path, content)
+        elif getattr(backend, "_sandbox", None) is not None:
             await backend._sandbox.files.write_file(file_path, content)
-        else:
+        elif hasattr(backend, "_run_write_file"):
             await backend._run_write_file({"path": file_path, "content": content})
+        else:
+            import base64
 
-    async def _ensure_worker(self, backend: AioSandboxBackend) -> None:
+            b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
+            await backend.aexecute(f"echo '{b64}' | base64 -d > '{file_path}'")
+
+    async def _ensure_worker(self, backend: Any) -> None:
         """Ensure the in-container python worker is running and configured."""
         # 1. Probe worker health
         health = await backend.aexecute("curl -s -m 1 http://127.0.0.1:9199/health")
@@ -416,6 +422,9 @@ class DockerPythonExecutor:
                 f"http://172.18.0.1:{bridge_port}",
                 f"http://172.25.240.1:{bridge_port}",
                 f"http://172.25.253.111:{bridge_port}",
+                f"http://127.0.0.1:{bridge_port}",
+                f"http://localhost:{bridge_port}",
+                f"http://host.docker.internal:{bridge_port}",
             ]
             reg_payload = json.dumps(
                 {
@@ -555,3 +564,7 @@ class DockerPythonExecutor:
         if self._host_bridge is not None:
             self._host_bridge.stop()
             self._host_bridge = None
+
+
+# Backward compatibility alias
+DockerPythonExecutor = SandboxedPythonExecutor

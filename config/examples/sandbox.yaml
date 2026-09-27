@@ -66,6 +66,19 @@ sandbox:
   wasm:
     enabled: false
 
+  # ── Extensible Sandbox Backends (SandboxBackendFactory) ─────────────────────
+  # Custom sandbox backends conforming to SandboxBackendProtocol can be declared
+  # with their qualified Python class name and loaded dynamically:
+  backends:
+    docker:
+      class: "genai_tk.agents.sandbox.aio_backend.AioSandboxBackend"
+    local:
+      class: "deepagents.backends.local_shell.LocalShellBackend"
+    # e2b:
+    #   class: "my_package.sandbox.e2b:E2bSandboxBackend"
+    # modal:
+    #   class: "my_package.sandbox.modal:ModalSandboxBackend"
+
 # ── Sandbox Browser Tools ──────────────────────────────────────────────────
 # Settings for the agent-driven browser tools (genai_tk.agents.tools.sandbox_browser).
 # These tools connect to the AIO sandbox's Chromium via CDP and let a deep

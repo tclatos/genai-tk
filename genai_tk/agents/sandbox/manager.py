@@ -1,7 +1,7 @@
 """Unified Sandbox Session Manager.
 
-Manages shared sandbox lifecycles so containers are reused across tool calls
-and turns without reloading Docker, and provides context-aware binding for
+Manages shared sandbox lifecycles so containers and remote sandboxes are reused
+across tool calls and turns without reloading, and provides context-aware binding for
 both DeepAgents and DeerFlow harnesses.
 """
 
@@ -11,35 +11,35 @@ import asyncio
 import contextvars
 import shutil
 import subprocess
+from typing import Any
 
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
-from genai_tk.agents.sandbox.models import DockerAioSettings
 from genai_tk.utils.singleton import once
 
 # Context variable to bind an active sandbox backend from the enclosing harness
-active_sandbox_backend: contextvars.ContextVar[AioSandboxBackend | None] = contextvars.ContextVar(
+active_sandbox_backend: contextvars.ContextVar[Any | None] = contextvars.ContextVar(
     "active_sandbox_backend", default=None
 )
 
 
-class DockerSandboxManager(BaseModel):
-    """Singleton manager for shared Docker sandbox backend instances."""
+class SandboxManager(BaseModel):
+    """Singleton manager for shared sandbox backend instances across agent turns."""
 
-    config: DockerAioSettings | None = Field(default=None)
-    backend: AioSandboxBackend | None = Field(default=None, repr=False)
+    backend_type: str = Field(default="docker")
+    config: Any | None = Field(default=None)
+    backend: Any | None = Field(default=None, repr=False)
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @once
-    def singleton() -> DockerSandboxManager:
-        """Returns the thread-safe singleton instance of DockerSandboxManager."""
+    def singleton() -> SandboxManager:
+        """Returns the thread-safe singleton instance of SandboxManager."""
         from genai_tk.agents.sandbox.config import get_docker_aio_settings
 
         cfg = get_docker_aio_settings()
-        return DockerSandboxManager(config=cfg)
+        return SandboxManager(backend_type="docker", config=cfg)
 
     @classmethod
     def is_docker_available(cls) -> bool:
@@ -58,8 +58,12 @@ class DockerSandboxManager(BaseModel):
         except Exception:
             return False
 
-    async def aget_backend(self, config: DockerAioSettings | None = None) -> AioSandboxBackend:
-        """Get or lazily start the managed AioSandboxBackend.
+    async def aget_backend(
+        self,
+        config: Any | None = None,
+        backend_type: str | None = None,
+    ) -> Any:
+        """Get or lazily start the managed sandbox backend conforming to SandboxBackendProtocol.
 
         If a harness has bound an active backend into `active_sandbox_backend`,
         that backend is returned immediately.
@@ -67,29 +71,41 @@ class DockerSandboxManager(BaseModel):
         # 1. Check context variable first (e.g. set by DeepAgentHarness / DeerFlow)
         ctx_backend = active_sandbox_backend.get()
         if ctx_backend is not None:
-            if not getattr(ctx_backend, "_sandbox", None):
+            if hasattr(ctx_backend, "start") and not getattr(ctx_backend, "_sandbox", None):
                 await ctx_backend.start()
             return ctx_backend
 
         # 2. Re-use existing backend if active and healthy
         if self.backend is not None:
-            if getattr(self.backend, "_sandbox", None) is not None:
+            if hasattr(self.backend, "_sandbox") and getattr(self.backend, "_sandbox", None) is not None:
+                return self.backend
+            if not hasattr(self.backend, "_sandbox"):
                 return self.backend
 
-        # 3. Create and start a new backend
-        from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
-        from genai_tk.agents.sandbox.config import get_docker_aio_settings
+        # 3. Create and start a new backend using SandboxBackendFactory
+        from genai_tk.agents.sandbox.factory import SandboxBackendFactory
 
-        cfg = config or self.config or get_docker_aio_settings()
-        self.config = cfg
-        backend = AioSandboxBackend(config=cfg)
-        logger.info("Starting shared Docker AioSandboxBackend...")
-        await backend.start()
+        b_type = backend_type or self.backend_type or "docker"
+        cfg = config or self.config
+
+        kwargs: dict[str, Any] = {}
+        if cfg is not None:
+            kwargs["config"] = cfg
+
+        backend = SandboxBackendFactory.create(b_type, **kwargs)
+        if hasattr(backend, "start"):
+            logger.info(f"Starting shared {b_type} sandbox backend...")
+            await backend.start()
+
         self.backend = backend
         return backend
 
-    def get_backend(self, config: DockerAioSettings | None = None) -> AioSandboxBackend:
-        """Synchronous wrapper to get or lazily start the managed AioSandboxBackend."""
+    def get_backend(
+        self,
+        config: Any | None = None,
+        backend_type: str | None = None,
+    ) -> Any:
+        """Synchronous wrapper to get or lazily start the managed sandbox backend."""
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -99,8 +115,8 @@ class DockerSandboxManager(BaseModel):
             import nest_asyncio
 
             nest_asyncio.apply()
-            return asyncio.run(self.aget_backend(config))
-        return asyncio.run(self.aget_backend(config))
+            return asyncio.run(self.aget_backend(config, backend_type))
+        return asyncio.run(self.aget_backend(config, backend_type))
 
     async def aclose_backend(self) -> None:
         """Stop and clean up the shared backend if running."""
@@ -108,8 +124,11 @@ class DockerSandboxManager(BaseModel):
             backend = self.backend
             self.backend = None
             try:
-                await backend.stop()
-                logger.info("Shared Docker AioSandboxBackend stopped.")
+                if hasattr(backend, "stop"):
+                    await backend.stop()
+                elif hasattr(backend, "close"):
+                    await backend.close()
+                logger.info("Shared sandbox backend stopped.")
             except Exception as exc:
                 logger.debug(f"Error stopping shared sandbox: {exc}")
 
@@ -124,20 +143,22 @@ class DockerSandboxManager(BaseModel):
     @classmethod
     async def aget_shared_backend(
         cls,
-        config: DockerAioSettings | None = None,
-    ) -> AioSandboxBackend:
-        """Get or lazily start the shared AioSandboxBackend from singleton."""
+        config: Any | None = None,
+        backend_type: str | None = None,
+    ) -> Any:
+        """Get or lazily start the shared sandbox backend from singleton."""
         mgr = cls.singleton()
-        return await mgr.aget_backend(config)
+        return await mgr.aget_backend(config, backend_type)
 
     @classmethod
     def get_shared_backend(
         cls,
-        config: DockerAioSettings | None = None,
-    ) -> AioSandboxBackend:
-        """Synchronous wrapper to get or lazily start the shared AioSandboxBackend from singleton."""
+        config: Any | None = None,
+        backend_type: str | None = None,
+    ) -> Any:
+        """Synchronous wrapper to get or lazily start the shared sandbox backend from singleton."""
         mgr = cls.singleton()
-        return mgr.get_backend(config)
+        return mgr.get_backend(config, backend_type)
 
     @classmethod
     async def aclose_shared_backend(cls) -> None:
@@ -152,10 +173,14 @@ class DockerSandboxManager(BaseModel):
         mgr.close_backend()
 
 
-def get_active_sandbox() -> AioSandboxBackend | None:
+# Backward compatibility alias
+DockerSandboxManager = SandboxManager
+
+
+def get_active_sandbox() -> Any | None:
     """Return the currently active sandbox backend from context or shared singleton."""
     ctx_backend = active_sandbox_backend.get()
     if ctx_backend is not None:
         return ctx_backend
-    mgr = DockerSandboxManager.singleton()
+    mgr = SandboxManager.singleton()
     return mgr.backend

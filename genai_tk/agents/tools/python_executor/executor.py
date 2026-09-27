@@ -7,6 +7,7 @@ Pydantic v2 data models, and Python 3.12+ syntax.
 from __future__ import annotations
 
 import ast
+import asyncio
 import builtins
 import difflib
 import inspect
@@ -1678,3 +1679,7 @@ class LocalPythonExecutor:
         except Exception as e:
             logs = str(self.state.get("_print_outputs", ""))
             return CodeOutput(output=None, logs=logs, is_final_answer=False, error=str(e))
+
+    async def aexecute_code(self, code: str) -> CodeOutput:
+        """Asynchronously execute a code snippet and return structured CodeOutput."""
+        return await asyncio.to_thread(self.__call__, code)
