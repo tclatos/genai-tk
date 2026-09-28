@@ -134,11 +134,26 @@ class DeerFlowHarness(BaseHarness):
             self._model_name = model_name
         return self._client
 
-    async def astream(self, message: str, *, thread_id: str | None = None) -> AsyncIterator[StreamEvent]:
+    async def astream(
+        self,
+        message: str,
+        *,
+        thread_id: str | None = None,
+        context: Any | None = None,
+    ) -> AsyncIterator[StreamEvent]:
         client = await self._ensure_client()
         profile = self._profile
         assert profile is not None
         tid = thread_id or "harness-default"
+
+        ctx_token = None
+        try:
+            from genai_graph.kg.access.context import set_active_user_context
+
+            ctx_token = set_active_user_context(context)
+        except ImportError:
+            pass
+
         try:
             async for event in client.stream_message(
                 tid,
@@ -153,6 +168,14 @@ class DeerFlowHarness(BaseHarness):
         except Exception as exc:
             logger.opt(exception=True).warning(f"DeerFlowHarness stream error: {exc}")
             yield ErrorEvent(message=str(exc))
+        finally:
+            if ctx_token is not None:
+                try:
+                    from genai_graph.kg.access.context import CURRENT_USER_CONTEXT
+
+                    CURRENT_USER_CONTEXT.reset(ctx_token)
+                except Exception:
+                    pass
         yield EndEvent()
 
     async def aclose(self) -> None:

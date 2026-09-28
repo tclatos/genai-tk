@@ -45,12 +45,19 @@ class BaseHarness(ABC):
     default_thread_id: str = "default"
 
     @abstractmethod
-    def astream(self, message: str, *, thread_id: str | None = None) -> AsyncIterator[StreamEvent]:
+    def astream(
+        self,
+        message: str,
+        *,
+        thread_id: str | None = None,
+        context: Any | None = None,
+    ) -> AsyncIterator[StreamEvent]:
         """Stream one conversation turn as canonical :class:`StreamEvent` objects.
 
         Args:
             message: User message text.
             thread_id: Conversation thread ID; ``None`` uses a harness-default thread.
+            context: Optional user / execution context carrying identity and permissions.
 
         Yields:
             Typed :class:`StreamEvent` instances, ending with an ``EndEvent``.
@@ -58,18 +65,25 @@ class BaseHarness(ABC):
         raise NotImplementedError
         yield  # pragma: no cover - makes this an async generator for type checkers
 
-    async def arun(self, message: str, *, thread_id: str | None = None) -> str:
+    async def arun(
+        self,
+        message: str,
+        *,
+        thread_id: str | None = None,
+        context: Any | None = None,
+    ) -> str:
         """Consume the stream and return the concatenated response text.
 
         Args:
             message: User message text.
             thread_id: Conversation thread ID; ``None`` uses a harness-default thread.
+            context: Optional user / execution context carrying identity and permissions.
 
         Returns:
             The concatenated text of all ``TokenEvent`` chunks.
         """
         chunks: list[str] = []
-        async for event in self.astream(message, thread_id=thread_id):
+        async for event in self.astream(message, thread_id=thread_id, context=context):
             if isinstance(event, TokenEvent):
                 chunks.append(event.text)
             elif isinstance(event, ErrorEvent):

@@ -121,12 +121,30 @@ class LangChainHarness(BaseHarness):
             )
         return self._agent
 
-    async def astream(self, message: str, *, thread_id: str | None = None) -> AsyncIterator[StreamEvent]:
+    async def astream(
+        self,
+        message: str,
+        *,
+        thread_id: str | None = None,
+        context: Any | None = None,
+    ) -> AsyncIterator[StreamEvent]:
         agent = await self._ensure_agent()
         config: dict[str, Any] = {
             "configurable": {"thread_id": thread_id or self.default_thread_id},
             "recursion_limit": self._profile.recursion_limit,
         }
+        if context is not None:
+            config["configurable"]["context"] = context
+
+        # Set ContextVar for tool executions in subroutines / external tools
+        ctx_token = None
+        try:
+            from genai_graph.kg.access.context import set_active_user_context
+
+            ctx_token = set_active_user_context(context)
+        except ImportError:
+            pass
+
         # Attach monitoring callbacks (local JSONL log, LangFuse CallbackHandler)
         # so agent runs are traced alongside the env-var/OTEL backends.
         callbacks = get_monitoring_callbacks()
@@ -151,6 +169,14 @@ class LangChainHarness(BaseHarness):
         except Exception as exc:
             logger.opt(exception=True).warning(f"LangChainHarness stream error: {exc}")
             yield ErrorEvent(message=str(exc))
+        finally:
+            if ctx_token is not None:
+                try:
+                    from genai_graph.kg.access.context import CURRENT_USER_CONTEXT
+
+                    CURRENT_USER_CONTEXT.reset(ctx_token)
+                except Exception:
+                    pass
         yield EndEvent()
 
     async def aclose(self) -> None:
