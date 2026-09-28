@@ -8,7 +8,7 @@ Example:
     from genai_tk.extra.nlp.model_manager import SpaCyModelManager
 
     # Set up model (downloads if needed)
-    SpaCyModelManager.setup_spacy_model("en_core_web_sm")
+    SpaCyModelManager.setup_spacy_model("en_core_web_md")
 
     # Check availability
     if SpaCyModelManager.is_model_installed("fr_core_news_sm"):
@@ -85,7 +85,7 @@ class SpaCyModelManager:
         """Set up the spaCy model by downloading it if needed.
 
         Args:
-            model_name: spaCy model name (e.g. ``"en_core_web_sm"``, ``"fr_core_news_sm"``).
+            model_name: spaCy model name (e.g. ``"en_core_web_md"``, ``"fr_core_news_sm"``).
 
         Raises:
             ImportError: If spaCy is not installed.

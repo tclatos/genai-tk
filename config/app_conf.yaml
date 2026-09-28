@@ -14,9 +14,9 @@ paths:
 
 nlp:
   default_language: en
-  default_model: en_core_web_sm
+  default_model: en_core_web_md
   models:
-    en: en_core_web_sm
+    en: en_core_web_md
     fr: fr_core_news_sm
 
 

@@ -1712,19 +1712,11 @@ wheels = [
 ]
 
 [[package]]
-name = "en-core-web-lg"
+name = "en-core-web-md"
 version = "3.8.0"
-source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" }
+source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl" }
 wheels = [
-    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl", hash = "sha256:293e9547a655b25499198ab15a525b05b9407a75f10255e405e8c3854329ab63" },
-]
-
-[[package]]
-name = "en-core-web-sm"
-version = "3.8.0"
-source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
-wheels = [
-    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl", hash = "sha256:1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85" },
+    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl", hash = "sha256:5e6329fe3fecedb1d1a02c3ea2172ee0fede6cea6e4aefb6a02d832dba78a310" },
 ]
 
 [[package]]
@@ -2124,8 +2116,7 @@ all = [
     { name = "chromadb" },
     { name = "deepagents" },
     { name = "deerflow-harness", extra = ["tui"] },
-    { name = "en-core-web-lg" },
-    { name = "en-core-web-sm" },
+    { name = "en-core-web-md" },
     { name = "langchain-chroma" },
     { name = "langchain-huggingface" },
     { name = "langchain-postgres" },
@@ -2164,8 +2155,7 @@ monitoring = [
     { name = "opentelemetry-sdk" },
 ]
 nlp = [
-    { name = "en-core-web-lg" },
-    { name = "en-core-web-sm" },
+    { name = "en-core-web-md" },
     { name = "langchain-huggingface" },
     { name = "presidio-analyzer" },
     { name = "presidio-anonymizer" },
@@ -2214,8 +2204,7 @@ requires-dist = [
     { name = "deepagents", marker = "extra == 'harnessing'", specifier = ">=0.7.13" },
     { name = "deerflow-harness", extras = ["tui"], marker = "extra == 'harnessing'", git = "https://github.com/bytedance/deer-flow?subdirectory=backend%2Fpackages%2Fharness&rev=795af20a6b79b22fd9e95f674554605c5bfb6cdc" },
     { name = "devtools", specifier = ">=0.12.2" },
-    { name = "en-core-web-lg", marker = "extra == 'nlp'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl" },
-    { name = "en-core-web-sm", marker = "extra == 'nlp'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
+    { name = "en-core-web-md", marker = "extra == 'nlp'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl" },
     { name = "fastembed", specifier = ">=0.8.0" },
     { name = "fuzzysearch", specifier = ">=0.8.0" },
     { name = "genai-tk", extras = ["harnessing", "browser", "nlp", "postgres", "streamlit", "baml", "chromadb"], marker = "extra == 'all'" },
@@ -2671,8 +2660,8 @@ name = "httpcore2"
 version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "h11" },
-    { name = "truststore" },
+    { name = "h11", marker = "python_full_version >= '3.14' or sys_platform != 'emscripten'" },
+    { name = "truststore", marker = "python_full_version >= '3.14' or sys_platform != 'emscripten'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/cb/f3/1db7aa2bc2524062192bb0e0323969492d1883152a232fe36eea65f4e35c/httpcore2-2.13.1.tar.gz", hash = "sha256:e0aa977abe17e69a3b820a24542a6fa88702676d83880b8d194dcd18408e5103", size = 68071, upload-time = "2026-09-23T07:47:22.372Z" }
 wheels = [

@@ -199,7 +199,7 @@ uv add "genai-tk[harnessing,browser]"
 |---------|----------|-------|
 | `harnessing` | deepagents, agent-sandbox, opensandbox, deerflow-harness | Heavy — includes Docker sandbox |
 | `browser` | playwright | Run `uv run playwright install chromium` after install |
-| `nlp` | spacy, en-core-web-sm, en-core-web-lg | ~500 MB including models |
+| `nlp` | spacy, en-core-web-md | ~40 MB including model |
 | `postgres` | langchain-postgres, psycopg, psycopg2-binary | Requires PostgreSQL server |
 | `streamlit` | streamlit | Web UI — not needed for CLI-only use |
 | `baml` | baml-cli, baml-lib | Run `uv run baml-cli init --dest baml_src` after install |

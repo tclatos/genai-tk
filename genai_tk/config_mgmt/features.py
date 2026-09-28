@@ -64,7 +64,7 @@ FEATURES: dict[str, FeatureInfo] = {
     ),
     "nlp": FeatureInfo(
         description="NLP with spaCy, English language models, and Presidio PII detection",
-        packages=["spacy", "en-core-web-sm", "en-core-web-lg", "presidio-analyzer", "presidio-anonymizer"],
+        packages=["spacy", "en-core-web-md", "presidio-analyzer", "presidio-anonymizer"],
         check_modules=["spacy"],
         install_cmd='uv sync --extra nlp  # or: uv add "genai-tk[nlp]"',
     ),

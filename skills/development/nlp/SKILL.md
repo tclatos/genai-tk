@@ -46,7 +46,7 @@ genai_tk/extra/nlp/
 uv sync --extra nlp
 ```
 
-Installs: `spacy`, `en_core_web_sm`, `en_core_web_lg`, `presidio-analyzer`, `presidio-anonymizer`.
+Installs: `spacy`, `en_core_web_md`, `presidio-analyzer`, `presidio-anonymizer`.
 
 ## Configuration
 
@@ -54,9 +54,9 @@ Installs: `spacy`, `en_core_web_sm`, `en_core_web_lg`, `presidio-analyzer`, `pre
 # config/app_conf.yaml
 nlp:
   default_language: en
-  default_model: en_core_web_sm
+  default_model: en_core_web_md
   models:
-    en: en_core_web_sm
+    en: en_core_web_md
     fr: fr_core_news_sm
 ```
 
@@ -75,7 +75,7 @@ from genai_tk.extra.nlp import get_nlp
 
 nlp = get_nlp()  # NlpConfig defaults
 nlp_fr = get_nlp(language="fr")  # French model
-nlp_lg = get_nlp(model="en_core_web_lg")  # explicit override
+nlp_md = get_nlp(model="en_core_web_md")  # explicit override
 ```
 
 Always use `get_nlp()` — it checks the feature gate, resolves config, and caches.

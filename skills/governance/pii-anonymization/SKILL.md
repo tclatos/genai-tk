@@ -146,7 +146,7 @@ nlp:
   default_language: fr
   default_model: fr_core_news_sm
   models:
-    en: en_core_web_sm
+    en: en_core_web_md
     fr: fr_core_news_sm
 ```
 

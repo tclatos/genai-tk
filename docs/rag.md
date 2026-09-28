@@ -71,7 +71,7 @@ retrievers:
     type: genai_tk.core.retrievers.BM25Retriever
     k: 4
     preprocessing: default    # or "spacy" for lemmatisation
-    spacy_model: en_core_web_sm
+    spacy_model: en_core_web_md
     cache_dir: ~              # auto: data/bm25_cache/<config_tag>/
 ```
 
@@ -234,7 +234,7 @@ retrievers:
     type: genai_tk.core.retrievers.BM25Retriever
     k: 4
     preprocessing: default              # default | spacy
-    spacy_model: en_core_web_sm
+    spacy_model: en_core_web_md
     cache_dir: ~                        # null → data/bm25_cache/<tag>/
 
   # ── ensemble ────────────────────────────────────────────

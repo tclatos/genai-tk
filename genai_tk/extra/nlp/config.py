@@ -8,9 +8,9 @@ Example YAML::
 
     nlp:
       default_language: en
-      default_model: en_core_web_sm
+      default_model: en_core_web_md
       models:
-        en: en_core_web_sm
+        en: en_core_web_md
         fr: fr_core_news_sm
 """
 
@@ -23,9 +23,9 @@ class NlpConfig(BaseModel):
     """Top-level NLP configuration section."""
 
     default_language: str = Field(default="en", description="Default language code for NLP operations")
-    default_model: str = Field(default="en_core_web_sm", description="Default spaCy model to use")
+    default_model: str = Field(default="en_core_web_md", description="Default spaCy model to use")
     models: dict[str, str] = Field(
-        default_factory=lambda: {"en": "en_core_web_sm"},
+        default_factory=lambda: {"en": "en_core_web_md"},
         description="Mapping of language codes to spaCy model names",
     )
 

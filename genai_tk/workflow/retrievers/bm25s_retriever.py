@@ -141,7 +141,7 @@ if __name__ == "__main__":
     from genai_tk.extra.nlp.model_manager import SpaCyModelManager
 
     # Use SpaCyModelManager to handle spacy model
-    model_name = "en_core_web_sm"  # Default model name
+    model_name = "en_core_web_md"  # Default model name
     SpaCyModelManager().setup_spacy_model(model_name)
 
     # Get spacy preprocessing function

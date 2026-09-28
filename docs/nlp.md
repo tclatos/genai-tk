@@ -16,7 +16,7 @@ uv sync --extra nlp
 uv add "genai-tk[nlp]"
 ```
 
-This installs spaCy, English models (`en_core_web_sm`, `en_core_web_lg`), and Presidio.
+This installs spaCy, English model (`en_core_web_md`), and Presidio.
 
 ---
 
@@ -29,9 +29,9 @@ Add to `config/app_conf.yaml` (or any merged YAML file):
 ```yaml
 nlp:
   default_language: en
-  default_model: en_core_web_sm
+  default_model: en_core_web_md
   models:
-    en: en_core_web_sm
+    en: en_core_web_md
     fr: fr_core_news_sm      # requires: python -m spacy download fr_core_news_sm
     de: de_core_news_sm      # requires: python -m spacy download de_core_news_sm
 ```
@@ -61,7 +61,7 @@ from genai_tk.extra.nlp import get_nlp
 
 nlp = get_nlp()  # uses NlpConfig defaults
 nlp_fr = get_nlp(language="fr")  # French model from config
-nlp_lg = get_nlp(model="en_core_web_lg")  # explicit model override
+nlp_md = get_nlp(model="en_core_web_md")  # explicit model override
 ```
 
 **Features:**
@@ -84,7 +84,7 @@ if not SpaCyModelManager.is_model_installed("fr_core_news_sm"):
     SpaCyModelManager.download_model("fr_core_news_sm")
 
 # Set up model — downloads if needed, verifies load
-SpaCyModelManager.setup_spacy_model("en_core_web_sm")
+SpaCyModelManager.setup_spacy_model("en_core_web_md")
 
 # Raise clear error if model is missing (no auto-download)
 SpaCyModelManager.require_model("fr_core_news_sm", language="fr")
@@ -109,7 +109,7 @@ tokens = default_preprocessing_func("The quick brown fox")
 preprocess = get_spacy_preprocess_fn()  # NlpConfig defaults
 preprocess_fr = get_spacy_preprocess_fn(language="fr")  # French
 preprocess_custom = get_spacy_preprocess_fn(
-    model="en_core_web_lg",
+    model="en_core_web_md",
     more_stop_words=["foo", "bar"],
 )
 
@@ -130,7 +130,7 @@ This function is used by the BM25 retriever when `preprocessing: spacy` is set.
 ```python
 from genai_tk.extra.nlp import PresidioDetector, PresidioDetectorConfig, DetectedEntity
 
-# Default config — English, en_core_web_sm
+# Default config — English, en_core_web_md
 detector = PresidioDetector()
 entities: list[DetectedEntity] = detector.detect("Call John at john@acme.com")
 # → [DetectedEntity(entity_type="PERSON", ...), DetectedEntity(entity_type="EMAIL_ADDRESS", ...)]
@@ -303,14 +303,14 @@ The BM25 retrievers use spaCy for optional lemmatization-based preprocessing. Co
 retriever:
   type: bm25
   preprocessing: spacy    # "default" = whitespace split; "spacy" = lemmatize + stop-words
-  # spacy_model: en_core_web_sm  ← optional override; uses NlpConfig when absent
+  # spacy_model: en_core_web_md  ← optional override; uses NlpConfig when absent
 ```
 
 ```python
 from genai_tk.core.factories.retriever_factory import BM25RetrieverConfig
 
 cfg = BM25RetrieverConfig(preprocessing="spacy")  # spacy_model=None → uses NlpConfig
-print(cfg.resolve_spacy_model())  # "en_core_web_sm"
+print(cfg.resolve_spacy_model())  # "en_core_web_md"
 ```
 
 ---
@@ -324,7 +324,7 @@ nlp:
   default_language: fr
   default_model: fr_core_news_sm
   models:
-    en: en_core_web_sm
+    en: en_core_web_md
     fr: fr_core_news_sm
 ```
 

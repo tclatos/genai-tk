@@ -132,11 +132,10 @@ browser = [
     "playwright>=1.51.0", # Browser automation via CDP
 ]
 
-# NLP: spaCy + English language models (~500 MB) + Presidio PII detection
+# NLP: spaCy + English language model (~40 MB) + Presidio PII detection
 nlp = [
     "spacy>=3.8.0",
-    "en-core-web-sm @https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
-    "en-core-web-lg @https://github.com/explosion/spacy-models/releases/download/en_core_web_lg-3.8.0/en_core_web_lg-3.8.0-py3-none-any.whl",
+    "en-core-web-md @https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl",
     "langchain-huggingface>=0.1",                                                                                                             # HuggingFace cross-encoder reranker support
     "presidio-analyzer>=2.2.362",                                                                                                             # PII detection and entity recognition (requires spaCy)
     "presidio-anonymizer>=2.2.362",                                                                                                           # PII anonymization and masking

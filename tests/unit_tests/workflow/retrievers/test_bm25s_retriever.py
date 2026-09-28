@@ -135,7 +135,7 @@ def sample_documents():
         from genai_tk.workflow.retrievers.bm25s_retriever import get_spacy_preprocess_fn
 
         # Setup spacy model using SpaCyModelManager
-        model_name = "en_core_web_sm"
+        model_name = "en_core_web_md"
         SpaCyModelManager.setup_spacy_model(model_name)
 
         # Get preprocessing function with additional stop words

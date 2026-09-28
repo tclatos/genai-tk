@@ -14,7 +14,7 @@ class TestSpaCyModelManager:
         with patch("genai_tk.extra.nlp.model_manager.global_config") as mock_config:
             mock_config.return_value.get_dir_path.return_value = Path(tmp_path)
 
-            model_name = "en_core_web_sm"
+            model_name = "en_core_web_md"
             expected_path = Path(tmp_path) / "spacy_models" / model_name
 
             result = SpaCyModelManager.get_model_path(model_name)
@@ -24,7 +24,7 @@ class TestSpaCyModelManager:
 
     def test_is_model_installed_true(self, tmp_path: Path) -> None:
         """Test is_model_installed returns True when model exists."""
-        model_name = "en_core_web_sm"
+        model_name = "en_core_web_md"
         model_path = tmp_path / "spacy_models" / model_name
         model_path.mkdir(parents=True, exist_ok=True)
 
@@ -33,7 +33,7 @@ class TestSpaCyModelManager:
 
     def test_is_model_installed_false(self, tmp_path: Path) -> None:
         """Test is_model_installed returns False when model doesn't exist."""
-        model_name = "en_core_web_sm_nonexistent"  # use a name that is definitely not installed
+        model_name = "en_core_web_md_nonexistent"  # use a name that is definitely not installed
         model_path = tmp_path / "spacy_models" / model_name
 
         with patch("genai_tk.extra.nlp.model_manager.SpaCyModelManager.get_model_path", return_value=Path(model_path)):
@@ -42,7 +42,7 @@ class TestSpaCyModelManager:
     @patch("subprocess.run")
     def test_download_model_not_installed(self, mock_subprocess: MagicMock, tmp_path: Path) -> None:
         """Test download_model when model is not installed."""
-        model_name = "en_core_web_sm"
+        model_name = "en_core_web_md"
         model_path = tmp_path / "spacy_models" / model_name
 
         with patch("genai_tk.extra.nlp.model_manager.SpaCyModelManager.get_model_path", return_value=Path(model_path)):
@@ -58,7 +58,7 @@ class TestSpaCyModelManager:
     @patch("subprocess.run")
     def test_download_model_already_installed(self, mock_subprocess: MagicMock, tmp_path: Path) -> None:
         """Test download_model when model is already installed."""
-        model_name = "en_core_web_sm"
+        model_name = "en_core_web_md"
         model_path = tmp_path / "spacy_models" / model_name
         model_path.mkdir(parents=True, exist_ok=True)  # Simulate already-present model dir
 
@@ -71,7 +71,7 @@ class TestSpaCyModelManager:
     @patch("genai_tk.extra.nlp.model_manager.SpaCyModelManager.download_model")
     def test_setup_spacy_model_not_installed(self, mock_download: MagicMock, tmp_path: Path) -> None:
         """Test setup_spacy_model when model is not installed."""
-        model_name = "en_core_web_sm"
+        model_name = "en_core_web_md"
         model_path = tmp_path / "spacy_models" / model_name
 
         with patch("genai_tk.extra.nlp.model_manager.SpaCyModelManager.get_model_path", return_value=Path(model_path)):
@@ -85,7 +85,7 @@ class TestSpaCyModelManager:
     @patch("genai_tk.extra.nlp.model_manager.SpaCyModelManager.download_model")
     def test_setup_spacy_model_already_installed(self, mock_download: MagicMock, tmp_path: Path) -> None:
         """Test setup_spacy_model when model is already installed."""
-        model_name = "en_core_web_sm"
+        model_name = "en_core_web_md"
         model_path = tmp_path / "spacy_models" / model_name
         model_path.mkdir(parents=True, exist_ok=True)
 
