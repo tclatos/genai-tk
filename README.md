@@ -804,7 +804,16 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | Testing | `cli test` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
 | Browser automation | — | `browser_use` tools | [docs/browser_control.md](docs/browser_control.md) |
 
-Design and investigation notes: [`docs/design/`](docs/design/).
+---
+
+## Documentation & Studies
+
+- **Master Documentation Index:** [docs/README.md](docs/README.md) — Comprehensive categorized index of all framework capabilities
+- **Skills System Guide:** [docs/SKILLS.md](docs/SKILLS.md) — 4-tier skills architecture and procedural workflows
+- **Interactive Notebooks:** [notebooks/README.md](notebooks/README.md) — Hands-on tutorials for agents, middleware, and sandboxing
+- **Empirical Studies & Benchmarks:** [docs/studies/README.md](docs/studies/README.md) — Evaluations, benchmark reports, and platform studies
+- **Architecture & Design Notes:** [docs/design/README.md](docs/design/README.md) — Implemented subsystem designs and specifications
+- **Knowledge & Document Graphs:** [genai-graph/README.md](../genai-graph/README.md) — Companion library for Ladybug knowledge graphs and vectorless agentic RAG
 
 ---
 

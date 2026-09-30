@@ -1,3 +1,11 @@
+# OPA Security
+
+https://github.com/open-policy-agent/opa
+
+Don't confuse with: 
+https://github.com/proishan11/open-agent-policy/blob/main/examples/minimal-agent/langchain_agent.py
+
+
 # tools
 
 In fact, it was an error to let the Python interpreter share the tools with the deep agent. It has it owns, passed as argument. 

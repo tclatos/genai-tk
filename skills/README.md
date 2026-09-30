@@ -89,3 +89,12 @@ uv run cli skills add <bundled-skill>               # Install a bundled skill
 uv run cli skills add --git <url> --path <subpath>  # Install from git repository
 uv run cli skills add --skillssh <owner/repo>       # Install from skills.sh registry
 ```
+
+---
+
+## Related Documentation
+
+- `docs/SKILLS.md` — Skills architecture guide and procedural walkthroughs
+- `docs/README.md` — Master documentation index
+- `docs/studies/README.md` — Empirical benchmark evaluations and architectural studies
+- `AGENTS.md` — Agent coding invariants, build commands, and conventions

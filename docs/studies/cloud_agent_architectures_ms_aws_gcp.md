@@ -1,7 +1,7 @@
 # Enterprise Cloud Agent Architectures: Implementing Graph Navigation, Safe Code Sandboxing, and Multi-Agent Orchestration on Microsoft, AWS, and Google Cloud
 
 > **Executive Context:**  
-> This architectural report builds upon the empirical findings and meta-harness architecture of [docs/design/deerflow_architecture_and_benchmarks.md](docs/design/deerflow_architecture_and_benchmarks.md). It investigates how the core capabilities demonstrated in **genai-tk** (hierarchical agent orchestration, structured Document Graph navigation with **genai-graph**, sandboxed Python CodeAct execution, progressive skill loading, and multi-modal grounding) can be implemented using managed cloud services from **Microsoft (Azure / M365)**, **Amazon Web Services (AWS)**, and **Google Cloud Platform (GCP)**.
+> This architectural report builds upon the empirical findings and meta-harness architecture of [docs/studies/deerflow_architecture_and_benchmarks.md](docs/studies/deerflow_architecture_and_benchmarks.md). It investigates how the core capabilities demonstrated in **genai-tk** (hierarchical agent orchestration, structured Document Graph navigation with **genai-graph**, sandboxed Python CodeAct execution, progressive skill loading, and multi-modal grounding) can be implemented using managed cloud services from **Microsoft (Azure / M365)**, **Amazon Web Services (AWS)**, and **Google Cloud Platform (GCP)**.
 
 ---
 
@@ -362,10 +362,10 @@ If enterprise requirements demand distributed multi-region replication, horizont
 
 ## 8. References & Related Documents
 
-* [docs/design/deerflow_architecture_and_benchmarks.md](docs/design/deerflow_architecture_and_benchmarks.md)
+* [docs/studies/deerflow_architecture_and_benchmarks.md](docs/studies/deerflow_architecture_and_benchmarks.md)
 * [docs/design/copilot-studio-integration.md](docs/design/copilot-studio-integration.md)
-* [docs/design/azure_foundry_hosted_agents.md](docs/design/azure_foundry_hosted_agents.md)
+* [docs/studies/azure_foundry_hosted_agents.md](docs/studies/azure_foundry_hosted_agents.md)
 * [docs/design/sandbox_backend.md](docs/design/sandbox_backend.md)
 * [genai-graph/docs/graph-definition-guide.md](genai-graph/docs/graph-definition-guide.md)
-* [genai-graph/docs/design/access control - security triming.md](genai-graph/docs/design/access%20control%20-%20security%20triming.md)
+* [genai-graph/docs/access-control-security-trimming.md](genai-graph/docs/access-control-security-trimming.md)
 
