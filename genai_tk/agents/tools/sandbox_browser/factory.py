@@ -38,7 +38,8 @@ def _load_browser_config() -> SandboxBrowserConfig:
         if hasattr(raw, "_metadata"):
             raw = OmegaConf.to_container(raw, resolve=True)
         return SandboxBrowserConfig.model_validate(raw)
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load 'sandbox_browser' config, using defaults: {}", e)
         return SandboxBrowserConfig()
 
 
@@ -61,7 +62,8 @@ def create_sandbox_browser_tools(
             from genai_tk.agents.sandbox.config import get_docker_aio_settings  # noqa: PLC0415
 
             sandbox_url = get_docker_aio_settings().opensandbox_server_url
-        except Exception:
+        except Exception as e:
+            logger.warning("Failed to resolve sandbox URL from config, using default: {}", e)
             sandbox_url = "http://localhost:8080"
 
     session = SandboxBrowserSession(sandbox_url=sandbox_url, config=config)

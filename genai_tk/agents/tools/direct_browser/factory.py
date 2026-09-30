@@ -30,7 +30,8 @@ def _load_browser_config() -> DirectBrowserConfig:
         if hasattr(raw, "_metadata"):
             raw = OmegaConf.to_container(raw, resolve=True)
         return DirectBrowserConfig.model_validate(raw)
-    except Exception:
+    except Exception as e:
+        logger.warning("Failed to load 'direct_browser' config, using defaults: {}", e)
         return DirectBrowserConfig()
 
 

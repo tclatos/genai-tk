@@ -55,7 +55,7 @@ nlp:
     postgres:
       default:
         mode: external
-        url: postgresql+asyncpg://${oc.env:POSTGRES_USER,postgres}:${oc.env:POSTGRES_PASSWORD,password}@localhost:5432/genai
+        url: postgresql+asyncpg://${oc.env:POSTGRES_USER,postgres}:${oc.env:POSTGRES_PASSWORD}@localhost:5432/genai
     kv_store:
       default:
         type: key_value.aio.stores.filetree.FileTreeStore
@@ -64,7 +64,7 @@ nlp:
       postgres:
         type: key_value.aio.stores.postgresql.PostgreSQLStore
         args:
-          url: postgresql://${oc.env:POSTGRES_USER,unknown_user}:${oc.env:POSTGRES_PASSWORD,password}@localhost:5432/ekg
+          url: postgresql://${oc.env:POSTGRES_USER,unknown_user}:${oc.env:POSTGRES_PASSWORD}@localhost:5432/ekg
     llm_cache:
       method: memory
     chains:

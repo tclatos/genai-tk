@@ -80,7 +80,7 @@ def create_search_function(verbose: bool = False):
                     url = f"https://google.serper.dev/{endpoint}"
                     headers = {"X-API-KEY": serper_api_key, "Content-Type": "application/json"}
 
-                    response = requests.post(url, headers=headers, json={"q": query, "num": max_results})
+                    response = requests.post(url, headers=headers, json={"q": query, "num": max_results}, timeout=10)
 
                     if response.status_code == 200:
                         data = response.json()
@@ -277,7 +277,7 @@ def create_search_tool(verbose: bool = False):
                     url = f"https://google.serper.dev/{endpoint}"
                     headers = {"X-API-KEY": serper_api_key, "Content-Type": "application/json"}
 
-                    response = requests.post(url, headers=headers, json={"q": query, "num": 5})
+                    response = requests.post(url, headers=headers, json={"q": query, "num": 5}, timeout=10)
 
                     if response.status_code == 200:
                         data = response.json()
