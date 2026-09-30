@@ -33,7 +33,7 @@ def _encode_to_base64(path: Path) -> str:
 
 
 # taken from https://docs.mistral.ai/capabilities/document/#document-ocr-processor
-# TODO : Impletent Asnyc
+# TODO: implement an async variant (pages are currently OCR'd sequentially)
 
 
 def mistral_ocr(path: Path, use_cache: bool = True) -> OCRResponse:

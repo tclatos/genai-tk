@@ -193,9 +193,12 @@ class PrefectServer:
             )
         self._write_pid(proc.pid)
 
-        # Poll until ready (up to 45 seconds)
-        for _ in range(90):
-            time.sleep(0.5)
+        # Poll until ready (up to 45 seconds), backing off from a short interval
+        # so a fast startup doesn't always pay for the full fixed 0.5s step.
+        deadline = time.monotonic() + 45
+        interval = 0.1
+        while time.monotonic() < deadline:
+            time.sleep(interval)
             if self.is_running():
                 logger.info("Prefect server ready at {}", self.ui_url)
                 return
@@ -204,6 +207,7 @@ class PrefectServer:
                 raise RuntimeError(
                     f"Prefect server exited during startup (code {proc.returncode}). See log: {log_file}"
                 )
+            interval = min(interval * 1.5, 0.5)
 
         logger.warning(
             "Prefect server started but may not be fully ready yet. Check health at {}/health and log at {}",
