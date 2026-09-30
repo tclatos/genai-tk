@@ -5,7 +5,7 @@ import os
 import pytest
 from pydantic import ValidationError
 
-from genai_tk.utils.tracing import (
+from genai_tk.extra.monitoring.tracing import (
     HarnessTraceMetadata,
     apply_harness_trace_metadata,
     trace_project_name,

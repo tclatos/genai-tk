@@ -25,8 +25,8 @@ from rich.text import Text
 
 from genai_tk.agents.langchain.langchain_agent import LangchainAgent, _extract_content
 from genai_tk.agents.rich_display import ASSISTANT_BORDER_STYLE, ASSISTANT_PANEL_TITLE
+from genai_tk.extra.monitoring.tracing import get_monitoring_callbacks
 from genai_tk.utils.markdown import looks_like_markdown
-from genai_tk.utils.tracing import get_monitoring_callbacks
 
 
 def _render_content(content: str, console: Console, *, elapsed: float | None = None) -> None:

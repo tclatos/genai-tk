@@ -30,7 +30,7 @@ from genai_tk.core.messages import (
     extract_ai_message_parts,
     extract_text_content,
 )
-from genai_tk.utils.tracing import apply_harness_trace_metadata, get_monitoring_callbacks, setup_monitoring
+from genai_tk.extra.monitoring.tracing import apply_harness_trace_metadata, get_monitoring_callbacks, setup_monitoring
 
 # Chain-node names that are internal plumbing of the compiled graph rather than
 # meaningful agent phases. These are emitted by ``astream_events`` as
@@ -88,7 +88,7 @@ class LangChainHarness(BaseHarness):
             import os
 
             from genai_tk.agents.langchain.factory import create_langchain_agent
-            from genai_tk.utils.tracing import HarnessTraceMetadata
+            from genai_tk.extra.monitoring.tracing import HarnessTraceMetadata
 
             # Initialise monitoring backends (LangSmith env vars, LangFuse/OTEL
             # auto-instrumentation, local JSONL handler) before the agent runs.
@@ -150,7 +150,7 @@ class LangChainHarness(BaseHarness):
         callbacks = get_monitoring_callbacks()
         # NeMo Relay callback maps the LangGraph run hierarchy to Relay agent
         # scopes (and HITL marks for Deep Agents) — the trajectory record.
-        from genai_tk.utils.nemo_relay_setup import get_relay_callback_handler
+        from genai_tk.extra.monitoring.nemo_relay_setup import get_relay_callback_handler
 
         relay_handler = get_relay_callback_handler()
         if relay_handler is not None:
@@ -181,7 +181,7 @@ class LangChainHarness(BaseHarness):
 
     async def aclose(self) -> None:
         # Flush queued NeMo Relay ATOF events before tearing down the backend.
-        from genai_tk.utils.nemo_relay_setup import flush_nemo_relay_async
+        from genai_tk.extra.monitoring.nemo_relay_setup import flush_nemo_relay_async
 
         await flush_nemo_relay_async()
         backend = getattr(self._agent, "_backend", None)

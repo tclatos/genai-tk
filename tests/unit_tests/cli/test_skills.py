@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from textwrap import dedent
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    import typer
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -418,7 +422,7 @@ class TestSkillsCommandsCliRunner:
         import genai_tk.cli.commands_skills as skills_cmd_mod
 
         monkeypatch.setattr(skills_cmd_mod, "_project_dir", lambda: tmp_path)
-        result = runner.invoke(skills_app, ["skills", "create", "test-new-skill", "--category", "custom"])
+        result = runner.invoke(skills_app, ["skills", "create", "test-new-skill", "--description", "A test skill"])
         assert result.exit_code == 0
         created = tmp_path / "skills" / "custom" / "test-new-skill" / "SKILL.md"
         assert created.exists()

@@ -87,7 +87,7 @@ class DeerFlowHarness(BaseHarness):
             from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
             from genai_tk.agents.deer_flow.runtime import build_cli_middlewares, prepare_profile
             from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
-            from genai_tk.utils.tracing import HarnessTraceMetadata, apply_harness_trace_metadata
+            from genai_tk.extra.monitoring.tracing import HarnessTraceMetadata, apply_harness_trace_metadata
 
             profile, model_name, config_path, _warnings = await prepare_profile(
                 profile_name=self._profile_obj or self._profile_name,
@@ -180,7 +180,7 @@ class DeerFlowHarness(BaseHarness):
 
     async def aclose(self) -> None:
         """Release any resources and flush queued NeMo Relay ATOF events."""
-        from genai_tk.utils.nemo_relay_setup import flush_nemo_relay_async
+        from genai_tk.extra.monitoring.nemo_relay_setup import flush_nemo_relay_async
 
         await flush_nemo_relay_async()
 

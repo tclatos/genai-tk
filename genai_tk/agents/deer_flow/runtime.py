@@ -254,9 +254,9 @@ async def prepare_profile(
 
     # Initialise all active monitoring backends (idempotent). Per-profile trace
     # project naming is owned by the harness layer (see
-    # ``genai_tk.utils.tracing.apply_harness_trace_metadata``) so this function
+    # ``genai_tk.extra.monitoring.tracing.apply_harness_trace_metadata``) so this function
     # no longer sets LANGSMITH_PROJECT itself.
-    from genai_tk.utils.tracing import setup_monitoring
+    from genai_tk.extra.monitoring.tracing import setup_monitoring
 
     setup_monitoring()
 

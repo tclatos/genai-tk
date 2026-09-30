@@ -442,21 +442,17 @@ async def test_deep_agent_checkpointer_wired(fake_llm_id: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Custom dispatch — documents a known production bug (wrong import path)
+# Custom dispatch
 # --------------------------------------------------------------------------- #
 
 
-async def test_custom_agent_raises_module_not_found(fake_llm_id: str) -> None:
-    """The custom agent type is currently broken: the factory imports
-    ``genai_tk.extra.graphs.custom_react_agent`` but the module actually lives at
-    ``genai_tk.extra.langgraphs.custom_react_agent``.  This test documents the
-    current (broken) behaviour so the line is covered; when the import path is
-    fixed it should be updated to assert a successful build.
-    """
+async def test_custom_agent_builds_successfully(fake_llm_id: str) -> None:
+    """The custom agent type builds a Pregel graph via ``create_custom_react_agent``."""
     profile = AgentProfileConfig(name="test-custom", type="custom", llm=fake_llm_id)
 
-    with pytest.raises(ModuleNotFoundError, match="genai_tk.extra.graphs"):
-        await create_langchain_agent(profile, force_memory_checkpointer=True)
+    agent = await create_langchain_agent(profile, force_memory_checkpointer=True)
+
+    assert agent is not None
 
 
 # --------------------------------------------------------------------------- #

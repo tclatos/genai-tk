@@ -12,7 +12,7 @@ from typing import Any
 
 from loguru import logger
 
-from genai_tk.utils.nemo_relay_setup import is_nemo_relay_available
+from genai_tk.extra.monitoring.nemo_relay_setup import is_nemo_relay_available
 
 
 def json_safe(value: Any) -> Any:

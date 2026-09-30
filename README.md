@@ -318,7 +318,7 @@ uv run cli monitoring tail --n 50
 
 **Python:**
 ```python
-from genai_tk.utils.tracing import setup_monitoring, get_monitoring_callbacks
+from genai_tk.extra.monitoring.tracing import setup_monitoring, get_monitoring_callbacks
 
 setup_monitoring()  # Initialize all active backends
 callbacks = get_monitoring_callbacks()

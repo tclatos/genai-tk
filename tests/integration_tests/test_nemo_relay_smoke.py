@@ -26,13 +26,13 @@ from pydantic import Field, PrivateAttr
 
 from genai_tk.agents.langchain.config import AgentProfileConfig
 from genai_tk.agents.langchain.factory import _create_deep_agent
-from genai_tk.utils.nemo_relay_setup import (
+from genai_tk.extra.monitoring.nemo_relay_setup import (
     flush_nemo_relay_async,
     get_relay_callback_handler,
     reset_nemo_relay,
     setup_nemo_relay,
 )
-from genai_tk.utils.tracing import reset_monitoring
+from genai_tk.extra.monitoring.tracing import reset_monitoring
 
 
 class ScriptedToolChatModel(BaseChatModel):

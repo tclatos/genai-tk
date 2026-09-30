@@ -98,28 +98,28 @@ class TestInfoConfigKeys:
         assert len(result.stdout) > 0
 
     def test_config_keys_with_query_filter(self, info_app, runner) -> None:
-        result = runner.invoke(info_app, ["info", "config-keys", "--query", "llm"])
+        result = runner.invoke(info_app, ["info", "config-keys", "llm"])
         assert result.exit_code == 0
         assert "llm" in result.stdout.lower()
 
     def test_config_keys_with_type_filter(self, info_app, runner) -> None:
-        result = runner.invoke(info_app, ["info", "config-keys", "--type", "models"])
+        result = runner.invoke(info_app, ["info", "config-keys", "models"])
         assert result.exit_code == 0
 
 
 class TestInfoLlmProfile:
     def test_llm_profile_runs_default(self, info_app, runner) -> None:
+        # No MODEL_ID and no --reload: the command is a documented no-op.
         result = runner.invoke(info_app, ["info", "llm-profile"])
         assert result.exit_code == 0
-        assert len(result.stdout) > 0
 
     def test_llm_profile_with_known_model(self, info_app, runner) -> None:
-        result = runner.invoke(info_app, ["info", "llm-profile", "--model", "parrot_local@fake"])
+        result = runner.invoke(info_app, ["info", "llm-profile", "parrot_local@fake"])
         assert result.exit_code == 0
         assert "parrot_local" in result.stdout or "fake" in result.stdout
 
-    def test_llm_profile_with_all_flag(self, info_app, runner) -> None:
-        result = runner.invoke(info_app, ["info", "llm-profile", "--all"])
+    def test_llm_profile_with_raw_model_name(self, info_app, runner) -> None:
+        result = runner.invoke(info_app, ["info", "llm-profile", "gpt-4o-mini"])
         assert result.exit_code == 0
 
 

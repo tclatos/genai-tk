@@ -8,12 +8,12 @@ Typical usage::
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
 from prefect import flow, task
+from pydantic import BaseModel
 
 from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_files
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
@@ -22,8 +22,7 @@ from genai_tk.utils.hashing import file_digest
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
 
-@dataclass(slots=True)
-class FileToProcess:
+class FileToProcess(BaseModel):
     """File to be processed for RAG ingestion."""
 
     path: Path

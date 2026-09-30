@@ -361,7 +361,7 @@ class EmbeddedDeerFlowClient:
             def _get_runnable_config(self, thread_id: str, **overrides: Any) -> Any:
                 config = super()._get_runnable_config(thread_id, **overrides)
                 try:
-                    from genai_tk.utils.nemo_relay_setup import get_relay_callback_handler
+                    from genai_tk.extra.monitoring.nemo_relay_setup import get_relay_callback_handler
 
                     relay_handler = get_relay_callback_handler()
                     if relay_handler is not None:

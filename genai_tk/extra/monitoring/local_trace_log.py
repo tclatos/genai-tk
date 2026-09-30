@@ -22,7 +22,7 @@ Each log entry is a JSON object::
 Usage as a LangChain callback is automatic when the ``local`` backend is active
 in ``monitoring.backends``. For other frameworks use the helpers::
 
-    from genai_tk.utils.local_trace_log import log_llm_call, baml_log_usage
+    from genai_tk.extra.monitoring.local_trace_log import log_llm_call, baml_log_usage
 """
 
 from __future__ import annotations
@@ -86,7 +86,7 @@ class LocalTraceLog(BaseCallbackHandler):
         """
         if cls._instance is None:
             if config is None:
-                from genai_tk.utils.tracing import monitoring_config
+                from genai_tk.extra.monitoring.tracing import monitoring_config
 
                 config = monitoring_config().local_log
             cls._instance = cls(config)

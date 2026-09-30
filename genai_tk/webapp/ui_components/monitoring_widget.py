@@ -13,7 +13,7 @@ import os
 import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 
-from genai_tk.utils.tracing import MonitoringConfig, monitoring_config, reset_monitoring
+from genai_tk.extra.monitoring.tracing import MonitoringConfig, monitoring_config, reset_monitoring
 
 # Human-readable labels and icons per backend
 _BACKEND_META: dict[str, tuple[str, str]] = {

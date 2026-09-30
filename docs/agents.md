@@ -190,7 +190,7 @@ agents:
 **Implementation Example:**
 ```python
 from genai_tk.agents.langchain.factory import create_langchain_agent
-from genai_tk.extra.graphs.custom_react_agent import create_custom_react_agent
+from genai_tk.extra.langgraphs.custom_react_agent import create_custom_react_agent
 
 # Framework automatically dispatches to create_custom_react_agent
 agent = await create_langchain_agent(profile)

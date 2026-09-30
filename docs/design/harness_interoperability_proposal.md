@@ -83,7 +83,7 @@ then add thin command and UI wrappers for DeerFlow and Deep Agents Code on top.
 
 3. Monitoring is already more advanced in genai-tk than in most harnesses.
 
-   - `genai_tk.utils.tracing` supports LangSmith, LangFuse, OTEL, and local JSONL.
+   - `genai_tk.extra.monitoring.tracing` supports LangSmith, LangFuse, OTEL, and local JSONL.
    - The DeerFlow bridge already sets trace metadata and trace project names.
 
 4. Shared UI pieces exist, but only at layout level.

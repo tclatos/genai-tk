@@ -106,7 +106,7 @@ async def test_langchain_harness_astream_no_callbacks_when_none_active(langchain
             "genai_tk.agents.harness.langchain_harness.get_monitoring_callbacks",
             return_value=[],
         ),
-        patch("genai_tk.utils.nemo_relay_setup.get_relay_callback_handler", return_value=None),
+        patch("genai_tk.extra.monitoring.nemo_relay_setup.get_relay_callback_handler", return_value=None),
     ):
         async for _ in harness.astream("hello"):
             pass
@@ -127,7 +127,7 @@ async def test_langchain_agent_ensure_initialized_calls_setup_monitoring(fake_ll
     agent = LangchainAgent(llm=fake_llm_id)
 
     with (
-        patch("genai_tk.utils.tracing.setup_monitoring") as mock_setup,
+        patch("genai_tk.extra.monitoring.tracing.setup_monitoring") as mock_setup,
         patch(
             "genai_tk.agents.langchain.factory.create_langchain_agent",
             new_callable=AsyncMock,
@@ -151,7 +151,7 @@ async def test_langchain_agent_arun_passes_callbacks(fake_llm_id) -> None:
     agent._agent = fake_agent
 
     with patch(
-        "genai_tk.utils.tracing.get_monitoring_callbacks",
+        "genai_tk.extra.monitoring.tracing.get_monitoring_callbacks",
         return_value=[fake_callback],
     ):
         await agent.arun("test query")
@@ -174,7 +174,7 @@ async def test_langchain_agent_astream_passes_callbacks(fake_llm_id) -> None:
     agent._agent = fake_agent
 
     with patch(
-        "genai_tk.utils.tracing.get_monitoring_callbacks",
+        "genai_tk.extra.monitoring.tracing.get_monitoring_callbacks",
         return_value=[fake_callback],
     ):
         async for _ in agent.astream("test query"):
@@ -192,7 +192,7 @@ def test_langchain_agent_invoke_config_includes_callbacks() -> None:
 
     fake_callback = MagicMock()
     with patch(
-        "genai_tk.utils.tracing.get_monitoring_callbacks",
+        "genai_tk.extra.monitoring.tracing.get_monitoring_callbacks",
         return_value=[fake_callback],
     ):
         config = LangchainAgent._invoke_config()
@@ -213,10 +213,10 @@ def test_langchain_agent_invoke_config_no_callbacks_when_empty() -> None:
 
     with (
         patch(
-            "genai_tk.utils.tracing.get_monitoring_callbacks",
+            "genai_tk.extra.monitoring.tracing.get_monitoring_callbacks",
             return_value=[],
         ),
-        patch("genai_tk.utils.nemo_relay_setup.get_relay_callback_handler", return_value=None),
+        patch("genai_tk.extra.monitoring.nemo_relay_setup.get_relay_callback_handler", return_value=None),
     ):
         config = LangchainAgent._invoke_config()
 
@@ -258,7 +258,7 @@ async def test_deerflow_harness_prepare_profile_calls_setup_monitoring() -> None
             "genai_tk.agents.deer_flow.embedded_client.EmbeddedDeerFlowClient",
             return_value=fake_client,
         ),
-        patch("genai_tk.utils.tracing.apply_harness_trace_metadata") as mock_apply,
+        patch("genai_tk.extra.monitoring.tracing.apply_harness_trace_metadata") as mock_apply,
     ):
         await harness._ensure_client()
 
@@ -272,6 +272,8 @@ async def test_deerflow_harness_aclose_flushes_nemo_relay() -> None:
     from genai_tk.agents.harness.deerflow_harness import DeerFlowHarness
 
     harness = DeerFlowHarness("Research Assistant")
-    with patch("genai_tk.utils.nemo_relay_setup.flush_nemo_relay_async", new_callable=AsyncMock) as mock_flush:
+    with patch(
+        "genai_tk.extra.monitoring.nemo_relay_setup.flush_nemo_relay_async", new_callable=AsyncMock
+    ) as mock_flush:
         await harness.aclose()
         mock_flush.assert_awaited_once()

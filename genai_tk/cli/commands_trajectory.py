@@ -1,8 +1,8 @@
 """CLI commands for inspecting recorded agent trajectories (Phase 2).
 
 Provides ``cli trajectory`` sub-commands over the local trajectory store
-written by :mod:`genai_tk.utils.nemo_relay_setup` and read by
-:mod:`genai_tk.utils.trajectory_store`:
+written by :mod:`genai_tk.extra.monitoring.nemo_relay_setup` and read by
+:mod:`genai_tk.extra.monitoring.trajectory_store`:
 
 - ``list`` — enumerate recorded runs.
 - ``show <id>`` — render a trajectory (tree / json / messages / dot).
@@ -31,7 +31,7 @@ from rich.table import Table
 from rich.tree import Tree as RichTree
 
 from genai_tk.cli.base import CliTopCommand
-from genai_tk.utils.trajectory_store import TrajectoryStore
+from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore
 
 
 class TrajectoryCommands(CliTopCommand):
@@ -325,7 +325,7 @@ def _format_args_summary(tool_name: str, args: dict[str, Any]) -> str:
 
 def _print_tree(console: Console, traj: Any) -> None:
     """Render a trajectory as an intertwined scope timeline tree."""
-    from genai_tk.utils.trajectory_store import TrajectoryStore, short_model_name
+    from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore, short_model_name
 
     user_msg = TrajectoryStore._root_user_message(TrajectoryStore(), traj)
 
@@ -446,7 +446,7 @@ def _trajectory_dict(traj: Any) -> dict[str, Any]:
 
 def _to_atif(traj: Any) -> dict[str, Any]:
     """Project a Trajectory to an ATIF-v1.7-ish object (steps from messages)."""
-    from genai_tk.utils.trajectory_store import TrajectoryStore
+    from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore
 
     msgs = TrajectoryStore().messages(traj.run_id)
     steps = []

@@ -6,53 +6,15 @@ Don't confuse with:
 https://github.com/proishan11/open-agent-policy/blob/main/examples/minimal-agent/langchain_agent.py
 
 
-# tools
-
-In fact, it was an error to let the Python interpreter share the tools with the deep agent. It has it owns, passed as argument. 
-And the distinction between tool and tool factory is not so important - the toolkit can distinguised if the python qualified name provided is a tool class or a function returning one or several tools.
-So : 
-- Remove 'factory:' in all YAML file (in zll projects)
-- Make code accepting tools accept also factories of tools
-
- codeact.yaml file could look like: 
-
-    tools:
-      - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools
-           tools: 
-             - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
-
-and no more "excluded tools"
-
-Adap and rereun tests.
-
-
-~/prj/ekg-atos ->   cli kg create one_rainbow 
-~/prj/rfq_pricing -> cli docgraph build $ONEDRIVE/prj/RFQ_pricing/RFQ_zipped/Alko.zip 
-
-
 
 # Simplify Integration
 /home/tcl/prj/genai-tk/docs/design/deepagents-deerflow-langgraph-unification.md
 
 
-```bash
-# Markdownize a zip of raw RFQ documents directly — no separate unzip/office2pdf step
-uv run cli workflow run markdownize --set sources=./RFQ.zip --set md_output_dir=./out/md
-
-# genai-graph's doctree build always markdownizes first, then ingests into the tree DB
-cli doctree build ./RFQ.zip --db ./data/kg/tree.db --profile fast
-
-# Re-run just the Markdown conversion (and everything downstream of it)
-cli doctree build ./RFQ.zip --db ./data/kg/tree.db --force md
-
-# Re-parse the graph only, reusing the cached Markdown (no reconversion)
-cli doctree build ./RFQ.zip --db ./data/kg/tree.db --force graph
-```
-
 
 # Pydantic
 Replace @dataclass  by pydantic object.
-In Pydantic, avoid __init__ surcharge and use model_post_init()  insted (and/or @computed_field)
+In Pydantic, avoid __init__ surcharge and use model_post_init()  instead (and/or @computed_field)
 
 
 # LLM prompt caching (provider-side)
@@ -148,8 +110,6 @@ examples/notebooks/middleware_anonymization_demo.ipynb
     - See https://github.com/langchain-ai/deepagents/tree/main/examples/  and Deer-flow 
 
 - Implement Sub-agents  in our generic Langchain agent YAML config file
-
-- Develop a better Anonimization Middleware, based on our Presidio extension and langchain build-in middleware
 
 - Improve or replace our Rich based CLI by a Textual based one, inspired by deep-agent-cli 
 

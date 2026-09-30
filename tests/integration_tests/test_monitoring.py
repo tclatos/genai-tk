@@ -31,8 +31,8 @@ from typer.testing import CliRunner
 
 from genai_tk.cli.commands_core import CoreCommands
 from genai_tk.cli.commands_monitoring import MonitoringCommands
-from genai_tk.utils.local_trace_log import LocalTraceLog, TraceEntry, log_llm_call
-from genai_tk.utils.tracing import (
+from genai_tk.extra.monitoring.local_trace_log import LocalTraceLog, TraceEntry, log_llm_call
+from genai_tk.extra.monitoring.tracing import (
     LangFuseBackendConfig,
     LocalLogConfig,
     MonitoringConfig,

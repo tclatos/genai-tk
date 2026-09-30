@@ -30,15 +30,15 @@ from genai_tk.agents.langchain.trajectory_store_io import (
     load_trajectory_messages,
 )
 from genai_tk.core.factories.llm_factory import get_llm
-from genai_tk.utils.nemo_relay_setup import (
+from genai_tk.extra.monitoring.nemo_relay_setup import (
     _state,
     flush_nemo_relay_async,
     get_relay_callback_handler,
     reset_nemo_relay,
     setup_nemo_relay,
 )
-from genai_tk.utils.tracing import reset_monitoring
-from genai_tk.utils.trajectory_store import TrajectoryStore
+from genai_tk.extra.monitoring.tracing import reset_monitoring
+from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore
 
 pytest.importorskip("nemo_relay")
 

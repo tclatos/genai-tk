@@ -27,6 +27,7 @@ Built-in middlewares (pre-existing)
     :class:`~genai_tk.agents.langchain.middleware.deduplicate_middleware.DeduplicateToolCallsMiddleware`
     :class:`~genai_tk.agents.langchain.middleware.observation_truncation_middleware.ObservationTruncationMiddleware`
     :class:`~genai_tk.agents.langchain.middleware.prompt_cache.PromptCacheMiddleware`
+    :class:`~genai_tk.agents.langchain.middleware.wrap_up_middleware.WrapUpMiddleware`
 """
 
 from genai_tk.agents.langchain.middleware.anonymization_middleware import AnonymizationConfig, AnonymizationMiddleware
@@ -45,6 +46,7 @@ from genai_tk.agents.langchain.middleware.sensitivity_scorer import (
     SensitivityAssessment,
     SensitivityScorer,
 )
+from genai_tk.agents.langchain.middleware.wrap_up_middleware import WrapUpMiddleware
 from genai_tk.extra.nlp import (
     CustomRecognizerConfig,
     DetectedEntity,
@@ -76,4 +78,5 @@ __all__ = [
     "DeduplicateToolCallsMiddleware",
     "ObservationTruncationMiddleware",
     "PromptCacheMiddleware",
+    "WrapUpMiddleware",
 ]

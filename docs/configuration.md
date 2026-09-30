@@ -315,7 +315,7 @@ Both methods return an empty model / empty dict when the key is absent — they 
 | `prefect` | `PrefectConfig` | `genai_tk.utils.prefect_server` |
 | `cli` | `CliConfig` | `genai_tk.main.cli` |
 | `sandbox` | `SandboxConfig` | `genai_tk.agents.sandbox.models` |
-| `monitoring` | `MonitoringConfig` | `genai_tk.utils.tracing` |
+| `monitoring` | `MonitoringConfig` | `genai_tk.extra.monitoring.tracing` |
 | `auth` | `AuthConfig` | `genai_tk.utils.basic_auth` |
 | `kv_store` (dict) | `KvStoreConfig` (union) | `genai_tk.extra.kv_store_registry` |
 | `embeddings_store` (dict) | `EmbeddingsStoreConfig` | `genai_tk.core.embeddings_store` |

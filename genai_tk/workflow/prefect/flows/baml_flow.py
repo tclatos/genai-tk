@@ -13,7 +13,6 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Iterable
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -85,8 +84,7 @@ def _save_manifest(manifest: BamlExtractionManifest, manifest_path: Path) -> Non
     manifest_path.write_text(manifest_json, encoding="utf-8")
 
 
-@dataclass(slots=True)
-class _FileToProcess:
+class _FileToProcess(BaseModel):
     path: Path
     content_hash: str
     content_text: str

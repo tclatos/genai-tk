@@ -47,7 +47,7 @@ async def create_langchain_agent(
     Dispatches to the correct engine based on ``profile.type``:
     - ``react`` → ``langchain.agents.create_agent``
     - ``deep`` → ``deepagents.create_deep_agent``
-    - ``custom`` → ``genai_tk.extra.graphs.custom_react_agent.create_custom_react_agent``
+    - ``custom`` → ``genai_tk.extra.langgraphs.custom_react_agent.create_custom_react_agent``
 
     Args:
         profile: Resolved agent profile (defaults already merged in).
@@ -366,7 +366,7 @@ def _create_custom_agent(model: Any, tools: list[BaseTool], checkpointer: Any) -
     """Build the custom Functional-API ReAct agent."""
     from langgraph.checkpoint.memory import MemorySaver
 
-    from genai_tk.extra.graphs.custom_react_agent import create_custom_react_agent
+    from genai_tk.extra.langgraphs.custom_react_agent import create_custom_react_agent
 
     # custom agent requires a checkpointer
     cp = checkpointer if checkpointer is not None else MemorySaver()

@@ -20,13 +20,13 @@ config_path, ext_path, warnings = setup_deer_flow_config(
 import json
 import os
 import tempfile
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
 from loguru import logger
 from omegaconf import OmegaConf
+from pydantic import BaseModel, Field
 
 from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 from genai_tk.config_mgmt.import_utils import ImportResolver
@@ -34,12 +34,11 @@ from genai_tk.core.factories.llm_factory import LlmFactory
 from genai_tk.core.providers import PROVIDER_INFO
 
 
-@dataclass
-class ConfigSetupWarnings:
+class ConfigSetupWarnings(BaseModel):
     """Warnings collected during Deer-flow config setup."""
 
-    missing_skill_directories: list[str] = field(default_factory=list)
-    external_symlinks: list[str] = field(default_factory=list)
+    missing_skill_directories: list[str] = Field(default_factory=list)
+    external_symlinks: list[str] = Field(default_factory=list)
 
     @property
     def has_warnings(self) -> bool:

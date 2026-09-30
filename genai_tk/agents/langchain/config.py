@@ -87,6 +87,9 @@ _MIDDLEWARE_REGISTRY: dict[str, dict[str, Any]] = {
         "max_chars": 12000,
         "head_ratio": 0.8,
     },
+    "WrapUpMiddleware": {
+        "class": "genai_tk.agents.langchain.middleware.wrap_up_middleware.WrapUpMiddleware",
+    },
 }
 
 

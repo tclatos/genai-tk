@@ -29,9 +29,9 @@ from __future__ import annotations
 
 import os
 from contextlib import contextmanager
-from dataclasses import dataclass, field
 from typing import Any, Generator
 
+from langchain_core.callbacks import BaseCallbackHandler
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -193,8 +193,7 @@ class MonitoringConfig(BaseModel):
 # ── Runtime context ────────────────────────────────────────────────────────────
 
 
-@dataclass
-class MonitoringContext:
+class MonitoringContext(BaseModel):
     """Runtime state created by ``setup_monitoring()``.
 
     ``langchain_callbacks`` holds explicitly registered LangChain callbacks
@@ -202,8 +201,9 @@ class MonitoringContext:
     work via env-var / OTEL auto-instrumentation and do not require explicit callbacks.
     """
 
-    active_backends: list[str] = field(default_factory=list)
-    langchain_callbacks: list = field(default_factory=list)
+    active_backends: list[str] = Field(default_factory=list)
+    langchain_callbacks: list[BaseCallbackHandler] = Field(default_factory=list)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def is_active(self, backend: str) -> bool:
         """Return True if the given backend is active."""
@@ -294,7 +294,7 @@ def setup_monitoring() -> MonitoringContext:
 
     # NeMo Relay ATOF subscriber — the local trajectory record (source of truth).
     # Always active when nemo-relay is installed; no-op otherwise.
-    from genai_tk.utils.nemo_relay_setup import setup_nemo_relay
+    from genai_tk.extra.monitoring.nemo_relay_setup import setup_nemo_relay
 
     relay_active = setup_nemo_relay()
 
@@ -475,7 +475,7 @@ def _setup_local_log(cfg: MonitoringConfig) -> Any | None:
     if not cfg.local_log.enabled:
         return None
     try:
-        from genai_tk.utils.local_trace_log import LocalTraceLog
+        from genai_tk.extra.monitoring.local_trace_log import LocalTraceLog
 
         handler = LocalTraceLog.get_instance(cfg.local_log)
         logger.debug(f"Local JSONL trace log active → {cfg.local_log.path}")

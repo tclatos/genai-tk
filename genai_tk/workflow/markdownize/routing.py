@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
 from pathlib import Path
 
 from loguru import logger
+from pydantic import BaseModel
 
 from genai_tk.extra.markdownize.selector import MarkdownizeProfile
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
@@ -23,8 +23,7 @@ MD_EXTS = {".md", ".markdown"}
 ALL_DOCUMENT_EXTS = PPT_EXTS | DOC_EXTS | EXCEL_EXTS | IMAGE_EXTS | DIRECT_MARKITDOWN_EXTS | MD_EXTS | {".pdf"}
 
 
-@dataclass(slots=True)
-class _FileToProcess:
+class _FileToProcess(BaseModel):
     path: Path
     content_hash: str
     root: Path

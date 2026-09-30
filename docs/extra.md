@@ -24,7 +24,7 @@ Standard Reasoning + Acting agent built from scratch using LangGraph's Functiona
 
 **Usage:**
 ```python
-from genai_tk.extra.graphs.custom_react_agent import create_custom_react_agent
+from genai_tk.extra.langgraphs.custom_react_agent import create_custom_react_agent
 from genai_tk.core.factories.llm_factory import get_llm
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -67,7 +67,7 @@ tools:
 
 **Usage:**
 ```python
-from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph
+from genai_tk.extra.langgraphs.sql_agent import create_sql_querying_graph
 from langchain_community.utilities import SQLDatabase
 
 # Create agent for database
@@ -81,7 +81,7 @@ result = agent.invoke({"messages": [{"role": "user", "content": "How many users 
 **Common Patterns:**
 ```python
 # With custom examples
-from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph
+from genai_tk.extra.langgraphs.sql_agent import create_sql_querying_graph
 
 examples = [
     {"query": "How many users?", "sql": "SELECT COUNT(*) FROM users"},
@@ -96,6 +96,8 @@ graph = create_sql_querying_graph(llm=get_llm(), db=db, examples=examples, top_k
 
 ### ReAct with Structured Output (`react_agent_structured_output.py`)
 
+> **Note:** this module has been removed from the codebase; the example below is kept for historical reference only.
+
 ReAct agent that outputs validated Pydantic models instead of free-form text.
 
 **Features:**
@@ -107,7 +109,7 @@ ReAct agent that outputs validated Pydantic models instead of free-form text.
 **Usage:**
 ```python
 from pydantic import BaseModel
-from genai_tk.extra.graphs.react_agent_structured_output import create_react_structured_output_graph
+from genai_tk.extra.langgraphs.react_agent_structured_output import create_react_structured_output_graph
 
 
 class ResearchResult(BaseModel):
@@ -482,7 +484,7 @@ uv run cli tools office2pdf ./slides ./pdfs --recursive
 ### Pattern 1: Multi-Step RAG with SQL
 
 ```python
-from genai_tk.extra.graphs.sql_agent import create_sql_querying_graph
+from genai_tk.extra.langgraphs.sql_agent import create_sql_querying_graph
 from genai_tk.core.embeddings_store import EmbeddingsStore
 
 # Step 1: Create SQL graph for structured data
@@ -499,11 +501,11 @@ from genai_tk.agents.langchain.factory import create_langchain_agent
 agent = await create_langchain_agent(profile, extra_tools=[rag_retriever.as_tool()])
 ```
 
-### Pattern 2: Structured Output RAG
+### Pattern 2: Structured Output RAG (historical — module removed)
 
 ```python
 from pydantic import BaseModel
-from genai_tk.extra.graphs.react_agent_structured_output import create_react_structured_output_graph
+from genai_tk.extra.langgraphs.react_agent_structured_output import create_react_structured_output_graph
 
 
 class DocumentSummary(BaseModel):

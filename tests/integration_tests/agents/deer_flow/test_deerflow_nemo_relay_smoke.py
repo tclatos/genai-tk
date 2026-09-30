@@ -17,12 +17,12 @@ from langchain_core.tools import tool
 
 from genai_tk.agents.deer_flow.embedded_client import EmbeddedDeerFlowClient
 from genai_tk.agents.deer_flow.relay import NemoRelayDeerFlowMiddleware
-from genai_tk.utils.nemo_relay_setup import (
+from genai_tk.extra.monitoring.nemo_relay_setup import (
     flush_nemo_relay_async,
     reset_nemo_relay,
     setup_nemo_relay,
 )
-from genai_tk.utils.tracing import reset_monitoring
+from genai_tk.extra.monitoring.tracing import reset_monitoring
 
 pytestmark = [pytest.mark.deerflow, pytest.mark.integration]
 

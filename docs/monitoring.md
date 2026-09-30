@@ -30,7 +30,7 @@ See [docs/trajectory.md](trajectory.md) for the full guide.
 
 Every agent harness (LangChain react/deep/custom, DeerFlow) annotates its runs
 with the same canonical metadata, defined in
-`genai_tk.utils.tracing.HarnessTraceMetadata`:
+`genai_tk.extra.monitoring.tracing.HarnessTraceMetadata`:
 
 | Field | Meaning |
 |---|---|
@@ -214,7 +214,7 @@ just monitoring-status                 # Alias for: cli monitoring status
 Initialize monitoring in your code:
 
 ```python
-from genai_tk.utils.tracing import setup_monitoring, get_monitoring_callbacks
+from genai_tk.extra.monitoring.tracing import setup_monitoring, get_monitoring_callbacks
 
 # Call once at startup
 ctx = setup_monitoring()
@@ -435,7 +435,7 @@ LiteLLM is automatically configured to send traces to LangFuse via OTEL when tha
 
 ```python
 import litellm
-from genai_tk.utils.tracing import setup_monitoring
+from genai_tk.extra.monitoring.tracing import setup_monitoring
 
 setup_monitoring()  # Configures LiteLLM callbacks
 
@@ -447,7 +447,7 @@ response = litellm.completion(model="gpt-4o", messages=[{"role": "user", "conten
 Use the `log_llm_call` helper for BAML extraction results:
 
 ```python
-from genai_tk.utils.local_trace_log import log_llm_call
+from genai_tk.extra.monitoring.local_trace_log import log_llm_call
 
 log_llm_call(
     model="gpt-4o",
@@ -488,7 +488,7 @@ log_llm_call(
 
 4. **Check callbacks are being passed to LLM:**
    ```python
-   from genai_tk.utils.tracing import get_monitoring_callbacks
+   from genai_tk.extra.monitoring.tracing import get_monitoring_callbacks
 
    cbs = get_monitoring_callbacks()
    print("Callbacks:", cbs)
@@ -499,7 +499,7 @@ log_llm_call(
 
 1. **Check directory permissions:**
    ```bash
-   ls -la $(dirname "$(uv run python -c 'from genai_tk.utils.tracing import monitoring_config; print(monitoring_config().local_log.path)')")
+   ls -la $(dirname "$(uv run python -c 'from genai_tk.extra.monitoring.tracing import monitoring_config; print(monitoring_config().local_log.path)')")
    ```
 
 2. **Verify `include_prompts: true` in config** — without this, nothing is logged to local.
@@ -535,7 +535,7 @@ llm.invoke(
 Only certain spans are exported. Use `should_export_span` to customize:
 
 ```python
-from genai_tk.utils.tracing import setup_monitoring
+from genai_tk.extra.monitoring.tracing import setup_monitoring
 
 
 def my_filter(span):

@@ -16,7 +16,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Footer, Header, Markdown, Select, Static, Tree
 
-from genai_tk.utils.trajectory_store import (
+from genai_tk.extra.monitoring.trajectory_store import (
     LlmCall,
     SkillLoad,
     ToolCall,

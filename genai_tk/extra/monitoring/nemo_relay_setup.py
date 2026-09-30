@@ -12,12 +12,12 @@ Two capture modes:
   ``meta.json`` summary, and one line per run is appended to
   ``<data_root>/trajectories/index.jsonl``. Events are grouped to their root
   scope by walking the ``parent_uuid`` chain. This is the source-of-truth store
-  consumed by ``genai_tk.utils.trajectory_store`` and the ``cli trajectory``
+  consumed by ``genai_tk.extra.monitoring.trajectory_store`` and the ``cli trajectory``
   command group.
 - **Single-file** (``setup_nemo_relay(atof_path=...)``): appends every event
   to one JSONL file. Used by the Phase-0 smoke tests.
 
-Usage is automatic: :func:`genai_tk.utils.tracing.setup_monitoring` calls
+Usage is automatic: :func:`genai_tk.extra.monitoring.tracing.setup_monitoring` calls
 :func:`setup_nemo_relay` once at startup, and the harness / agent invoke config
 attach :func:`get_relay_callback_handler` so the LangGraph run hierarchy maps to
 Relay agent scopes. The deep-agent factory additionally injects

@@ -1,6 +1,6 @@
 """Read layer over the local trajectory store (Phase 2/3 foundation).
 
-Parses the ATOF JSONL events written by :mod:`genai_tk.utils.nemo_relay_setup`
+Parses the ATOF JSONL events written by :mod:`genai_tk.extra.monitoring.nemo_relay_setup`
 into typed :class:`Trajectory` objects and provides the read operations used
 by the ``cli trajectory`` command group and by store-based evals:
 
@@ -19,12 +19,12 @@ they skip unparseable lines with a debug log.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from loguru import logger
+from pydantic import BaseModel, Field
 
 
 def _default_store_dir() -> Path:
@@ -40,8 +40,7 @@ def _default_store_dir() -> Path:
 # ── Data models ──────────────────────────────────────────────────────────────
 
 
-@dataclass
-class RunSummary:
+class RunSummary(BaseModel):
     """One row of ``cli trajectory list`` / ``index.jsonl``."""
 
     run_id: str
@@ -57,8 +56,7 @@ class RunSummary:
     skills_loaded: list[str]
 
 
-@dataclass
-class LlmCall:
+class LlmCall(BaseModel):
     """One LLM scope (a model call)."""
 
     uuid: str
@@ -70,8 +68,7 @@ class LlmCall:
     ended_at: str | None
 
 
-@dataclass
-class ToolCall:
+class ToolCall(BaseModel):
     """One tool scope (a tool invocation)."""
 
     uuid: str
@@ -83,8 +80,7 @@ class ToolCall:
     ended_at: str | None
 
 
-@dataclass
-class SkillLoad:
+class SkillLoad(BaseModel):
     """One ``skill.load`` mark."""
 
     skill_name: str
@@ -116,14 +112,13 @@ def short_model_name(model: str | None) -> str:
     return s or "?"
 
 
-@dataclass
-class TrajectoryTurn:
+class TrajectoryTurn(BaseModel):
     """One logical turn in an agent trajectory (an LLM step and its triggered tools)."""
 
     index: int
     llm_call: LlmCall | None = None
-    tool_calls: list[ToolCall] = field(default_factory=list)
-    skill_loads: list[SkillLoad] = field(default_factory=list)
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    skill_loads: list[SkillLoad] = Field(default_factory=list)
 
     @property
     def is_final(self) -> bool:
@@ -131,8 +126,7 @@ class TrajectoryTurn:
         return bool(self.llm_call and not self.llm_call.tool_calls and not self.tool_calls)
 
 
-@dataclass
-class Trajectory:
+class Trajectory(BaseModel):
     """A full run reconstructed from ATOF events."""
 
     run_id: str
@@ -140,10 +134,10 @@ class Trajectory:
     started_at: str
     ended_at: str | None
     status: str
-    events: list[dict[str, Any]] = field(default_factory=list)
-    llm_calls: list[LlmCall] = field(default_factory=list)
-    tool_calls: list[ToolCall] = field(default_factory=list)
-    skill_loads: list[SkillLoad] = field(default_factory=list)
+    events: list[dict[str, Any]] = Field(default_factory=list)
+    llm_calls: list[LlmCall] = Field(default_factory=list)
+    tool_calls: list[ToolCall] = Field(default_factory=list)
+    skill_loads: list[SkillLoad] = Field(default_factory=list)
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
 

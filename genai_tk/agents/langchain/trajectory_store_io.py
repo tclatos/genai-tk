@@ -1,6 +1,6 @@
 """Store-based trajectory I/O for evals (Phase 3).
 
-Bridges the local trajectory store (:mod:`genai_tk.utils.trajectory_store`)
+Bridges the local trajectory store (:mod:`genai_tk.extra.monitoring.trajectory_store`)
 to the eval stack:
 
 - :func:`load_trajectory_messages` — read a recorded run and project it to
@@ -20,7 +20,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from genai_tk.utils.trajectory_store import TrajectoryStore
+from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore
 
 
 def load_trajectory_messages(
@@ -47,7 +47,7 @@ def load_trajectory(
     *,
     store: TrajectoryStore | None = None,
 ) -> Any:
-    """Return the typed :class:`~genai_tk.utils.trajectory_store.Trajectory` for a run."""
+    """Return the typed :class:`~genai_tk.extra.monitoring.trajectory_store.Trajectory` for a run."""
     s = store if store is not None else TrajectoryStore()
     return s.get(run_id)
 

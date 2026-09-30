@@ -10,7 +10,7 @@ import typer
 from typer.testing import CliRunner
 
 from genai_tk.cli.commands_trajectory import TrajectoryCommands
-from genai_tk.utils.trajectory_store import TrajectoryStore
+from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore
 
 
 @pytest.fixture
@@ -30,7 +30,7 @@ def populated_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Trajecto
     """Create a TrajectoryStore with a sample recorded run."""
     store_dir = tmp_path / "trajectories"
     store_dir.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(TrajectoryStore, "_resolve_root", classmethod(lambda cls: store_dir))
+    monkeypatch.setattr("genai_tk.extra.monitoring.trajectory_store._default_store_dir", lambda: store_dir)
 
     store = TrajectoryStore(root=store_dir)
 
@@ -118,7 +118,7 @@ class TestTrajectoryList:
     def test_list_empty(self, trajectory_app, runner, tmp_path, monkeypatch) -> None:
         empty_dir = tmp_path / "empty_trajectories"
         empty_dir.mkdir()
-        monkeypatch.setattr(TrajectoryStore, "_resolve_root", classmethod(lambda cls: empty_dir))
+        monkeypatch.setattr("genai_tk.extra.monitoring.trajectory_store._default_store_dir", lambda: empty_dir)
 
         result = runner.invoke(trajectory_app, ["trajectory", "list"])
         assert result.exit_code == 0

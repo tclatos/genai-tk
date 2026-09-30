@@ -23,7 +23,7 @@ from genai_tk.agents.langchain.trajectory_store_io import (
     judge_trajectory,
     load_trajectory_messages,
 )
-from genai_tk.utils.trajectory_store import TrajectoryStore
+from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore
 
 pytestmark = pytest.mark.unit
 
@@ -333,7 +333,7 @@ def test_judge_trajectory_efficiency_fails_on_repeats(tmp_path: Path) -> None:
 
 
 def test_short_model_name() -> None:
-    from genai_tk.utils.trajectory_store import short_model_name
+    from genai_tk.extra.monitoring.trajectory_store import short_model_name
 
     assert short_model_name("z-ai/glm-5.2z-ai/glm-5.2") == "glm-5.2"
     assert short_model_name("z-ai/glm-5.2") == "glm-5.2"

@@ -25,13 +25,13 @@ from langgraph.checkpoint.memory import MemorySaver
 from genai_tk.agents.langchain.config import AgentProfileConfig
 from genai_tk.agents.langchain.factory import _create_deep_agent
 from genai_tk.core.factories.llm_factory import get_llm
-from genai_tk.utils.nemo_relay_setup import (
+from genai_tk.extra.monitoring.nemo_relay_setup import (
     flush_nemo_relay_async,
     get_relay_callback_handler,
     reset_nemo_relay,
     setup_nemo_relay,
 )
-from genai_tk.utils.tracing import reset_monitoring
+from genai_tk.extra.monitoring.tracing import reset_monitoring
 
 pytest.importorskip("nemo_relay")
 

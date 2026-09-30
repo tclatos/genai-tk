@@ -41,17 +41,16 @@ Design Notes:
     - The UI component handles long results with truncation and expandable sections
 """
 
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Optional
 
 import streamlit as st
 from langchain.agents.middleware import AgentMiddleware
+from pydantic import BaseModel, Field
 from streamlit.delta_generator import DeltaGenerator
 
 
-@dataclass
-class ToolCallRecord:
+class ToolCallRecord(BaseModel):
     """Record of a single tool call execution.
 
     Captures all relevant information about a tool invocation including
@@ -82,7 +81,7 @@ class ToolCallRecord:
     arguments: str
     result: Optional[str] = None
     error: Optional[str] = None
-    start_time: datetime = field(default_factory=datetime.now)
+    start_time: datetime = Field(default_factory=datetime.now)
     end_time: Optional[datetime] = None
 
     @property
@@ -112,8 +111,7 @@ class ToolCallRecord:
         return self.start_time.strftime("%H:%M:%S.%f")[:-3]
 
 
-@dataclass
-class LLMCallRecord:
+class LLMCallRecord(BaseModel):
     """Record of a single LLM message emitted during agent execution.
 
     This is intentionally lightweight: we focus on which graph node produced
@@ -123,7 +121,7 @@ class LLMCallRecord:
 
     node: str
     content: str
-    timestamp: datetime = field(default_factory=datetime.now)
+    timestamp: datetime = Field(default_factory=datetime.now)
 
     @property
     def formatted_time(self) -> str:

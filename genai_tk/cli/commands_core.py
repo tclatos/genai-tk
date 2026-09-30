@@ -156,7 +156,7 @@ class CoreCommands(CliTopCommand):
                         result = llm_model.invoke(input)
                         pprint(result)
                 else:
-                    from genai_tk.utils.tracing import get_monitoring_callbacks
+                    from genai_tk.extra.monitoring.tracing import get_monitoring_callbacks
 
                     callbacks = get_monitoring_callbacks()
                     chain = llm_model | StrOutputParser()

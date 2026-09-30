@@ -20,16 +20,16 @@ import json
 import time
 import traceback
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     pass
 
 
-@dataclass
-class CellResult:
+class CellResult(BaseModel):
     """Outcome of executing a single notebook cell."""
 
     cell_index: int
@@ -38,6 +38,7 @@ class CellResult:
     duration: float
     error: Exception | None = None
     traceback: str | None = None
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def source_preview(self, max_lines: int = 3) -> str:
         """Return a short preview of the cell source."""
@@ -48,13 +49,13 @@ class CellResult:
         return preview
 
 
-@dataclass
-class NotebookResult:
+class NotebookResult(BaseModel):
     """Aggregated outcome of running an entire notebook."""
 
     path: Path
-    cell_results: list[CellResult] = field(default_factory=list)
+    cell_results: list[CellResult] = Field(default_factory=list)
     skipped: int = 0
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     @property
     def passed(self) -> bool:
@@ -151,12 +152,23 @@ def run_notebook(
     """
     import io
     import sys
+    import types
 
     notebook = json.loads(path.read_text(encoding="utf-8"))
     cells = notebook.get("cells", [])
     total_cells = sum(1 for c in cells if c.get("cell_type") == "code")
-    env: dict = {}
     result = NotebookResult(path=path)
+
+    # Emulate a real Jupyter kernel's user namespace: back a temporary
+    # sys.modules["__main__"] with `env` so that classes/functions defined in
+    # cells resolve correctly via "__main__:Name" qualified paths (CPython's
+    # exec() would otherwise stamp `__module__ = "builtins"` on them, and even
+    # with `__name__` set, plain `sys.modules["__main__"]` wouldn't contain them).
+    fake_main = types.ModuleType("__main__")
+    env: dict = fake_main.__dict__
+    env["__name__"] = "__main__"
+    old_main = sys.modules.get("__main__")
+    sys.modules["__main__"] = fake_main
 
     if suppress_logs:
         try:
@@ -191,15 +203,19 @@ def run_notebook(
                     if suppress_output:
                         sys.stdout, sys.stderr = old_stdout, old_stderr
                 duration = time.perf_counter() - t0
-                result.cell_results.append(CellResult(idx, source, passed=True, duration=duration))
+                result.cell_results.append(CellResult(cell_index=idx, source=source, passed=True, duration=duration))
             except Exception as exc:  # noqa: BLE001
                 duration = time.perf_counter() - t0
                 tb = traceback.format_exc()
                 result.cell_results.append(
-                    CellResult(idx, source, passed=False, duration=duration, error=exc, traceback=tb)
+                    CellResult(cell_index=idx, source=source, passed=False, duration=duration, error=exc, traceback=tb)
                 )
                 break  # stop on first failure (notebook state is now undefined)
     finally:
+        if old_main is not None:
+            sys.modules["__main__"] = old_main
+        else:
+            sys.modules.pop("__main__", None)
         if suppress_logs:
             try:
                 from loguru import logger

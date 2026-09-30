@@ -17,12 +17,12 @@ import shutil
 import subprocess
 import tempfile
 from collections.abc import Iterable
-from dataclasses import dataclass
 from pathlib import Path
 
 from loguru import logger
 from prefect import flow, task
 from prefect.task_runners import ThreadPoolTaskRunner
+from pydantic import BaseModel
 
 from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_files
 from genai_tk.utils.hashing import buffer_digest
@@ -54,14 +54,12 @@ def ensure_libreoffice_available() -> None:
     )
 
 
-@dataclass(slots=True)
-class _FileToProcess:
+class _FileToProcess(BaseModel):
     path: Path
     content_hash: str
 
 
-@dataclass(slots=True)
-class _TaskResult:
+class _TaskResult(BaseModel):
     """Result of processing a single file."""
 
     success: bool

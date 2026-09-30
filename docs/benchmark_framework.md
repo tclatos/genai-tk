@@ -324,7 +324,7 @@ flowchart TD
 | `genai_tk.agents.harness` | Deep Agent Execution Harness (`LangChainHarness`) | Manages agent lifecycles, execution limits, event streams, and runtime tool/middleware injection. |
 | `genai_tk.agents.tools.langchain.python_executor` | Python CodeAct & Sandbox Arithmetic Executor | Executes Python code in a controlled environment to guarantee 100% precision on mathematical formulas. |
 | `genai_tk.agents.langchain.middleware` | Extensible Agent Middleware Pipeline | Implements `SkillsMiddleware`, `NemoRelayDeepAgentsMiddleware`, `ObservationTruncationMiddleware`, and search loop deduplication. |
-| `genai_tk.utils.trajectory_store` | ATOF Trajectory Storage & CLI Tooling | Reads, queries, replays, diffs, and analyzes local JSONL agent trajectory logs. |
+| `genai_tk.extra.monitoring.trajectory_store` | ATOF Trajectory Storage & CLI Tooling | Reads, queries, replays, diffs, and analyzes local JSONL agent trajectory logs. |
 | `genai_tk.workflow.markdownize` | Document-to-Markdown Ingestion Pipeline | Standardized conversion pipeline managing OCR engines, table structuring, and text normalizers. |
 | `genai_graph.kg.document_graph` | Hierarchical Document Graph Builder | Decomposes Markdown files into `Folder ➔ Document ➔ MarkdownSection` nodes and compiles graph databases. |
 | `genai_graph.kg.backend` | Graph Storage Interface (`KuzuBackend` / Ladybug) | Encapsulates Cypher execution, transaction handling, and schema creation in LadybugDB. |

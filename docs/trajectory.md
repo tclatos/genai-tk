@@ -59,7 +59,7 @@ data/trajectories/
 `n_llm_calls`, `n_tool_calls`, `total_prompt_tokens`,
 `total_completion_tokens`, `tools`, `skills_loaded`, `events_path`.
 
-The read layer is `genai_tk.utils.trajectory_store.TrajectoryStore`, which
+The read layer is `genai_tk.extra.monitoring.trajectory_store.TrajectoryStore`, which
 parses ATOF events into typed `Trajectory` / `LlmCall` / `ToolCall` /
 `SkillLoad` objects and projects a run to OpenAI-format messages.
 
@@ -104,7 +104,7 @@ uv run cli trajectory view
 ## Programmatic access
 
 ```python
-from genai_tk.utils.trajectory_store import TrajectoryStore
+from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore
 
 store = TrajectoryStore()
 

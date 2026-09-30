@@ -26,7 +26,7 @@ from rich.table import Table
 from genai_tk.cli.base import CliTopCommand
 
 if TYPE_CHECKING:
-    from genai_tk.utils.tracing import MonitoringConfig
+    from genai_tk.extra.monitoring.tracing import MonitoringConfig
 
 # ── State file helpers ─────────────────────────────────────────────────────────
 
@@ -140,7 +140,7 @@ class MonitoringCommands(CliTopCommand):
         @cli_app.command("status")
         def status() -> None:
             """Show active monitoring backends and API key availability."""
-            from genai_tk.utils.tracing import monitoring_config
+            from genai_tk.extra.monitoring.tracing import monitoring_config
 
             console = Console()
             cfg = monitoring_config()
@@ -228,7 +228,7 @@ class MonitoringCommands(CliTopCommand):
             This does NOT start Docker services — use ``just langfuse-server-start`` for that.
             """
             console = Console()
-            from genai_tk.utils.tracing import monitoring_config
+            from genai_tk.extra.monitoring.tracing import monitoring_config
 
             cfg = monitoring_config()
             active = [b.strip() for b in backends.split(",") if b.strip()] if backends else list(cfg.backends)
@@ -283,7 +283,7 @@ class MonitoringCommands(CliTopCommand):
             With ``--trace``, fetches and opens the latest trace from the active backend.
             With ``--trace-id <id>``, opens that specific trace directly.
             """
-            from genai_tk.utils.tracing import monitoring_config
+            from genai_tk.extra.monitoring.tracing import monitoring_config
 
             console = Console()
             cfg = monitoring_config()
@@ -329,7 +329,7 @@ class MonitoringCommands(CliTopCommand):
             """Print the last N entries from the local JSONL trace log."""
             import datetime
 
-            from genai_tk.utils.tracing import monitoring_config
+            from genai_tk.extra.monitoring.tracing import monitoring_config
 
             console = Console()
             log_path = Path(monitoring_config().local_log.path)
@@ -411,7 +411,7 @@ class MonitoringCommands(CliTopCommand):
             yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip confirmation prompt")] = False,
         ) -> None:
             """Truncate the local JSONL trace log file."""
-            from genai_tk.utils.tracing import monitoring_config
+            from genai_tk.extra.monitoring.tracing import monitoring_config
 
             console = Console()
             log_path = Path(monitoring_config().local_log.path)

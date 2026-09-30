@@ -225,7 +225,7 @@ class LangchainAgent(BaseModel):
             # Initialise monitoring backends before the first LLM call so that
             # LangSmith (LANGSMITH_TRACING), LangFuse/OTEL auto-instrumentation,
             # and the local JSONL handler are active for every agent run.
-            from genai_tk.utils.tracing import setup_monitoring
+            from genai_tk.extra.monitoring.tracing import setup_monitoring
 
             setup_monitoring()
 
@@ -287,8 +287,8 @@ class LangchainAgent(BaseModel):
     @staticmethod
     def _invoke_config() -> dict[str, Any]:
         """Build a RunnableConfig with thread id and monitoring callbacks attached."""
-        from genai_tk.utils.nemo_relay_setup import get_relay_callback_handler
-        from genai_tk.utils.tracing import get_monitoring_callbacks
+        from genai_tk.extra.monitoring.nemo_relay_setup import get_relay_callback_handler
+        from genai_tk.extra.monitoring.tracing import get_monitoring_callbacks
 
         config: dict[str, Any] = {"configurable": {"thread_id": "1"}}
         callbacks = get_monitoring_callbacks()

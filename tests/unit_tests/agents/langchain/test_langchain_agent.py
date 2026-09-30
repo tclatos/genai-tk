@@ -212,7 +212,7 @@ class TestLangchainAgentRun:
                 new_callable=AsyncMock,
                 return_value=mock_compiled,
             ),
-            patch("genai_tk.utils.tracing.get_monitoring_callbacks", return_value=[]),
+            patch("genai_tk.extra.monitoring.tracing.get_monitoring_callbacks", return_value=[]),
         ):
             agent = LangchainAgent(llm=fake_llm_id)
             chunks = []
