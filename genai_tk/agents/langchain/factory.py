@@ -343,6 +343,17 @@ async def _create_deep_agent(
         deep_kwargs["middleware"] = [*deep_kwargs.get("middleware", []), _ToolExclusionMiddleware(excluded=excluded)]
         logger.info("Deep agent '{}': excluded {} built-in tool(s): {}", profile.name, len(excluded), sorted(excluded))
 
+    # Record the individual skill names (not just the source directories the
+    # relay integration reports) as ``skill.load`` marks inside the run scope.
+    skill_names = _skill_names_in_sources(skill_dirs)
+    if skill_names:
+        from genai_tk.agents.langchain.middleware.skill_marks_middleware import (  # noqa: PLC0415
+            SkillLoadMarksMiddleware,
+        )
+
+        deep_kwargs["middleware"] = [*deep_kwargs.get("middleware", []), SkillLoadMarksMiddleware(skill_names)]
+        logger.info("Deep agent '{}': {} skill(s) marked as loaded: {}", profile.name, len(skill_names), skill_names)
+
     # Enforce file-tool permission rules (e.g. deny reading raw corpus data that
     # must be navigated via dedicated retrieval tools). The rules are evaluated
     # inside FilesystemMiddleware itself, so denials hold even when the backend
@@ -443,6 +454,24 @@ def _load_skills_as_prompt(skill_dirs: list[str]) -> str | None:
 
     logger.info("Loaded {} skill(s) as system prompt", len(sections))
     return "\n\n---\n\n".join(sections)
+
+
+def _skill_names_in_sources(sources: list[str]) -> list[str]:
+    """Return the individual skill names found under resolved skill sources.
+
+    A skill is a subdirectory of a source containing a ``SKILL.md`` file.
+    """
+    from pathlib import Path  # noqa: PLC0415
+
+    names: list[str] = []
+    for source in sources:
+        base = Path(source)
+        if not base.is_dir():
+            continue
+        for subdir in sorted(base.iterdir()):
+            if subdir.is_dir() and (subdir / "SKILL.md").is_file():
+                names.append(subdir.name)
+    return names
 
 
 def _resolve_skill_dirs(skill_directories: list[str]) -> list[str]:

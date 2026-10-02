@@ -377,6 +377,7 @@ class TrajectoryStore:
         llm_calls: list[LlmCall] = []
         tool_calls: list[ToolCall] = []
         skill_loads: list[SkillLoad] = []
+        configured_skill_marks: list[SkillLoad] = []
         prompt_tokens = 0
         completion_tokens = 0
         status = str(meta.get("status") or "ok")
@@ -438,17 +439,35 @@ class TrajectoryStore:
                         )
                     )
 
-            elif kind == "mark" and e.get("name") == "skill.load":
-                data = e.get("data") or {}
+            elif kind == "mark":
                 mmeta = e.get("metadata") or {}
-                skill_loads.append(
-                    SkillLoad(
-                        skill_name=str(data.get("skill_name") or "") if isinstance(data, dict) else "",
-                        source=mmeta.get("skill_load_source") if isinstance(mmeta, dict) else None,
-                        tool_name=mmeta.get("tool_name") if isinstance(mmeta, dict) else None,
-                        timestamp=ts,
+                if e.get("name") == "skill.load":
+                    data = e.get("data") or {}
+                    skill_loads.append(
+                        SkillLoad(
+                            skill_name=str(data.get("skill_name") or "") if isinstance(data, dict) else "",
+                            source=mmeta.get("skill_load_source") if isinstance(mmeta, dict) else None,
+                            tool_name=mmeta.get("tool_name") if isinstance(mmeta, dict) else None,
+                            timestamp=ts,
+                        )
                     )
-                )
+                elif isinstance(mmeta, dict) and mmeta.get("deepagents_kind") == "skill":
+                    # DeepAgents integration emits one aggregated 'Skills
+                    # Configured' mark carrying the skill *source directories*
+                    # (not real skill names) — fallback when the run has no
+                    # proper ``skill.load`` marks.
+                    data = e.get("data") or {}
+                    skills = data.get("skills") if isinstance(data, dict) else None
+                    if isinstance(skills, list):
+                        for skill in skills:
+                            if isinstance(skill, str) and skill:
+                                configured_skill_marks.append(
+                                    SkillLoad(skill_name=skill, source="deepagents", tool_name=None, timestamp=ts)
+                                )
+
+        # Proper ``skill.load`` marks win over the aggregated config mark.
+        if not skill_loads:
+            skill_loads = configured_skill_marks
 
         # Order llm/tool calls by start time for a sensible timeline.
         llm_calls.sort(key=lambda c: c.started_at)

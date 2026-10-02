@@ -33,6 +33,7 @@ from genai_tk.agents.langchain.config import (
 from genai_tk.agents.langchain.factory import (
     _load_skills_as_prompt,
     _resolve_skill_dirs,
+    _skill_names_in_sources,
     create_langchain_agent,
 )
 from genai_tk.agents.langchain.middleware.empty_response_retry import EmptyResponseRetryMiddleware
@@ -501,6 +502,22 @@ def test_resolve_skill_dirs_expands_grouping_dir(tmp_path: Path) -> None:
 
     result = _resolve_skill_dirs([str(group)])
     assert str(group / "collection") in result
+
+
+def test_skill_names_in_sources(tmp_path: Path) -> None:
+    """Skill names are the subdirectories of each source holding a SKILL.md."""
+    src = tmp_path / "skills"
+    (src / "alpha").mkdir(parents=True)
+    (src / "alpha" / "SKILL.md").write_text("alpha")
+    (src / "beta").mkdir()
+    (src / "beta" / "SKILL.md").write_text("beta")
+    (src / "not_a_skill").mkdir()  # no SKILL.md → ignored
+
+    assert _skill_names_in_sources([str(src)]) == ["alpha", "beta"]
+
+
+def test_skill_names_in_sources_missing_dir() -> None:
+    assert _skill_names_in_sources(["/does/not/exist"]) == []
 
 
 # --------------------------------------------------------------------------- #

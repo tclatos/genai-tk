@@ -73,6 +73,7 @@ class _SessionRun:
         self.completion_tokens = 0
         self.tools: list[str] = []
         self.skills: list[str] = []
+        self.deepagent_skills: list[str] = []  # source dirs from the aggregated config mark
 
     def meta(self, run_dir: Path) -> dict[str, Any]:
         """Return the ``meta.json`` summary dict for this run."""
@@ -88,7 +89,7 @@ class _SessionRun:
             "total_prompt_tokens": self.prompt_tokens,
             "total_completion_tokens": self.completion_tokens,
             "tools": sorted(set(self.tools)),
-            "skills_loaded": sorted(set(self.skills)),
+            "skills_loaded": sorted(set(self.skills)) if self.skills else sorted(set(self.deepagent_skills)),
             "events_path": str(run_dir / "events.jsonl"),
         }
 
@@ -216,10 +217,21 @@ class _StoreState:
                     meta = event.get("metadata") or {}
                     if isinstance(meta, dict) and meta.get("otel.status_code") == "ERROR":
                         self.current.status = "error"
-            elif kind == "mark" and event.get("name") == "skill.load":
-                data = event.get("data") or {}
-                if isinstance(data, dict) and isinstance(data.get("skill_name"), str):
-                    self.current.skills.append(data["skill_name"])
+            elif kind == "mark":
+                if event.get("name") == "skill.load":
+                    data = event.get("data") or {}
+                    if isinstance(data, dict) and isinstance(data.get("skill_name"), str):
+                        self.current.skills.append(data["skill_name"])
+                else:
+                    mmeta = event.get("metadata") or {}
+                    if isinstance(mmeta, dict) and mmeta.get("deepagents_kind") == "skill":
+                        # DeepAgents 'Skills Configured' mark only carries the
+                        # skill *source directories* — fallback for the index
+                        # when the run has no proper ``skill.load`` marks.
+                        data = event.get("data") or {}
+                        skills = data.get("skills") if isinstance(data, dict) else None
+                        if isinstance(skills, list):
+                            self.current.deepagent_skills.extend(s for s in skills if isinstance(s, str))
 
             try:
                 self.current_file.write(raw + "\n")

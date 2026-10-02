@@ -245,7 +245,9 @@ def get_monitoring_callbacks() -> list:
     """Return active LangChain callbacks (e.g. the local JSONL handler).
 
     Initialises monitoring on first call (lazy — avoids importing heavy packages
-    at CLI startup when no LLM command is actually running).
+    at CLI startup when no LLM command is actually running). The NeMo Relay
+    trajectory recorder is intentionally NOT activated here: it is reserved
+    for agent runs, which call ``setup_monitoring()`` explicitly.
 
     Remote backends use OTEL auto-instrumentation and do not appear here.
     Pass the returned list via ``config={"callbacks": ...}`` when invoking chains.
@@ -253,24 +255,35 @@ def get_monitoring_callbacks() -> list:
     global _monitoring_context
     if _monitoring_context is None:
         try:
-            setup_monitoring()
+            setup_monitoring(enable_relay=False)
         except Exception as exc:
             logger.debug(f"Monitoring setup skipped: {exc}")
             return []
     return list(_monitoring_context.langchain_callbacks)
 
 
-def setup_monitoring() -> MonitoringContext:
+def setup_monitoring(*, enable_relay: bool = True) -> MonitoringContext:
     """Initialise all active monitoring backends.
 
     Safe to call multiple times — subsequent calls return the cached context.
     Call once at CLI / application startup before any LLM interaction.
+
+    Args:
+        enable_relay: Activate the NeMo Relay ATOF trajectory recorder.
+            Agent runs keep the default (True); simple one-shot LLM calls
+            pass False so plain LLM invocations don't get recorded.
 
     Returns:
         ``MonitoringContext`` with active backend list and LangChain callbacks.
     """
     global _monitoring_context
     if _monitoring_context is not None:
+        # Relay may have been deferred by a lazy callbacks fetch; activate it
+        # on demand so agent runs always get the trajectory record.
+        if enable_relay:
+            from genai_tk.extra.monitoring.nemo_relay_setup import setup_nemo_relay
+
+            setup_nemo_relay()
         return _monitoring_context
 
     cfg = monitoring_config()
@@ -292,11 +305,13 @@ def setup_monitoring() -> MonitoringContext:
         if cb is not None:
             callbacks.append(cb)
 
-    # NeMo Relay ATOF subscriber — the local trajectory record (source of truth).
-    # Always active when nemo-relay is installed; no-op otherwise.
-    from genai_tk.extra.monitoring.nemo_relay_setup import setup_nemo_relay
+    # NeMo Relay ATOF subscriber — the local trajectory record (source of
+    # truth). Active for agent runs when nemo-relay is installed; no-op otherwise.
+    relay_active = False
+    if enable_relay:
+        from genai_tk.extra.monitoring.nemo_relay_setup import setup_nemo_relay
 
-    relay_active = setup_nemo_relay()
+        relay_active = setup_nemo_relay()
 
     if cfg.backends:
         logger.debug(f"Monitoring active backends: {cfg.backends}")

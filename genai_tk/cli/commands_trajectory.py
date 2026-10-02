@@ -285,19 +285,45 @@ class TrajectoryCommands(CliTopCommand):
         def view_cmd() -> None:
             """Launch the Harbor ATIF web viewer on the store (if installed).
 
-            The trajectory store root holds one subdirectory per recorded run,
-            which is harbor's jobs layout, so ``--jobs`` is passed explicitly to
-            skip harbor's folder-type auto-detection (which fails on the store).
+            Runs are first exported from the ATOF store to harbor's jobs
+            layout (one job per run with an ATIF ``agent/trajectory.json``)
+            under ``<store>/.harbor-view``, then harbor serves that directory.
+            Uvicorn's startup/HTTP-access log lines are hidden; the startup
+            banner and genuine errors are still shown.
             """
             console = Console()
             s = store()
+            if not s.list_runs():
+                console.print("[yellow]No recorded runs to view.[/yellow]")
+                return
+            from genai_tk.extra.monitoring.harbor_export import export_store_to_harbor
+
+            export_dir = export_store_to_harbor(s, s.root / ".harbor-view")
             try:
-                subprocess.run(["harbor", "view", "--jobs", str(s.root)], check=False)  # noqa: S603,S607
+                process = subprocess.Popen(  # noqa: S603
+                    ["harbor", "view", "--jobs", str(export_dir)],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
             except FileNotFoundError:
                 console.print(
                     "[yellow]harbor not installed.[/yellow] Install it with "
                     "[dim]uv tool install harbor[/dim] to use the web trajectory viewer."
                 )
+                return
+            try:
+                for line in process.stdout or []:
+                    if line.startswith(("INFO:", "WARNING:")):
+                        continue  # uvicorn startup / HTTP access trace
+                    print(line, end="")
+                process.wait()
+            except KeyboardInterrupt:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
 
 
 # ── Render helpers ───────────────────────────────────────────────────────────

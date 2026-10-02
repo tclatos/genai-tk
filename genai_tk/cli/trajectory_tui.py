@@ -14,6 +14,8 @@ from typing import Any
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.css.query import NoMatches
+from textual.visual import VisualType
 from textual.widgets import Footer, Header, Markdown, Select, Static, Tree
 
 from genai_tk.extra.monitoring.trajectory_store import (
@@ -25,6 +27,74 @@ from genai_tk.extra.monitoring.trajectory_store import (
     TrajectoryTurn,
     short_model_name,
 )
+
+
+def _snippet(text: str | None, limit: int = 60) -> str:
+    """Collapse whitespace and truncate a string for tooltip display."""
+    if not text:
+        return ""
+    flat = " ".join(text.split())
+    return flat if len(flat) <= limit else flat[: limit - 1] + "…"
+
+
+def _turn_tooltip(lc: LlmCall) -> str:
+    """Tooltip for an LLM turn node."""
+    usage = lc.usage or {}
+    return "\n".join(
+        [
+            f"🧠 {lc.model or '?'}",
+            f"Tokens: {usage.get('prompt_tokens') or 0} in / {usage.get('completion_tokens') or 0} out",
+            f"{lc.started_at} → {lc.ended_at or '?'}",
+        ]
+    )
+
+
+def _tool_tooltip(tc: ToolCall) -> str:
+    """Tooltip for a tool-execution node."""
+    parts = [f"🛠️ {tc.name}"]
+    if tc.args:
+        parts.append(f"Args: {_snippet(json.dumps(tc.args), 120)}")
+    if tc.result:
+        parts.append(f"Result: {_snippet(tc.result, 160)}")
+    if tc.tool_call_id:
+        parts.append(f"Call: {tc.tool_call_id}")
+    return "\n".join(parts)
+
+
+def _skill_tooltip(sl: SkillLoad) -> str:
+    """Tooltip for a skill.load node."""
+    parts = [f"📚 {sl.skill_name}"]
+    if sl.source:
+        parts.append(f"Source: {sl.source}")
+    if sl.tool_name:
+        parts.append(f"Tool: {sl.tool_name}")
+    parts.append(f"At: {sl.timestamp}")
+    return "\n".join(parts)
+
+
+class TooltipTree(Tree):
+    """Tree that shows a tooltip for the node currently under the mouse.
+
+    Textual re-reads ``widget.tooltip`` on every mouse-move tooltip timer tick,
+    so the getter derives the content dynamically from ``hover_line``. Tooltip
+    text is stored per node under the ``"tooltip"`` key of the node's data.
+    """
+
+    @property
+    def tooltip(self) -> VisualType | None:  # type: ignore[override]
+        """Tooltip content for the hovered node, or None when not hovering."""
+        if self.hover_line < 0:
+            return None
+        node = self._get_node(self.hover_line)
+        if node is None or not isinstance(node.data, dict):
+            return None
+        tooltip = node.data.get("tooltip")
+        return str(tooltip) if tooltip is not None else None
+
+    @tooltip.setter
+    def tooltip(self, tooltip: VisualType | None) -> None:
+        """Accept (unused) static tooltip assignment for Widget API parity."""
+        self._tooltip = tooltip
 
 
 class TrajectoryTuiApp(App[None]):
@@ -132,26 +202,26 @@ class TrajectoryTuiApp(App[None]):
 
         with Horizontal(id="main-container"):
             with Vertical(id="left-panel"):
-                yield Tree("Execution Timeline", id="timeline-tree")
+                yield TooltipTree("Execution Timeline", id="timeline-tree")
             with VerticalScroll(id="right-panel"):
                 yield Markdown("", id="detail-markdown")
 
         yield Footer()
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         """Initialize the view once widgets are mounted."""
         if self.runs:
             target_id = self.initial_run_id or self.runs[0].run_id
-            self.load_run(target_id)
+            await self.load_run(target_id)
         else:
-            self.query_one("#detail-markdown", Markdown).update(
+            await self.query_one("#detail-markdown", Markdown).update(
                 "# No Trajectories Found\n\nNo recorded runs were found in the trajectory store."
             )
 
-    def on_select_changed(self, event: Select.Changed) -> None:
+    async def on_select_changed(self, event: Select.Changed) -> None:
         """Handle run dropdown selection changes."""
         if event.value and event.value != Select.BLANK:
-            self.load_run(str(event.value))
+            await self.load_run(str(event.value))
 
     def action_toggle_focus(self) -> None:
         """Toggle focus between tree and detail panels."""
@@ -162,16 +232,16 @@ class TrajectoryTuiApp(App[None]):
         else:
             tree.focus()
 
-    def action_reload_run(self) -> None:
+    async def action_reload_run(self) -> None:
         """Reload the current run from disk."""
         if self.current_trajectory:
-            self.load_run(self.current_trajectory.run_id)
+            await self.load_run(self.current_trajectory.run_id)
 
-    def load_run(self, run_id: str) -> None:
+    async def load_run(self, run_id: str) -> None:
         """Load and populate a trajectory into the UI."""
         traj = self.store.get(run_id)
         if traj is None:
-            self.query_one("#detail-markdown", Markdown).update(
+            await self.query_one("#detail-markdown", Markdown).update(
                 f"# Run Not Found\n\nRun `{run_id}` could not be loaded from store."
             )
             return
@@ -193,15 +263,31 @@ class TrajectoryTuiApp(App[None]):
         tree = self.query_one("#timeline-tree", Tree)
         tree.clear()
         tree.root.set_label(f"🚀 [bold]{traj.profile}[/] [dim]({traj.run_id[:8]})[/]")
-        tree.root.data = {"type": "root", "traj": traj}
+        tree.root.data = {
+            "type": "root",
+            "traj": traj,
+            "tooltip": (
+                f"{traj.profile}\nStatus: {traj.status}\nStarted: {traj.started_at}\n"
+                f"Tokens: {traj.total_prompt_tokens:,} in / {traj.total_completion_tokens:,} out"
+            ),
+        }
 
         # 1. Overview Node
-        overview_node = tree.root.add("📋 Run Overview", data={"type": "overview", "traj": traj})
+        overview_tooltip = (
+            f"{len(traj.llm_calls)} LLM calls · {len(traj.tool_calls)} tool calls · "
+            f"{len(traj.skill_loads)} skills loaded\n"
+            f"Tokens: {traj.total_prompt_tokens:,} in / {traj.total_completion_tokens:,} out"
+        )
+        overview_node = tree.root.add(
+            "📋 Run Overview", data={"type": "overview", "traj": traj, "tooltip": overview_tooltip}
+        )
 
         # 2. User Prompt Node
         user_msg = self.store._root_user_message(traj)
         if user_msg:
-            tree.root.add("👤 User Request", data={"type": "user_msg", "text": user_msg})
+            tree.root.add(
+                "👤 User Request", data={"type": "user_msg", "text": user_msg, "tooltip": _snippet(user_msg, 400)}
+            )
 
         # 3. Turns (Intertwined LLMs & Tools)
         turns = traj.turns
@@ -215,31 +301,40 @@ class TrajectoryTuiApp(App[None]):
                 tok_str = f" [dim]({tin}/{tout})[/]" if (tin or tout) else ""
 
                 turn_label = f"Turn {turn.index}: [blue]llm[/] [bold]{m_short}[/]{tok_str}"
-                turn_node = tree.root.add(turn_label, data={"type": "turn", "turn": turn, "llm": lc})
+                turn_node = tree.root.add(
+                    turn_label, data={"type": "turn", "turn": turn, "llm": lc, "tooltip": _turn_tooltip(lc)}
+                )
 
                 for tc in turn.tool_calls:
                     tool_label = f"🛠️ [magenta]tool[/] [bold]{tc.name}[/]"
-                    turn_node.add(tool_label, data={"type": "tool", "tool": tc})
+                    turn_node.add(tool_label, data={"type": "tool", "tool": tc, "tooltip": _tool_tooltip(tc)})
 
                 for sl in turn.skill_loads:
                     skill_label = f"📚 [yellow]skill.load[/] {sl.skill_name}"
-                    turn_node.add(skill_label, data={"type": "skill", "skill": sl})
+                    turn_node.add(skill_label, data={"type": "skill", "skill": sl, "tooltip": _skill_tooltip(sl)})
             else:
                 for tc in turn.tool_calls:
-                    tree.root.add(f"🛠️ [magenta]tool[/] [bold]{tc.name}[/]", data={"type": "tool", "tool": tc})
+                    tree.root.add(
+                        f"🛠️ [magenta]tool[/] [bold]{tc.name}[/]",
+                        data={"type": "tool", "tool": tc, "tooltip": _tool_tooltip(tc)},
+                    )
                 for sl in turn.skill_loads:
-                    tree.root.add(f"📚 [yellow]skill.load[/] {sl.skill_name}", data={"type": "skill", "skill": sl})
+                    tree.root.add(
+                        f"📚 [yellow]skill.load[/] {sl.skill_name}",
+                        data={"type": "skill", "skill": sl, "tooltip": _skill_tooltip(sl)},
+                    )
 
         # 4. Final Response Node
         final_turn = turns[-1] if turns else None
         if final_turn and final_turn.llm_call and final_turn.llm_call.message:
             tree.root.add(
                 "🏁 Final Response",
-                data={"type": "final_response", "message": final_turn.llm_call.message},
+                data={
+                    "type": "final_response",
+                    "message": final_turn.llm_call.message,
+                    "tooltip": _snippet(final_turn.llm_call.message, 300),
+                },
             )
-
-        # 5. Raw Events Node
-        tree.root.add("🔍 Raw Events (ATOF)", data={"type": "raw_events", "traj": traj})
 
         tree.root.expand()
         for child in tree.root.children:
@@ -247,24 +342,32 @@ class TrajectoryTuiApp(App[None]):
 
         # Select overview node by default
         tree.select_node(overview_node)
-        self.render_detail({"type": "overview", "traj": traj})
+        await self.render_detail({"type": "overview", "traj": traj})
 
-    def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
+    async def on_tree_node_highlighted(self, event: Tree.NodeHighlighted) -> None:
         """Update detail panel whenever tree selection/highlight changes."""
         node_data = event.node.data if event.node else None
         if isinstance(node_data, dict):
-            self.render_detail(node_data)
+            await self.render_detail(node_data)
 
-    def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
+    async def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
         """Handle explicit node selection."""
         node_data = event.node.data if event.node else None
         if isinstance(node_data, dict):
-            self.render_detail(node_data)
+            await self.render_detail(node_data)
 
-    def render_detail(self, data: dict[str, Any]) -> None:
-        """Render markdown content in right panel based on selected node."""
+    async def render_detail(self, data: dict[str, Any]) -> None:
+        """Render markdown content in right panel based on selected node.
+
+        Awaiting ``Markdown.update`` keeps its internal gather-future properly
+        retrieved, avoiding 'exception was never retrieved' noise when the
+        app exits while an update is in flight.
+        """
         dtype = data.get("type")
-        md_widget = self.query_one("#detail-markdown", Markdown)
+        try:
+            md_widget = self.query_one("#detail-markdown", Markdown)
+        except NoMatches:
+            return  # Widget tree already torn down (e.g. quit with a pending message)
 
         if dtype == "overview":
             traj: Trajectory = data["traj"]
@@ -283,14 +386,11 @@ class TrajectoryTuiApp(App[None]):
             md_content = self._format_skill(sl)
         elif dtype == "final_response":
             md_content = f"# 🏁 Final Agent Response\n\n{data.get('message', '')}"
-        elif dtype == "raw_events":
-            traj: Trajectory = data["traj"]
-            md_content = self._format_raw_events(traj)
         else:
             traj = data.get("traj") or self.current_trajectory
             md_content = self._format_overview(traj) if traj else ""
 
-        md_widget.update(md_content)
+        await md_widget.update(md_content)
 
     # ── Detail Formatters ─────────────────────────────────────────────────────
 
@@ -469,13 +569,3 @@ class TrajectoryTuiApp(App[None]):
                 f"| **Timestamp** | `{sl.timestamp}` |",
             ]
         )
-
-    def _format_raw_events(self, traj: Trajectory) -> str:
-        lines = [
-            f"# 🔍 Raw ATOF Events ({len(traj.events)} total)",
-            "",
-            "```json",
-            json.dumps(traj.events, indent=2),
-            "```",
-        ]
-        return "\n".join(lines)

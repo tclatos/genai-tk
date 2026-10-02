@@ -246,6 +246,59 @@ def test_messages_projection(store: TrajectoryStore) -> None:
     assert msgs[3]["content"].startswith("The echo result")
 
 
+def test_deepagents_skills_configured_mark_parsed(tmp_path: Path) -> None:
+    """The DeepAgents 'Skills Configured' mark expands into skill loads."""
+    events = [
+        _scope(_ROOT, _ROOT, "agent", "start", "p", ts="2026-09-29T09:23:00Z", data={"messages": "q"}),
+        _mark(
+            "01MARK0000-0000-0000-0000-000000000009",
+            _ROOT,
+            "DeepAgents Skills Configured",
+            "2026-09-29T09:23:01Z",
+            {"agent_name": "p", "backend": "FilesystemBackend", "skills": ["skills", "custom"], "subagents": []},
+            {"integration": "deepagents", "deepagents_kind": "skill", "phase": "configured"},
+        ),
+        _scope(_ROOT, _ROOT, "agent", "end", "p", ts="2026-09-29T09:23:02Z", metadata={"otel.status_code": "OK"}),
+    ]
+    meta = {"run_id": _ROOT, "profile": "p", "started_at": "2026-09-29T09:23:00Z", "ended_at": "2026-09-29T09:23:02Z"}
+    _write_run(tmp_path, _ROOT, events, meta)
+    store = TrajectoryStore(root=tmp_path)
+
+    loads = store.skills(_ROOT)
+    assert [sl.skill_name for sl in loads] == ["skills", "custom"]
+    assert all(sl.source == "deepagents" for sl in loads)
+
+
+def test_skill_load_marks_take_precedence_over_config_mark(tmp_path: Path) -> None:
+    """Real ``skill.load`` marks win over the DeepAgents source-dir fallback."""
+    events = [
+        _scope(_ROOT, _ROOT, "agent", "start", "p", ts="2026-08-21T12:00:00Z", data={"messages": "q"}),
+        _mark(
+            "01MARK0000-0000-0000-0000-000000000001",
+            _ROOT,
+            "DeepAgents Skills Configured",
+            "2026-08-21T12:00:00Z",
+            {"skills": ["skills", "custom"]},
+            {"deepagents_kind": "skill", "phase": "configured"},
+        ),
+        _mark(
+            "01MARK0000-0000-0000-0000-000000000002",
+            _ROOT,
+            "skill.load",
+            "2026-08-21T12:00:01Z",
+            {"skill_name": "rfq-extraction"},
+            {"skill_load_source": "configured"},
+        ),
+        _scope(_ROOT, _ROOT, "agent", "end", "p", ts="2026-08-21T12:00:05Z", metadata={"otel.status_code": "OK"}),
+    ]
+    meta = {"run_id": _ROOT, "profile": "p", "started_at": "2026-08-21T12:00:00Z", "ended_at": "2026-08-21T12:00:05Z"}
+    _write_run(tmp_path, _ROOT, events, meta)
+    store = TrajectoryStore(root=tmp_path)
+
+    loads = store.skills(_ROOT)
+    assert [sl.skill_name for sl in loads] == ["rfq-extraction"]
+
+
 def test_skills_and_stats(store: TrajectoryStore) -> None:
     loads = store.skills(_ROOT)
     assert len(loads) == 1
