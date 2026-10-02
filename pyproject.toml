@@ -172,7 +172,7 @@ monitoring = [
 ]
 
 # Everything (for full installs / CI images)
-all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb,docling ]"]
+all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb,docling]"]
 
 [dependency-groups]
 # Developer-only groups (NOT published to PyPI).

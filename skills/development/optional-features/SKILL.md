@@ -204,6 +204,8 @@ uv add "genai-tk[harnessing,browser]"
 | `streamlit` | streamlit | Web UI — not needed for CLI-only use |
 | `baml` | baml-cli, baml-lib | Run `uv run baml-cli init --dest baml_src` after install |
 | `chromadb` | chromadb, langchain-chroma | Local vector DB |
+| `docling` | docling, easyocr | Fully local document → Markdown conversion (PDF, Office, HTML, images) |
+| `ladybug` | ladybug | Embedded graph database (Kùzu fork) — not a genai-tk extra, install via `uv add ladybug` |
 
 ---
 

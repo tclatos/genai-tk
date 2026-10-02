@@ -33,7 +33,7 @@ markdownize_flow(sources="./docs", md_output_dir="./md", profile="medium")
 
 ## Supported Converters
 
-The toolkit provides 7 document converter engines in `genai_tk.extra.markdownize`:
+The toolkit provides 8 document converter engines in `genai_tk.extra.markdownize`:
 
 | Converter | Description | Supported Formats | Requirements |
 |---|---|---|---|
@@ -45,6 +45,14 @@ The toolkit provides 7 document converter engines in `genai_tk.extra.markdownize
 | `anydoc` | Firecrawl anydoc Rust parser | Word, PPT, Excel, OpenDoc, RTF, EPUB, PDF | `firecrawl-anydoc` |
 | `llm` | LangChain LLM factory async batch multimodal transcription | Images, PDFs, text, code, HTML | Provider API key |
 | `docling` | IBM Docling fully local parser (layout analysis, TableFormer tables, EasyOCR/Tesseract) | PDF, Word, PPT, Excel, OpenDoc, HTML, EPUB, images, CSV | `genai-tk[docling]` (local, no API key) |
+
+### Converter Registry (config-driven)
+
+`ConverterFactory.create(name)` instantiates converters **only** from the `markdownize_converters`
+section of `config/markdownize.yaml` — there is no hard-coded built-in mapping. Short aliases
+(`mistral`, `lighton`, `messy_xls_parser`) are defined in the YAML as anchors of their canonical
+entries. An unknown name raises a `KeyError` listing the available converters; a missing or
+unloadable configuration file raises a `KeyError` explaining what could not be loaded.
 
 ### Mistral OCR Image Extraction & Description
 

@@ -92,6 +92,12 @@ FEATURES: dict[str, FeatureInfo] = {
         check_modules=["chromadb"],
         install_cmd='uv sync --extra chromadb  # or: uv add "genai-tk[chromadb]"',
     ),
+    "docling": FeatureInfo(
+        description="Docling fully local document conversion to Markdown (PDF, Office, HTML, images)",
+        packages=["docling", "easyocr"],
+        check_modules=["docling", "easyocr"],
+        install_cmd='uv sync --extra docling  # or: uv add "genai-tk[docling]"',
+    ),
     "ladybug": FeatureInfo(
         description="Ladybug embedded graph database (Kùzu fork)",
         packages=["ladybug"],
