@@ -3,25 +3,39 @@ markdownize_converters:
   markitdown:
     class: genai_tk.extra.markdownize.markitdown_converter.MarkItDownConverter
     params: {}
-  messy_xls:
+  messy_xls: &messy_xls
     class: genai_tk.extra.markdownize.excel_converter.MessyExcelConverter
     params: {}
+  # Alias of messy_xls
+  messy_xls_parser: *messy_xls
   edgeparse:
     class: genai_tk.extra.markdownize.edgeparse_converter.EdgeParseConverter
     params: {}
-  mistral_ocr:
+  mistral_ocr: &mistral_ocr
     class: genai_tk.extra.markdownize.mistral_ocr_converter.MistralOCRConverter
     params:
       model: mistral-ocr-latest
       batch_size: 100
       use_batch_api: true
       include_image_base64: false
-      image_min_size: 100
+      image_min_size: 150
       images_dir: images
-  lighton_ocr:
+  # Alias of mistral_ocr
+  mistral: *mistral_ocr
+  docling:
+    class: genai_tk.extra.markdownize.docling_converter.DoclingConverter
+    params:
+      ocr_engine: easyocr
+      tableformer_mode: fast
+      extract_images: true
+      image_min_size: 150
+      images_dir: images
+  lighton_ocr: &lighton_ocr
     class: genai_tk.extra.markdownize.lighton_ocr_converter.LightOnOCRConverter
     params:
       async_mode: false
+  # Alias of lighton_ocr
+  lighton: *lighton_ocr
   anydoc:
     class: genai_tk.extra.markdownize.anydoc_converter.AnyDocConverter
     params:
@@ -79,3 +93,12 @@ markdownize_profiles:
     rules:
       - pathspec: "**/*"
         converter: llm
+
+  docling:
+    rules:
+      - pathspec: "**/*.{xlsx,xls,ods}"
+        converter: messy_xls
+      - pathspec: "**/*.{doc,ppt}"
+        converter: via_pdf
+      - pathspec: "**/*"
+        converter: docling

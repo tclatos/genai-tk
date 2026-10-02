@@ -2,7 +2,7 @@
 name = "genai-tk"
 version = "0.1.0"
 description = "GenAI Toolkit - Core components for building AI applications"
-authors = [{ name = "Thierry Caminel", email = "thierry.caminel@atos.net" }]
+authors = [{ name = "Thierry Caminel", email = "thierry.caminel@atos.ai" }]
 requires-python = ">=3.12"
 dependencies = [
     # ============================================
@@ -94,10 +94,13 @@ dependencies = [
     "py-key-value-aio[disk,filetree,memory]>=0.4.5",
     "zvec>=0.5.0",
     # ============================================
-    # Web Interface (Streamlit is optional — see [streamlit] extra)
+    # Monitoring
     # ============================================
     "langsmith>=0.9",
     "nemo-relay[deepagents]>=0.7.3",
+   # ============================================
+    # Misc
+    # ============================================
     "scipy>=1.18.1",
 ]
 
@@ -157,6 +160,9 @@ baml = ["baml-py==0.223.0"]
 # ChromaDB vector database
 chromadb = ["chromadb>=1.0", "langchain-chroma>=1.0"]
 
+# Docling: fully local document conversion to Markdown (PDF, Office, HTML, images)
+docling = ["docling>=2.130", "easyocr>=1.7"]
+
 # Monitoring extras: LangFuse + OpenTelemetry + OpenInference instrumentors
 monitoring = [
     "langfuse>=3.0",
@@ -166,7 +172,7 @@ monitoring = [
 ]
 
 # Everything (for full installs / CI images)
-all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb]"]
+all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb,docling ]"]
 
 [dependency-groups]
 # Developer-only groups (NOT published to PyPI).

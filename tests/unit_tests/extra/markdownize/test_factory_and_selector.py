@@ -47,7 +47,20 @@ def test_markdownize_profile_rule_order() -> None:
 
 
 def test_converter_factory_builtin_names() -> None:
-    for name in ["markitdown", "messy_xls", "edgeparse", "mistral_ocr", "lighton_ocr", "anydoc", "llm"]:
+    names = [
+        "markitdown",
+        "messy_xls",
+        "edgeparse",
+        "mistral_ocr",
+        "lighton_ocr",
+        "anydoc",
+        "llm",
+        # aliases
+        "messy_xls_parser",
+        "mistral",
+        "lighton",
+    ]
+    for name in names:
         conv = ConverterFactory.create(name)
         assert isinstance(conv, DocumentConverter)
 
@@ -67,3 +80,9 @@ def test_converter_factory_mistral_with_image_extraction() -> None:
 def test_converter_factory_unknown_raises() -> None:
     with pytest.raises(KeyError, match="Unknown document converter"):
         ConverterFactory.create("non_existent_converter_xyz")
+
+
+def test_converter_factory_unknown_error_lists_available() -> None:
+    with pytest.raises(KeyError, match="mistral_ocr") as exc_info:
+        ConverterFactory.create("non_existent_converter_xyz")
+    assert "Available converters" in str(exc_info.value)

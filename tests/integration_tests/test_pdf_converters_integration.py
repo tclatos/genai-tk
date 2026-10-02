@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from pathlib import Path
 
 import httpx
 import pytest
 
+from genai_tk.extra.markdownize.docling_converter import DoclingConverter
+from genai_tk.extra.markdownize.factory import ConverterFactory
 from genai_tk.extra.markdownize.lighton_ocr_converter import LightOnOCRConverter
 from genai_tk.extra.markdownize.llm_converter import LLMConverter
 from genai_tk.extra.markdownize.markitdown_converter import MarkItDownConverter
@@ -15,6 +18,7 @@ from genai_tk.extra.markdownize.mistral_ocr_converter import MistralOCRConverter
 from genai_tk.workflow.markdownize import markdownize_flow
 
 SAMPLE_PDF_URL = "https://sample-files.com/downloads/documents/pdf/basic-text.pdf"
+LOCAL_SAMPLE_PDF = Path("/home/tcl/prj/genai-graph/tests/data/sample-pdf-a4-size.pdf")
 
 
 @pytest.fixture(scope="module")
@@ -126,6 +130,83 @@ async def test_llm_pdf_conversion(sample_pdf_path: Path) -> None:
         assert len(text) > 50
     except Exception as exc:
         pytest.skip(f"Default LLM not available or does not support PDF vision input: {exc}")
+
+
+@pytest.fixture(scope="module")
+def docling_sample_pdf() -> Path:
+    """Return the local sample PDF used by Docling tests."""
+    if not LOCAL_SAMPLE_PDF.exists():
+        pytest.skip(f"Sample PDF not found: {LOCAL_SAMPLE_PDF}")
+    return LOCAL_SAMPLE_PDF
+
+
+@pytest.fixture(scope="module")
+def docling_converted_text(docling_sample_pdf: Path, tmp_path_factory: pytest.TempPathFactory) -> tuple[str, Path]:
+    """Convert the sample PDF once for the module with page markers and image extraction on."""
+    pytest.importorskip("docling")
+    images_dir = tmp_path_factory.mktemp("docling_images")
+    converter = DoclingConverter(page_markers=True, images_dir=images_dir)
+    text = asyncio.run(converter.convert(docling_sample_pdf))
+    return text, images_dir
+
+
+@pytest.mark.integration
+def test_docling_pdf_conversion(docling_converted_text: tuple[str, Path]) -> None:
+    """Test local Docling conversion on the sample PDF."""
+    text, _ = docling_converted_text
+    assert len(text) > 100
+    assert "Sample PDF" in text
+    assert "## Page " in text  # page_markers=True fixture
+
+
+@pytest.mark.integration
+def test_docling_image_extraction(docling_converted_text: tuple[str, Path]) -> None:
+    """Test Docling picture extraction with xxhash32 naming and HTML comment markers."""
+    text, images_dir = docling_converted_text
+    saved_images = list(Path(images_dir).glob("*.png"))
+    assert saved_images, "expected at least one extracted picture"
+    for img_file in saved_images:
+        assert len(img_file.stem) == 8  # xxhash32 hex is 8 characters
+        assert f"<!-- Image: {img_file.name}" in text
+    assert "![" in text
+
+
+@pytest.mark.integration
+def test_docling_table_markdown_default(docling_converted_text: tuple[str, Path]) -> None:
+    """Test that Docling tables default to Markdown pipe tables."""
+    text, _ = docling_converted_text
+    assert "| Metric |" in text
+    assert "<table" not in text
+
+
+@pytest.mark.integration
+def test_docling_table_format_html(docling_sample_pdf: Path) -> None:
+    """Test that table_format='html' keeps tables as structured HTML."""
+    pytest.importorskip("docling")
+    converter = DoclingConverter(table_format="html")
+    text = asyncio.run(converter.convert(docling_sample_pdf))
+    assert "<table" in text.lower()
+    assert "Metric" in text
+
+
+@pytest.mark.integration
+def test_docling_factory_and_profile_routing() -> None:
+    """Test factory creation, supported extensions and the docling profile routing."""
+    from genai_tk.workflow.markdownize import get_markdownize_profile
+
+    converter = ConverterFactory.create("docling")
+    assert isinstance(converter, DoclingConverter)
+    assert ".pdf" in converter.supported_extensions()
+    assert ".docx" in converter.supported_extensions()
+    assert ".epub" in converter.supported_extensions()
+
+    profile = get_markdownize_profile("docling")
+    assert profile.select_route(Path("report.pdf")) == "docling"
+    assert profile.select_route(Path("data.xlsx")) == "messy_xls"
+    assert profile.select_route(Path("legacy.doc")) == "via_pdf"
+    assert profile.select_route(Path("legacy.ppt")) == "via_pdf"
+    assert profile.select_route(Path("page.html")) == "docling"
+    assert profile.select_route(Path("photo.png")) == "docling"
 
 
 @pytest.mark.integration

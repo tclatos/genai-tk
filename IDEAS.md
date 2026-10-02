@@ -1,4 +1,11 @@
-# OPA Security
+
+Nemo: 
+https://docs.nvidia.com/nemo/relay/integrate-into-frameworks/adding-scopes
+
+
+
+
+# OPA Security ? 
 
 https://github.com/open-policy-agent/opa
 
@@ -6,18 +13,19 @@ Don't confuse with:
 https://github.com/proishan11/open-agent-policy/blob/main/examples/minimal-agent/langchain_agent.py
 
 
+# Middleware Review
+- genai_tk/agents/langchain/middleware/observation_truncation_middleware.py 
+- genai_tk/agents/langchain/middleware/prompt_cache.py
+- check https://docs.langchain.com/oss/python/integrations/middleware 
 
-# Simplify Integration
-/home/tcl/prj/genai-tk/docs/design/deepagents-deerflow-langgraph-unification.md
 
 
 
-# Pydantic
-Replace @dataclass  by pydantic object.
-In Pydantic, avoid __init__ surcharge and use model_post_init()  instead (and/or @computed_field)
 
 
 # LLM prompt caching (provider-side)
+
+https://openrouter.ai/docs/guides/best-practices/prompt-caching
 
 genai-tk has no provider-side *prompt* caching — `LlmCache` (`genai_tk/core/cache.py`)
 is LangChain's exact-match response cache (SQLite/memory, keyed on the full prompt

@@ -18,6 +18,7 @@ uv run cli workflow run markdownize --preset best  --set sources=./docs --set md
 uv run cli workflow run markdownize --preset lighton --set sources=./docs --set md_output_dir=./md
 uv run cli workflow run markdownize --preset anydoc --set sources=./docs --set md_output_dir=./md
 uv run cli workflow run markdownize --preset llm --set sources=./docs --set md_output_dir=./md
+uv run cli workflow run markdownize --preset docling --set sources=./docs --set md_output_dir=./md
 ```
 
 ```python
@@ -43,6 +44,7 @@ The toolkit provides 7 document converter engines in `genai_tk.extra.markdownize
 | `lighton_ocr` | LightOn AI Parse REST API (sync & async polling modes) | `.pdf`, Office, images, HTML | `LIGHTON_API_KEY` |
 | `anydoc` | Firecrawl anydoc Rust parser | Word, PPT, Excel, OpenDoc, RTF, EPUB, PDF | `firecrawl-anydoc` |
 | `llm` | LangChain LLM factory async batch multimodal transcription | Images, PDFs, text, code, HTML | Provider API key |
+| `docling` | IBM Docling fully local parser (layout analysis, TableFormer tables, EasyOCR/Tesseract) | PDF, Word, PPT, Excel, OpenDoc, HTML, EPUB, images, CSV | `genai-tk[docling]` (local, no API key) |
 
 ### Mistral OCR Image Extraction & Description
 
@@ -61,6 +63,29 @@ The toolkit provides 7 document converter engines in `genai_tk.extra.markdownize
 - **`convert_html_table(html, table_expanded=True)`**: Converts simple and merged HTML tables to standard Markdown pipe tables, formatting multi-line cells into single-line Markdown rows and escaping pipe characters.
 - **Conservative Nested Handling**: Tables containing nested `<table>` blocks or unflattenable layouts retain structured HTML annotated with dimensional comments `<!-- Table: {rows}x{cols} -->`.
 - **`process_markdown_tables(text, table_expanded=True)`**: Scans entire Markdown documents and processes all embedded HTML `<table>...</table>` blocks automatically.
+
+### Docling Local Conversion
+
+`DoclingConverter` runs IBM's Docling toolkit **fully locally, without any API key** — an offline
+alternative to API-based OCR engines like Mistral:
+
+- **Tables**: TableFormer reconstructs table structure from the page layout. Tables are exported as
+  HTML and converted to lossless Markdown pipe tables by `table_processor` (with colspan/rowspan
+  expansion); complex nested tables keep structured HTML. `table_format: html` keeps all tables in HTML.
+- **Figures**: pictures are rendered (`images_scale`, default 2.0 ~ 144 DPI), filtered by
+  `image_min_size`, saved to `images_dir` with **xxhash32** names, and referenced in Markdown with
+  `<!-- Image: ... -->` comments — the same convention as Mistral OCR.
+- **Uncaptioned image description**: optional VLM descriptions via `describe_uncaptioned_images: true`
+  (same `image_describer` as Mistral OCR).
+- **Page markers**: `page_markers: true` emits `## Page N` markers from per-element provenance.
+- **OCR engines**: `ocr_engine: easyocr` (default), `tesseract`, or `none` for digital PDFs.
+- **Heading recovery**: `recover_heading_levels: true` infers heading levels from PDF bookmarks,
+  outline numbering and font styling.
+
+Requires the optional extra (`uv add "genai-tk[docling]"`). Models are downloaded on first use to
+`~/.cache/docling` and can be pre-provisioned for air-gapped hosts via `DOCLING_ARTIFACTS_PATH`;
+GPU inference can be selected with `DOCLING_DEVICE=cuda`. Legacy binary `.doc`/`.ppt` files are
+routed through `via_pdf` (LibreOffice) in the `docling` profile.
 
 Example configuration in `config/markdownize.yaml`:
 
@@ -91,6 +116,7 @@ Built-in profiles are defined in `config/markdownize.yaml`:
 | `lighton` | fast | LightOn API | Converted via LightOn OCR API (`LIGHTON_API_KEY`). |
 | `anydoc` | fast | none | Converted locally with Firecrawl anydoc Rust engine. |
 | `llm` | dynamic | LLM provider | Converted with the configured LangChain LLM model (`llm: default`). |
+| `docling` | slow (local GPU/CPU) | none | Fully local conversion with Docling (layout analysis + TableFormer + EasyOCR); spreadsheets via `messy_xls`. Requires `genai-tk[docling]`. |
 
 `default` is an alias for `medium`.
 
