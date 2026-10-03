@@ -110,6 +110,7 @@ class ProjectScaffolder:
         # ── Common files (all templates) ─────────────────────────────
         common_map: dict[str, str] = {
             "pyproject.toml.j2": "pyproject.toml",
+            "gitignore.j2": ".gitignore",
             "README.md.j2": "README.md",
             "__init__.py.j2": f"{self.package_name}/__init__.py",
             "AGENTS.md.j2": "AGENTS.md",
@@ -123,6 +124,9 @@ class ProjectScaffolder:
 
         # ── Template-specific files ───────────────────────────────────
         self._scaffold_template_files(env, ctx)
+
+        # ── .gitignore merge (uv init may have created a basic one) ───
+        self._patch_gitignore()
 
         # ── Skills directory structure ────────────────────────────────
         for sub in ("runtime", "development", "governance", "vendor", "custom", "community"):
@@ -331,6 +335,26 @@ class ProjectScaffolder:
         target.write_text(content, encoding="utf-8")
         self._written += 1
 
+    def _patch_gitignore(self) -> None:
+        """Ensure .gitignore excludes data/ runtime subdirs while keeping seed sources.
+
+        `uv init` normally creates a basic .gitignore first, in which case the
+        rendered gitignore.j2 template was skipped — merge the runtime block in.
+        """
+        gitignore = self.project_dir / ".gitignore"
+        marker = "!data/sources/"
+        if not gitignore.exists() or marker in gitignore.read_text(encoding="utf-8"):
+            return
+        content = gitignore.read_text(encoding="utf-8")
+        content = content.rstrip("\n") + (
+            "\n\n# Runtime data (KG databases, caches, trajectories) — keep only the seed corpus\n"
+            "data/*\n"
+            "!data/sources/\n"
+        )
+        gitignore.write_text(content, encoding="utf-8")
+        self._written += 1
+        console.print("[green]✓ Added data/ runtime exclusions to .gitignore[/green]")
+
     def _patch_app_conf(self) -> None:
         app_conf = self.project_dir / "config" / "app_conf.yaml"
         if not app_conf.exists():
@@ -407,6 +431,29 @@ class ProjectScaffolder:
         content = pyproject.read_text(encoding="utf-8")
         changed = False
 
+        if "override-dependencies" in content:
+            console.print(
+                "[yellow]⚠ override-dependencies found in pyproject.toml — overrides apply to every "
+                "requirement for the overridden package, including forwarded genai-tk[<extra>] extras, "
+                "and an override without extras silently strips them. "
+                "Prefer [tool.uv.sources] instead.[/yellow]"
+            )
+
+        requires_python = 'requires-python = ">=3.12,<3.13"'
+        if "requires-python" not in content:
+            content = content.replace("[project]", f"[project]\n{requires_python}", 1)
+            changed = True
+            console.print(
+                "[green]✓ Pinned requires-python = '>=3.12,<3.13' in pyproject.toml[/green]"
+                "[dim] (matches genai-tk; avoids uv solving future-python splits git-only deps cannot satisfy)[/dim]"
+            )
+        elif 'requires-python = ">=3.12"' in content:
+            # Loose lower-bound-only pin: uv may try to solve a future Python
+            # that git-only deps cannot satisfy — add the upper bound.
+            content = content.replace('requires-python = ">=3.12"', requires_python, 1)
+            changed = True
+            console.print("[green]✓ Tightened requires-python to '>=3.12,<3.13' in pyproject.toml[/green]")
+
         if "[tool.uv]" not in content:
             content += "\n[tool.uv]\npackage = true\n"
             changed = True
@@ -430,6 +477,8 @@ class ProjectScaffolder:
         if "[project.optional-dependencies]" not in content:
             optional_deps = (
                 "\n# Forward genai-tk optional extras — install with: uv sync --extra <name>\n"
+                "# NOTE: do not add [tool.uv] override-dependencies for genai-tk — overrides strip\n"
+                "# the extras below. Pin local checkouts via [tool.uv.sources] instead.\n"
                 "[project.optional-dependencies]\n"
                 'harnessing = ["genai-tk[harnessing]"]\n'
                 'browser    = ["genai-tk[browser]"]\n'

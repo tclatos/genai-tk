@@ -148,3 +148,87 @@ class TestProjectScaffolder:
         # Template uses hatchling: [tool.hatch.build.targets.wheel] with packages = ["<pkg>"]
         assert "[tool.hatch.build.targets.wheel]" in pyproject
         assert 'packages = ["test_project"]' in pyproject
+
+    def test_scaffolded_pyproject_carries_override_warning(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        scaffolder = ProjectScaffolder(project_dir, "Test Project")
+        scaffolder.scaffold()
+
+        pyproject = (project_dir / "pyproject.toml").read_text()
+        assert "override-dependencies" in pyproject
+        assert 'requires-python = ">=3.12,<3.13"' in pyproject
+
+    def test_scaffolded_gitignore_excludes_runtime_data(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        scaffolder = ProjectScaffolder(project_dir, "Test Project")
+        scaffolder.scaffold()
+
+        gitignore = (project_dir / ".gitignore").read_text()
+        assert "data/*" in gitignore
+        assert "!data/sources/" in gitignore
+
+
+class TestScaffolderPatches:
+    """Idempotent pyproject/.gitignore patches applied by `cli init`."""
+
+    def test_tightens_loose_requires_python(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        (project_dir / "pyproject.toml").write_text('[project]\nname = "test_project"\nrequires-python = ">=3.12"\n')
+        ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
+
+        assert 'requires-python = ">=3.12,<3.13"' in (project_dir / "pyproject.toml").read_text()
+
+    def test_inserts_requires_python_when_missing(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        (project_dir / "pyproject.toml").write_text('[project]\nname = "test_project"\n')
+        ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
+
+        assert 'requires-python = ">=3.12,<3.13"' in (project_dir / "pyproject.toml").read_text()
+
+    def test_keeps_existing_upper_bound_pin(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        (project_dir / "pyproject.toml").write_text(
+            '[project]\nname = "test_project"\nrequires-python = ">=3.12,<3.13"\n'
+        )
+        ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
+
+        pyproject = (project_dir / "pyproject.toml").read_text()
+        assert pyproject.count('requires-python') == 1
+        assert 'requires-python = ">=3.12,<3.13"' in pyproject
+
+    def test_warns_on_override_dependencies_without_crash(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        pyproject_path = project_dir / "pyproject.toml"
+        pyproject_path.write_text(
+            '[project]\nname = "test_project"\nrequires-python = ">=3.12,<3.13"\n'
+            '[tool.uv]\noverride-dependencies = ["genai-tk @ file:///x"]\n'
+        )
+        # Must print the warning and leave the override entry in place.
+        ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
+
+        assert 'override-dependencies = ["genai-tk @ file:///x"]' in pyproject_path.read_text()
+
+    def test_gitignore_merge_appends_runtime_block(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        (project_dir / ".gitignore").write_text("# Python-generated files\n__pycache__/\n.venv\n")
+        ProjectScaffolder(project_dir, "Test Project")._patch_gitignore()
+
+        text = (project_dir / ".gitignore").read_text()
+        assert "__pycache__/" in text  # original content kept
+        assert "data/*" in text and "!data/sources/" in text
+
+    def test_gitignore_merge_is_idempotent(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        (project_dir / ".gitignore").write_text("data/*\n!data/sources/\n")
+        scaffolder = ProjectScaffolder(project_dir, "Test Project")
+        scaffolder._patch_gitignore()
+
+        assert (project_dir / ".gitignore").read_text() == "data/*\n!data/sources/\n"

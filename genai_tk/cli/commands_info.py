@@ -14,9 +14,11 @@ The commands are registered with a Typer CLI application and provide:
 """
 
 import os
+from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import BaseModel
 from typer import Option
 
 from genai_tk.cli.base import CliTopCommand
@@ -28,6 +30,345 @@ def _mask_api_key(value: str, visible: int = 6) -> str:
     if len(value) <= visible * 2:
         return "*" * len(value)
     return f"{value[:visible]}...{value[-5:]}"
+
+
+# ---------------------------------------------------------------------------
+# `cli info doctor` — environment pre-flight checks
+# ---------------------------------------------------------------------------
+
+
+class CheckResult(BaseModel):
+    """Outcome of a single `cli info doctor` check."""
+
+    name: str
+    ok: bool
+    warn: bool = False
+    """When True with ``ok=True``, show a warning instead of a pass (does not fail the doctor)."""
+    detail: str = ""
+    hint: str = ""
+
+
+def _doctor_check_features() -> list[CheckResult]:
+    """Check optional-feature availability, with harnessing as the hard requirement."""
+    from genai_tk.config_mgmt.features import FEATURES, available_features, is_available, missing_features
+
+    results: list[CheckResult] = []
+    harnessing_ok = is_available("harnessing")
+    results.append(
+        CheckResult(
+            name="harnessing feature",
+            ok=harnessing_ok,
+            detail="installed" if harnessing_ok else "missing — deep agents will fail with ImportError",
+            hint="" if harnessing_ok else FEATURES["harnessing"].install_cmd,
+        )
+    )
+    missing = [f for f in missing_features() if f != "harnessing"]
+    detail = f"installed: {', '.join(available_features()) or '—'}"
+    if missing:
+        detail += f" | missing: {', '.join(missing)}"
+    results.append(
+        CheckResult(
+            name="other optional features",
+            ok=True,
+            warn=bool(missing),
+            detail=detail,
+            hint="install with: uv sync --extra <name>" if missing else "",
+        )
+    )
+    return results
+
+
+def _doctor_check_profiles() -> list[CheckResult]:
+    """Check that every agent profile's LLM id, middleware classes and skill dirs resolve."""
+    from genai_tk.agents.harness.profiles import load_agent_profiles
+
+    try:
+        profiles, _defaults, _default_key = load_agent_profiles()
+    except Exception as exc:
+        return [
+            CheckResult(
+                name="agent profiles",
+                ok=False,
+                detail=f"failed to load: {exc}",
+                hint="fix the validation errors in config/agents.yaml or config/agents/",
+            )
+        ]
+    if not profiles:
+        return [
+            CheckResult(
+                name="agent profiles",
+                ok=True,
+                warn=True,
+                detail="no agent profiles found",
+                hint="define profiles under config/agents.yaml or config/agents/",
+            )
+        ]
+
+    from genai_tk.config_mgmt.import_utils import ImportResolver
+    from genai_tk.core.factories.llm_factory import LlmFactory
+    from genai_tk.core.providers import PROVIDER_INFO
+
+    results: list[CheckResult] = []
+    for key, profile in sorted(profiles.items()):
+        label = f"profile '{key}'"
+        llm_id = getattr(profile, "llm", None)
+        if llm_id and llm_id != "default":
+            resolved, error = LlmFactory.resolve_llm_identifier_safe(str(llm_id))
+            if resolved is None:
+                results.append(
+                    CheckResult(
+                        name=f"model for {label}",
+                        ok=False,
+                        detail=f"{llm_id}: {error}",
+                        hint=(
+                            "declare the model explicitly in config/providers/llm.yaml "
+                            "— never rely on models.dev fuzzy resolution"
+                        ),
+                    )
+                )
+            else:
+                results.append(CheckResult(name=f"model for {label}", ok=True, detail=f"{llm_id} → {resolved}"))
+            provider = str(llm_id).rpartition("@")[2]
+            provider_info = PROVIDER_INFO.get(provider)
+            if provider_info and provider_info.api_key_env_var and not os.environ.get(provider_info.api_key_env_var):
+                results.append(
+                    CheckResult(
+                        name=f"API key for {label}",
+                        ok=True,
+                        warn=True,
+                        detail=f"{provider_info.api_key_env_var} is not set",
+                        hint=f"set {provider_info.api_key_env_var} in ~/.env or the environment",
+                    )
+                )
+        for middleware in getattr(profile, "middlewares", None) or []:
+            class_path = getattr(middleware, "class_path", None)
+            if not class_path:
+                continue
+            try:
+                ImportResolver.import_from_qualified(class_path)
+                results.append(CheckResult(name=f"middleware for {label}", ok=True, detail=class_path))
+            except Exception as exc:
+                results.append(
+                    CheckResult(
+                        name=f"middleware for {label}",
+                        ok=False,
+                        detail=f"{class_path}: {exc}",
+                        hint=(
+                            "verify the class path against the actual module layout "
+                            "(genai_tk.agents.langchain.middleware.*, genai_graph.agent.middleware.*)"
+                        ),
+                    )
+                )
+        for skill_dir in getattr(profile, "skill_directories", None) or []:
+            try:
+                from genai_tk.config_mgmt.file_patterns import resolve_config_path
+
+                path = Path(resolve_config_path(str(skill_dir)))
+            except Exception:
+                path = Path(str(skill_dir))
+            if not path.exists():
+                results.append(
+                    CheckResult(
+                        name=f"skills dir for {label}",
+                        ok=True,
+                        warn=True,
+                        detail=f"{skill_dir} does not exist",
+                        hint="create the directory or fix the profile's skill_directories",
+                    )
+                )
+    return results
+
+
+def _doctor_check_prefect() -> CheckResult:
+    """Check whether the managed Prefect server is reachable (or would auto-start)."""
+    from genai_tk.utils.prefect_server import prefect_server
+
+    try:
+        server = prefect_server()
+        if server.is_running():
+            return CheckResult(name="prefect server", ok=True, detail=f"running at {server.api_url}")
+        auto_start = getattr(server._config, "auto_start", True)
+        if auto_start:
+            return CheckResult(
+                name="prefect server",
+                ok=True,
+                warn=True,
+                detail=f"not running at {server.api_url} (auto-start enabled — flows will start it)",
+            )
+        return CheckResult(
+            name="prefect server",
+            ok=True,
+            warn=True,
+            detail=f"not running at {server.api_url} (auto-start disabled — flows may fail)",
+            hint="start it with: prefect server start",
+        )
+    except Exception as exc:
+        return CheckResult(name="prefect server", ok=True, warn=True, detail=f"could not check: {exc}")
+
+
+def _doctor_check_models_cache() -> CheckResult:
+    """Check that the models.dev catalogue cache exists, parses, and is populated."""
+    import json
+    import time
+
+    from genai_tk.core.models_db import _default_cache_path
+
+    cache = _default_cache_path()
+    if not cache.exists():
+        return CheckResult(
+            name="models.dev cache",
+            ok=False,
+            detail=f"missing at {cache}",
+            hint="run 'cli info llm-profile --reload' once online, or declare all models explicitly in llm.yaml",
+        )
+    try:
+        raw = json.loads(cache.read_text(encoding="utf-8"))
+        count = sum(len(p.get("models", {})) for p in raw.values() if isinstance(p, dict))
+    except Exception as exc:
+        return CheckResult(
+            name="models.dev cache",
+            ok=False,
+            detail=f"corrupt at {cache}: {exc}",
+            hint="delete the file and run 'cli info llm-profile --reload' when online",
+        )
+    age_hours = (time.time() - cache.stat().st_mtime) / 3600
+    return CheckResult(name="models.dev cache", ok=True, detail=f"{count} models at {cache} (age {age_hours:.0f}h)")
+
+
+def _doctor_check_proxy(offline: bool, timeout: float) -> list[CheckResult]:
+    """Check loopback proxy bypass and reachability of LLM API hosts."""
+    from genai_tk.utils.net_env import default_bypass_hosts, no_proxy_entries
+
+    results: list[CheckResult] = []
+    missing_loopback = [h for h in ("localhost", "127.0.0.1") if h not in no_proxy_entries()]
+    results.append(
+        CheckResult(
+            name="proxy bypass for localhost",
+            ok=not missing_loopback,
+            detail=(
+                "NO_PROXY covers loopback"
+                if not missing_loopback
+                else f"NO_PROXY missing: {', '.join(missing_loopback)} — Prefect health checks break behind proxies"
+            ),
+            hint="" if not missing_loopback else "run 'cli info doctor --fix' or add the hosts to NO_PROXY",
+        )
+    )
+    if offline:
+        results.append(CheckResult(name="API host reachability", ok=True, detail="skipped (--offline)"))
+        return results
+
+    from genai_tk.utils.net_env import recommended_bypass_hosts
+
+    classification = recommended_bypass_hosts(default_bypass_hosts(), timeout=timeout)
+    if classification["bypass_needed"]:
+        blocked = ", ".join(classification["bypass_needed"])
+        results.append(
+            CheckResult(
+                name="API host reachability",
+                ok=False,
+                detail=f"blocked by proxy but reachable directly: {blocked}",
+                hint=(
+                    "run 'cli info doctor --fix' to persist the bypass into the project .env "
+                    "(or add these hosts to NO_PROXY)"
+                ),
+            )
+        )
+        return results
+    detail = f"reachable: {', '.join(classification['proxy_ok']) or '—'}"
+    unreachable = classification["unreachable"]
+    if unreachable:
+        detail += f" | unreachable (offline/firewalled): {', '.join(unreachable)}"
+    results.append(CheckResult(name="API host reachability", ok=True, warn=bool(unreachable), detail=detail))
+    return results
+
+
+def _doctor_run_checks(*, offline: bool, timeout: float) -> list[CheckResult]:
+    """Run all doctor checks and collect their results."""
+    results: list[CheckResult] = []
+    results += _doctor_check_features()
+    results += _doctor_check_profiles()
+    results.append(_doctor_check_prefect())
+    results.append(_doctor_check_models_cache())
+    results += _doctor_check_proxy(offline, timeout)
+    return results
+
+
+def _merge_env_file(env_path: Path, hosts: list[str]) -> str:
+    """Merge *hosts* into the NO_PROXY/no_proxy entries of a .env file, replacing old entries.
+
+    Returns a human-readable change summary.
+    """
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    kept: list[str] = []
+    existing: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(("NO_PROXY=", "no_proxy=", "export NO_PROXY=", "export no_proxy=")):
+            value = stripped.split("=", 1)[1].strip().strip('"').strip("'")
+            for entry in value.split(","):
+                entry = entry.strip()
+                if entry and entry not in existing:
+                    existing.append(entry)
+            continue
+        kept.append(line)
+    merged = existing + [h for h in hosts if h not in existing]
+    added = [h for h in hosts if h not in existing]
+    while kept and not kept[-1].strip():
+        kept.pop()
+    block = [
+        "",
+        "# Proxy bypass written by 'cli info doctor --fix' — hosts that must not use the HTTP proxy.",
+        f"no_proxy={','.join(merged)}",
+        f"NO_PROXY={','.join(merged)}",
+    ]
+    env_path.write_text("\n".join(kept + block) + "\n", encoding="utf-8")
+    return f"{env_path}: NO_PROXY/no_proxy now covers {len(merged)} host(s) (added: {', '.join(added) or '—'})"
+
+
+def _comment_bashrc_proxy_exports(bashrc: Path) -> str | None:
+    """Comment out `export no_proxy=`/`export NO_PROXY=` lines in a shell rc file.
+
+    Returns a human-readable change summary, or None when there was nothing to do.
+    """
+    if not bashrc.exists():
+        return None
+    lines = bashrc.read_text(encoding="utf-8").splitlines()
+    out: list[str] = []
+    changed = 0
+    for line in lines:
+        if line.strip().startswith(("export no_proxy=", "export NO_PROXY=")):
+            out.append(f"# disabled by 'cli info doctor --fix' (managed via project .env): {line}")
+            changed += 1
+        else:
+            out.append(line)
+    if not changed:
+        return None
+    bashrc.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return f"{bashrc}: commented out {changed} hand-maintained no_proxy export line(s)"
+
+
+def _doctor_apply_fix(*, timeout: float) -> list[str]:
+    """Compute and persist the proxy bypass: project .env + .bashrc cleanup + in-process env."""
+    from genai_tk.utils.net_env import ensure_no_proxy_hosts, no_proxy_entries, recommended_bypass_hosts
+
+    classification = recommended_bypass_hosts(timeout=timeout)
+    # Existing bypass entries (e.g. package hosts from shell startup files) are kept;
+    # loopback always bypasses; bypass_needed hosts are those the proxy blocks.
+    hosts = no_proxy_entries() + [h for h in ("localhost", "127.0.0.1", "::1") if h not in no_proxy_entries()]
+    hosts += [h for h in classification["bypass_needed"] if h not in hosts]
+
+    changes: list[str] = []
+    env_path = Path.cwd() / ".env"
+    changes.append(_merge_env_file(env_path, hosts))
+    bashrc_change = _comment_bashrc_proxy_exports(Path.home() / ".bashrc")
+    if bashrc_change:
+        changes.append(bashrc_change)
+    ensure_no_proxy_hosts(hosts)
+    changes.append(
+        "Restart your shell (or: unset NO_PROXY no_proxy) so the new .env values take effect — "
+        "shell exports are not overridden by .env."
+    )
+    return changes
 
 
 class InfoCommands(CliTopCommand):
@@ -211,6 +552,78 @@ class InfoCommands(CliTopCommand):
                 console.print(mon_table)
             except Exception as e:
                 console.print(f"[yellow]Warning: Could not load monitoring state: {e}[/yellow]")
+
+        @cli_app.command("doctor")
+        def doctor(
+            fix: Annotated[
+                bool,
+                typer.Option(
+                    "--fix",
+                    help=(
+                        "Write the computed proxy bypass (NO_PROXY) into the project .env and "
+                        "comment out hand-maintained no_proxy exports in ~/.bashrc."
+                    ),
+                ),
+            ] = False,
+            offline: Annotated[bool, typer.Option("--offline", help="Skip network probes (CI-safe); only static checks run.")] = False,
+            timeout: Annotated[float, typer.Option("--timeout", help="Per-probe network timeout in seconds.")] = 3.0,
+        ) -> None:
+            """Pre-flight the environment: features, profile models & middleware, Prefect, model cache, proxy.
+
+            Checks exactly the failure modes hit in past projects: harnessing extra missing,
+            models referenced by agent profiles not declared in llm.yaml, stale middleware
+            class paths, unreachable Prefect server, absent models.dev cache, and corporate
+            proxies blocking localhost or LLM API hosts.
+
+            Examples:
+                ```bash
+                cli info doctor
+                cli info doctor --fix       # persist the computed proxy bypass into .env
+                cli info doctor --offline   # static checks only (CI-safe)
+                ```
+            """
+            from rich.console import Console
+            from rich.table import Table
+
+            console = Console()
+            console.print("[cyan]Running environment pre-flight checks…[/cyan]\n")
+            results = _doctor_run_checks(offline=offline, timeout=timeout)
+
+            change_lines: list[str] = []
+            if fix:
+                change_lines = _doctor_apply_fix(timeout=timeout)
+                # Re-check proxy after the fix — the in-process NO_PROXY now covers the bypassed hosts.
+                results = [r for r in results if r.name not in ("proxy bypass for localhost", "API host reachability")]
+                results += _doctor_check_proxy(offline=False, timeout=timeout)
+
+            table = Table(title="cli info doctor — pre-flight checks", show_header=True, header_style="bold magenta")
+            table.add_column("Check", style="cyan")
+            table.add_column("Status", no_wrap=True)
+            table.add_column("Detail", style="white")
+            failed = False
+            for result in results:
+                if not result.ok:
+                    status = "[red]✗ FAIL[/red]"
+                    failed = True
+                elif result.warn:
+                    status = "[yellow]⚠ warn[/yellow]"
+                else:
+                    status = "[green]✓ pass[/green]"
+                table.add_row(result.name, status, result.detail)
+            console.print(table)
+
+            hints = list(dict.fromkeys(r.hint for r in results if r.hint))
+            if hints:
+                console.print("\n[bold]Hints:[/bold]")
+                for hint in hints:
+                    console.print(f"  💡 {hint}")
+            for line in change_lines:
+                console.print(f"[green]✓ {line}[/green]")
+
+            if failed:
+                console.print("\n[red]Doctor found problems.[/red]")
+                raise typer.Exit(1)
+            console.print("\n[green]All checks passed.[/green]")
 
         @cli_app.command("models")
         def models() -> None:

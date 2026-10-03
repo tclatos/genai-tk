@@ -14,6 +14,11 @@ dependencies = [
 {% endif %}
 ]
 
+# Sibling checkouts? Replace the git entry below with local editable sources,
+# e.g. genai-tk = { path = "../genai-tk", editable = true }.
+# Do NOT add [tool.uv] override-dependencies for genai-tk: overrides apply to
+# every requirement for the package — including the forwarded genai-tk[<extra>]
+# extras below — and an override without extras silently strips them.
 [tool.uv.sources]
 {% if with_graph and graph_path %}
 genai_graph = { path = "{{ graph_path }}", editable = true }

@@ -52,14 +52,9 @@ class PrefectConfig(BaseModel):
 
 def _ensure_no_proxy(host: str, env: dict[str, str] | None = None) -> None:
     """Add *host* to NO_PROXY so it bypasses any configured HTTP proxy."""
-    target = env if env is not None else os.environ
-    for key in ("NO_PROXY", "no_proxy"):
-        existing = target.get(key, "")
-        entries = [e.strip() for e in existing.split(",") if e.strip()]
-        for bypass in (host, "localhost", "127.0.0.1"):
-            if bypass not in entries:
-                entries.append(bypass)
-        target[key] = ",".join(entries)
+    from genai_tk.utils.net_env import ensure_no_proxy_hosts
+
+    ensure_no_proxy_hosts((host, "localhost", "127.0.0.1"), env)
 
 
 def _load_prefect_config() -> PrefectConfig:

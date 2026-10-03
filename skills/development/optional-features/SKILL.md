@@ -100,6 +100,27 @@ ImportError: Optional feature 'my-feature' (required by: MyClass.create) is not 
   Install with: uv sync --extra my-feature  # or: uv add "genai-tk[my-feature]"
 ```
 
+### Deep-agent entry points (`harnessing`)
+
+`type: deep` agents depend on the `harnessing` extra (`deepagents`, sandboxes).
+Gate every function that constructs a deep agent or imports `deepagents` so a
+missing extra surfaces as the fix instruction instead of a
+`ModuleNotFoundError` traceback:
+
+```python
+def create_docgraph_agent(profile, ...):
+    from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
+
+    require_feature("harnessing", context="create_docgraph_agent")
+    from deepagents import create_deep_agent  # noqa: PLC0415 — safe: gated above
+    ...
+```
+
+Read the raised ImportError as an instruction, not an error to wrap or re-raise
+as a generic failure: it already contains the exact install command. Surface it
+verbatim in CLI output. `cli info doctor` reports whether `harnessing` is
+importable before anything launches, so users hit the message early.
+
 ---
 
 ## 3. Writing Feature-Gated Tests

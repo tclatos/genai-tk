@@ -116,6 +116,60 @@ Key points:
   `ErrorEvent`, `EndEvent`) at least as no-ops so new harness event types
   don't crash the UI.
 
+## Headless TUI Testing (pilot)
+
+Chat TUIs are CI-testable without a display: Textual's `App.run_test()` runs
+the app against a virtual terminal and hands you a `Pilot` for scripted input.
+Stub the harness so the test never touches a network or LLM:
+
+```python
+import pytest
+from genai_tk.agents.harness import EndEvent, TokenEvent, ToolCallEvent
+
+
+class FakeHarness:
+    """Stands in for BaseHarness: astream() yields canned events."""
+
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    async def astream(self, query: str, thread_id: str | None = None):
+        self.queries.append(query)
+        yield ToolCallEvent(tool_name="search_sections")
+        yield TokenEvent(text="Retrieval-augmented generation is …")
+        yield EndEvent()
+
+
+@pytest.mark.asyncio
+async def test_chat_tui_mounts_and_streams() -> None:
+    harness = FakeHarness()
+    app = ChatApp(harness)
+    async with app.run_test() as pilot:
+        app.query_one("#prompt", Input).value = "What is RAG?"
+        await pilot.press("enter")  # submits the focused Input widget
+        await pilot.pause()         # let async message processing catch up
+        transcript = app.query_one("#transcript", VerticalScroll)
+        assert transcript.children  # an answer Markdown was mounted
+        assert harness.queries == ["What is RAG?"]
+        app.exit()  # clean shutdown so the test doesn't hang
+```
+
+Key points:
+
+- `app.run_test()` needs no TTY or display — the app renders to a virtual
+  terminal, so it runs in CI exactly like any other pytest test.
+- `pilot.press("enter")` submits the focused `Input`; `pilot.pause()` flushes
+  pending messages and callbacks — streaming is async, and without the pause
+  the widgets are still empty when you assert.
+- Assert on widget state (mounted children, log lines) and on what the fake
+  harness received — not on pixels or screenshots.
+- `app.exit()` (or pressing the `/quit` slash command) before leaving the
+  `run_test()` context keeps shutdown clean.
+- The test is async — mark it `@pytest.mark.asyncio` (pytest-asyncio) or use
+  anyio.
+- This is how the `wiki` project's `--tui` was validated headlessly
+  (mount → stream a turn → `/quit`).
+
 ## What You Get For Free
 
 - `PromptSession` with `FileHistory` (`.agents.input.history`) + `AutoSuggestFromHistory` — arrow-key history, Ctrl-R search.

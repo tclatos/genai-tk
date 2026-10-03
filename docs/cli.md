@@ -173,6 +173,34 @@ uv run cli info llm-profile gpt_4o@openai
 - API key availability per provider
 - Configured KV stores
 
+#### `info doctor` — Environment Pre-flight
+
+Diagnoses the failure modes that have hit past projects before they occur at runtime:
+
+| Check | What it verifies |
+|-------|------------------|
+| Features | `harnessing` extra installed (hard requirement for deep agents); other optional features present |
+| Agent profiles | Every profile's LLM id resolves in llm.yaml, middleware class paths import, skill directories exist |
+| Prefect | Managed Prefect server reachable (or auto-start enabled) |
+| models.dev cache | Local model catalogue exists, parses, and is populated |
+| Proxy | `NO_PROXY` covers loopback; LLM API hosts reachable through the ambient proxy |
+
+```bash
+uv run cli info doctor                  # all checks, including network probes
+uv run cli info doctor --offline        # static checks only (CI-safe)
+uv run cli info doctor --fix            # persist the computed proxy bypass into the project .env
+uv run cli info doctor --timeout 5      # per-probe network timeout in seconds
+```
+
+`--fix` determines which hosts are blocked by a corporate proxy but reachable directly,
+merges them (plus loopback) into `NO_PROXY`/`no_proxy` in the project `.env`, and comments
+out hand-maintained `export no_proxy=` lines in `~/.bashrc` so the managed `.env` entry
+wins. Restart your shell afterwards so the new values take effect.
+
+The command exits non-zero when any check fails, so it can gate CI jobs or `just` recipes.
+The programmatic equivalents live in `genai_tk.utils.net_env` (`ensure_no_proxy_hosts`,
+`recommended_bypass_hosts`).
+
 ---
 
 ### `agents` — Agent Runners

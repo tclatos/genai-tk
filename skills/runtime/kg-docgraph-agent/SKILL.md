@@ -87,6 +87,17 @@ cli docgraph agent "..." --profile docgraph --skill-dir ./extra-skills --recursi
    use-case skills via `extra_skill_dirs` or list them in the profile.
 4. Install the `harnessing` extra (`uv sync --extra harnessing`) — `deepagents` is
    required for `type: deep` agents.
+5. Declare **every** model the profile references explicitly in
+   `config/providers/llm.yaml` — never rely on models.dev fuzzy resolution
+   (the cache is unavailable offline, and fuzzy matches can pick the wrong
+   provider or variant).
+6. Verify every middleware `class:` path against the actual module layout
+   (`genai_tk.agents.langchain.middleware.*`,
+   `genai_graph.agent.middleware.*`) instead of copying another project's
+   `agents.yaml` — a stale path (e.g. officeqa's old
+   `genai_graph.agent.middleware.wrap_up.WrapUpMiddleware`) fails only at
+   agent build time. `cli info doctor` checks both this and the llm.yaml
+   entries.
 
 ## Change Workflow
 

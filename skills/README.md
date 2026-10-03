@@ -52,6 +52,7 @@ Use `skills/governance/repo-map` first when you need orientation.
 | `nlp` | spaCy, model manager & text classification | `docs/nlp.md` | `genai_tk/extra/nlp/` |
 | `docker` | Docker container build & deployment | `docs/docker.md` | `deploy/Dockerfile` |
 | `optional-features` | Managing `[project.optional-dependencies]` | — | `genai_tk/config_mgmt/features.py` |
+| `uv-sources-sibling-checkouts` | uv source pins for sibling-checkout development (extras forwarding, conflicting URLs) | — | `pyproject.toml` |
 | `python-interpreter` | Python interpreter & venv resolution | — | `genai_tk/agents/tools/python_executor/` |
 
 ---
