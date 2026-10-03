@@ -8,13 +8,13 @@ import pytest
 
 from genai_tk.extra.markdownize.base import DocumentConverter
 from genai_tk.extra.markdownize.factory import ConverterFactory
-from genai_tk.extra.markdownize.selector import ConverterRule, MarkdownizeProfile, _expand_pattern
+from genai_tk.extra.markdownize.selector import ConverterRule, MarkdownizeProfile, expand_brace_pattern
 
 
 def test_expand_pattern() -> None:
-    assert _expand_pattern("*.pdf") == ["*.pdf"]
-    assert _expand_pattern("**/*.{xlsx,xls}") == ["**/*.xlsx", "**/*.xls"]
-    assert _expand_pattern("**/*.{docx,doc,odt}") == ["**/*.docx", "**/*.doc", "**/*.odt"]
+    assert expand_brace_pattern("*.pdf") == ["*.pdf"]
+    assert expand_brace_pattern("**/*.{xlsx,xls}") == ["**/*.xlsx", "**/*.xls"]
+    assert expand_brace_pattern("**/*.{docx,doc,odt}") == ["**/*.docx", "**/*.doc", "**/*.odt"]
 
 
 def test_converter_rule_matches() -> None:

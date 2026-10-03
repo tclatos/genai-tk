@@ -36,6 +36,13 @@ from genai_tk.workflow.resolver import (
     parse_workflows_from_dict,
     resolve_workflow_invocation,
 )
+from genai_tk.workflow.routing import (
+    IngestRouteTable,
+    IngestRule,
+    get_ingest_routes,
+    ingest_dispatch_flow,
+    ingest_dispatch_step,
+)
 
 __all__ = [
     # compiled models
@@ -75,4 +82,10 @@ __all__ = [
     "parse_cli_overrides",
     "parse_workflows_from_dict",
     "resolve_workflow_invocation",
+    # ingest routing
+    "IngestRouteTable",
+    "IngestRule",
+    "get_ingest_routes",
+    "ingest_dispatch_flow",
+    "ingest_dispatch_step",
 ]

@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------------------
+# Built-in ingest route tables
+# ---------------------------------------------------------------------------
+#
+# A route table maps source items (file paths or URLs) to workflows.
+#
+# !! FIRST MATCH WINS: rules are evaluated top-down and the first rule whose
+# pathspec matches the item routes it. Order IS priority — put specific
+# patterns (youtube.com, *.pdf) before catch-alls ('**/*').
+#
+# Targets are workflow references: YAML workflow names (config/workflows/*.yaml)
+# or dotted Python paths. Rules may pass parameters via 'with:'.
+#
+# Routed workflows must accept the ingestion contract:
+#   sources: list[str]   # the matched items (paths or URLs)
+#   md_output_dir: str   # common Markdown staging directory
+#
+ingest_routes:
+
+  default:
+    description: >
+      Files go to the markdownize flow (which copies pre-existing Markdown);
+      web URLs go to the web_page fetch flow.
+    default: genai_tk.workflow.markdownize.markdownize_flow
+    routes:
+      - pathspec: "https://**"
+        workflow: genai_tk.workflow.prefect.flows.web_page_flow.web_page_flow
+      - pathspec: "http://**"
+        workflow: genai_tk.workflow.prefect.flows.web_page_flow.web_page_flow

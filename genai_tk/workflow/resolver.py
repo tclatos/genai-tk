@@ -142,12 +142,17 @@ def load_workflows(config: OmegaConfig | None = None) -> dict[str, WorkflowDefV2
     # Also include Python-registered workflows (from @workflow decorator)
     for reg_entry in _global_registry.list_all():
         if reg_entry.name not in workflows:
-            # Synthesise a single-step WorkflowDefV2 from the registry entry
+            # Synthesise a single-step WorkflowDefV2 from the registry entry.
+            # Params are derived from the callable's signature so that values
+            # passed programmatically (e.g. by the ingest dispatcher) auto-wire
+            # to the callable exactly like declared YAML params do.
+            signature_params = reg_entry.get_params_schema()
             workflows[reg_entry.name] = WorkflowDefV2(
                 name=reg_entry.name,
                 description=reg_entry.description,
                 run=reg_entry.dotted_path,
                 hidden=reg_entry.hidden,
+                params={p: {"required": info.get("required", False)} for p, info in signature_params.items()},
             )
 
     return workflows
