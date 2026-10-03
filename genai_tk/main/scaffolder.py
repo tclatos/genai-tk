@@ -343,6 +343,7 @@ class ProjectScaffolder:
         ]
         if self.with_graph:
             entries_to_add.append("genai_graph.core.commands_bench.BenchCommands")
+            entries_to_add.append("genai_graph.core.commands_docgraph.DocGraphCommands")
 
         for entry_class in entries_to_add:
             entry = f"    - {entry_class}"

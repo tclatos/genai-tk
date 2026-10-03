@@ -127,7 +127,15 @@ harnessing = [
     "agent-sandbox>=0.0.24",     # AIO sandbox HTTP SDK client
     "opensandbox>=0.1.5",        # Container lifecycle manager
     "opensandbox-server>=0.1.7", # OpenSandbox REST server
-    "deerflow-harness[tui]>=2.1.0",
+    # Pinned to a tested commit (not `rev = "main"`) because genai-tk's harness layer
+    # reaches into private DeerFlowClient internals (`_agent`, `_checkpointer`) — see
+    # tests/unit_tests/agents/test_deerflow_contract.py. Bump deliberately and re-run
+    # that contract test before moving the pin.
+    # NOTE: expressed as a direct URL requirement (not [tool.uv.sources]) so it also
+    # resolves when genai-tk itself is installed as a git dependency — uv rejects
+    # URL *sources* declared by non-root packages, but direct requirements in
+    # package metadata are honored in every resolution context.
+    "deerflow-harness[tui] @ git+https://github.com/bytedance/deer-flow@795af20a6b79b22fd9e95f674554605c5bfb6cdc#subdirectory=backend/packages/harness",
 ]
 
 # Browser automation
@@ -215,13 +223,6 @@ constraint-dependencies = [
     "alembic<1.18",    # 1.18.x has missing PriorityDispatcher (breaks Prefect)
     "openai<2.44",     # 2.44.0 has circular import in _utils/_files
 ]
-
-[tool.uv.sources]
-# Pinned to a tested commit (not `rev = "main"`) because genai-tk's harness layer
-# reaches into private DeerFlowClient internals (`_agent`, `_checkpointer`) — see
-# tests/unit_tests/agents/test_deerflow_contract.py. Bump deliberately and re-run
-# that contract test before moving the pin.
-deerflow-harness = { git = "https://github.com/bytedance/deer-flow", subdirectory = "backend/packages/harness", rev = "795af20a6b79b22fd9e95f674554605c5bfb6cdc" }
 
 # Note: a patched wheel (without the spurious volcengine-python-sdk dep) lives in vendor/.
 # It can't be referenced here as a path because uv doesn't support .whl file paths for

@@ -193,7 +193,15 @@ class ModelsDb:
         self._cache_path = cache_path
         if not cache_path.exists():
             logger.info(f"models.dev cache not found at {cache_path} — fetching now …")
-            self.fetch(cache_path)
+            try:
+                self.fetch(cache_path)
+            except httpx.HTTPError as error:
+                logger.warning(
+                    f"Could not fetch models.dev database ({error}); continuing with an empty model "
+                    "index. Model metadata and fuzzy alias resolution will be unavailable until the "
+                    "cache is populated (run 'cli info llm-profile --reload' once online, or add the "
+                    "model explicitly to llm.yaml)."
+                )
         else:
             raw = json.loads(cache_path.read_text(encoding="utf-8"))
             self._build_index(raw)
