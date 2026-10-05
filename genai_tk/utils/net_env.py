@@ -34,13 +34,13 @@ from typing import Literal
 import httpx
 from loguru import logger
 
+LOOPBACK_HOSTS: tuple[str, ...] = ("localhost", "127.0.0.1", "::1")
+
 # Hosts that must always bypass an HTTP proxy: loopback names plus the API
 # endpoints genai-tk itself talks to (models.dev catalogue, common LLM gateways).
 # Extend per project via the config key ``net.proxy_bypass_hosts``.
 DEFAULT_BYPASS_HOSTS: tuple[str, ...] = (
-    "localhost",
-    "*********",
-    "::1",
+    *LOOPBACK_HOSTS,
     "models.dev",
     "openrouter.ai",
     "api.deepinfra.com",
@@ -138,7 +138,8 @@ def recommended_bypass_hosts(
     """Probe *hosts* in parallel and classify each one's proxy reachability.
 
     Args:
-        hosts: Hostnames to probe; defaults to :func:`default_bypass_hosts`.
+        hosts: Hostnames to probe; defaults to :func:`default_bypass_hosts`
+            excluding loopback interfaces (which always bypass the proxy).
         timeout: Per-probe timeout in seconds.
 
     Returns:
@@ -146,7 +147,8 @@ def recommended_bypass_hosts(
         to the corresponding host lists (``bypass_needed`` entries are the
         ones worth adding to ``NO_PROXY``).
     """
-    host_list = list(hosts) if hosts is not None else default_bypass_hosts()
+    raw_hosts = list(hosts) if hosts is not None else default_bypass_hosts()
+    host_list = [h for h in raw_hosts if h not in LOOPBACK_HOSTS]
     result: dict[HostStatus, list[str]] = {"proxy_ok": [], "bypass_needed": [], "unreachable": []}
     if not host_list:
         return result

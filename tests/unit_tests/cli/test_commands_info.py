@@ -137,7 +137,9 @@ class TestInfoMcpTools:
         assert result.exit_code == 0
 
 
-def _check(name: str = "sample check", ok: bool = True, warn: bool = False, detail: str = "", hint: str = "") -> CheckResult:
+def _check(
+    name: str = "sample check", ok: bool = True, warn: bool = False, detail: str = "", hint: str = ""
+) -> CheckResult:
     return CheckResult(name=name, ok=ok, warn=warn, detail=detail, hint=hint)
 
 

@@ -12,7 +12,7 @@ from genai_tk.workflow.routing.loader import (
     list_ingest_routes,
     validate_ingest_routes,
 )
-from genai_tk.workflow.routing.models import IngestRouteTable, IngestRule, IngestRoutingError, is_url
+from genai_tk.workflow.routing.models import IngestRouteTable, IngestRoutingError, IngestRule, is_url
 
 __all__ = [
     "DEFAULT_ROUTES",

@@ -198,7 +198,7 @@ class TestScaffolderPatches:
         ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
 
         pyproject = (project_dir / "pyproject.toml").read_text()
-        assert pyproject.count('requires-python') == 1
+        assert pyproject.count("requires-python") == 1
         assert 'requires-python = ">=3.12,<3.13"' in pyproject
 
     def test_warns_on_override_dependencies_without_crash(self, project_dir: Path):

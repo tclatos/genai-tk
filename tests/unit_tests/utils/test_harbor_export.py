@@ -92,9 +92,7 @@ def _sample_events() -> list[dict[str, Any]]:
 def _populated_store(tmp_path: Path) -> TrajectoryStore:
     run_dir = tmp_path / "store" / _ROOT
     run_dir.mkdir(parents=True)
-    (run_dir / "events.jsonl").write_text(
-        "\n".join(json.dumps(e) for e in _sample_events()) + "\n", encoding="utf-8"
-    )
+    (run_dir / "events.jsonl").write_text("\n".join(json.dumps(e) for e in _sample_events()) + "\n", encoding="utf-8")
     (run_dir / "meta.json").write_text(
         json.dumps(
             {

@@ -380,12 +380,15 @@ class SandboxedPythonExecutor:
 
     async def _write_file(self, backend: Any, file_path: str, content: str) -> None:
         """Write or overwrite a file in the sandbox environment using standard protocol."""
-        if hasattr(backend, "awrite"):
-            await backend.awrite(file_path, content)
-        elif getattr(backend, "_sandbox", None) is not None:
+        if getattr(backend, "_sandbox", None) is not None:
             await backend._sandbox.files.write_file(file_path, content)
         elif hasattr(backend, "_run_write_file"):
             await backend._run_write_file({"path": file_path, "content": content})
+        elif hasattr(backend, "awrite"):
+            await backend.aexecute(f"rm -f '{file_path}'")
+            res = await backend.awrite(file_path, content)
+            if hasattr(res, "error") and res.error:
+                raise RuntimeError(f"Failed to write file {file_path}: {res.error}")
         else:
             import base64
 

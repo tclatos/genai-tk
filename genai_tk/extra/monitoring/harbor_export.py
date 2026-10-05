@@ -77,9 +77,7 @@ def _export_run(store: TrajectoryStore, traj: Trajectory, out_dir: Path) -> None
     (trial_dir / "agent").mkdir(parents=True, exist_ok=True)
     (trial_dir / "config.json").write_text(json.dumps(trial_config, indent=2), encoding="utf-8")
     (trial_dir / "result.json").write_text(json.dumps(trial_result, indent=2), encoding="utf-8")
-    (trial_dir / "agent" / "trajectory.json").write_text(
-        json.dumps(_to_atif(store, traj), indent=2), encoding="utf-8"
-    )
+    (trial_dir / "agent" / "trajectory.json").write_text(json.dumps(_to_atif(store, traj), indent=2), encoding="utf-8")
 
 
 def _agent_info(traj: Trajectory) -> dict[str, Any]:
@@ -115,9 +113,7 @@ def _to_atif(store: TrajectoryStore, traj: Trajectory) -> dict[str, Any]:
             steps.extend(_tool_steps(turn.tool_calls, step_id_base=len(steps) + 1))
             continue
 
-        requested_ids = [
-            str(req.get("id")) for req in lc.tool_calls if isinstance(req, dict) and req.get("id")
-        ]
+        requested_ids = [str(req.get("id")) for req in lc.tool_calls if isinstance(req, dict) and req.get("id")]
         tool_calls = [
             {
                 "tool_call_id": str(req.get("id") or f"call-{i + 1}"),

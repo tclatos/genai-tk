@@ -65,6 +65,7 @@ from textual.widgets import Footer, Header, Input, Markdown, RichLog
 from genai_tk.agents.harness.base import BaseHarness
 from genai_tk.agents.harness import TokenEvent, ToolCallEvent, ToolResultEvent
 
+
 class ChatApp(App[None]):
     def __init__(self, harness: BaseHarness) -> None:
         super().__init__()
@@ -96,6 +97,7 @@ class ChatApp(App[None]):
                     self.query_one("#tool_log", RichLog).write(f"[cyan]→ {ev.tool_name}[/cyan]")
         finally:
             self._busy = False
+
 
 # Launch: the streaming loop is async, so use run_async, not App.run().
 async def run_chat_tui(harness: BaseHarness) -> None:
@@ -147,7 +149,7 @@ async def test_chat_tui_mounts_and_streams() -> None:
     async with app.run_test() as pilot:
         app.query_one("#prompt", Input).value = "What is RAG?"
         await pilot.press("enter")  # submits the focused Input widget
-        await pilot.pause()         # let async message processing catch up
+        await pilot.pause()  # let async message processing catch up
         transcript = app.query_one("#transcript", VerticalScroll)
         assert transcript.children  # an answer Markdown was mounted
         assert harness.queries == ["What is RAG?"]

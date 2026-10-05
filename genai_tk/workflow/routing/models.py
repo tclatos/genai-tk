@@ -97,10 +97,12 @@ class IngestRouteTable(BaseModel):
 
     def fingerprint(self) -> str:
         """Return a stable fingerprint of the table, used as a cache code-version."""
-        parts = [f"default:{self.default}"] + [f"{r.pathspec}->{r.workflow}:{json.dumps(r.params, sort_keys=True)}" for r in self.routes]
+        parts = [f"default:{self.default}"] + [
+            f"{r.pathspec}->{r.workflow}:{json.dumps(r.params, sort_keys=True)}" for r in self.routes
+        ]
         return ";".join(parts)
 
 
 def is_url(item: str) -> bool:
     """Return True when the source item is an http(s) URL rather than a filesystem path."""
-    return item.startswith("http://") or item.startswith("https://")
+    return item.startswith(("http://", "https://"))

@@ -575,7 +575,9 @@ class InfoCommands(CliTopCommand):
                     ),
                 ),
             ] = False,
-            offline: Annotated[bool, typer.Option("--offline", help="Skip network probes (CI-safe); only static checks run.")] = False,
+            offline: Annotated[
+                bool, typer.Option("--offline", help="Skip network probes (CI-safe); only static checks run.")
+            ] = False,
             timeout: Annotated[float, typer.Option("--timeout", help="Per-probe network timeout in seconds.")] = 3.0,
         ) -> None:
             """Pre-flight the environment: features, profile models & middleware, Prefect, model cache, proxy.

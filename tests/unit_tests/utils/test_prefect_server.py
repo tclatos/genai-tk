@@ -46,14 +46,9 @@ def test_backup_and_delete_db_returns_none_without_db(server: PrefectServer) -> 
     assert server._backup_and_delete_db() is None
 
 
-def test_log_mentions_db_error_detects_alembic_errors(
-    server: PrefectServer, tmp_path: Path
-) -> None:
+def test_log_mentions_db_error_detects_alembic_errors(server: PrefectServer, tmp_path: Path) -> None:
     log = tmp_path / "prefect.log"
-    log.write_text(
-        "raise ResolutionError(\n"
-        "ResolutionError: No such revision or branch 'a1b2c3'\n"
-    )
+    log.write_text("raise ResolutionError(\nResolutionError: No such revision or branch 'a1b2c3'\n")
     assert server._log_mentions_db_error(log)
 
     other = tmp_path / "other.log"
@@ -61,9 +56,7 @@ def test_log_mentions_db_error_detects_alembic_errors(
     assert not server._log_mentions_db_error(other)
 
 
-def test_start_resets_stale_db_and_retries_once(
-    server: PrefectServer, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_start_resets_stale_db_and_retries_once(server: PrefectServer, monkeypatch: pytest.MonkeyPatch) -> None:
     db = server._sqlite_db_path()
     db.parent.mkdir(parents=True, exist_ok=True)
     db.write_bytes(b"stale")
@@ -73,9 +66,7 @@ def test_start_resets_stale_db_and_retries_once(
     def fake_spawn(cmd: list[str], env: dict[str, str], log_file: Path) -> None:
         calls.append(log_file)
         if len(calls) == 1:
-            log_file.write_text(
-                "ResolutionError: No such revision or branch 'a1b2c3'"
-            )
+            log_file.write_text("ResolutionError: No such revision or branch 'a1b2c3'")
             raise RuntimeError("Prefect server exited during startup (code 1)")
 
     monkeypatch.setattr(server, "is_running", lambda: False)
@@ -90,9 +81,7 @@ def test_start_resets_stale_db_and_retries_once(
     assert backups[0].read_bytes() == b"stale"
 
 
-def test_start_raises_without_retry_on_non_db_errors(
-    server: PrefectServer, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_start_raises_without_retry_on_non_db_errors(server: PrefectServer, monkeypatch: pytest.MonkeyPatch) -> None:
     db = server._sqlite_db_path()
     db.parent.mkdir(parents=True, exist_ok=True)
     db.write_bytes(b"stale")

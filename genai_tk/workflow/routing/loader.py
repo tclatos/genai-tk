@@ -53,7 +53,9 @@ def get_ingest_routes(name: str = DEFAULT_ROUTES) -> IngestRouteTable:
 
 def list_ingest_routes() -> list[str]:
     """Return all available route-table names (project config + built-ins)."""
-    return sorted({*_builtin_tables(), *global_config().section_dict("ingest_routes", IngestRouteTable, inject_name=True)})
+    return sorted(
+        {*_builtin_tables(), *global_config().section_dict("ingest_routes", IngestRouteTable, inject_name=True)}
+    )
 
 
 def validate_ingest_routes() -> dict[str, str]:

@@ -77,7 +77,25 @@ class TestClassification:
         result = recommended_bypass_hosts(["a.com", "b.com", "c.com"])
         assert result == {"proxy_ok": ["a.com"], "bypass_needed": ["b.com"], "unreachable": ["c.com"]}
 
+    def test_recommended_bypass_hosts_filters_out_loopback(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from genai_tk.utils import net_env
+
+        probed: list[str] = []
+
+        def fake_classify(host: str, *, timeout: float = 3.0) -> str:
+            probed.append(host)
+            return "proxy_ok"
+
+        monkeypatch.setattr(net_env, "classify_host", fake_classify)
+        result = recommended_bypass_hosts(["localhost", "127.0.0.1", "::1", "api.example.com"])
+        assert probed == ["api.example.com"]
+        assert result == {"proxy_ok": ["api.example.com"], "bypass_needed": [], "unreachable": []}
+
 
 class TestDefaultBypassHosts:
     def test_includes_loopback(self) -> None:
-        assert "localhost" in default_bypass_hosts()
+        hosts = default_bypass_hosts()
+        assert "localhost" in hosts
+        assert "127.0.0.1" in hosts
+        assert "::1" in hosts
+        assert "*********" not in hosts

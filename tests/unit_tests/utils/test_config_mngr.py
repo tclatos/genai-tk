@@ -382,11 +382,7 @@ def test_proxy_bypass_hosts_merged_into_environment(tmp_path) -> None:
     os.environ.pop("no_proxy", None)
     try:
         cfg_file = tmp_path / "proxy_config.yaml"
-        cfg_file.write_text(
-            "net:\n"
-            "  proxy_bypass_hosts:\n"
-            f"    - {custom_host}\n"
-        )
+        cfg_file.write_text(f"net:\n  proxy_bypass_hosts:\n    - {custom_host}\n")
 
         OmegaConfig.create(cfg_file)
 

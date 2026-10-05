@@ -27,7 +27,7 @@ nlp:
   - "**/*.yaml"
   - "!demos/**"
   - "!mcp/**"
-  - "!examples/**"  # bundled agent-profile categories; loaded by load_agent_profiles(), not global config
+  - "!examples/agents/**"  # bundled agent-profile categories; loaded by load_agent_profiles(), not global config
 
 # :profiles: provides inline per-profile overrides.  The block matching the active
 # profile is deep-merged after all :merge: files.  A nested :merge: within a

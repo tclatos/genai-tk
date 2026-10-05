@@ -107,7 +107,7 @@ class TestLocalBackend:
         )
 
         # Override global config by initialising monitoring with the explicit cfg directly
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         _tracing_module._monitoring_context = None
         LocalTraceLog.reset()
@@ -150,7 +150,7 @@ class TestLocalBackend:
             backends=["local"],
             local_log=LocalLogConfig(path=str(log_file), include_prompts=True),
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -185,7 +185,7 @@ class TestLocalBackend:
             backends=["local"],
             local_log=LocalLogConfig(path=str(log_file)),
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -203,7 +203,7 @@ class TestLocalBackend:
             backends=["local"],
             local_log=LocalLogConfig(path=str(tmp_path / "nonexistent.jsonl")),
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -237,7 +237,7 @@ class TestLocalBackend:
             backends=["local"],
             local_log=LocalLogConfig(path=str(log_file)),
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -266,7 +266,7 @@ class TestLocalBackend:
             backends=["local"],
             local_log=LocalLogConfig(path=str(log_file)),
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -291,7 +291,7 @@ class TestLocalBackend:
             backends=["local"],
             local_log=LocalLogConfig(path=str(log_file), include_prompts=False),
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -334,7 +334,7 @@ class TestLangSmithBackend:
             backends=["langsmith"],
             project=project,
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -388,7 +388,7 @@ class TestLangSmithBackend:
             backends=["langsmith"],
             project=project,
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -429,7 +429,7 @@ class TestLangFuseBackend:
         """setup_monitoring() with langfuse backend populates the expected env vars."""
         project = f"genai-tk-test-{int(time.time())}"
         cfg = self._build_langfuse_cfg(project)
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -447,7 +447,7 @@ class TestLangFuseBackend:
         """A real LLM call with langfuse backend completes without error."""
         project = f"genai-tk-test-{int(time.time())}"
         cfg = self._build_langfuse_cfg(project)
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -469,7 +469,7 @@ class TestLangFuseBackend:
 
         project = f"genai-tk-test-{int(time.time())}"
         cfg = self._build_langfuse_cfg(project)
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -514,7 +514,7 @@ class TestLangFuseBackend:
         """cli core llm with langfuse backend exits zero and returns LLM output."""
         project = f"genai-tk-cli-test-{int(time.time())}"
         cfg = self._build_langfuse_cfg(project)
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -553,7 +553,7 @@ class TestMultipleBackends:
             ),
             local_log=LocalLogConfig(path=str(log_file), include_prompts=True),
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg
@@ -592,7 +592,7 @@ class TestMultipleBackends:
             ),
             local_log=LocalLogConfig(path=str(log_file), include_prompts=True),
         )
-        from genai_tk.utils import tracing as _tracing_module
+        from genai_tk.extra.monitoring import tracing as _tracing_module
 
         original = _tracing_module.monitoring_config
         _tracing_module.monitoring_config = lambda: cfg

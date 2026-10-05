@@ -68,7 +68,7 @@ def web_page_flow(
     Returns:
         Summary dict with ``processed``, ``skipped``, ``failed`` counts and warnings.
     """
-    urls = [s for s in sources if s.startswith("http://") or s.startswith("https://")]
+    urls = [s for s in sources if s.startswith(("http://", "https://"))]
     if not urls:
         logger.warning("web_page_flow: no URL sources to process")
         return {"processed": 0, "skipped": 0, "failed": 0, "warnings": ["no URL sources"]}
@@ -100,7 +100,11 @@ def web_page_flow(
                     key=url,
                     fingerprint=buffer_digest(url.encode()),
                     code_version=code_version,
-                    outputs={"output_path": out_rel, "fetched_at": _now(), "content_hash": buffer_digest(markdown.encode())},
+                    outputs={
+                        "output_path": out_rel,
+                        "fetched_at": _now(),
+                        "content_hash": buffer_digest(markdown.encode()),
+                    },
                 )
                 results.append(_FetchResult(url=url, output_path=out_rel))
                 logger.success("Fetched {} -> {}", url, out_abs)
