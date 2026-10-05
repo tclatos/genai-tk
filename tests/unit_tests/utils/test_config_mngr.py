@@ -367,3 +367,37 @@ def test_env_pseudo_key_is_removed_from_config(tmp_path) -> None:
     cfg_file.write_text(":env:\n  TEST_REMOVAL_VAR: value\n")
     config = OmegaConfig.create(cfg_file)
     assert ":env" not in config.root
+
+
+# ---------------------------------------------------------------------------
+# net.proxy_bypass_hosts → NO_PROXY merge
+# ---------------------------------------------------------------------------
+
+
+def test_proxy_bypass_hosts_merged_into_environment(tmp_path) -> None:
+    """net.proxy_bypass_hosts from YAML merges into NO_PROXY/no_proxy at load time."""
+    custom_host = "custom.api.example.com"
+    saved = {key: os.environ.get(key) for key in ("NO_PROXY", "no_proxy")}
+    os.environ["NO_PROXY"] = "preexisting.host"
+    os.environ.pop("no_proxy", None)
+    try:
+        cfg_file = tmp_path / "proxy_config.yaml"
+        cfg_file.write_text(
+            "net:\n"
+            "  proxy_bypass_hosts:\n"
+            f"    - {custom_host}\n"
+        )
+
+        OmegaConfig.create(cfg_file)
+
+        no_proxy = os.environ["NO_PROXY"]
+        assert custom_host in no_proxy
+        assert "preexisting.host" in no_proxy  # existing entries are preserved
+        assert "localhost" in no_proxy  # built-in defaults are included
+        assert "localhost" in os.environ["no_proxy"]  # both spellings are updated
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value

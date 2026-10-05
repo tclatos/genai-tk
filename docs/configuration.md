@@ -385,6 +385,26 @@ ANTHROPIC_API_KEY=sk-ant-...
 GENAITK_PROFILE=local  # optional: select profile
 ```
 
+### Proxy bypass (`NO_PROXY`)
+
+Behind a corporate HTTP proxy, declare the hosts that must bypass it in YAML —
+`net.proxy_bypass_hosts` (a list of hostnames, on top of built-in defaults:
+loopback, models.dev, common LLM gateways). The `NO_PROXY`/`no_proxy` variables
+are derived at config-load time by *merging* into the current environment —
+never persisted to a project `.env` (which would shadow `~/.env`):
+
+```yaml
+# config/app_conf.yaml
+net:
+  proxy_bypass_hosts:
+    - huggingface.co
+    - pypi.org
+```
+
+`cli info doctor` probes which hosts need a bypass; `--fix` persists the
+computed list to `~/.env` (machine-level) and comments out hand-maintained
+`no_proxy` exports in `~/.bashrc`.
+
 ## Testing profiles
 
 Two built-in profiles serve the test suite (defined inline in `app_conf.yaml`'s `:profiles:` block):

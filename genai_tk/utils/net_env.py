@@ -10,8 +10,11 @@ shell startup files, compute per-host bypasses programmatically:
   without the ambient proxy.
 - :func:`recommended_bypass_hosts` probes a host list and classifies each one.
 
-The ``cli info doctor`` command builds on these: it diagnoses proxy problems
-and its ``--fix`` flag persists the computed bypass list to the project ``.env``.
+The bypass host list is declarative: built-in defaults plus the
+``net.proxy_bypass_hosts`` YAML key. It is applied automatically — merged into
+``NO_PROXY``/``no_proxy`` when the config loads — and the ``cli info doctor``
+command builds on these helpers: it diagnoses proxy problems and its ``--fix``
+flag persists the computed bypass list to ``~/.env``.
 
 Example:
     ```python

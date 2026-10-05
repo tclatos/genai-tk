@@ -50,6 +50,33 @@ load_dotenv()
 
 APPLICATION_CONFIG_FILE: str = "config/app_conf.yaml"
 
+
+def _apply_proxy_bypass(config: DictConfig) -> None:
+    """Merge the YAML-configured proxy bypass hosts into ``NO_PROXY``/``no_proxy``.
+
+    The declarative host list lives in YAML — built-in defaults plus the
+    ``net.proxy_bypass_hosts`` key (a list of hostnames, e.g. LLM API or
+    package hosts behind a blocking corporate proxy). The environment variable
+    itself is never persisted: it is derived at config-load time by *merging*
+    into the current environment, so shell exports and ``~/.env`` entries are
+    preserved rather than shadowed.
+
+    Read inline from *config* (not via ``global_config()``) to avoid
+    re-entrant singleton creation.
+    """
+    try:
+        from genai_tk.utils.net_env import DEFAULT_BYPASS_HOSTS, ensure_no_proxy_hosts
+
+        hosts = list(DEFAULT_BYPASS_HOSTS)
+        extra = OmegaConf.select(config, "net.proxy_bypass_hosts", default=None) or []
+        for item in extra:
+            host = str(item).strip()
+            if host and host not in hosts:
+                hosts.append(host)
+        ensure_no_proxy_hosts(hosts)
+    except Exception as exc:  # best-effort: never block config loading
+        logger.debug(f"Proxy bypass not applied: {exc}")
+
 T = TypeVar("T")
 M = TypeVar("M", bound=BaseModel)
 
@@ -171,6 +198,9 @@ class OmegaConfig(BaseModel):
         for key in [":merge", ":profile"]:
             if key in config:
                 del config[key]
+
+        # Apply the proxy bypass (NO_PROXY) derived from the merged config
+        _apply_proxy_bypass(config)
 
         instance = OmegaConfig(root=config, active_context=profile, provenance=provenance)  # type: ignore
         instance._validate_config()

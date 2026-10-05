@@ -337,7 +337,7 @@ def _comment_bashrc_proxy_exports(bashrc: Path) -> str | None:
     changed = 0
     for line in lines:
         if line.strip().startswith(("export no_proxy=", "export NO_PROXY=")):
-            out.append(f"# disabled by 'cli info doctor --fix' (managed via project .env): {line}")
+            out.append(f"# disabled by 'cli info doctor --fix' (managed via ~/.env): {line}")
             changed += 1
         else:
             out.append(line)
@@ -348,7 +348,13 @@ def _comment_bashrc_proxy_exports(bashrc: Path) -> str | None:
 
 
 def _doctor_apply_fix(*, timeout: float) -> list[str]:
-    """Compute and persist the proxy bypass: project .env + .bashrc cleanup + in-process env."""
+    """Compute and persist the proxy bypass: ~/.env + .bashrc cleanup + in-process env.
+
+    The bypass is persisted to ``~/.env`` (machine-level) — never to a project
+    ``.env``, which would shadow ``~/.env``. Per-project extra hosts belong in
+    the ``net.proxy_bypass_hosts`` YAML key; they are merged into ``NO_PROXY``
+    automatically when the config loads.
+    """
     from genai_tk.utils.net_env import ensure_no_proxy_hosts, no_proxy_entries, recommended_bypass_hosts
 
     classification = recommended_bypass_hosts(timeout=timeout)
@@ -358,15 +364,19 @@ def _doctor_apply_fix(*, timeout: float) -> list[str]:
     hosts += [h for h in classification["bypass_needed"] if h not in hosts]
 
     changes: list[str] = []
-    env_path = Path.cwd() / ".env"
+    env_path = Path.home() / ".env"
     changes.append(_merge_env_file(env_path, hosts))
     bashrc_change = _comment_bashrc_proxy_exports(Path.home() / ".bashrc")
     if bashrc_change:
         changes.append(bashrc_change)
     ensure_no_proxy_hosts(hosts)
     changes.append(
-        "Restart your shell (or: unset NO_PROXY no_proxy) so the new .env values take effect — "
+        "Restart your shell (or: unset NO_PROXY no_proxy) so the new ~/.env values take effect — "
         "shell exports are not overridden by .env."
+    )
+    changes.append(
+        "Per-project extra hosts: add them to 'net.proxy_bypass_hosts' in the project YAML "
+        "config — they are merged into NO_PROXY automatically when the config loads."
     )
     return changes
 
@@ -560,7 +570,7 @@ class InfoCommands(CliTopCommand):
                 typer.Option(
                     "--fix",
                     help=(
-                        "Write the computed proxy bypass (NO_PROXY) into the project .env and "
+                        "Write the computed proxy bypass (NO_PROXY) into ~/.env and "
                         "comment out hand-maintained no_proxy exports in ~/.bashrc."
                     ),
                 ),
@@ -578,7 +588,7 @@ class InfoCommands(CliTopCommand):
             Examples:
                 ```bash
                 cli info doctor
-                cli info doctor --fix       # persist the computed proxy bypass into .env
+                cli info doctor --fix       # persist the computed proxy bypass into ~/.env
                 cli info doctor --offline   # static checks only (CI-safe)
                 ```
             """
