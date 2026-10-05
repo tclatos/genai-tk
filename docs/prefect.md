@@ -207,6 +207,20 @@ server.configure_api_url()
 my_flow.serve(name="my-flow-daily", cron="0 9 * * 1-5")  # Weekdays at 9 AM
 ```
 
+### Stale Database Self-Heal
+
+A stale or corrupt local SQLite database (e.g. left over from an older Prefect
+version) aborts schema migration at startup with alembic errors like
+`ResolutionError: No such revision or branch '...'`. When the managed server
+fails to start and its log shows a database error, `PrefectServer.start()`:
+
+1. Copies the database aside (`prefect.db.bak-YYYYMMDD_HHMMSS`),
+2. Deletes it and its `-wal`/`-shm` sidecar files,
+3. Logs an info message and retries startup once.
+
+The DB path honours `PREFECT_SQLITE_DB` / `PREFECT_HOME`. Non-DB startup failures
+(e.g. port already in use) raise immediately without touching the database.
+
 ---
 
 ## Running YAML-Defined Workflows

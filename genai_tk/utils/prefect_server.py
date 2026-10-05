@@ -17,10 +17,12 @@ Configuration (``config/app_conf.yaml`` or any merged YAML)::
 from __future__ import annotations
 
 import os
+import shutil
 import signal
 import subprocess
 import time
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 
 import httpx
@@ -28,6 +30,19 @@ from loguru import logger
 from pydantic import BaseModel
 
 from genai_tk.utils.singleton import once
+
+# Startup-log markers that indicate the local database failed to load
+# (stale schema, corrupt file, ...).  Checked before the self-heal reset.
+_DB_ERROR_MARKERS = (
+    "resolutionerror",  # alembic: "No such revision or branch '...'"
+    "no such revision",
+    "can't locate revision",
+    "alembic",
+    "migration",
+    "database disk image is malformed",
+    "sqlite3.",
+    "sqlalchemy.exc",
+)
 
 # ---------------------------------------------------------------------------
 # Pydantic config model
@@ -178,6 +193,20 @@ class PrefectServer:
         spawn_env = dict(os.environ)
         _ensure_no_proxy(self.host, spawn_env)
         log_file = self._pid_file.with_suffix(".log")
+        try:
+            self._spawn_and_wait(cmd, spawn_env, log_file)
+        except RuntimeError:
+            # A stale/corrupt local SQLite DB (e.g. left over from an older
+            # Prefect version) can abort schema migration at startup.  Back it
+            # up, delete it and retry once before giving up.
+            if self._log_mentions_db_error(log_file) and self._backup_and_delete_db():
+                logger.info("Retrying Prefect server startup after stale DB reset")
+                self._spawn_and_wait(cmd, spawn_env, log_file)
+            else:
+                raise
+
+    def _spawn_and_wait(self, cmd: list[str], spawn_env: dict[str, str], log_file: Path) -> None:
+        """Spawn the server subprocess and wait until it is ready (or fails)."""
         with log_file.open("ab") as log:
             proc = subprocess.Popen(
                 cmd,
@@ -284,6 +313,48 @@ class PrefectServer:
 
     def _write_pid(self, pid: int) -> None:
         self._pid_file.write_text(str(pid))
+
+    def _sqlite_db_path(self) -> Path:
+        """Return the SQLite database path Prefect will use for local storage."""
+        env_db = os.environ.get("PREFECT_SQLITE_DB")
+        if env_db:
+            return Path(env_db)
+        home = os.environ.get("PREFECT_HOME")
+        if home:
+            return Path(home) / "prefect.db"
+        return Path.home() / ".prefect" / "prefect.db"
+
+    def _log_mentions_db_error(self, log_file: Path) -> bool:
+        """Check the startup log for database/migration related error markers."""
+        try:
+            text = log_file.read_text(errors="replace").lower()
+        except Exception:
+            return False
+        return any(marker in text for marker in _DB_ERROR_MARKERS)
+
+    def _backup_and_delete_db(self) -> Path | None:
+        """Back up the local SQLite DB, then delete it and its sidecar files.
+
+        Returns:
+            The backup path, or None when there was no database to reset.
+        """
+        db = self._sqlite_db_path()
+        if not db.exists():
+            return None
+        backup = db.with_name(f"{db.name}.bak-{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+        try:
+            shutil.copy2(db, backup)
+            logger.info(
+                "Prefect database failed to load — made a copy at {} and deleting it so it can be recreated",
+                backup,
+            )
+        except Exception as exc:
+            logger.warning("Could not back up Prefect database {}: {}", db, exc)
+            return None
+        db.unlink(missing_ok=True)
+        for suffix in ("-wal", "-shm"):
+            Path(f"{db}{suffix}").unlink(missing_ok=True)
+        return backup
 
 
 @once
