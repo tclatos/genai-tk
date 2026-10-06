@@ -34,7 +34,7 @@ from typing import Any
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
-from genai_tk.extra.markdownize.selector import expand_brace_pattern
+from prefect_yaml.routing import matches_pattern
 
 
 class IngestRoutingError(ValueError):
@@ -62,11 +62,7 @@ class IngestRule(BaseModel):
 
     def matches(self, item: str) -> bool:
         """Return True when the path or URL string matches this rule's pathspec."""
-        import pathspec
-
-        patterns = expand_brace_pattern(self.pathspec)
-        spec = pathspec.PathSpec.from_lines("gitignore", patterns)
-        return bool(spec.match_file(item))
+        return matches_pattern(self.pathspec, item)
 
 
 class IngestRouteTable(BaseModel):

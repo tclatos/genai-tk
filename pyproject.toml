@@ -84,6 +84,7 @@ dependencies = [
     # Workflow Orchestration
     # ============================================
     "prefect>=3.6.7",     # Modern workflow orchestration
+    "prefect-yaml",
     "jinaai>=0.2.10",     # Jina AI embeddings and reranking
     "readabilipy>=0.3.0", # Web article extraction and readability parsing
     #  "edgeparse>=0.2.2",   # Structured data extraction from text
@@ -211,6 +212,9 @@ evals = [
     "pytest-timeout>=2.3", # Per-test wall-clock timeout
     "pytest-rerunfailures>=15.0", # Auto-retry flaky LLM-judged evals (@pytest.mark.flaky)
 ]
+
+[tool.uv.sources]
+prefect-yaml = { path = "../prefect-yaml", editable = true }
 
 [tool.uv]
 default-groups = ["dev", "evals"]

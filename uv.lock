@@ -2384,6 +2384,7 @@ dependencies = [
     { name = "openpyxl" },
     { name = "pathspec" },
     { name = "prefect" },
+    { name = "prefect-yaml" },
     { name = "py-key-value-aio", extra = ["disk", "filetree", "memory"] },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -2554,6 +2555,7 @@ requires-dist = [
     { name = "pathspec", specifier = ">=1.0.2,<1.1.1" },
     { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.51.0" },
     { name = "prefect", specifier = ">=3.6.7" },
+    { name = "prefect-yaml", editable = "../prefect-yaml" },
     { name = "presidio-analyzer", marker = "extra == 'nlp'", specifier = ">=2.2.362" },
     { name = "presidio-anonymizer", marker = "extra == 'nlp'", specifier = ">=2.2.362" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2.9" },
@@ -6156,6 +6158,41 @@ sdist = { url = "https://files.pythonhosted.org/packages/40/9c/251687a83bab44874
 wheels = [
     { url = "https://files.pythonhosted.org/packages/fd/20/99cbc4f824c85285b32b461625e2496cac6c4ec21fc12aedbf737b5e5197/prefect-3.8.7-py3-none-any.whl", hash = "sha256:bea028218a12dc90e4619699ee5636b97783793e7794b26bfb2906b0dbc5bedb", size = 6943752, upload-time = "2026-09-27T00:00:54.167Z" },
 ]
+
+[[package]]
+name = "prefect-yaml"
+version = "0.1.0"
+source = { editable = "../prefect-yaml" }
+dependencies = [
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "omegaconf" },
+    { name = "pathspec" },
+    { name = "prefect" },
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "rich" },
+    { name = "typer" },
+    { name = "xxhash" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "loguru", specifier = ">=0.7.0" },
+    { name = "omegaconf", specifier = ">=2.3.0" },
+    { name = "pathspec", specifier = ">=0.12.0" },
+    { name = "prefect", specifier = ">=3.0.0" },
+    { name = "pydantic", specifier = ">=2.7.0,<3" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
+    { name = "pyyaml", specifier = ">=6.0.1" },
+    { name = "rich", specifier = ">=13.7.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.0" },
+    { name = "typer", specifier = ">=0.12.0" },
+    { name = "xxhash", specifier = ">=3.5.0" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "preshed"
