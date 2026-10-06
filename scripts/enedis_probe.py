@@ -11,7 +11,7 @@ Prerequisites:
 
 Usage:
     # Start a sandbox container (if not already running)
-    docker run -d --name enedis-probe -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
+    docker run -d --name enedis-probe --ulimit core=0 -p 8080:8080 ghcr.io/agent-infra/sandbox:latest
     sleep 10
 
     # Run the probe from the host

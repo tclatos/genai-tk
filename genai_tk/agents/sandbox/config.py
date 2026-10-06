@@ -104,7 +104,10 @@ def write_server_config(
     target.write_text(
         f'[server]\nhost = "{bind_host}"\nport = {port}\n\n'
         f'[runtime]\ntype = "docker"\nexecd_image = "{execd_image}"\n\n'
-        f"[storage]\nallowed_host_paths = [{quoted}]\n"
+        f"[storage]\nallowed_host_paths = [{quoted}]\n\n"
+        f"[docker]\n"
+        f"# Launch containers with core=0 ulimit to prevent massive core dump generation in overlayfs snapshots\n"
+        f'ulimits = [{{ name = "core", soft = 0, hard = 0 }}]\n'
     )
     return target
 

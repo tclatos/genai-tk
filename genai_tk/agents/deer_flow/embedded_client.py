@@ -116,6 +116,45 @@ def _ensure_deer_flow_on_path() -> None:
     _patch_deer_flow_print()
     _suppress_deer_flow_logging()
     _patch_deer_flow_config_caching()
+    _patch_deer_flow_docker_ulimits()
+
+
+def _patch_deer_flow_docker_ulimits() -> None:
+    """Ensure DeerFlow's LocalContainerBackend launches Docker with --ulimit core=0.
+
+    Prevents massive core dump accumulation in container OverlayFS snapshots.
+    """
+    try:
+        import deerflow.community.aio_sandbox.local_backend as _local_mod  # type: ignore[import]
+
+        _cls = getattr(_local_mod, "LocalContainerBackend", None)
+        if _cls is None or getattr(_cls, "_genai_tk_ulimit_patched", False):
+            return
+
+        _orig_start_container = _cls._start_container
+
+        def _patched_start_container(self, *args, **kwargs):
+            import subprocess
+
+            _orig_sub_run = subprocess.run
+
+            def _intercept_run(cmd, *r_args, **r_kwargs):
+                if isinstance(cmd, list) and len(cmd) >= 2 and cmd[0] == "docker" and cmd[1] == "run":
+                    if "--ulimit" not in cmd and not any("core=" in str(arg) for arg in cmd):
+                        cmd = [cmd[0], cmd[1], "--ulimit", "core=0", *cmd[2:]]
+                return _orig_sub_run(cmd, *r_args, **r_kwargs)
+
+            subprocess.run = _intercept_run
+            try:
+                return _orig_start_container(self, *args, **kwargs)
+            finally:
+                subprocess.run = _orig_sub_run
+
+        _cls._start_container = _patched_start_container
+        _cls._genai_tk_ulimit_patched = True
+        logger.debug("Patched deer-flow LocalContainerBackend for --ulimit core=0")
+    except Exception as exc:
+        logger.debug(f"Could not patch deer-flow docker ulimits (non-critical): {exc}")
 
 
 def _patch_deer_flow_config_caching() -> None:
