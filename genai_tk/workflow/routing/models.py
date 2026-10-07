@@ -32,9 +32,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
-
 from prefect_yaml.routing import matches_pattern
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class IngestRoutingError(ValueError):
@@ -100,5 +99,7 @@ class IngestRouteTable(BaseModel):
 
 
 def is_url(item: str) -> bool:
-    """Return True when the source item is an http(s) URL rather than a filesystem path."""
-    return item.startswith(("http://", "https://"))
+    """Return True when the source item is an http(s) URL or remote git URL rather than a filesystem path."""
+    if not isinstance(item, str):
+        return False
+    return item.startswith(("http://", "https://", "git@", "git://", "ssh://")) or item.endswith((".git", ".git/"))

@@ -20,9 +20,20 @@ ingest_routes:
   default:
     description: >
       Files go to the markdownize flow (which copies pre-existing Markdown);
+      git repositories go to the git_repo flow;
       web URLs go to the web_page fetch flow.
     default: genai_tk.workflow.markdownize.markdownize_flow
     routes:
+      - pathspec: "https://github.com/**"
+        workflow: genai_tk.workflow.prefect.flows.git_repo_flow.git_repo_flow
+      - pathspec: "https://gitlab.com/**"
+        workflow: genai_tk.workflow.prefect.flows.git_repo_flow.git_repo_flow
+      - pathspec: "https://bitbucket.org/**"
+        workflow: genai_tk.workflow.prefect.flows.git_repo_flow.git_repo_flow
+      - pathspec: "**/*.git"
+        workflow: genai_tk.workflow.prefect.flows.git_repo_flow.git_repo_flow
+      - pathspec: "git@**"
+        workflow: genai_tk.workflow.prefect.flows.git_repo_flow.git_repo_flow
       - pathspec: "https://**"
         workflow: genai_tk.workflow.prefect.flows.web_page_flow.web_page_flow
       - pathspec: "http://**"

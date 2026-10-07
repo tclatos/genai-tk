@@ -100,5 +100,7 @@ markdownize_profiles:
         converter: messy_xls
       - pathspec: "**/*.{doc,ppt}"
         converter: via_pdf
+      - pathspec: "**/*.ipynb"
+        converter: markitdown
       - pathspec: "**/*"
         converter: docling

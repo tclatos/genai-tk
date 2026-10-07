@@ -26,6 +26,8 @@ from genai_tk.workflow.models import (
     WorkflowSpec,
 )
 from genai_tk.workflow.prefect.flow_factory import PrefectFlowFactory, flow_from_yaml
+from genai_tk.workflow.prefect.flows.git_repo_flow import git_repo_flow, git_repo_step
+from genai_tk.workflow.prefect.flows.web_page_flow import web_page_flow, web_page_step
 from genai_tk.workflow.registry import RegisteredWorkflow, WorkflowRegistry, registry, workflow
 from genai_tk.workflow.resolver import (
     WorkflowResolutionError,
@@ -88,4 +90,9 @@ __all__ = [
     "get_ingest_routes",
     "ingest_dispatch_flow",
     "ingest_dispatch_step",
+    # flows
+    "git_repo_flow",
+    "git_repo_step",
+    "web_page_flow",
+    "web_page_step",
 ]

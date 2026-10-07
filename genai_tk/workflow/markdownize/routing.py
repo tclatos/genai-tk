@@ -17,7 +17,7 @@ PPT_EXTS = {".ppt", ".pptx", ".odp", ".pps", ".pot", ".pptm", ".ppsx", ".ppsm"}
 DOC_EXTS = {".doc", ".docx", ".odt", ".rtf", ".docm"}
 EXCEL_EXTS = {".xls", ".xlsx", ".ods", ".xlsm", ".xlsb"}
 IMAGE_EXTS = {".jpeg", ".jpg", ".png", ".gif", ".bmp", ".webp"}
-DIRECT_MARKITDOWN_EXTS = {".html", ".htm", ".csv", ".json"}
+DIRECT_MARKITDOWN_EXTS = {".html", ".htm", ".csv", ".json", ".ipynb"}
 MD_EXTS = {".md", ".markdown"}
 
 ALL_DOCUMENT_EXTS = PPT_EXTS | DOC_EXTS | EXCEL_EXTS | IMAGE_EXTS | DIRECT_MARKITDOWN_EXTS | MD_EXTS | {".pdf"}

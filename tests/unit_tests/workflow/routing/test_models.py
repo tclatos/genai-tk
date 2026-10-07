@@ -68,5 +68,29 @@ def test_fingerprint_changes_with_rules() -> None:
 def test_is_url() -> None:
     assert is_url("https://x.org")
     assert is_url("http://x.org/a")
+    assert is_url("git@github.com:org/repo.git")
+    assert is_url("git://example.com/repo")
+    assert is_url("ssh://git@example.com/repo")
+    assert is_url("repo.git")
     assert not is_url("/data/file.pdf")
     assert not is_url("relative/file.pdf")
+
+
+def test_git_url_routing() -> None:
+    github_rule = IngestRule(pathspec="https://github.com/**", workflow="git_repo_flow")
+    gitlab_rule = IngestRule(pathspec="https://gitlab.com/**", workflow="git_repo_flow")
+    dotgit_rule = IngestRule(pathspec="**/*.git", workflow="git_repo_flow")
+    git_ssh_rule = IngestRule(pathspec="git@**", workflow="git_repo_flow")
+    web_rule = IngestRule(pathspec="https://**", workflow="web_page_flow")
+
+    table = IngestRouteTable(
+        routes=[github_rule, gitlab_rule, dotgit_rule, git_ssh_rule, web_rule],
+        default="files_flow",
+    )
+
+    assert table.select("https://github.com/tclatos/prefect-yaml") == ("git_repo_flow", {})
+    assert table.select("https://gitlab.com/group/repo") == ("git_repo_flow", {})
+    assert table.select("https://example.com/repo.git") == ("git_repo_flow", {})
+    assert table.select("git@github.com:tclatos/prefect-yaml.git") == ("git_repo_flow", {})
+    assert table.select("https://example.com/blog/article") == ("web_page_flow", {})
+    assert table.select("/data/docs/file.pdf") == ("files_flow", {})

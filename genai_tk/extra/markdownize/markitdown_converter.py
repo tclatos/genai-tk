@@ -49,10 +49,13 @@ class MarkItDownConverter(DocumentConverter):
     def _sync_convert(self, path: Path) -> str:
         """Execute markitdown conversion synchronously."""
         try:
-            from markitdown import MarkItDown
+            from markitdown import MarkItDown, StreamInfo
         except ImportError as e:
             raise ImportError(
                 "markitdown is required for MarkItDownConverter. Install with 'uv add markitdown'."
             ) from e
 
-        return MarkItDown().convert(str(path)).text_content
+        try:
+            return MarkItDown().convert_local(str(path), stream_info=StreamInfo(charset="utf-8")).text_content
+        except Exception:
+            return MarkItDown().convert(str(path)).text_content
