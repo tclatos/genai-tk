@@ -5,8 +5,21 @@ description: Work on YAML-driven workflows, Prefect flow wrappers, workflow comp
 
 # GenAI Toolkit Workflow Engine
 
+## Overview & Standalone Package
+
+The core workflow engine runtime, YAML DSL, typed contracts, DAG compiler, and manifest
+caching have been extracted into the standalone package **`prefect-yaml`**:
+- Repository: [https://github.com/tclatos/prefect-yaml](https://github.com/tclatos/prefect-yaml)
+- Standalone CLI: `uv run prefect-yaml <run|list|show|validate|server>`
+- Skill: `prefect-yaml` (`skills/development/prefect-yaml/SKILL.md`)
+
+`genai_tk.workflow` re-exports and adapts `prefect-yaml` to integrate with genai-tk's
+global configuration (`paths`, `profiles`, environment variables) and provides toolkit-level
+flows (markdownize, git repo, web page, RAG ingestion).
+
 ## Read First
 
+- `skills/development/prefect-yaml/SKILL.md` — standalone DSL syntax, typed inputs, manifests, routing
 - `docs/workflows.md` — DSL reference, built-in workflows, how to create new ones
 - `docs/prefect.md` — Running `@flow` functions, `flow_from_yaml`, Prefect server management
 - `genai_tk/workflow/models.py`

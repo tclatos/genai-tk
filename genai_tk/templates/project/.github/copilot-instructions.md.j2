@@ -29,7 +29,9 @@ from genai_tk.config_mgmt.config_mngr import global_config    # Access configura
 | Webapp pages | `{{ package_name }}/webapp/pages/` | `config/webapp.yaml` → `ui.navigation` |
 | Agent profiles | — | `config/agents.yaml` |
 | Tools | `{{ package_name }}/tools/` | Reference from agent profile YAML |
+| Workflows | `{{ package_name }}/workflows/` | `config/workflows/` (`prefect-yaml`) |
 
 ## Reference
 
 See `AGENTS.md` for detailed coding guidelines, patterns, and genai-tk documentation links.
+For step-by-step extension procedures, see `skills/development/` (`add-cli-command`, `add-tool`, `prefect-yaml`).

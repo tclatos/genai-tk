@@ -100,6 +100,7 @@ URL dependencies must be expressed as direct requirements or constraints
 # Local editable checkouts — consumer-level sources win for the whole graph.
 genai-tk = { path = "../genai-tk", editable = true }
 genai-graph = { path = "../genai-graph", editable = true }
+prefect-yaml = { path = "../prefect-yaml", editable = true }
 
 [project.optional-dependencies]
 # Forward genai-tk optional extras — install with: uv sync --extra <name>

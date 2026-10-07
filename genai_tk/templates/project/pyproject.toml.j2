@@ -15,7 +15,8 @@ dependencies = [
 ]
 
 # Sibling checkouts? Replace the git entry below with local editable sources,
-# e.g. genai-tk = { path = "../genai-tk", editable = true }.
+# e.g. genai-tk = { path = "../genai-tk", editable = true },
+#      prefect-yaml = { path = "../prefect-yaml", editable = true }.
 # Do NOT add [tool.uv] override-dependencies for genai-tk: overrides apply to
 # every requirement for the package — including the forwarded genai-tk[<extra>]
 # extras below — and an override without extras silently strips them.
@@ -24,6 +25,7 @@ dependencies = [
 genai_graph = { path = "{{ graph_path }}", editable = true }
 {% endif %}
 genai-tk = { git = "https://github.com/tclatos/genai-tk", rev = "main" }
+prefect-yaml = { git = "https://github.com/tclatos/prefect-yaml", branch = "main" }
 
 # Forward genai-tk optional extras — install with: uv sync --extra <name>
 [project.optional-dependencies]

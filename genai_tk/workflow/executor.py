@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from prefect_yaml.models.authoring import ResolvedWorkflowInvocation
-from prefect_yaml.runtime import WorkflowExecutionError, execute_workflow as _py_execute_workflow
+from prefect_yaml.runtime import WorkflowExecutionError
+from prefect_yaml.runtime import execute_workflow as _py_execute_workflow
 
 
 def execute_workflow(invocation: ResolvedWorkflowInvocation) -> dict[str, Any]:

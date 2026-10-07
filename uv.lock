@@ -2555,7 +2555,7 @@ requires-dist = [
     { name = "pathspec", specifier = ">=1.0.2,<1.1.1" },
     { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.51.0" },
     { name = "prefect", specifier = ">=3.6.7" },
-    { name = "prefect-yaml", editable = "../prefect-yaml" },
+    { name = "prefect-yaml", git = "https://github.com/tclatos/prefect-yaml?branch=main" },
     { name = "presidio-analyzer", marker = "extra == 'nlp'", specifier = ">=2.2.362" },
     { name = "presidio-anonymizer", marker = "extra == 'nlp'", specifier = ">=2.2.362" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2.9" },
@@ -6162,7 +6162,7 @@ wheels = [
 [[package]]
 name = "prefect-yaml"
 version = "0.1.0"
-source = { editable = "../prefect-yaml" }
+source = { git = "https://github.com/tclatos/prefect-yaml?branch=main#178d4e37ca11b15a4702207fd631683ec7a0b1f9" }
 dependencies = [
     { name = "httpx" },
     { name = "loguru" },
@@ -6175,24 +6175,6 @@ dependencies = [
     { name = "typer" },
     { name = "xxhash" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "loguru", specifier = ">=0.7.0" },
-    { name = "omegaconf", specifier = ">=2.3.0" },
-    { name = "pathspec", specifier = ">=0.12.0" },
-    { name = "prefect", specifier = ">=3.0.0" },
-    { name = "pydantic", specifier = ">=2.7.0,<3" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24.0" },
-    { name = "pyyaml", specifier = ">=6.0.1" },
-    { name = "rich", specifier = ">=13.7.0" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.9.0" },
-    { name = "typer", specifier = ">=0.12.0" },
-    { name = "xxhash", specifier = ">=3.5.0" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "preshed"

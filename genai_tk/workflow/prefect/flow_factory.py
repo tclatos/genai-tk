@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from genai_tk.config_mgmt.config_mngr import global_config
 from prefect_yaml.cache.fingerprint import compute_step_fingerprint
 from prefect_yaml.cache.manifest import ManifestCache, default_manifest_path
 from prefect_yaml.models.compiled import CompiledWorkflow
@@ -16,6 +15,8 @@ from prefect_yaml.runtime.flow_factory import (
     _resolve_step_ref,
     flow_from_yaml,
 )
+
+from genai_tk.config_mgmt.config_mngr import global_config
 
 
 def _build_prefect_flow(workflow: CompiledWorkflow, max_workers: int = 4) -> Any:

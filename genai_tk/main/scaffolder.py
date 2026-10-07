@@ -431,7 +431,7 @@ class ProjectScaffolder:
         content = pyproject.read_text(encoding="utf-8")
         changed = False
 
-        if "override-dependencies" in content:
+        if re.search(r"^\s*override-dependencies\s*=", content, re.MULTILINE):
             console.print(
                 "[yellow]⚠ override-dependencies found in pyproject.toml — overrides apply to every "
                 "requirement for the overridden package, including forwarded genai-tk[<extra>] extras, "

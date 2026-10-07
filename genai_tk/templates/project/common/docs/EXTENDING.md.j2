@@ -166,14 +166,60 @@ Reference in an agent profile:
 mcp_servers: [my-server]
 ```
 
+## Workflows (`prefect-yaml`)
+
+Workflows are declarative pipelines defined in YAML and compiled to Prefect DAGs by
+[prefect-yaml](https://github.com/tclatos/prefect-yaml).
+
+Define a workflow in your project workflow YAML (e.g. `config/workflows/pipeline.yaml`):
+
+```yaml
+workflows:
+  my_pipeline:
+    description: "Custom processing pipeline"
+    inputs:
+      input_dir:
+        type: path
+        required: true
+    defaults:
+      input_dir: "${paths.data_root}/raw"
+    pipeline:
+      - id: step1
+        run: {{ package_name }}.workflows.steps.my_step
+        with:
+          input_dir: "${values.input_dir}"
+```
+
+Create a step in Python using the `@workflow` decorator:
+
+```python
+from prefect_yaml import workflow
+
+@workflow(name="my_step", description="Custom step")
+def my_step(*, input_dir: str) -> dict:
+    return {"status": "ok", "processed": input_dir}
+```
+
+Run and inspect workflows:
+
+```bash
+uv run cli workflow list
+uv run cli workflow run my_pipeline
+uv run prefect-yaml show my_pipeline
+```
+
+See `skills/development/prefect-yaml/SKILL.md` for full syntax and capabilities.
+
 ## Copilot Skills for Common Tasks
 
 When using GitHub Copilot, Cursor, or Claude Code, read the relevant skill:
 
 | Task | Skill |
 |------|-------|
-| Add CLI command | `skills/genai-tk/add-cli-command/SKILL.md` |
-| Add agent tool | `skills/genai-tk/add-tool/SKILL.md` |
-| Add agent profile | `skills/genai-tk/agent-profiles/SKILL.md` |
-| Add MCP server | `skills/genai-tk/add-mcp-server/SKILL.md` |
-| Create a skill | `skills/genai-tk/add-skill/SKILL.md` |
+| Add CLI command | `skills/development/add-cli-command/SKILL.md` |
+| Add agent tool | `skills/development/add-tool/SKILL.md` |
+| Add agent profile | `skills/development/agent-profiles/SKILL.md` |
+| Add MCP server | `skills/development/add-mcp-server/SKILL.md` |
+| Create a skill | `skills/development/add-skill/SKILL.md` |
+| Workflows (prefect-yaml) | `skills/development/prefect-yaml/SKILL.md` |
+| Workflow engine | `skills/development/workflow-engine/SKILL.md` |

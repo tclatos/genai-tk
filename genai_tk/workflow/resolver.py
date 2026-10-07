@@ -8,9 +8,13 @@ from prefect_yaml.models.authoring import ResolvedWorkflowInvocation, WorkflowDe
 from prefect_yaml.resolver import (
     WorkflowResolutionError,
     expand_pipeline,
-    load_workflows as _py_load_workflows,
     parse_cli_overrides,
     parse_workflows_from_dict,
+)
+from prefect_yaml.resolver import (
+    load_workflows as _py_load_workflows,
+)
+from prefect_yaml.resolver import (
     resolve_workflow_invocation as _py_resolve_workflow_invocation,
 )
 
