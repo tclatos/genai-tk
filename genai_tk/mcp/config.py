@@ -23,6 +23,7 @@ Example YAML:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from loguru import logger
 from omegaconf import OmegaConf
@@ -71,6 +72,8 @@ class MCPAgentConfig(BaseModel):
     description: str = "Run the agent with a user query and return the final answer."
     llm: str | None = None
     profile: str | None = None
+    factory: str | None = None
+    config: dict[str, Any] = {}
 
 
 class MCPServerDefinition(BaseModel):
@@ -110,12 +113,16 @@ def load_mcp_server_definitions(config_path: Path | str | None = None) -> list[M
     """
     if config_path is None:
         project_root = global_config().get_dir_path("paths.project")
-        config_path = project_root / "config" / "examples" / "tk_servers.yaml"
+        candidates = [
+            project_root / "config" / "tk_servers.yaml",
+            project_root / "config" / "examples" / "tk_servers.yaml",
+        ]
+        config_path = next((p for p in candidates if p.exists()), candidates[1])
 
     path = Path(config_path)
     if not path.exists():
         raise FileNotFoundError(
-            f"MCP expose config not found at {path}. Create config/examples/tk_servers.yaml or pass an explicit path."
+            f"MCP expose config not found at {path}. Create config/tk_servers.yaml (or config/examples/tk_servers.yaml) or pass an explicit path."
         )
 
     # Use OmegaConf for variable interpolation

@@ -99,6 +99,19 @@ def create_harness(
     Raises:
         ValueError: If no profile matches *key*.
     """
+    if key.lower() == "docgraph":
+        try:
+            from genai_graph.agent.docgraph_agent import create_docgraph_agent
+
+            profile = lookup_profile(key)
+            return create_docgraph_agent(
+                profile,
+                llm=llm_override,
+                extra_tools=extra_tools,
+            )
+        except Exception as exc:
+            logger.debug("Falling back to standard harness for docgraph: {}", exc)
+
     profile = lookup_profile(key)
 
     extra = list(extra_mcp or [])

@@ -80,6 +80,9 @@ def serve(
     name: str,
     config_path: Path | str | None = None,
     transport: str = "stdio",
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    **kwargs: Any,
 ) -> None:
     """Load a server definition by name and serve it (blocking).
 
@@ -88,19 +91,48 @@ def serve(
         config_path: Path to the YAML config file; auto-detected if None.
         transport: MCP transport. ``'stdio'`` (default), ``'sse'``, or
             ``'streamable-http'``.
+        host: Host binding for HTTP/SSE transports (default: 127.0.0.1).
+        port: Port binding for HTTP/SSE transports (default: 8000).
+        **kwargs: Additional transport parameters passed to ``server.run()``.
 
     Example:
         ```python
         from genai_tk.mcp.server_builder import serve
 
         serve("search")  # stdio – used by Claude Desktop etc.
-        serve("search", transport="sse")  # HTTP SSE
+        serve("search", transport="sse", port=8001)  # HTTP SSE
+        serve("search", transport="streamable-http", port=8000)  # Streamable HTTP
         ```
     """
-    definition = get_mcp_server_definition(name, config_path)
-    server = build_mcp_server(definition)
+    if transport == "stdio":
+        import os
+        import sys
+
+        # Temporarily redirect stdout (Python + OS fd 1) to stderr during server
+        # resolution and build so native/library init messages (e.g. BAML rust prints)
+        # do not corrupt the stdio JSON-RPC stream before server.run() initializes.
+        old_stdout_fd = os.dup(1)
+        os.dup2(2, 1)
+        old_sys_stdout = sys.stdout
+        sys.stdout = sys.stderr
+        try:
+            definition = get_mcp_server_definition(name, config_path)
+            server = build_mcp_server(definition)
+        finally:
+            sys.stdout.flush()
+            os.dup2(old_stdout_fd, 1)
+            os.close(old_stdout_fd)
+            sys.stdout = old_sys_stdout
+    else:
+        definition = get_mcp_server_definition(name, config_path)
+        server = build_mcp_server(definition)
+
     logger.info("Starting MCP server '{}' over {} transport …", name, transport)
-    server.run(transport=transport)  # type: ignore[arg-type]
+    if transport == "stdio":
+        server.run(transport="stdio")
+    else:
+        norm_transport = "streamable-http" if transport in ("streamable-http", "http") else "sse"
+        server.run(transport=norm_transport, host=host, port=port, **kwargs)  # type: ignore[arg-type]
 
 
 def list_servers(config_path: Path | str | None = None) -> list[MCPServerDefinition]:

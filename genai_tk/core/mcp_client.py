@@ -24,20 +24,21 @@ await call_react_agent("What's the weather in Toulouse?", mcp_server_filter=["we
 """
 
 import os
-from contextlib import AsyncExitStack
-from itertools import chain
-from typing import Literal
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any, Literal
 
 from devtools import debug  # noqa: F401
 from dotenv import load_dotenv
-from langchain.agents import create_agent
 from langchain_core.language_models.base import LanguageModelOutput
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
+import genai_tk.mcp.compat  # noqa: F401
 from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 
 load_dotenv()
@@ -51,9 +52,11 @@ class McpServerConfig(BaseModel):
     compatible.
     """
 
-    command: str = Field(..., description="Executable to launch the server")
+    command: str | None = Field(None, description="Executable to launch the server")
     args: list[str] = Field(default_factory=list, description="Arguments passed to the command")
-    transport: Literal["stdio", "sse"] = Field("stdio", description="Transport protocol")
+    url: str | None = Field(None, description="Endpoint URL for SSE / streamable-http")
+    transport: Literal["stdio", "sse", "streamable-http", "http"] = Field("stdio", description="Transport protocol")
+    headers: dict[str, str] = Field(default_factory=dict, description="HTTP headers for remote transports")
     env: dict[str, str] = Field(default_factory=dict, description="Additional environment variables")
     disabled: bool = Field(False, description="Set true to skip this server")
     description: str | None = Field(None, description="Human-readable description (ignored at runtime)")
@@ -69,27 +72,28 @@ def update_server_parameters(server_config: dict) -> dict:
     Ensures required parameters are present and properly formatted.
 
     Args:
-        server_config: Raw server configuration dictionary containing:
-            - command: The executable command
-            - args: List of arguments for the command
-            - transport: Communication protocol (defaults to 'stdio')
-            - env: Environment variables
-            - disabled: Optional flag to disable the server
+        server_config: Raw server configuration dictionary.
 
     Returns:
         Processed server parameters dictionary ready for server instantiation
-
-    Example:
-    ```python
-    config = {"command": "uvx", "args": ["tool", "run", "pubmedmcp@0.1.3"]}
-    processed = update_server_parameters(config)
-    # {'command': 'uv', 'args': ['tool', 'run', 'pubmedmcp@0.1.3'], 'transport': 'stdio', 'env': {'PATH': ...}}
-    ```
     """
     from genai_tk.config_mgmt.config_exceptions import yaml_config_validation
 
     with yaml_config_validation(context="MCP server config"):
         cfg = McpServerConfig.model_validate(server_config)
+
+    if cfg.url or cfg.transport in ("sse", "streamable-http", "http"):
+        transport = cfg.transport if cfg.transport != "stdio" else "streamable-http"
+        res: dict[str, Any] = {
+            "url": cfg.url,
+            "transport": transport,
+            "headers": cfg.headers,
+            "env": cfg.env,
+        }
+        return res
+
+    if not cfg.command:
+        raise ValueError("MCP server configuration must provide either 'command' or 'url'.")
 
     # Resolve uvx alias to 'uv tool run'
     command = cfg.command
@@ -101,46 +105,66 @@ def update_server_parameters(server_config: dict) -> dict:
     desc: dict = {
         "command": command,
         "args": args,
-        "transport": cfg.transport,
+        "transport": "stdio",
         "env": {"PATH": os.environ.get("PATH", "")} | cfg.env,
     }
     from mcp import StdioServerParameters  # noqa: PLC0415
 
-    _ = StdioServerParameters(**desc)  # validate against MCP library schema
+    clean_desc = {k: v for k, v in desc.items() if k in ("command", "args", "env", "cwd")}
+    _ = StdioServerParameters(**clean_desc)  # validate against MCP library schema
     return desc
 
 
-# def get_mcp_servers_from_json(json_str: str) -> dict:
-#     """Retrieve MCP servers from JSON string configuration.
+@asynccontextmanager
+async def open_mcp_client(server_desc: dict) -> AsyncIterator[Any]:
+    """Async context manager to connect to an MCP server across any transport.
 
-#     Args:
-#         json_str: JSON string containing server configurations
+    Supports stdio (via command/args) and network transports (sse, streamable-http, http)
+    using ClientSession or Client.
+    """
+    url = server_desc.get("url")
+    transport = server_desc.get("transport", "stdio")
 
-#     Returns:
-#         Dictionary of server names to their configuration parameters
-#     """
-#     import json
+    if url or transport in ("sse", "streamable-http", "http"):
+        from mcp import Client  # noqa: PLC0415
 
-#     servers = json.loads(json_str)
-#     return {name: create_server_parameters(desc) for name, desc in servers.items()}
+        headers = server_desc.get("headers") or None
+        target = url or f"http://{server_desc.get('host', '127.0.0.1')}:{server_desc.get('port', 8000)}"
+        async with Client(target, headers=headers) as client:
+            yield client
+    else:
+        from mcp import ClientSession, StdioServerParameters  # noqa: PLC0415
+        from mcp.client.stdio import stdio_client  # noqa: PLC0415
+
+        clean_params = {
+            "command": server_desc["command"],
+            "args": server_desc.get("args", []),
+            "env": server_desc.get("env"),
+            "cwd": server_desc.get("cwd"),
+        }
+        params = StdioServerParameters(**clean_params)
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                yield session
 
 
 async def get_mcp_tools_info(filter: list[str] | None = None) -> dict:
     """Get all tools from MCP servers with their names and descriptions."""
-    from mcp import ClientSession, StdioServerParameters  # noqa: PLC0415
-    from mcp.client.stdio import stdio_client  # noqa: PLC0415
-
     servers = get_mcp_servers_dict(filter)
     tools_info = {}
     for server_name, param_desc in servers.items():
         debug(server_name)
         if not param_desc.get("disabled", False):
-            server_params = StdioServerParameters(**param_desc)
-            async with stdio_client(server_params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    tools = await session.list_tools()
-                    tools_info[server_name] = {tool.name: tool.description for tool in tools.tools}
+            try:
+                async with open_mcp_client(param_desc) as client:
+                    tools_result = await client.list_tools()
+                    tool_list = getattr(tools_result, "tools", tools_result)
+                    tools_info[server_name] = {
+                        tool.name: getattr(tool, "description", "") or "" for tool in tool_list
+                    }
+            except Exception as e:
+                logger.warning("Error fetching tools for MCP server {}: {}", server_name, e)
     return tools_info
 
 
@@ -150,38 +174,36 @@ async def get_mcp_tools_with_schema(filter: list[str] | None = None) -> dict[str
     Returns:
         Dict mapping server name to list of MCP Tool objects (with .name, .description, .input_schema).
     """
-    from mcp import ClientSession, StdioServerParameters  # noqa: PLC0415
-    from mcp.client.stdio import stdio_client  # noqa: PLC0415
-
     servers = get_mcp_servers_dict(filter)
     result: dict[str, list] = {}
     for server_name, param_desc in servers.items():
         debug(server_name)
         if not param_desc.get("disabled", False):
-            server_params = StdioServerParameters(**param_desc)
-            async with stdio_client(server_params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    tools = await session.list_tools()
-                    result[server_name] = tools.tools
+            try:
+                async with open_mcp_client(param_desc) as client:
+                    tools_result = await client.list_tools()
+                    tool_list = getattr(tools_result, "tools", tools_result)
+                    result[server_name] = list(tool_list)
+            except Exception as e:
+                logger.warning("Error fetching tools with schema for MCP server {}: {}", server_name, e)
     return result
 
 
 async def get_mcp_prompts(filter: list[str] | None = None) -> dict:
-    """Get all prompts  from MCP servers with their names and descriptions."""
-    from mcp import ClientSession, StdioServerParameters  # noqa: PLC0415
-    from mcp.client.stdio import stdio_client  # noqa: PLC0415
-
+    """Get all prompts from MCP servers with their names and descriptions."""
     servers = get_mcp_servers_dict(filter)
     prompts_info = {}
     for server_name, param_desc in servers.items():
         if not param_desc.get("disabled", False):
-            server_params = StdioServerParameters(**param_desc)
-            async with stdio_client(server_params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    prompts = await session.list_prompts()
-                    prompts_info[server_name] = {p.name: p.description for p in prompts.prompts}
+            try:
+                async with open_mcp_client(param_desc) as client:
+                    prompts_result = await client.list_prompts()
+                    prompt_list = getattr(prompts_result, "prompts", prompts_result)
+                    prompts_info[server_name] = {
+                        p.name: getattr(p, "description", "") or "" for p in prompt_list
+                    }
+            except Exception as e:
+                logger.warning("Error fetching prompts for MCP server {}: {}", server_name, e)
     return prompts_info
 
 
@@ -239,6 +261,7 @@ def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
                 servers[pname] = {
                     "command": "uv",
                     "args": ["--project", project_root, "run", "cli", "mcpserver", "start", "--name", pname],
+                    "transport": "stdio",
                 }
     except Exception:
         pass  # mcpProjectServers is optional
@@ -262,8 +285,6 @@ def get_mcp_servers_dict(filter: list[str] | None = None) -> dict:
             raise ValueError(
                 f"Invalid MCP server filter ({'; '.join(details)}). Available enabled servers: {available_txt}."
             )
-
-    from loguru import logger
 
     result_dict = {}
     for name, desc in enabled_servers.items():
@@ -294,20 +315,24 @@ def dict_to_stdio_server_list(param_list: dict) -> list:
     """
     from mcp import StdioServerParameters  # noqa: PLC0415
 
-    return [StdioServerParameters(**desc) for name, desc in param_list.items()]
+    valid_keys = {"command", "args", "env", "cwd", "encoding", "encoding_error_handler"}
+    return [
+        StdioServerParameters(**{k: v for k, v in desc.items() if k in valid_keys})
+        for name, desc in param_list.items()
+        if desc.get("command")
+    ]
 
 
 async def mcp_agent_runner(
-    model: BaseChatModel, servers: list, prompt: str, config: RunnableConfig | None = None
+    model: BaseChatModel, servers: list | dict, prompt: str, config: RunnableConfig | None = None
 ) -> LanguageModelOutput | None:
     """Execute a query using MCP tools with a ReAct agent.
 
     Creates a ReAct agent with MCP tools and processes the query.
-    Note: This function is not actively maintained and may require updates.
 
     Args:
         model: The language model to use for the agent
-        servers: List of StdioServerParameters for MCP server connections
+        servers: List of StdioServerParameters or server dictionary
         prompt: The input query to process
         config: Optional RunnableConfig for the agent execution
 
@@ -317,39 +342,42 @@ async def mcp_agent_runner(
     Example:
     ```python
     model = get_llm()
-    servers = dict_to_stdio_server_list(get_mcp_servers_dict())
+    servers = get_mcp_servers_dict()
     response = await mcp_agent_runner(model, servers, "What's the weather?")
     ```
     """
-    # TODO: adapt it for SmolAgent
-    # see https://hungvtm.medium.com/building-mcp-servers-and-client-with-smolagents-bd9db2d640e6
+    from langchain.agents import create_agent
+    from langchain_mcp_adapters.client import MultiServerMCPClient
 
     if config is None:
         config = {}
-    async with AsyncExitStack() as stack:
-        from mcpadapt.core import MCPAdapt  # noqa: PLC0415
-        from mcpadapt.langchain_adapter import LangChainAdapter  # noqa: PLC0415
 
-        tools_list = []
-        for server in servers:
-            mcp_adapt = MCPAdapt(server, LangChainAdapter())
-            tools = await stack.enter_async_context(mcp_adapt)
-            tools_list.append(tools)
+    if isinstance(servers, dict):
+        servers_dict = servers
+    else:
+        servers_dict = {}
+        for idx, s in enumerate(servers):
+            if hasattr(s, "command"):
+                servers_dict[f"server_{idx}"] = {
+                    "command": s.command,
+                    "args": s.args,
+                    "env": s.env,
+                    "transport": "stdio",
+                }
+            elif isinstance(s, dict):
+                servers_dict[s.get("name", f"server_{idx}")] = s
 
-        # Merge and flatten tools from all MCP servers
-        tools = list(chain.from_iterable(tools_list))
+    client = MultiServerMCPClient(servers_dict)
+    tools = await client.get_tools()
 
-        if _ := config.get("thread_id"):
-            memory = MemorySaver()
-        else:
-            memory = None
-        agent_executor = create_agent(model, tools, checkpointer=memory)
+    memory = MemorySaver() if config.get("thread_id") else None
+    agent_executor = create_agent(model, tools, checkpointer=memory)
 
-        result = await agent_executor.ainvoke(
-            {"messages": [HumanMessage(content=prompt)]},
-            config,
-        )
-        return result["messages"][-1].content
+    result = await agent_executor.ainvoke(
+        {"messages": [HumanMessage(content=prompt)]},
+        config,
+    )
+    return result["messages"][-1].content
 
 
 if __name__ == "__main__":

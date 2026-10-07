@@ -266,10 +266,7 @@ class CoreCommands(CliTopCommand):
             console = Console()
 
             async def _run() -> None:
-                from mcp import ClientSession, StdioServerParameters
-                from mcp.client.stdio import stdio_client
-
-                from genai_tk.core.mcp_client import get_mcp_servers_dict
+                from genai_tk.core.mcp_client import get_mcp_servers_dict, open_mcp_client
 
                 try:
                     servers = get_mcp_servers_dict(filter=[server])
@@ -283,44 +280,46 @@ class CoreCommands(CliTopCommand):
                     server_params_dict = dict(server_params_dict)
                     server_params_dict["args"] = list(server_params_dict.get("args", [])) + list(server_args)
 
-                params = StdioServerParameters(**server_params_dict)
+                async with open_mcp_client(server_params_dict) as client:
+                    if tool is None:
+                        tools_response = await client.list_tools()
+                        tools_list = getattr(tools_response, "tools", tools_response)
+                        tbl = Table(
+                            title=f"Tools – [bold cyan]{server}[/bold cyan]",
+                            show_header=True,
+                            header_style="bold magenta",
+                        )
+                        tbl.add_column("Tool", style="cyan", no_wrap=True)
+                        tbl.add_column("Description")
+                        for t in tools_list:
+                            tbl.add_row(t.name, getattr(t, "description", "") or "")
+                        console.print(tbl)
+                    else:
+                        kwargs: dict = {}
+                        if tool_args:
+                            try:
+                                kwargs = json.loads(tool_args)
+                            except json.JSONDecodeError as exc:
+                                console.print(f"[red]--tool-args is not valid JSON: {exc}[/red]")
+                                raise typer.Exit(1) from exc
 
-                async with stdio_client(params) as (read, write):
-                    async with ClientSession(read, write) as session:
-                        await session.initialize()
-
-                        if tool is None:
-                            tools_response = await session.list_tools()
-                            tbl = Table(
-                                title=f"Tools – [bold cyan]{server}[/bold cyan]",
-                                show_header=True,
-                                header_style="bold magenta",
-                            )
-                            tbl.add_column("Tool", style="cyan", no_wrap=True)
-                            tbl.add_column("Description")
-                            for t in tools_response.tools:
-                                tbl.add_row(t.name, t.description or "")
-                            console.print(tbl)
-                        else:
-                            kwargs: dict = {}
-                            if tool_args:
-                                try:
-                                    kwargs = json.loads(tool_args)
-                                except json.JSONDecodeError as exc:
-                                    console.print(f"[red]--tool-args is not valid JSON: {exc}[/red]")
-                                    raise typer.Exit(1) from exc
-
-                            console.print(
-                                f"Calling [bold cyan]{server}[/bold cyan] → [bold yellow]{tool}[/bold yellow]"
-                                + (f" with {kwargs}" if kwargs else "")
-                                + " …"
-                            )
-                            result = await session.call_tool(tool, kwargs)
-                            for content in result.content:
-                                if hasattr(content, "text"):
-                                    console.print(content.text)  # pyright: ignore[reportAttributeAccessIssue]
-                                else:
-                                    console.print(content)
+                        console.print(
+                            f"Calling [bold cyan]{server}[/bold cyan] → [bold yellow]{tool}[/bold yellow]"
+                            + (f" with {kwargs}" if kwargs else "")
+                            + " …"
+                        )
+                        result = await client.call_tool(tool, kwargs)
+                        if getattr(result, "is_error", False):
+                            console.print("[bold red]Tool execution error:[/bold red]")
+                        content_list = getattr(result, "content", []) or []
+                        for content in content_list:
+                            if hasattr(content, "text"):
+                                console.print(content.text)
+                            else:
+                                console.print(content)
+                        structured = getattr(result, "structured_content", None)
+                        if structured and not content_list:
+                            console.print(structured)
 
             asyncio.run(_run())
 

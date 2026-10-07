@@ -55,8 +55,9 @@ Use `config/mcp_servers.yaml` instead when configuring external MCP servers for 
 ## Commands
 
 ```bash
-uv run cli mcp list
-uv run cli mcp generate --name <name> --output /tmp/<name>_server.py
+uv run cli mcpserver list
+uv run cli mcpserver start --name <name>
+uv run cli mcpserver generate --name <name> --output /tmp/<name>_server.py
 GENAITK_PROFILE=pytest uv run pytest tests/unit_tests/mcp -q
 ```
 

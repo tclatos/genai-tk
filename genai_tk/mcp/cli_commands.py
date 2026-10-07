@@ -37,7 +37,25 @@ class McpCommands(CliTopCommand):
         return "mcpserver", self.description
 
     def register_sub_commands(self, cli_app: typer.Typer) -> None:
-        @cli_app.command()
+        def _start_or_serve(
+            name: str,
+            config: Optional[Path],
+            transport: str,
+            host: str,
+            port: int,
+        ) -> None:
+            from genai_tk.mcp.server_builder import serve as _serve
+
+            try:
+                _serve(name=name, config_path=config, transport=transport, host=host, port=port)
+            except FileNotFoundError as e:
+                logger.error(str(e))
+                raise typer.Exit(1) from e
+            except ValueError as e:
+                logger.error(str(e))
+                raise typer.Exit(1) from e
+
+        @cli_app.command(name="start")
         def start(
             name: Annotated[str, typer.Option("--name", "-n", help="Server name from config/examples/tk_servers.yaml")],
             config: Annotated[
@@ -48,6 +66,14 @@ class McpCommands(CliTopCommand):
                 str,
                 typer.Option("--transport", "-t", help="Transport: stdio | sse | streamable-http"),
             ] = "stdio",
+            host: Annotated[
+                str,
+                typer.Option("--host", help="Host binding for network transports (default: 127.0.0.1)"),
+            ] = "127.0.0.1",
+            port: Annotated[
+                int,
+                typer.Option("--port", "-p", help="Port binding for network transports (default: 8000)"),
+            ] = 8000,
         ) -> None:
             """Start an MCP server over stdio (or sse/streamable-http).
 
@@ -55,19 +81,33 @@ class McpCommands(CliTopCommand):
             It exposes LangChain tools and, optionally, an agent-as-a-tool.
 
             Examples:
-                uv run cli mcpserver serve --name search
-                uv run cli mcpserver  serve --name chinook --transport sse
+                uv run cli mcpserver start --name search
+                uv run cli mcpserver start --name chinook --transport sse --port 8001
             """
-            from genai_tk.mcp.server_builder import serve as _serve
+            _start_or_serve(name=name, config=config, transport=transport, host=host, port=port)
 
-            try:
-                _serve(name=name, config_path=config, transport=transport)
-            except FileNotFoundError as e:
-                logger.error(str(e))
-                raise typer.Exit(1) from e
-            except ValueError as e:
-                logger.error(str(e))
-                raise typer.Exit(1) from e
+        @cli_app.command(name="serve")
+        def serve_cmd(
+            name: Annotated[str, typer.Option("--name", "-n", help="Server name from config/examples/tk_servers.yaml")],
+            config: Annotated[
+                Optional[Path],
+                typer.Option("--config", "-c", help="Path to servers.yaml override"),
+            ] = None,
+            transport: Annotated[
+                str,
+                typer.Option("--transport", "-t", help="Transport: stdio | sse | streamable-http"),
+            ] = "stdio",
+            host: Annotated[
+                str,
+                typer.Option("--host", help="Host binding for network transports (default: 127.0.0.1)"),
+            ] = "127.0.0.1",
+            port: Annotated[
+                int,
+                typer.Option("--port", "-p", help="Port binding for network transports (default: 8000)"),
+            ] = 8000,
+        ) -> None:
+            """Alias for start: serve an MCP server over stdio (or sse/streamable-http)."""
+            _start_or_serve(name=name, config=config, transport=transport, host=host, port=port)
 
         @cli_app.command(name="list")
         def list_servers(

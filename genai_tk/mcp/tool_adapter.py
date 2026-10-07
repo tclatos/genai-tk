@@ -41,28 +41,34 @@ from genai_tk.agents.tools.langchain.shared_config_loader import process_langcha
 from genai_tk.agents.tools.tool_specs import ToolSpec
 
 
-def register_tools(server: MCPServer, tools: list[BaseTool]) -> None:
-    """Register a list of LangChain tools on an MCPServer instance.
+def register_tools(server: MCPServer, tools: list[Any]) -> None:
+    """Register a list of LangChain tools or callables on an MCPServer instance.
 
     Args:
         server: The MCPServer to register tools on.
-        tools: LangChain BaseTool instances to expose.
+        tools: LangChain BaseTool instances or plain Python callables to expose.
     """
     for tool in tools:
-        wrapper = _make_mcp_wrapper(tool)
-        server.add_tool(wrapper, name=_safe_name(tool.name), description=tool.description)
-        logger.debug("Registered MCP tool: {!r}", tool.name)
+        if isinstance(tool, BaseTool):
+            wrapper = _make_mcp_wrapper(tool)
+            server.add_tool(wrapper, name=_safe_name(tool.name), description=tool.description)
+            logger.debug("Registered MCP tool: {!r}", tool.name)
+        elif callable(tool):
+            name = getattr(tool, "__name__", "tool")
+            doc = getattr(tool, "__doc__", "") or ""
+            server.add_tool(tool, name=_safe_name(name), description=doc)
+            logger.debug("Registered callable MCP tool: {!r}", name)
 
 
-def resolve_tools_from_config(tool_configs: list) -> list[BaseTool]:
-    """Resolve a list of tool config dicts (same format as langchain.yaml) into BaseTool instances.
+def resolve_tools_from_config(tool_configs: list) -> list[Any]:
+    """Resolve a list of tool config dicts into BaseTool instances or callables.
 
     Args:
         tool_configs: List of tool configuration dicts, e.g.
             ``[{"factory": "module:func", "config": {...}}]``.
 
     Returns:
-        Flat list of BaseTool instances.
+        Flat list of BaseTool instances or callables.
 
     Example:
         ```python
@@ -71,10 +77,46 @@ def resolve_tools_from_config(tool_configs: list) -> list[BaseTool]:
         )
         ```
     """
+    resolved: list[Any] = []
+    for cfg in tool_configs:
+        if not isinstance(cfg, dict):
+            continue
 
-    ta = TypeAdapter(ToolSpec)
-    specs = [ta.validate_python(cfg) for cfg in tool_configs if isinstance(cfg, dict)]
-    return process_langchain_tools_from_config(specs)
+        # First attempt: standard LangChain tool spec processing
+        try:
+            ta = TypeAdapter(ToolSpec)
+            spec = ta.validate_python(cfg)
+            lc_tools = process_langchain_tools_from_config([spec])
+            if lc_tools:
+                resolved.extend(lc_tools)
+                continue
+        except Exception:
+            pass
+
+        # Second attempt: direct factory invocation (e.g. factory returning a raw callable or list)
+        factory_target = cfg.get("factory") or cfg.get("target")
+        if factory_target:
+            try:
+                from genai_tk.config_mgmt.import_utils import import_from_qualified
+
+                fn = import_from_qualified(factory_target)
+                kwargs = {k: v for k, v in cfg.items() if k not in ("factory", "target")}
+                if "config" in kwargs and isinstance(kwargs["config"], dict):
+                    nested = kwargs.pop("config")
+                    kwargs = {**nested, **kwargs}
+
+                sig = inspect.signature(fn)
+                call_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+                res = fn(**call_kwargs)
+                if isinstance(res, (list, tuple)):
+                    resolved.extend(res)
+                elif res is not None:
+                    resolved.append(res)
+                logger.debug("Resolved tool from direct factory {!r}: {!r}", factory_target, res)
+            except Exception as e:
+                logger.warning("Could not resolve tool factory {!r}: {}", factory_target, e)
+
+    return resolved
 
 
 # ---------------------------------------------------------------------------

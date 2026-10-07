@@ -26,9 +26,10 @@ Example:
 
 from __future__ import annotations
 
+import inspect
 import uuid
+from typing import Any
 
-from langchain_core.tools import BaseTool
 from loguru import logger
 
 try:
@@ -52,7 +53,7 @@ class AgentToolResult(BaseModel):
 def register_agent_tool(
     server: MCPServer,
     agent_cfg: MCPAgentConfig,
-    extra_tools: list[BaseTool] | None = None,
+    extra_tools: list[Any] | None = None,
 ) -> None:
     """Register a wrapped agent as a single MCP tool.
 
@@ -98,8 +99,8 @@ def register_agent_tool(
     logger.debug("Registered agent MCP tool: {!r}", agent_cfg.name)
 
 
-async def _build_harness(agent_cfg: MCPAgentConfig, extra_tools: list[BaseTool]) -> BaseHarness:
-    """Build a harness from a profile (or a minimal adhoc react agent).
+async def _build_harness(agent_cfg: MCPAgentConfig, extra_tools: list[Any]) -> BaseHarness:
+    """Build a harness from a profile, custom factory, or minimal adhoc react agent.
 
     Args:
         agent_cfg: Agent configuration.
@@ -108,7 +109,39 @@ async def _build_harness(agent_cfg: MCPAgentConfig, extra_tools: list[BaseTool])
     Returns:
         A ready-to-stream :class:`BaseHarness` (langchain or DeerFlow).
     """
+    if agent_cfg.factory:
+        from genai_tk.config_mgmt.import_utils import import_from_qualified
+
+        fn = import_from_qualified(agent_cfg.factory)
+        sig = inspect.signature(fn)
+        kwargs = dict(agent_cfg.config)
+        if "agent_cfg" in sig.parameters:
+            kwargs["agent_cfg"] = agent_cfg
+        if "extra_tools" in sig.parameters:
+            kwargs["extra_tools"] = extra_tools
+        if "llm" in sig.parameters and "llm" not in kwargs:
+            kwargs["llm"] = agent_cfg.llm
+        res = fn(**kwargs)
+        if inspect.iscoroutine(res):
+            res = await res
+        return res
+
     if agent_cfg.profile:
+        if agent_cfg.profile.lower() == "docgraph":
+            try:
+                from genai_graph.agent.docgraph_agent import create_docgraph_agent
+
+                from genai_tk.agents.harness.registry import lookup_profile
+
+                profile = lookup_profile(agent_cfg.profile)
+                return create_docgraph_agent(
+                    profile,
+                    llm=agent_cfg.llm,
+                    extra_tools=extra_tools or None,
+                )
+            except Exception as e:
+                logger.warning("Falling back to standard harness for docgraph: {}", e)
+
         from genai_tk.agents.harness.registry import create_harness
 
         return create_harness(
