@@ -11,15 +11,18 @@ description: Work on core LLM, embeddings, vector store, provider, cache, prompt
 - `docs/llm-selection.md`
 - `genai_tk/core/factories/llm_factory.py`
 - `genai_tk/core/factories/embeddings_factory.py`
+- `genai_tk/core/factories/decision_factory.py`
 - `genai_tk/core/factories/retriever_factory.py`
 - `config/providers/llm.yaml`
 - `config/providers/embeddings.yaml`
+- `config/providers/decision_models.yaml`
 
 ## Main Components
 
 | Component | Code | Tests |
 |---|---|---|
 | LLM creation | `genai_tk/core/factories/llm_factory.py` | `tests/unit_tests/core/test_llm_factory.py` |
+| Decision Models | `genai_tk/core/factories/decision_factory.py`, `genai_tk/core/decision/` | `tests/unit_tests/core/test_decision_model.py` |
 | Embeddings | `genai_tk/core/factories/embeddings_factory.py` | `tests/unit_tests/core/test_embeddings_factory.py` |
 | Vector stores | `genai_tk/core/embeddings_store.py`, `genai_tk/core/vector_backends/` | `tests/unit_tests/core/test_embeddings_store.py` |
 | Retrievers | `genai_tk/core/factories/retriever_factory.py`, `genai_tk/core/retrievers/` | `tests/unit_tests/core/test_retriever_factory.py` |

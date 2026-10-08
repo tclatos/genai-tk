@@ -30,6 +30,16 @@ from genai_tk.core.factories.retriever_factory import (
     RetrieverFactory,
 )
 
+# Decision Model Factory
+from genai_tk.core.factories.decision_factory import (
+    DecisionModelFactory,
+    DecisionModelInfo,
+    DecisionModelsConfig,
+    DecisionSection,
+    get_decision_model,
+    get_decision_model_from_chat_model,
+)
+
 __all__ = [
     # LLM
     "LlmFactory",
@@ -47,6 +57,13 @@ __all__ = [
     "EmbeddingsModelsConfig",
     "EmbeddingsSection",
     "get_embeddings",
+    # Decision
+    "DecisionModelFactory",
+    "DecisionModelInfo",
+    "DecisionModelsConfig",
+    "DecisionSection",
+    "get_decision_model",
+    "get_decision_model_from_chat_model",
     # Retriever
     "RetrieverFactory",
     "ManagedRetriever",

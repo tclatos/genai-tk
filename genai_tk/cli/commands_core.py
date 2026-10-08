@@ -382,3 +382,190 @@ class CoreCommands(CliTopCommand):
                 table.add_row(sentences[0], sentences[i + 1], f"{score:.3f}")
 
             console.print(table)
+
+        @cli_app.command()
+        def classifier(
+            state: Annotated[
+                str | None,
+                Option("--state", "-s", help="Text or JSON state to classify. Reads from stdin if omitted or '-'"),
+            ] = None,
+            model: Annotated[
+                str, Option("--model", "-m", help="Decision model ID or tag (e.g. 'default', 'clef_flash', 'fake')")
+            ] = "default",
+            noul: Annotated[
+                str | None,
+                Option("--noul", help="Binary question instructions (returns probability yes in [0, 1])"),
+            ] = None,
+            choice: Annotated[
+                str | None,
+                Option("--choice", help="Categorical question instructions (pairs with --criteria)"),
+            ] = None,
+            score: Annotated[
+                str | None,
+                Option("--score", help="Ordinal rubric question instructions (pairs with --criteria)"),
+            ] = None,
+            criteria: Annotated[
+                str | None,
+                Option(
+                    "--criteria",
+                    "-c",
+                    help="Criteria for choice (key:desc, key:desc) or score (comma-separated ordered levels)",
+                ),
+            ] = None,
+            demo: Annotated[bool, Option("--demo", help="Run a multi-question demo classification")] = False,
+            use_chat: Annotated[
+                str | None, Option("--use-chat", help="Wrap a regular chat LLM as a decision model fallback")
+            ] = None,
+        ) -> None:
+            """Invoke a Decision / System One model (Noul, Choice, Score).
+
+            Evaluates structured state against narrow decision questions with calibrated probabilities.
+
+            Examples:
+                uv run cli core classifier -s "Server is returning 500 error on checkout" --noul "Is this urgent?"
+                uv run cli core classifier -s "I want a refund" --choice "department" -c "billing: refunds/invoices, tech: bugs, sales: upgrades"
+                uv run cli core classifier -s "Third failure today!" --score "frustration" -c "Calm, Annoyed, Furious"
+                uv run cli core classifier --demo --model fake
+            """
+            import json
+            from typing import Any
+
+            from rich.console import Console
+            from rich.table import Table
+
+            from genai_tk.core.decision import (
+                Choice,
+                ClassifierRequest,
+                Noul,
+                Score,
+            )
+            from genai_tk.core.factories import (
+                get_decision_model,
+                get_decision_model_from_chat_model,
+            )
+
+            console = Console()
+
+            # Handle state input
+            state_text = state
+            if demo and not state_text:
+                state_text = "My payouts have been failing for 3 days. Can someone fix this now?!"
+            elif not state_text or state_text == "-":
+                if not sys.stdin.isatty():
+                    state_text = sys.stdin.read().strip()
+                elif not demo:
+                    console.print("[red]Error: Please provide --state or pipe text via stdin, or use --demo.[/red]")
+                    return
+
+            # Try to parse state as JSON if applicable
+            parsed_state: Any = state_text
+            if state_text and state_text.startswith(("{", "[")):
+                try:
+                    parsed_state = json.loads(state_text)
+                except Exception:
+                    parsed_state = state_text
+
+            questions: dict[str, Any] = {}
+
+            if demo:
+                questions["is_urgent"] = Noul(
+                    instructions="Does this message convey urgency?",
+                    criteria={"true": "Explicitly time-sensitive", "false": "No urgency expressed"},
+                )
+                questions["department"] = Choice(
+                    instructions="Which team should handle this?",
+                    criteria={
+                        "billing": "Payments, invoicing, refunds",
+                        "technical": "Bugs, outages, integrations",
+                        "sales": "Pricing, upgrades, new accounts",
+                    },
+                )
+                questions["frustration"] = Score(
+                    instructions="How frustrated is the customer?",
+                    criteria=["Calm", "Frustrated", "Very angry"],
+                )
+            else:
+                if noul:
+                    questions["noul_q"] = Noul(instructions=noul)
+
+                if choice:
+                    crit_dict: dict[str, Any] = {}
+                    if criteria:
+                        # Parse key:desc, key:desc
+                        for part in criteria.split(","):
+                            if ":" in part:
+                                k, v = part.split(":", 1)
+                                crit_dict[k.strip()] = v.strip()
+                            else:
+                                crit_dict[part.strip()] = part.strip()
+                    else:
+                        crit_dict = {"yes": "Affirmative", "no": "Negative"}
+                    questions["choice_q"] = Choice(instructions=choice, criteria=crit_dict)
+
+                if score:
+                    crit_list: list[Any] = []
+                    if criteria:
+                        crit_list = [p.strip() for p in criteria.split(",") if p.strip()]
+                    else:
+                        crit_list = ["Low", "Medium", "High"]
+                    questions["score_q"] = Score(instructions=score, criteria=crit_list)
+
+            if not questions:
+                console.print("[red]Error: Specify at least one question via --noul, --choice, --score, or --demo.[/red]")
+                return
+
+            req = ClassifierRequest(state=parsed_state, questions=questions)
+
+            try:
+                if use_chat:
+                    dec_model = get_decision_model_from_chat_model(use_chat)
+                else:
+                    dec_model = get_decision_model(model)
+            except Exception as e:
+                console.print(f"[red]Failed to load decision model '{model}': {e}[/red]")
+                return
+
+            console.print(f"[bold cyan]Invoking decision model:[/bold cyan] {getattr(dec_model, 'model', model)}")
+            try:
+                response = dec_model.invoke(req)
+            except Exception as e:
+                console.print(f"[red]Error during classification: {e}[/red]")
+                return
+
+            # Render results
+            table = Table(title=f"Decisions Output ({response.model})", show_header=True, header_style="bold magenta")
+            table.add_column("Question ID", style="cyan")
+            table.add_column("Type", style="green")
+            table.add_column("Decision / Answer", style="bold yellow")
+            table.add_column("Confidence / Probabilities", style="white")
+
+            for q_id, ans in response.answers.items():
+                if ans.type == "noul":
+                    table.add_row(
+                        q_id,
+                        "Noul (binary)",
+                        f"P(yes) = {ans.noul:.3f}",
+                        f"{'YES' if ans.noul >= 0.5 else 'NO'} (p={ans.noul:.2f})",
+                    )
+                elif ans.type == "choice":
+                    probs_str = ", ".join(f"{k}: {p:.2f}" for k, p in ans.probabilities.items())
+                    table.add_row(
+                        q_id,
+                        "Choice",
+                        ans.choice,
+                        f"conf: {ans.confidence:.2f} | {probs_str}",
+                    )
+                elif ans.type == "score":
+                    probs_str = ", ".join(f"L{k}: {p:.2f}" for k, p in ans.probabilities.items())
+                    table.add_row(
+                        q_id,
+                        "Score",
+                        f"{ans.score:.2f}",
+                        f"conf: {ans.confidence:.2f} | {probs_str}",
+                    )
+
+            console.print(table)
+            if response.usage.input_tokens or response.usage.cost:
+                console.print(
+                    f"[dim]Tokens in: {response.usage.input_tokens} | Cost: ${response.usage.cost or 0.0:.6f}[/dim]"
+                )

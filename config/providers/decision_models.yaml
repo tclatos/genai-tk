@@ -1,0 +1,44 @@
+########################
+# Decision Models (System One) Registry
+########################
+
+# Registered Decision Models (OpenRouter, TypeSafe, etc.)
+
+decision_models:
+  registry:
+    - model_id: clef_flash
+      providers:
+        - openrouter: cloudflare/clef-flash
+      context_length: 65536
+      description: "Cloudflare Clef Flash 9B decision model (fast, sub-100ms, multimodal)"
+
+    - model_id: clef
+      providers:
+        - openrouter: cloudflare/clef
+      context_length: 65536
+      description: "Cloudflare Clef 27B decision model"
+
+    - model_id: jev
+      providers:
+        - openrouter: typesafe/jev-1.13
+        - typesafe: jev-latest
+      context_length: 64000
+      description: "TypeSafe Jev System One model"
+
+    - model_id: solar_decide_flash
+      providers:
+        - openrouter: upstage/solar-decide-flash
+      context_length: 524288
+      description: "Upstage Solar Decide Flash (524K context)"
+
+    - model_id: mercury_decide
+      providers:
+        - openrouter: inception/mercury-decide:free
+      context_length: 65536
+      description: "Inception Mercury Decide (Free tier)"
+
+    - model_id: fake_decision
+      providers:
+        - fake: fake_decision
+      context_length: 4096
+      description: "Fake deterministic decision model for offline unit tests"

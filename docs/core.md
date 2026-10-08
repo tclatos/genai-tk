@@ -76,6 +76,51 @@ the factory logs a warning and continues.
 - `providers.py` - Provider configuration and API key management
 - `cache.py` - Response caching system
 
+### Decision Models Factory (`decision_factory.py`)
+
+**Purpose:** Factory and abstraction for creating System One / Decision Models that evaluate structured state against typed questions returning calibrated probabilities.
+
+**Features:**
+- Support for OpenRouter Decisions API (`/api/alpha/decisions`, `/systemone`)
+- Support for TypeSafe System One API
+- Native support for Cloudflare Clef Flash, Clef, Jev, Solar Decide, Mercury Decide
+- Chat model fallback adapter: convert any standard LangChain `BaseChatModel` into a Decision Model
+- Three decision primitives: `Noul` (binary/yes-no), `Choice` (categorical), and `Score` (ordinal rubric)
+- Fake decision model (`FakeDecisionModel`) for offline testing
+
+**Configuration:**
+```yaml
+decision:
+  models:
+    default: clef_flash@openrouter
+    fast: clef_flash@openrouter
+    accurate: jev@openrouter
+    fake: fake_decision@fake
+```
+
+**Usage:**
+```python
+from genai_tk.core.factories import get_decision_model, get_decision_model_from_chat_model
+from genai_tk.core.decision import Noul, Choice, Score
+
+# Get configured decision model
+model = get_decision_model("clef_flash@openrouter")
+
+# Quick binary decision
+p_urgent = model.decide_noul("Server 500 on payments", "Is this urgent?")
+
+# Categorical choice
+dept = model.decide_choice(
+    "Where is my receipt?",
+    instructions="Route ticket",
+    criteria={"billing": "Payment & invoices", "support": "Technical help"},
+)
+
+# Chat model fallback adapter
+from genai_tk.core.factories import get_llm
+chat_decider = get_decision_model_from_chat_model(get_llm("fake"))
+```
+
 ### Embeddings Factory (`embeddings_factory.py`)
 
 **Purpose:** Factory for creating and managing embedding models for semantic search and vector operations.

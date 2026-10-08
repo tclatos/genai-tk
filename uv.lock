@@ -2479,6 +2479,7 @@ dev = [
     { name = "faker" },
     { name = "ipykernel" },
     { name = "ipywidgets" },
+    { name = "prefect-yaml" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-beartype" },
@@ -2556,7 +2557,7 @@ requires-dist = [
     { name = "pathspec", specifier = ">=1.0.2,<1.1.1" },
     { name = "playwright", marker = "extra == 'browser'", specifier = ">=1.51.0" },
     { name = "prefect", specifier = ">=3.6.7" },
-    { name = "prefect-yaml", git = "https://github.com/tclatos/prefect-yaml?branch=main" },
+    { name = "prefect-yaml" },
     { name = "presidio-analyzer", marker = "extra == 'nlp'", specifier = ">=2.2.362" },
     { name = "presidio-anonymizer", marker = "extra == 'nlp'", specifier = ">=2.2.362" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2.9" },
@@ -2590,6 +2591,7 @@ dev = [
     { name = "faker", specifier = ">=25.0.0" },
     { name = "ipykernel", specifier = ">=6.29.4" },
     { name = "ipywidgets", specifier = ">=8.1.2" },
+    { name = "prefect-yaml", git = "https://github.com/tclatos/prefect-yaml?rev=main" },
     { name = "pytest", specifier = ">=8.1.1" },
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
     { name = "pytest-beartype", specifier = ">=0.2.0" },
@@ -6170,7 +6172,7 @@ wheels = [
 [[package]]
 name = "prefect-yaml"
 version = "0.1.0"
-source = { git = "https://github.com/tclatos/prefect-yaml?branch=main#178d4e37ca11b15a4702207fd631683ec7a0b1f9" }
+source = { git = "https://github.com/tclatos/prefect-yaml?rev=main#178d4e37ca11b15a4702207fd631683ec7a0b1f9" }
 dependencies = [
     { name = "httpx" },
     { name = "loguru" },

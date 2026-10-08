@@ -51,6 +51,12 @@ nlp:
         local: artic_22@ollama
         fake: embeddings_768@fake
       cache: data/hf_models
+    decision:
+      models:
+        default: clef_flash@openrouter
+        fast: clef_flash@openrouter
+        accurate: jev@openrouter
+        fake: fake_decision@fake
     vector_store:
       default: InMemory
     postgres:
@@ -117,6 +123,12 @@ nlp:
         fake: embeddings_768@fake
         test: ada-002@openai
       cache: data/hf_models
+    decision:
+      models:
+        default: fake_decision@fake
+        fast: fake_decision@fake
+        accurate: fake_decision@fake
+        fake: fake_decision@fake
     kv_store:
       default:
         type: key_value.aio.stores.memory.MemoryStore
