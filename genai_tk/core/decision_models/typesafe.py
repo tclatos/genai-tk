@@ -12,8 +12,8 @@ import httpx
 from langchain_core.runnables import RunnableConfig
 from pydantic import Field, SecretStr
 
-from genai_tk.core.decision.base import BaseDecisionModel
-from genai_tk.core.decision.types import (
+from genai_tk.core.decision_models.base import BaseDecisionModel
+from genai_tk.core.decision_models.types import (
     ClassifierRequest,
     ClassifierResponse,
     serialize_decision_state,

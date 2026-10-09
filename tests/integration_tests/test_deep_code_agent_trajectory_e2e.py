@@ -27,8 +27,8 @@ from pydantic import Field, PrivateAttr
 
 from genai_tk.agents.langchain.config import AgentProfileConfig
 from genai_tk.agents.langchain.factory import _create_deep_agent
-from genai_tk.core.decision.evaluators import evaluate_correctness
-from genai_tk.core.decision.fake import FakeDecisionModel
+from genai_tk.core.decision_models.evaluators import evaluate_correctness
+from genai_tk.core.decision_models.fake import FakeDecisionModel
 from genai_tk.extra.monitoring.nemo_relay_setup import (
     _state,
     flush_nemo_relay_async,

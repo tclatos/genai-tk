@@ -15,11 +15,11 @@ from omegaconf import DictConfig
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from genai_tk.config_mgmt.config_mngr import global_config
-from genai_tk.core.decision.base import BaseDecisionModel
-from genai_tk.core.decision.chat_adapter import ChatModelDecisionModel
-from genai_tk.core.decision.fake import FakeDecisionModel
-from genai_tk.core.decision.openrouter import OpenRouterDecisionModel
-from genai_tk.core.decision.typesafe import TypeSafeDecisionModel
+from genai_tk.core.decision_models.base import BaseDecisionModel
+from genai_tk.core.decision_models.chat_adapter import ChatModelDecisionModel
+from genai_tk.core.decision_models.fake import FakeDecisionModel
+from genai_tk.core.decision_models.openrouter import OpenRouterDecisionModel
+from genai_tk.core.decision_models.typesafe import TypeSafeDecisionModel
 from genai_tk.core.factories.llm_factory import get_llm
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from langchain_core.messages import HumanMessage
 
-from genai_tk.core.decision import (
+from genai_tk.core.decision_models import (
     Choice,
     ChoiceAnswer,
     ClassifierRequest,
@@ -100,7 +100,7 @@ def test_fake_decision_model_convenience_methods() -> None:
 
 
 @pytest.mark.unit
-def test_decision_factory_resolution_and_instantiation() -> None:
+def test_decision_model_factory_resolution_and_instantiation() -> None:
     # Test known models
     known = DecisionModelFactory.get_known_models()
     assert len(known) >= 5

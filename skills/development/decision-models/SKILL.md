@@ -16,7 +16,7 @@ Decision models evaluate structured state against narrow, typed questions return
 ## Key Imports
 
 ```python
-from genai_tk.core.decision import (
+from genai_tk.core.decision_models import (
     Choice,
     ClassifierRequest,
     ClassifierResponse,
@@ -99,7 +99,7 @@ decision_model = get_decision_model_from_chat_model(chat_llm)
 Decision Models serve as typed evaluators, replacing legacy prompt-based LLM judges (such as `openevals`):
 
 ```python
-from genai_tk.core.decision.evaluators import (
+from genai_tk.core.decision_models.evaluators import (
     evaluate_correctness,
     evaluate_conciseness,
     evaluate_groundedness,

@@ -76,7 +76,7 @@ the factory logs a warning and continues.
 - `providers.py` - Provider configuration and API key management
 - `cache.py` - Response caching system
 
-### Decision Models Factory (`decision_factory.py`)
+### Decision Models Factory (`decision_model_factory.py`)
 
 **Purpose:** Factory and abstraction for creating System One / Decision Models that evaluate structured state against typed questions returning calibrated probabilities.
 
@@ -101,7 +101,7 @@ decision:
 **Usage:**
 ```python
 from genai_tk.core.factories import get_decision_model, get_decision_model_from_chat_model
-from genai_tk.core.decision import Noul, Choice, Score
+from genai_tk.core.decision_models import Noul, Choice, Score
 
 # Get configured decision model
 model = get_decision_model("clef_flash@openrouter")

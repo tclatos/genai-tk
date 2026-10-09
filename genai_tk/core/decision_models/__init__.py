@@ -1,16 +1,16 @@
 """Decision model abstractions, schemas, and provider clients."""
 
-from genai_tk.core.decision.base import BaseDecisionModel
-from genai_tk.core.decision.chat_adapter import ChatModelDecisionModel
-from genai_tk.core.decision.evaluators import (
+from genai_tk.core.decision_models.base import BaseDecisionModel
+from genai_tk.core.decision_models.chat_adapter import ChatModelDecisionModel
+from genai_tk.core.decision_models.evaluators import (
     evaluate_conciseness,
     evaluate_correctness,
     evaluate_groundedness,
     evaluate_tool_selection,
 )
-from genai_tk.core.decision.fake import FakeDecisionModel
-from genai_tk.core.decision.openrouter import OpenRouterDecisionModel
-from genai_tk.core.decision.types import (
+from genai_tk.core.decision_models.fake import FakeDecisionModel
+from genai_tk.core.decision_models.openrouter import OpenRouterDecisionModel
+from genai_tk.core.decision_models.types import (
     Answer,
     BaseAnswer,
     BaseQuestion,
@@ -28,7 +28,7 @@ from genai_tk.core.decision.types import (
     Usage,
     serialize_decision_state,
 )
-from genai_tk.core.decision.typesafe import TypeSafeDecisionModel
+from genai_tk.core.decision_models.typesafe import TypeSafeDecisionModel
 
 __all__ = [
     "Answer",

@@ -183,7 +183,7 @@ Prompt-based LLM judges (as packaged by `openevals`) suffer from fundamental arc
 - **High Latency & Cost:** Invoking a general-purpose chat model with a large system prompt takes 1.5–4.0s per judgment.
 - **Uncalibrated Confidence:** A binary string `"true"` or `"false"` provides no probability distribution.
 
-In contrast, the toolkit's newly introduced **System One Decision Models** (`genai_tk/core/decision/`):
+In contrast, the toolkit's newly introduced **System One Decision Models** (`genai_tk/core/decision_models/`):
 - Expose typed schemas:
   - **`Noul`:** Returns calibrated probability $P(\text{true}) \in [0.0, 1.0]$.
   - **`Choice`:** Returns a categorical selection with softmax confidence across labels.
@@ -462,11 +462,11 @@ class BaseDecisionModel(RunnableSerializable[ClassifierRequest, ClassifierRespon
 
 ### Phase 2: Closing the Tracing Holes
 - [ ] **Instrument BAML:** Update `genai_tk/extra/structured/baml_util.py` to attach `baml_py.Collector` and wrap invocations in NeMo Relay `ScopeType.Function` and `ScopeType.Llm`.
-- [ ] **Instrument Decision Models:** Update `genai_tk/core/decision/base.py` to wrap `invoke` and `ainvoke` inside `ScopeType.Evaluator` scopes and emit `decision.verdict` events.
+- [ ] **Instrument Decision Models:** Update `genai_tk/core/decision_models/base.py` to wrap `invoke` and `ainvoke` inside `ScopeType.Evaluator` scopes and emit `decision.verdict` events.
 
 ### Phase 3: Evaluation Consolidation (Retiring `openevals` & `agentevals`)
 - [ ] **Implement Deterministic Trajectory Matching:** Add `match_trajectory_tools` to `genai_tk/extra/monitoring/trajectory_store.py`.
-- [ ] **Build Decision Model Evaluator Helpers:** Create `genai_tk/core/decision/evaluators.py` with standard evaluators: `correctness_judge()`, `conciseness_judge()`, `groundedness_judge()`.
+- [ ] **Build Decision Model Evaluator Helpers:** Create `genai_tk/core/decision_models/evaluators.py` with standard evaluators: `correctness_judge()`, `conciseness_judge()`, `groundedness_judge()`.
 - [ ] **Migrate Tests:** Update `tests/eval_tests/test_llm_judged.py`, `test_trajectory_match.py`, and `test_multiturn.py` to use `DecisionModel` and native trajectory matching.
 - [ ] **Remove Dependencies:** Uninstall and drop `openevals` and `agentevals` from `pyproject.toml`.
 

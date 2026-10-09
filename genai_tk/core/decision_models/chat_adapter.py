@@ -10,8 +10,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from genai_tk.core.decision.base import BaseDecisionModel
-from genai_tk.core.decision.types import (
+from genai_tk.core.decision_models.base import BaseDecisionModel
+from genai_tk.core.decision_models.types import (
     Answer,
     Choice,
     ChoiceAnswer,

@@ -9,7 +9,7 @@ from typing import Any, Generator
 from langchain_core.runnables import RunnableConfig, RunnableSerializable
 from pydantic import ConfigDict
 
-from genai_tk.core.decision.types import (
+from genai_tk.core.decision_models.types import (
     Choice,
     ChoiceAnswer,
     ClassifierRequest,

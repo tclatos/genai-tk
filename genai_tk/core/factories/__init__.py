@@ -5,7 +5,7 @@
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
 
 # Decision Model Factory
-from genai_tk.core.factories.decision_factory import (
+from genai_tk.core.factories.decision_model_factory import (
     DecisionModelFactory,
     DecisionModelInfo,
     DecisionModelsConfig,

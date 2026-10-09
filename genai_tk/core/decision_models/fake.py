@@ -6,8 +6,8 @@ from typing import Any
 
 from langchain_core.runnables import RunnableConfig
 
-from genai_tk.core.decision.base import BaseDecisionModel
-from genai_tk.core.decision.types import (
+from genai_tk.core.decision_models.base import BaseDecisionModel
+from genai_tk.core.decision_models.types import (
     Answer,
     Choice,
     ChoiceAnswer,

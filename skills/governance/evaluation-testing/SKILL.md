@@ -30,7 +30,7 @@ description: Add or debug pytest unit, integration, and LLM evaluation tests for
 - Use `pytest.importorskip()` for optional packages.
 - Prefer narrow test files next to the domain being changed.
 - Use deterministic trajectory matching (`match_trajectory_tools(actual, expected, mode="superset")` or `traj.match_tools(...)`) from `genai_tk.extra.monitoring.trajectory_store` instead of third-party `agentevals`.
-- Use System One Decision Models (`evaluate_correctness`, `evaluate_conciseness`, `evaluate_groundedness` from `genai_tk.core.decision.evaluators`) instead of unstructured prompt-based judges (`openevals`).
+- Use System One Decision Models (`evaluate_correctness`, `evaluate_conciseness`, `evaluate_groundedness` from `genai_tk.core.decision_models.evaluators`) instead of unstructured prompt-based judges (`openevals`).
 - In end-to-end agent tests, verify the recorded trajectory in `TrajectoryStore(root=store_dir)` (checking `traj.tool_calls`, arguments, tokens, and scopes).
 
 ## Commands

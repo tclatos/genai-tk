@@ -432,7 +432,7 @@ class CoreCommands(CliTopCommand):
             from rich.console import Console
             from rich.table import Table
 
-            from genai_tk.core.decision import (
+            from genai_tk.core.decision_models import (
                 Choice,
                 ClassifierRequest,
                 DecisionState,

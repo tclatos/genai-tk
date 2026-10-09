@@ -163,7 +163,7 @@ Replaces brittle, unstructured prompt-based judges with calibrated, typed System
 
 ```python
 from genai_tk.core.factories import get_decision_model
-from genai_tk.core.decision.evaluators import (
+from genai_tk.core.decision_models.evaluators import (
     evaluate_correctness,
     evaluate_conciseness,
     evaluate_groundedness,
