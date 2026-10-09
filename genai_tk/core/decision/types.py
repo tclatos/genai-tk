@@ -19,12 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 _StatePrimitive: TypeAlias = str | int | float | bool | None
 _StateElement: TypeAlias = _StatePrimitive | BaseMessage | dict[str, Any] | Sequence[Any]
 
-DecisionState: TypeAlias = (
-    str
-    | BaseMessage
-    | Sequence[_StateElement]
-    | dict[str, _StateElement]
-)
+DecisionState: TypeAlias = str | BaseMessage | Sequence[_StateElement] | dict[str, _StateElement]
 
 
 def _serialize_state_value(value: object) -> JsonValue:

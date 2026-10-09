@@ -1,87 +1,39 @@
+# Performance
+# in genai-tk hybrid search, check if we could parallelize
+
+
+# More Typing
+Enforce good practive in existing code (genai-tk and genai-graph). Whenever possible, if that does not add complexity :   
+- Remove "Any" and maximize explicit typing, domain models, generic parameters, class inheritance hierarchies, type aliases, union types etc.
+-  replace bare Python classes or dataclasses with Pydantic models (with model_post_init instead of __init__, fields check,s etc )
+
+# Tracing
+We have today  many approaches for LLM/Agent tracing.  We started with Langsmith, then added langfuse, OTLP and local trace, and lately added NeMo Relay.  In paralleml we also introduced Langcain openeval and traceeval. 
+That's too much....  My idea is to have NeMo Relay as core, and use its ability to pass traces to OTLP (and then LangFuse). Local storage is redundant.
+We could keeep  Langfuse and LangsSmith because they are already supported by DeerFlow and DeepAgents - Analyse the tradefoffs.
+openeval and traceeval could be removed I think - we could use Nemo Relay, and then come custom logic or, better to start with, the new Decisions Models that we have introduced in the toolkit recently. 
+What we did for the benchmarks (llm grader) could likely be generalyzed, and improved with Decision Model. It's the direction I want to take, to go toward self improving agents.
+We have also some holes, such as the tracing of BAML, or the tracing of Decisions Models.
+My feeling is that we not fully leverage the power of Nemo Relay (export, plugins, ...).
+
+I still don't have a clear idea on how to refactor that suff (notably for simplification, ease of maintenance, ..).  Investigate the possibilities, anslyse existing code, think, evaluate pro and cons, think again, write a report, and propose a plan.
+
+
+
+
+# Improving  Trajectories and Traces
+
+- replace agentevals 
+- simplify => opentelemetry, langfuse
+
+
 # Routing Middleware
-Update the routing middleware so it can use a decision model to acess whether a prompt contains sensitive data and cannot be anonimyzed. 
+Refactor the routing middleware (and possibly the anonymizing middleware).
+Update the routing middleware so it can use a decision model (newly introduced) to access whether a prompt contains sensitive data and cannot be anonimyzed. 
 SensitivityScorer can become an ABC. 
 Implement a DecisionModelSensitivityScorer.
 Same with  a FilePathSensitivityScorer - use pathspec list instead of glob syntax
 Make them chainable -> stop when high level of sensitificty is reached.
-
-
-# Decision Models
-We want to use easily decision models (also called system one models) : TypeSafe Jev, but also Cloudflare Chef, ..
-We we restrict today to the one provided by OpenRouter : 
-https://openrouter.ai/models?output_modalities=decisions
-
-But that might change, and we could later implement TypeSafe System One API, or OpenRouter Decision API, or else.
-We will start with Jev and Cloudflare Chef-flash.
-You can have a look at : https://docs.langchain.com/oss/python/integrations/providers/typesafe#quickstart
-
-(It might be a good idea to reuse their classes - you see)
-
-Model.dev does no include these models, so we need a YAML file for their config (ex max tokens, capabilities, ...), like for embeddings and specials LLM.  And we need a factory to be independant of the model and the provider. 
-
-Ensure methods to call these models use dict or (better) Pydantic models as input/output. I think all decision models will accept the same, but that need some verificatio?
-
-A classical Langchain BaseChatModel can indeed be used as a Decision Model (just more expensive).  Provide a way to build a DecisionModel from a BaseChatModel.
-
-Try to provide a  cli command "cli core classifier" to check it works for simple case. 
-
-Here the OpenRouter API
-import requests
-import json
-
-# The model answers narrow, typed questions about the state. Your code owns the workflow.
-response = requests.post(
-  url="https://openrouter.ai/api/alpha/decisions",
-  headers={
-    "Authorization": "Bearer <OPENROUTER_API_KEY>",
-    "Content-Type": "application/json",
-    "HTTP-Referer": "<YOUR_SITE_URL>", # Optional. Site URL for rankings on openrouter.ai.
-    "X-OpenRouter-Title": "<YOUR_SITE_NAME>", # Optional. Site title for rankings on openrouter.ai.
-  },
-  data=json.dumps({
-    "model": "cloudflare/clef-flash",
-    "state": "Help! My payouts have been failing for 3 days.",
-    "questions": {
-      "is_urgent": {
-        "type": "noul",
-        "instructions": "Does this message convey urgency?",
-        "criteria": {
-          "true": "Explicitly time-sensitive",
-          "false": "No urgency expressed"
-        }
-      },
-      "department": {
-        "type": "choice",
-        "instructions": "Which team should handle this?",
-        "criteria": {
-          "billing": "Payments, invoicing, refunds",
-          "technical": "Bugs, outages, integrations",
-          "sales": "Pricing, upgrades, new accounts"
-        }
-      },
-      "frustration": {
-        "type": "score",
-        "instructions": "How frustrated is the customer?",
-        "criteria": ["Calm", "Frustrated", "Very angry"]
-      }
-    }
-  })
-)
-
-answers = response.json()["answers"]
-# noul is a probability from 0 (no) to 1 (yes); choice and score carry the full distribution.
-print(answers["is_urgent"]["noul"])
-print(answers["department"]["choice"], answers["department"]["probabilities"])
-print(answers["frustration"]["score"])
-
-if answers["is_urgent"]["noul"] > 0.8 and answers["department"]["choice"] == "billing":
-  pass  # escalate_to_billing(...)
-
-but you can also have a look at :
-https://docs.typesafe.ai/concepts/how-to-build-with-system-one
-
-
-Search on internet on the best approach to abstracy call to these nex decision model, thing about a design (with maintenability in mind : that will likely evolve), and propose a plan.
 
 
 
