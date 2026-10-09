@@ -26,8 +26,13 @@ from genai_tk.core.decision.types import (
 )
 
 
-class _RawNoulItem(BaseModel):
-    question_id: str = Field(description="The exact identifier of the noul question being answered.")
+class _RawDecisionItem(BaseModel):
+    """Base model for structured raw decision items returned by chat model."""
+
+    question_id: str = Field(description="The exact identifier of the question being answered.")
+
+
+class _RawNoulItem(_RawDecisionItem):
     probability: float = Field(
         description="Probability between 0.0 and 1.0 that the statement is true / yes.",
         ge=0.0,
@@ -35,15 +40,13 @@ class _RawNoulItem(BaseModel):
     )
 
 
-class _RawChoiceItem(BaseModel):
-    question_id: str = Field(description="The exact identifier of the choice question being answered.")
+class _RawChoiceItem(_RawDecisionItem):
     selected_choice: str = Field(description="The exact choice key chosen from criteria.")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     probabilities: dict[str, float] = Field(default_factory=dict)
 
 
-class _RawScoreItem(BaseModel):
-    question_id: str = Field(description="The exact identifier of the score question being answered.")
+class _RawScoreItem(_RawDecisionItem):
     score: float = Field(description="Expected score value along the rubric levels (e.g. 0.0, 1.0, 2.0).")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
     probabilities: dict[int, float] = Field(default_factory=dict)
@@ -71,9 +74,7 @@ class ChatModelDecisionModel(BaseDecisionModel):
 
     def _build_prompt(self, request: ClassifierRequest) -> list[Any]:
         state_repr = serialize_decision_state(request.state)
-        questions_dict = {
-            qid: q.model_dump(exclude_none=True) for qid, q in request.questions.items()
-        }
+        questions_dict = {qid: q.model_dump(exclude_none=True) for qid, q in request.questions.items()}
 
         user_content = (
             f"STATE:\n{json.dumps(state_repr, indent=2, ensure_ascii=False)}\n\n"
@@ -81,9 +82,7 @@ class ChatModelDecisionModel(BaseDecisionModel):
         )
         return [SystemMessage(content=SYSTEM_PROMPT), HumanMessage(content=user_content)]
 
-    def _parse_structured_result(
-        self, raw: _AllDecisionsOutput, request: ClassifierRequest
-    ) -> dict[str, Answer]:
+    def _parse_structured_result(self, raw: _AllDecisionsOutput, request: ClassifierRequest) -> dict[str, Answer]:
         answers: dict[str, Answer] = {}
         nouls_by_id = {item.question_id: item for item in raw.nouls}
         choices_by_id = {item.question_id: item for item in raw.choices}
@@ -97,8 +96,16 @@ class ChatModelDecisionModel(BaseDecisionModel):
             elif isinstance(q, Choice):
                 choice_raw = choices_by_id.get(q_id) or (raw.choices[0] if len(raw.choices) == 1 else None)
                 keys = list(q.criteria.keys())
-                choice_key = choice_raw.selected_choice if choice_raw and choice_raw.selected_choice in keys else (keys[0] if keys else "unknown")
-                probs = choice_raw.probabilities if choice_raw and choice_raw.probabilities else {k: (1.0 if k == choice_key else 0.0) for k in keys}
+                choice_key = (
+                    choice_raw.selected_choice
+                    if choice_raw and choice_raw.selected_choice in keys
+                    else (keys[0] if keys else "unknown")
+                )
+                probs = (
+                    choice_raw.probabilities
+                    if choice_raw and choice_raw.probabilities
+                    else {k: (1.0 if k == choice_key else 0.0) for k in keys}
+                )
                 conf = choice_raw.confidence if choice_raw else 0.9
                 answers[q_id] = ChoiceAnswer(choice=choice_key, confidence=conf, probabilities=probs)
             elif isinstance(q, Score):
@@ -106,7 +113,11 @@ class ChatModelDecisionModel(BaseDecisionModel):
                 n_levels = len(q.criteria)
                 sc = score_raw.score if score_raw else 0.0
                 legend = {i: q.criteria[i] for i in range(n_levels)}
-                probs = score_raw.probabilities if score_raw and score_raw.probabilities else {i: (1.0 if i == int(round(sc)) else 0.0) for i in range(n_levels)}
+                probs = (
+                    score_raw.probabilities
+                    if score_raw and score_raw.probabilities
+                    else {i: (1.0 if i == int(round(sc)) else 0.0) for i in range(n_levels)}
+                )
                 conf = score_raw.confidence if score_raw else 0.9
                 answers[q_id] = ScoreAnswer(score=sc, confidence=conf, probabilities=probs, legend=legend)
         return answers

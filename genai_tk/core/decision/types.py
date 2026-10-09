@@ -16,7 +16,15 @@ from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 # --- State types & serialization ---
 
-DecisionState: TypeAlias = Any
+_StatePrimitive: TypeAlias = str | int | float | bool | None
+_StateElement: TypeAlias = _StatePrimitive | BaseMessage | dict[str, Any] | Sequence[Any]
+
+DecisionState: TypeAlias = (
+    str
+    | BaseMessage
+    | Sequence[_StateElement]
+    | dict[str, _StateElement]
+)
 
 
 def _serialize_state_value(value: object) -> JsonValue:
@@ -36,15 +44,20 @@ def _serialize_state_value(value: object) -> JsonValue:
 def serialize_decision_state(state: DecisionState) -> JsonValue:
     """Recursively convert LangChain messages and objects inside decision state to JSON-safe data."""
     if state is None or isinstance(state, (int, float, bool)):
-        raise TypeError(
-            "Decision state must be a string, dict, list, BaseMessage, or sequence of BaseMessage objects."
-        )
+        raise TypeError("Decision state must be a string, dict, list, BaseMessage, or sequence of BaseMessage objects.")
     return _serialize_state_value(state)
 
 
 # --- Questions ---
 
 _QuestionContent: TypeAlias = str | dict[str, JsonValue] | list[JsonValue]
+
+
+class BaseQuestion(BaseModel):
+    """Abstract base model for all System One decision questions."""
+
+    type: str
+    instructions: _QuestionContent
 
 
 class NoulCriteria(BaseModel):
@@ -56,27 +69,24 @@ class NoulCriteria(BaseModel):
     false: JsonValue = None
 
 
-class Noul(BaseModel):
+class Noul(BaseQuestion):
     """Binary decision asking whether an assertion is true, returning the probability of yes."""
 
     type: Literal["noul"] = "noul"
-    instructions: _QuestionContent
     criteria: NoulCriteria | dict[str, JsonValue] | None = None
 
 
-class Choice(BaseModel):
+class Choice(BaseQuestion):
     """Categorical decision choosing one label among supplied candidate criteria."""
 
     type: Literal["choice"] = "choice"
-    instructions: _QuestionContent
     criteria: dict[str, JsonValue] = Field(min_length=1)
 
 
-class Score(BaseModel):
+class Score(BaseQuestion):
     """Ordinal decision scoring the state against an ordered rubric list."""
 
     type: Literal["score"] = "score"
-    instructions: _QuestionContent
     criteria: list[JsonValue] = Field(min_length=2)
 
 
@@ -87,20 +97,26 @@ class ClassifierRequest(BaseModel):
     """Request payload for a decision model invocation."""
 
     state: DecisionState
-    questions: dict[str, Question]
+    questions: dict[str, Question | BaseQuestion]
 
 
 # --- Answers ---
 
 
-class NoulAnswer(BaseModel):
+class BaseAnswer(BaseModel):
+    """Abstract base model for all System One decision answers."""
+
+    type: str
+
+
+class NoulAnswer(BaseAnswer):
     """Answer for a binary Noul question."""
 
     type: Literal["noul"] = "noul"
     noul: float = Field(ge=0.0, le=1.0)
 
 
-class ChoiceAnswer(BaseModel):
+class ChoiceAnswer(BaseAnswer):
     """Answer for a categorical Choice question."""
 
     type: Literal["choice"] = "choice"
@@ -109,7 +125,7 @@ class ChoiceAnswer(BaseModel):
     probabilities: dict[str, float] = Field(default_factory=dict)
 
 
-class ScoreAnswer(BaseModel):
+class ScoreAnswer(BaseAnswer):
     """Answer for an ordinal Score question."""
 
     type: Literal["score"] = "score"

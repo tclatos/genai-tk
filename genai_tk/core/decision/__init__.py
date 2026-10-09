@@ -6,6 +6,8 @@ from genai_tk.core.decision.fake import FakeDecisionModel
 from genai_tk.core.decision.openrouter import OpenRouterDecisionModel
 from genai_tk.core.decision.types import (
     Answer,
+    BaseAnswer,
+    BaseQuestion,
     Choice,
     ChoiceAnswer,
     ClassifierRequest,
@@ -24,7 +26,9 @@ from genai_tk.core.decision.typesafe import TypeSafeDecisionModel
 
 __all__ = [
     "Answer",
+    "BaseAnswer",
     "BaseDecisionModel",
+    "BaseQuestion",
     "ChatModelDecisionModel",
     "Choice",
     "ChoiceAnswer",

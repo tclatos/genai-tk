@@ -36,9 +36,7 @@ class TypeSafeDecisionModel(BaseDecisionModel):
         env_key = os.getenv("TYPESAFE_API_KEY")
         if env_key:
             return env_key
-        raise ValueError(
-            "TypeSafe API key not found. Set TYPESAFE_API_KEY environment variable or pass api_key."
-        )
+        raise ValueError("TypeSafe API key not found. Set TYPESAFE_API_KEY environment variable or pass api_key.")
 
     def _build_payload(self, request: ClassifierRequest) -> dict[str, Any]:
         serialized_state = serialize_decision_state(request.state)

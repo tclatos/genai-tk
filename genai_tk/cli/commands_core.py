@@ -428,7 +428,6 @@ class CoreCommands(CliTopCommand):
                 uv run cli core classifier --demo --model fake
             """
             import json
-            from typing import Any
 
             from rich.console import Console
             from rich.table import Table
@@ -436,7 +435,9 @@ class CoreCommands(CliTopCommand):
             from genai_tk.core.decision import (
                 Choice,
                 ClassifierRequest,
+                DecisionState,
                 Noul,
+                Question,
                 Score,
             )
             from genai_tk.core.factories import (
@@ -458,14 +459,14 @@ class CoreCommands(CliTopCommand):
                     return
 
             # Try to parse state as JSON if applicable
-            parsed_state: Any = state_text
+            parsed_state: DecisionState = state_text
             if state_text and state_text.startswith(("{", "[")):
                 try:
                     parsed_state = json.loads(state_text)
                 except Exception:
                     parsed_state = state_text
 
-            questions: dict[str, Any] = {}
+            questions: dict[str, Question] = {}
 
             if demo:
                 questions["is_urgent"] = Noul(
@@ -489,7 +490,7 @@ class CoreCommands(CliTopCommand):
                     questions["noul_q"] = Noul(instructions=noul)
 
                 if choice:
-                    crit_dict: dict[str, Any] = {}
+                    crit_dict: dict[str, str] = {}
                     if criteria:
                         # Parse key:desc, key:desc
                         for part in criteria.split(","):
@@ -503,7 +504,7 @@ class CoreCommands(CliTopCommand):
                     questions["choice_q"] = Choice(instructions=choice, criteria=crit_dict)
 
                 if score:
-                    crit_list: list[Any] = []
+                    crit_list: list[str] = []
                     if criteria:
                         crit_list = [p.strip() for p in criteria.split(",") if p.strip()]
                     else:
@@ -511,7 +512,9 @@ class CoreCommands(CliTopCommand):
                     questions["score_q"] = Score(instructions=score, criteria=crit_list)
 
             if not questions:
-                console.print("[red]Error: Specify at least one question via --noul, --choice, --score, or --demo.[/red]")
+                console.print(
+                    "[red]Error: Specify at least one question via --noul, --choice, --score, or --demo.[/red]"
+                )
                 return
 
             req = ClassifierRequest(state=parsed_state, questions=questions)

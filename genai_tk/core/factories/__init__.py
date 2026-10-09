@@ -4,6 +4,16 @@
 # Chunker Factory
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
 
+# Decision Model Factory
+from genai_tk.core.factories.decision_factory import (
+    DecisionModelFactory,
+    DecisionModelInfo,
+    DecisionModelsConfig,
+    DecisionSection,
+    get_decision_model,
+    get_decision_model_from_chat_model,
+)
+
 # Embeddings Factory
 from genai_tk.core.factories.embeddings_factory import (
     EmbeddingsFactory,
@@ -28,16 +38,6 @@ from genai_tk.core.factories.llm_factory import (
 from genai_tk.core.factories.retriever_factory import (
     ManagedRetriever,
     RetrieverFactory,
-)
-
-# Decision Model Factory
-from genai_tk.core.factories.decision_factory import (
-    DecisionModelFactory,
-    DecisionModelInfo,
-    DecisionModelsConfig,
-    DecisionSection,
-    get_decision_model,
-    get_decision_model_from_chat_model,
 )
 
 __all__ = [

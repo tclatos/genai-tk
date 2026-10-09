@@ -38,9 +38,7 @@ class OpenRouterDecisionModel(BaseDecisionModel):
         env_key = get_provider_api_key("openrouter")
         if env_key:
             return env_key.get_secret_value()
-        raise ValueError(
-            "OpenRouter API key not found. Set OPENROUTER_API_KEY environment variable or pass api_key."
-        )
+        raise ValueError("OpenRouter API key not found. Set OPENROUTER_API_KEY environment variable or pass api_key.")
 
     def _build_payload(self, request: ClassifierRequest) -> dict[str, Any]:
         serialized_state = serialize_decision_state(request.state)
@@ -79,9 +77,7 @@ class OpenRouterDecisionModel(BaseDecisionModel):
         with httpx.Client(timeout=self.timeout) as client:
             resp = client.post(self.api_base, json=payload, headers=headers)
             if not resp.is_success:
-                raise RuntimeError(
-                    f"OpenRouter Decisions API error ({resp.status_code}): {resp.text}"
-                )
+                raise RuntimeError(f"OpenRouter Decisions API error ({resp.status_code}): {resp.text}")
             data = resp.json()
 
         # If OpenRouter returned answers dict
@@ -109,9 +105,7 @@ class OpenRouterDecisionModel(BaseDecisionModel):
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             resp = await client.post(self.api_base, json=payload, headers=headers)
             if not resp.is_success:
-                raise RuntimeError(
-                    f"OpenRouter Decisions API error ({resp.status_code}): {resp.text}"
-                )
+                raise RuntimeError(f"OpenRouter Decisions API error ({resp.status_code}): {resp.text}")
             data = resp.json()
 
         return ClassifierResponse.model_validate(

@@ -29,7 +29,7 @@ Always use `uv` to run Python code, execute tests, and manage packages.
 **Python version:** 3.12+ required.
 - Use `str | None` instead of `Optional[str]`
 - Use `list[str]` instead of `List[str]`
-- Avoid `Any` unless unavoidable
+- **Avoid `Any` whenever possible:** Maximize explicit typing, domain models, generic parameters, and class inheritance hierarchies (e.g. `BaseQuestion` for `Noul`/`Choice`/`Score`, `BaseAnswer` for answer types). Use `TypeAlias`, discriminated unions (`Annotated[... , Field(discriminator=...)]`), or specific union types instead of untyped `Any` containers.
 
 **Imports:** always absolute — never relative.
 
