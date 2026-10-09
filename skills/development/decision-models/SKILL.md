@@ -68,7 +68,20 @@ response = model.invoke({
         "team": Choice(instructions="Assign to team", criteria={"retention": "Cancel", "billing": "Pay"}),
     },
 })
+
+# 5. Automatic chunking with batch_invoke (when exceeding model limits)
+response = model.batch_invoke(request, batch_size=32)
 ```
+
+## Question Limits & Batching
+
+Decision models impose different per-request limits:
+- **Cloudflare Clef / Clef-flash**: Enforced at **64 questions max** by Workers AI backend.
+- **TypeSafe Jev**: Recommended up to **32 questions** for optimal latency/consistency (allows more on OpenRouter).
+- **Perplexity Decider**: Up to **128 questions**.
+- **OpenAI GPT-6 Luna Decisions**: Up to **200 questions**.
+
+Every decision model in `genai-tk` has a configured `max_questions` property. If a request exceeds `model.max_questions`, a descriptive `ValueError` is raised before making network calls. Use `model.batch_invoke(request)` or `await model.abatch_invoke(request)` to automatically slice questions into batches and merge all results.
 
 ## Chat Model Fallback Adapter
 

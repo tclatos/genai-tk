@@ -10,35 +10,48 @@ decision_models:
       providers:
         - openrouter: cloudflare/clef-flash
       context_length: 65536
-      description: "Cloudflare Clef Flash 9B decision model (fast, sub-100ms, multimodal)"
+      max_questions: 64
+      description: "Cloudflare Clef Flash 9B decision model (fast, sub-100ms, multimodal, max 64 questions)"
 
     - model_id: clef
       providers:
         - openrouter: cloudflare/clef
       context_length: 65536
-      description: "Cloudflare Clef 27B decision model"
+      max_questions: 64
+      description: "Cloudflare Clef 27B decision model (max 64 questions)"
 
     - model_id: jev
       providers:
         - openrouter: typesafe/jev-1.13
         - typesafe: jev-latest
       context_length: 64000
-      description: "TypeSafe Jev System One model"
+      max_questions: 32
+      description: "TypeSafe Jev System One model (recommended up to 32 questions per request)"
 
     - model_id: solar_decide_flash
       providers:
         - openrouter: upstage/solar-decide-flash
       context_length: 524288
-      description: "Upstage Solar Decide Flash (524K context)"
+      max_questions: 64
+      description: "Upstage Solar Decide Flash (524K context, max 64 questions)"
 
     - model_id: mercury_decide
       providers:
         - openrouter: inception/mercury-decide:free
       context_length: 65536
+      max_questions: 64
       description: "Inception Mercury Decide (Free tier)"
+
+    - model_id: pplx_decider
+      providers:
+        - openrouter: perplexity/pplx-decider-v1.1-27b
+      context_length: 262144
+      max_questions: 128
+      description: "Perplexity Decider V1.1 27B (max 128 questions)"
 
     - model_id: fake_decision
       providers:
         - fake: fake_decision
       context_length: 4096
+      max_questions: 32
       description: "Fake deterministic decision model for offline unit tests"

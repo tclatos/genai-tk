@@ -30,6 +30,7 @@ class DecisionModelInfo(BaseModel):
     provider: str
     model: str
     context_length: int | None = None
+    max_questions: int | None = None
     description: str | None = None
 
     @field_validator("id")
@@ -96,6 +97,7 @@ def _read_decision_models_list() -> list[DecisionModelInfo]:
         if not model_id:
             continue
         ctx = entry.get("context_length")
+        max_q = entry.get("max_questions")
         desc = entry.get("description")
         providers = entry.get("providers", [])
         for prov_item in providers:
@@ -107,6 +109,7 @@ def _read_decision_models_list() -> list[DecisionModelInfo]:
                             provider=provider,
                             model=str(model_name),
                             context_length=ctx,
+                            max_questions=max_q,
                             description=desc,
                         )
                     )
@@ -169,6 +172,9 @@ class DecisionModelFactory(BaseModel):
                 info = DecisionModelInfo(id=resolved, provider=p_part, model=m_part)
             else:
                 raise ValueError(f"Cannot instantiate decision model from '{resolved}'")
+
+        if info.max_questions is not None:
+            kwargs.setdefault("max_questions", info.max_questions)
 
         if info.provider == "openrouter":
             return OpenRouterDecisionModel(model=info.model, **kwargs)

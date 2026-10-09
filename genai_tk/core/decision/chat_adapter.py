@@ -118,6 +118,7 @@ class ChatModelDecisionModel(BaseDecisionModel):
         **kwargs: Any,
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
+        self.validate_question_count(request)
         messages = self._build_prompt(request)
 
         try:
@@ -160,6 +161,7 @@ class ChatModelDecisionModel(BaseDecisionModel):
         **kwargs: Any,
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
+        self.validate_question_count(request)
         messages = self._build_prompt(request)
 
         try:

@@ -126,3 +126,38 @@ def test_chat_model_adapter_instantiation(fake_llm) -> None:
     adapter = get_decision_model_from_chat_model(fake_llm)
     assert adapter is not None
     assert hasattr(adapter, "chat_model")
+
+
+@pytest.mark.unit
+def test_max_questions_validation() -> None:
+    fake = FakeDecisionModel(max_questions=5)
+    questions = {f"q_{i}": Noul(instructions=f"Is {i} > 0?") for i in range(10)}
+    req = ClassifierRequest(state="Test overflow", questions=questions)
+
+    with pytest.raises(ValueError, match="accepts at most 5 questions"):
+        fake.invoke(req)
+
+
+@pytest.mark.unit
+def test_batch_invoke_chunking() -> None:
+    fake = FakeDecisionModel(max_questions=5)
+    questions = {f"q_{i}": Noul(instructions=f"Is {i} > 0?") for i in range(12)}
+    req = ClassifierRequest(state="Test batching", questions=questions)
+
+    resp = fake.batch_invoke(req)
+    assert len(resp.answers) == 12
+    assert all(f"q_{i}" in resp.answers for i in range(12))
+    # Tokens: 10 per call * 3 calls (5 + 5 + 2) = 30
+    assert resp.usage.input_tokens == 30
+
+
+@pytest.mark.asyncio
+@pytest.mark.unit
+async def test_abatch_invoke_chunking() -> None:
+    fake = FakeDecisionModel(max_questions=4)
+    questions = {f"q_{i}": Noul(instructions=f"Is {i} > 0?") for i in range(9)}
+    req = ClassifierRequest(state="Test async batching", questions=questions)
+
+    resp = await fake.abatch_invoke(req)
+    assert len(resp.answers) == 9
+    assert all(f"q_{i}" in resp.answers for i in range(9))

@@ -36,6 +36,7 @@ class FakeDecisionModel(BaseDecisionModel):
         **kwargs: Any,
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
+        self.validate_question_count(request)
         answers: dict[str, Answer] = {}
 
         for q_id, q in request.questions.items():
