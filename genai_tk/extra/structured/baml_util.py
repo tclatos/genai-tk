@@ -469,9 +469,36 @@ async def baml_invoke(
 
         # Pass arguments in order
         args = [params.get(p) for p in func_params]
+
+    try:
+        import nemo_relay
+
+        has_relay = True
+    except ImportError:
+        has_relay = False
+
+    if has_relay:
+        with nemo_relay.scope.scope(
+            name=f"baml.{function_name}",
+            scope_type=nemo_relay.ScopeType.Function,
+            input=params,
+            metadata={"config_name": config_name, "framework": "baml", "llm": llm},
+        ):
+            if not func_params:
+                if baml_options:
+                    return await baml_function(baml_options=baml_options)
+                return await baml_function()
+            if baml_options:
+                return await baml_function(*args, baml_options=baml_options)
+            return await baml_function(*args)
+
+    if not func_params:
         if baml_options:
-            return await baml_function(*args, baml_options=baml_options)
-        return await baml_function(*args)
+            return await baml_function(baml_options=baml_options)
+        return await baml_function()
+    if baml_options:
+        return await baml_function(*args, baml_options=baml_options)
+    return await baml_function(*args)
 
 
 # ---------------------------------------------------------------------------

@@ -195,6 +195,32 @@ class MonitoringCommands(CliTopCommand):
                 log_info,
             )
 
+            # NeMo Relay
+            from genai_tk.extra.monitoring.nemo_relay_setup import (
+                get_relay_otlp_endpoint,
+                is_nemo_relay_available,
+                is_relay_otlp_active,
+            )
+
+            relay_avail = is_nemo_relay_available()
+            otlp_act = is_relay_otlp_active()
+            otlp_ep = get_relay_otlp_endpoint()
+            if relay_avail:
+                relay_info = "ATOF trajectory store active"
+                if otlp_act:
+                    relay_info += f" · [green]OTLP forwarder active → {otlp_ep}[/green]"
+                elif otlp_ep:
+                    relay_info += f" · [dim]OTLP forwarder configured → {otlp_ep}[/dim]"
+                else:
+                    relay_info += " · [dim]OTLP forwarder inactive[/dim]"
+            else:
+                relay_info = "[dim]nemo-relay not installed[/dim]"
+            table.add_row(
+                "relay",
+                "[green]✓[/green]" if relay_avail else "[dim]-[/dim]",
+                relay_info,
+            )
+
             console.print(table)
             if cfg.backends:
                 console.print(f"[dim]Active backends (config): {', '.join(cfg.backends)}[/dim]")
@@ -263,6 +289,70 @@ class MonitoringCommands(CliTopCommand):
             data.pop(_STATE_KEY)
             _state_file().write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
             console.print(f"[green]Monitoring disabled.[/green] State file: {_state_file()}")
+
+        @cli_app.command("test")
+        def test_monitoring(
+            backend: Annotated[
+                str,
+                typer.Option(
+                    "--backend",
+                    "-b",
+                    help="Backend to test: all | relay | langfuse | otel",
+                ),
+            ] = "all",
+        ) -> None:
+            """Send a test trace probe through NeMo Relay and active backends to verify connectivity."""
+            console = Console()
+            from genai_tk.extra.monitoring.nemo_relay_setup import (
+                emit_test_probe,
+                get_relay_otlp_endpoint,
+                is_nemo_relay_available,
+                is_relay_otlp_active,
+                setup_nemo_relay,
+            )
+            from genai_tk.extra.monitoring.tracing import monitoring_config, setup_monitoring
+
+            cfg = monitoring_config()
+            console.print("[bold]Testing observability and tracing connectivity...[/bold]")
+
+            if not is_nemo_relay_available():
+                console.print("[red]NeMo Relay is not installed. Install via uv add 'nemo-relay[deepagents]'.[/red]")
+                raise typer.Exit(1)
+
+            # Ensure monitoring and relay are initialized
+            setup_monitoring(enable_relay=True)
+            setup_nemo_relay()
+
+            # Test probe emission
+            probe_ok = emit_test_probe("cli.monitoring.test")
+            if probe_ok:
+                console.print("  [green]✓[/green] NeMo Relay core: probe scope & mark emitted and flushed")
+            else:
+                console.print("  [red]✗[/red] NeMo Relay probe emission failed")
+
+            # Check Langfuse server connectivity if testing langfuse or all
+            if backend in {"all", "langfuse"} and cfg.is_active("langfuse"):
+                host = cfg.langfuse.host or os.environ.get("LANGFUSE_HOST", "http://localhost:3000")
+                host = host.rstrip("/")
+                endpoint = get_relay_otlp_endpoint() or f"{host}/api/public/otel/v1/traces"
+                import httpx
+
+                try:
+                    resp = httpx.get(f"{host}/api/public/health", timeout=3.0)
+                    if resp.status_code == 200:
+                        console.print(f"  [green]✓[/green] Langfuse UI & API: healthy at {host}")
+                    else:
+                        console.print(f"  [yellow]![/yellow] Langfuse returned status {resp.status_code} at {host}")
+                except Exception as exc:
+                    console.print(
+                        f"  [yellow]![/yellow] Langfuse server not reachable at {host} ({exc})\n"
+                        f"    [dim]Start local server with: just monitoring-start langfuse[/dim]"
+                    )
+
+                if is_relay_otlp_active():
+                    console.print(f"  [green]✓[/green] Relay OTLP forwarder: streaming to {endpoint}")
+                else:
+                    console.print(f"  [dim]- Relay OTLP forwarder not active for {endpoint}[/dim]")
 
         @cli_app.command("open")
         def open_ui(

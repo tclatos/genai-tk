@@ -285,13 +285,16 @@ class _FileState:
 
 
 class _RelayState:
-    """Active capture state — either a per-session store or a single file."""
+    """Active capture state — either a per-session store or a single file, plus optional OTLP."""
 
     def __init__(self) -> None:
         self.active = False
         self.store: _StoreState | None = None
         self.file: _FileState | None = None
         self.path: Path | None = None  # single-file path (test mode)
+        self.otel_subscriber: Any | None = None
+        self.otel_subscriber_name: str | None = None
+        self.otel_endpoint: str | None = None
 
     def on_event(self, event: Any) -> None:
         try:
@@ -323,16 +326,31 @@ def is_nemo_relay_available() -> bool:
         return False
 
 
-def setup_nemo_relay(*, atof_path: Path | None = None, store_dir: Path | None = None) -> bool:
-    """Register the ATOF subscriber and atexit flush.
+def setup_nemo_relay(
+    *,
+    atof_path: Path | None = None,
+    store_dir: Path | None = None,
+    enable_otlp: bool | None = None,
+    otlp_endpoint: str | None = None,
+    otlp_headers: dict[str, str] | None = None,
+    service_name: str | None = None,
+) -> bool:
+    """Register the ATOF subscriber and atexit flush, plus optional OTLP export.
 
     Idempotent. With ``atof_path`` → single-file mode (spike/tests). Without it
     → per-session store mode under ``store_dir`` (default
-    ``<data_root>/trajectories``). No-op when ``nemo_relay`` is not installed.
+    ``<data_root>/trajectories``).
+    When ``enable_otlp`` is True or when Langfuse/OTEL is active in monitoring config,
+    also configures NeMo Relay's native OpenTelemetrySubscriber to stream OTLP spans
+    (e.g. to Langfuse at /api/public/otel/v1/traces).
 
     Args:
         atof_path: Explicit single JSONL output path (test mode).
         store_dir: Explicit per-session store root (defaults to config data_root).
+        enable_otlp: Force enable/disable Relay OTLP exporter (defaults to checking config).
+        otlp_endpoint: Optional override endpoint for OTLP export.
+        otlp_headers: Optional headers (e.g. Authorization) for OTLP export.
+        service_name: Service name attribute on exported OTLP spans.
 
     Returns:
         True if the subscriber is active after the call.
@@ -365,10 +383,98 @@ def setup_nemo_relay(*, atof_path: Path | None = None, store_dir: Path | None = 
                 logger.debug(f"NeMo Relay subscriber {_SUBSCRIBER_NAME} already registered: {exc}")
             else:
                 raise
+
+        # Check and configure native OpenTelemetrySubscriber export (e.g. to Langfuse)
+        _setup_relay_otlp(
+            enable_otlp=enable_otlp,
+            otlp_endpoint=otlp_endpoint,
+            otlp_headers=otlp_headers,
+            service_name=service_name,
+        )
+
         atexit.register(_atexit_flush)
         _state.active = True
         logger.info(f"NeMo Relay ATOF subscriber active → {where}")
         return True
+
+
+def _setup_relay_otlp(
+    *,
+    enable_otlp: bool | None = None,
+    otlp_endpoint: str | None = None,
+    otlp_headers: dict[str, str] | None = None,
+    service_name: str | None = None,
+) -> None:
+    """Configure NeMo Relay's native OpenTelemetrySubscriber if requested or configured."""
+    import base64
+    import os
+
+    import nemo_relay
+
+    should_export = enable_otlp
+    endpoint = otlp_endpoint
+    headers: dict[str, str] = dict(otlp_headers or {})
+    resolved_service = service_name
+
+    if should_export is None or endpoint is None:
+        try:
+            from genai_tk.extra.monitoring.tracing import monitoring_config
+
+            m_cfg = monitoring_config()
+            if should_export is None:
+                should_export = m_cfg.is_active("langfuse") or m_cfg.is_active("otel")
+
+            if endpoint is None and m_cfg.is_active("langfuse"):
+                lf = m_cfg.langfuse
+                effective_host = (
+                    lf.host
+                    if lf.host and lf.host != "http://localhost:3000"
+                    else os.environ.get("LANGFUSE_BASE_URL") or os.environ.get("LANGFUSE_HOST") or lf.host
+                )
+                endpoint = f"{effective_host.rstrip('/')}/api/public/otel/v1/traces"
+                pk = lf.public_key or os.environ.get("LANGFUSE_PUBLIC_KEY", "")
+                sk = lf.secret_key or os.environ.get("LANGFUSE_SECRET_KEY", "")
+                if pk and sk and "Authorization" not in headers:
+                    token = base64.b64encode(f"{pk}:{sk}".encode()).decode()
+                    headers["Authorization"] = f"Basic {token}"
+            elif endpoint is None and m_cfg.is_active("otel"):
+                endpoint = m_cfg.otel.endpoint
+                if not endpoint.endswith("/v1/traces"):
+                    endpoint = f"{endpoint.rstrip('/')}/v1/traces"
+                if m_cfg.otel.headers:
+                    headers.update(m_cfg.otel.headers)
+
+            if not resolved_service:
+                resolved_service = f"genai-tk-{m_cfg.project}"
+        except Exception as exc:
+            logger.debug(f"Failed to inspect monitoring_config for Relay OTLP: {exc}")
+
+    if not should_export or not endpoint:
+        return
+
+    # NeMo Relay requires explicit per-endpoint headers and disallows process-global
+    # OTEL_EXPORTER_OTLP_HEADERS to prevent credential leaks across endpoints.
+    # Temporarily shelter the env var during subscriber instantiation.
+    sheltered_headers = os.environ.pop("OTEL_EXPORTER_OTLP_HEADERS", None)
+    try:
+        # Use OpenInference convention which Langfuse natively maps
+        otel_cfg = nemo_relay.OpenTelemetryConfig("openinference", endpoint)
+        otel_cfg.service_name = resolved_service or "genai-tk"
+        for k, v in headers.items():
+            otel_cfg.set_header(k, v)
+
+        otel_sub = nemo_relay.OpenTelemetrySubscriber(otel_cfg)
+        sub_name = f"{_SUBSCRIBER_NAME}-otlp"
+        otel_sub.register(sub_name)
+        _state.otel_subscriber = otel_sub
+        _state.otel_subscriber_name = sub_name
+        _state.otel_endpoint = endpoint
+        logger.info(f"NeMo Relay OTLP exporter active → {endpoint}")
+    except Exception as exc:
+        logger.warning(f"NeMo Relay OTLP subscriber setup failed: {exc}")
+    finally:
+        if sheltered_headers is not None:
+            os.environ["OTEL_EXPORTER_OTLP_HEADERS"] = sheltered_headers
 
 
 def _atexit_flush() -> None:
@@ -383,6 +489,11 @@ def _atexit_flush() -> None:
             pass
     except Exception as exc:  # noqa: BLE001
         logger.debug(f"NeMo Relay atexit flush failed: {exc}")
+    if _state.otel_subscriber is not None:
+        try:
+            _state.otel_subscriber.force_flush()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(f"NeMo Relay OTLP atexit flush failed: {exc}")
     if _state.store is not None:
         _state.store.close()
     elif _state.file is not None:
@@ -401,6 +512,11 @@ def flush_nemo_relay() -> None:
         logger.debug("NeMo Relay sync flush skipped (asyncio loop running); use flush_nemo_relay_async()")
     except Exception as exc:  # noqa: BLE001
         logger.debug(f"NeMo Relay flush failed: {exc}")
+    if _state.otel_subscriber is not None:
+        try:
+            _state.otel_subscriber.force_flush()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(f"NeMo Relay OTLP sync flush failed: {exc}")
     if _state.store is not None:
         _state.store.flush()
 
@@ -415,6 +531,11 @@ async def flush_nemo_relay_async() -> None:
         await nemo_relay.subscribers.flush_async()
     except Exception as exc:  # noqa: BLE101
         logger.debug(f"NeMo Relay async flush failed: {exc}")
+    if _state.otel_subscriber is not None:
+        try:
+            _state.otel_subscriber.force_flush()
+        except Exception as exc:  # noqa: BLE101
+            logger.debug(f"NeMo Relay OTLP async flush failed: {exc}")
     if _state.store is not None:
         _state.store.flush()
 
@@ -454,6 +575,16 @@ def reset_nemo_relay() -> None:
             nemo_relay.subscribers.deregister(_SUBSCRIBER_NAME)
         except Exception:  # noqa: BLE001
             pass
+        if _state.otel_subscriber is not None:
+            try:
+                sub_name = _state.otel_subscriber_name or f"{_SUBSCRIBER_NAME}-otlp"
+                _state.otel_subscriber.deregister(sub_name)
+            except Exception:  # noqa: BLE001
+                pass
+            _state.otel_subscriber = None
+            _state.otel_subscriber_name = None
+            _state.otel_endpoint = None
+
         if _state.store is not None:
             _state.store.close()
         elif _state.file is not None:
@@ -462,3 +593,51 @@ def reset_nemo_relay() -> None:
         _state.store = None
         _state.file = None
         _state.path = None
+
+
+def is_relay_otlp_active() -> bool:
+    """Return True if the NeMo Relay OTLP exporter subscriber is active."""
+    return _state.otel_subscriber is not None
+
+
+def get_relay_otlp_endpoint() -> str | None:
+    """Return the active NeMo Relay OTLP exporter endpoint, if configured."""
+    return _state.otel_endpoint
+
+
+def emit_test_probe(
+    probe_name: str = "monitoring-test-probe",
+    *,
+    metadata: dict[str, Any] | None = None,
+) -> bool:
+    """Emit a test agent scope and mark via NeMo Relay and flush all subscribers.
+
+    Useful for CLI connectivity verification (e.g. ``cli monitoring test``).
+    Returns True if the probe was emitted and flushed without unhandled errors.
+    """
+    if not is_nemo_relay_available():
+        return False
+
+    import nemo_relay
+
+    # Ensure relay is set up
+    setup_nemo_relay()
+
+    try:
+        with nemo_relay.scope.scope(
+            name=probe_name,
+            scope_type=nemo_relay.ScopeType.Agent,
+            metadata={"test_probe": True, **(metadata or {})},
+        ) as handle:
+            nemo_relay.scope.event(
+                "probe.ping",
+                handle=handle,
+                data={"status": "ping", "ts": _now_iso()},
+                metadata={"source": "cli.monitoring.test"},
+            )
+
+        flush_nemo_relay()
+        return True
+    except Exception as exc:
+        logger.warning(f"NeMo Relay test probe failed: {exc}")
+        return False

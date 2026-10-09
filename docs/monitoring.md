@@ -137,15 +137,20 @@ cli monitoring status
 
 ### CLI Monitoring Commands
 
-#### Viewing Status
+#### Viewing Status & Testing Connectivity
 
 ```bash
-# Show active backends (config + .genai_tk state file)
+# Show active backends (config + .genai_tk state file + NeMo Relay OTLP status)
 cli monitoring status
+
+# Send a test trace probe through NeMo Relay and active backends to verify connectivity
+cli monitoring test
+cli monitoring test --backend langfuse
 ```
 
 Output includes:
-- **Monitoring Backends** table — shows configured backends (langsmith, langfuse, otel, local) with API key status
+- **Monitoring Backends** table — shows configured backends (`langsmith`, `langfuse`, `otel`, `local`, `relay`) with key and forwarder statuses
+- **Relay OTLP Exporter** — indicates whether NeMo Relay is actively streaming spans to Langfuse
 - **Local state** — contents of the `.genai_tk` state file (if monitoring is enabled)
 
 #### Enabling / Disabling Monitoring

@@ -2,6 +2,12 @@
 
 from genai_tk.core.decision.base import BaseDecisionModel
 from genai_tk.core.decision.chat_adapter import ChatModelDecisionModel
+from genai_tk.core.decision.evaluators import (
+    evaluate_conciseness,
+    evaluate_correctness,
+    evaluate_groundedness,
+    evaluate_tool_selection,
+)
 from genai_tk.core.decision.fake import FakeDecisionModel
 from genai_tk.core.decision.openrouter import OpenRouterDecisionModel
 from genai_tk.core.decision.types import (
@@ -45,5 +51,9 @@ __all__ = [
     "ScoreAnswer",
     "TypeSafeDecisionModel",
     "Usage",
+    "evaluate_conciseness",
+    "evaluate_correctness",
+    "evaluate_groundedness",
+    "evaluate_tool_selection",
     "serialize_decision_state",
 ]

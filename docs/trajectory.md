@@ -72,17 +72,14 @@ parses ATOF events into typed `Trajectory` / `LlmCall` / `ToolCall` /
 | `cli trajectory tui [id]` | Interactive full-screen Textual TUI navigator for browsing trajectories, turns, LLM thoughts, and tool logs. |
 | `cli trajectory tail [--n 20]` | Last N ATOF events from the most recent run. |
 | `cli trajectory replay <id> [--delay 0.5]` | Replay events in order with relative timings. |
-| `cli trajectory export <id> --format atif\|atof\|messages\|otel [--out file]` | Export a trajectory. |
+| `cli trajectory export <id> --format atif\|atof\|messages\|otel\|langfuse [--out file]` | Export a trajectory (ATOF JSONL, ATIF RFC-0001, OpenAI messages, OTEL spans, or Langfuse trace descriptor). |
+| `cli trajectory open <id> [--backend langfuse\|harbor]` | Open the recorded run directly in the Langfuse UI or Harbor viewer. |
+| `cli trajectory link <id>` | Display the direct Langfuse URL and Harbor command for a recorded run. |
 | `cli trajectory diff <id1> <id2>` | Structural diff (tools, skills, step counts, tokens). |
 | `cli trajectory skills <id>` | Show `skill.load` marks and where they occurred. |
 | `cli trajectory stats [--since WHEN]` | Aggregate: token totals, tool/skill frequency, failure rate, latency p50/p95. |
 | `cli trajectory prune [--keep-last N] [--older-than DAYS]` | Retention. |
 | `cli trajectory view` | Launch the [Harbor](https://www.harborframework.com/) ATIF web viewer on the store (no-op if `harbor` isn't installed). |
-
-`show --format messages` and `export --format messages` are the bridge to the
-`agentevals` / `openevals` evaluation stack — the same OpenAI-format message
-list, but read from a **real captured trajectory** instead of re-running the
-agent.
 
 ```bash
 # List recent runs
@@ -90,6 +87,15 @@ uv run cli trajectory list
 
 # Inspect one run as a scope timeline
 uv run cli trajectory show <run_id>
+
+# Inspect and simultaneously open in Langfuse
+uv run cli trajectory show <run_id> --open
+
+# Open directly in Langfuse
+uv run cli trajectory open <run_id> --backend langfuse
+
+# Get trace links
+uv run cli trajectory link <run_id>
 
 # Export the captured trajectory as OpenAI messages for offline eval
 uv run cli trajectory export <run_id> --format messages --out run.json
@@ -121,65 +127,86 @@ print(traj.tool_names, traj.skill_names)
 messages = store.messages("<run_id>")
 ```
 
-## Evals reading from the store
+## Deterministic Trajectory Matching & Decision Model Evaluations
 
-Store-based evaluation loads a **captured** trajectory and judges it — no agent
-re-run. See `genai_tk.agents.langchain.trajectory_store_io`:
+Store-based evaluation loads a **captured** trajectory and evaluates it — no agent
+re-run.
+
+### 1. Deterministic Tool Sequence Matching (Zero LLM, 100% Deterministic)
+
+Instead of depending on external packages like `agentevals`, the toolkit provides native
+tool matching over recorded trajectories:
 
 ```python
-from genai_tk.agents.langchain.trajectory_store_io import (
-    load_trajectory_messages,
-    compare_trajectory_to_golden,
-    judge_trajectory,
-)
+from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore, match_trajectory_tools
 
-# Load the captured trajectory as OpenAI messages
-messages = load_trajectory_messages("<run_id>")
+store = TrajectoryStore()
+traj = store.get("<run_id>")
 
-# Structural comparison against a golden reference
-verdict = compare_trajectory_to_golden("<run_id>", {"tools": ["echo"], "min_steps": 4})
-assert verdict["pass"]
+# Using Trajectory helper
+assert traj.match_tools(["python_interpreter"], mode="superset")
+assert traj.match_tools(["python_interpreter"], mode="strict")
 
-# Run judges over the captured trajectory
-verdicts = judge_trajectory(
-    "<run_id>",
-    [
-        {"kind": "tool_use", "tools": ["echo"]},
-        {"kind": "grounding"},
-        {"kind": "efficiency", "max_repeat": 3},
-        {"kind": "correctness", "judge": judge_llm, "reference_outputs": "echo:hello"},
-    ],
-)
+# Standalone function
+tools_called = [tc.name for tc in traj.tool_calls]
+assert match_trajectory_tools(tools_called, ["python_interpreter"], mode="superset")
 ```
 
-Judge kinds:
+Modes:
+- `"superset"`: All expected tools must have been called (`actual >= expected`).
+- `"subset"`: Only allowed tools were called (`actual <= expected`).
+- `"strict"`: Exact sequence match (`actual == expected`).
 
-| Kind | LLM? | What it checks |
-|---|---|---|
-| `correctness` | yes (`openevals`) | Final answer matches the reference output. |
-| `trajectory_accuracy` | yes (`agentevals`) | Tool-call trajectory quality vs a reference trajectory. |
-| `tool_use` | no | Expected tools ⊆ actual tools called. |
-| `grounding` | no | Assistant answers follow a tool observation. |
-| `efficiency` | no | No tool called more than `max_repeat` times. |
+### 2. System One Decision Model Evaluations
 
-The deterministic judges (`tool_use` / `grounding` / `efficiency`) need no API
-key and run in the default eval suite; the LLM judges are gated behind
-`--include-real-models`.
+Replaces brittle, unstructured prompt-based judges with calibrated, typed System One Decision Models:
 
-## Relationship to monitoring
+```python
+from genai_tk.core.factories import get_decision_model
+from genai_tk.core.decision.evaluators import (
+    evaluate_correctness,
+    evaluate_conciseness,
+    evaluate_groundedness,
+    evaluate_tool_selection,
+)
 
-The legacy multi-backend tracing (`docs/monitoring.md` — LangSmith, LangFuse,
-OTEL, local JSONL) and the trajectory store are complementary:
+decision_model = get_decision_model("clef_flash@openrouter")  # or "default", "fake"
 
-- **Trajectory store** = the local, structured, agent-readable record
-  (ATOF scopes, tool args/results, skill loads, token usage). Source of truth
-  for `cli trajectory` and store-based evals.
-- **Remote backends** = dashboards and long-term retention (LangFuse, Phoenix,
-  LangSmith). These are projections of the same event stream.
+# Correctness -> Calibrated NoulAnswer (noul in [0.0, 1.0])
+verdict = evaluate_correctness(
+    decision_model,
+    question="Calculate 10th Fibonacci number",
+    gold_answer="55",
+    agent_answer="The 10th Fibonacci number is 55.",
+)
+print("Correctness probability:", verdict.noul)
 
-The monitoring bootstrap (`setup_monitoring()`) activates the Relay ATOF
-subscriber alongside the configured remote backends, so a single agent run is
-captured once and fanned out to all sinks.
+# Conciseness -> Ordinal ScoreAnswer (0=padded, 1=acceptable, 2=concise)
+conciseness = evaluate_conciseness(
+    decision_model,
+    question="What is 2+2?",
+    agent_answer="4",
+)
+print("Conciseness score:", conciseness.score)
+
+# Tool Selection -> ChoiceAnswer (optimal | suboptimal | incorrect)
+tool_verdict = evaluate_tool_selection(
+    decision_model,
+    task="Calculate 15 * 3",
+    available_tools=["calculator", "web_search"],
+    selected_tools=["calculator"],
+)
+print("Tool selection quality:", tool_verdict.choice)
+```
+
+## Relationship to monitoring & Langfuse OTLP
+
+NeMo Relay acts as the central telemetry and trajectory core:
+
+- **Local ATOF Trajectory Store** (`data/trajectories/<run_id>/events.jsonl`): Structured, agent-readable source of truth for `cli trajectory` and offline evaluation.
+- **Native OTLP Exporter to Langfuse**: NeMo Relay's native Rust/C++ `OpenTelemetrySubscriber` translates scopes to OpenInference conventions and streams binary protobuf OTLP directly to Langfuse (`http://localhost:3000/api/public/otel/v1/traces`).
+- **Telemetry Verification**: Use `cli monitoring test` to verify end-to-end connectivity across Relay and Langfuse.
+- **Trace Deep Linking**: Use `cli trajectory open <run_id> --backend langfuse` or `cli trajectory link <run_id>` to seamlessly jump from a local trajectory to the remote Langfuse trace.
 
 ## ATOF event shape (illustrative)
 

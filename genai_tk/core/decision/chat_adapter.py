@@ -130,40 +130,43 @@ class ChatModelDecisionModel(BaseDecisionModel):
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
         self.validate_question_count(request)
-        messages = self._build_prompt(request)
+        with self._trace_scope(request) as handle:
+            messages = self._build_prompt(request)
 
-        try:
-            structured_llm = self.chat_model.with_structured_output(_AllDecisionsOutput)
-            result: _AllDecisionsOutput = structured_llm.invoke(messages, config=config)  # type: ignore[assignment]
-        except (NotImplementedError, AttributeError):
-            # Fallback for models without native with_structured_output (e.g. fake models or simple mock LLMs)
-            schema_json = json.dumps(_AllDecisionsOutput.model_json_schema(), indent=2)
-            prompt_with_schema = messages + [
-                HumanMessage(content=f"Respond strictly with valid JSON conforming to this schema:\n{schema_json}")
-            ]
-            response = self.chat_model.invoke(prompt_with_schema, config=config)
-            content = getattr(response, "content", "")
-            if isinstance(content, list):
-                content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
             try:
-                # Clean possible markdown fences
-                cleaned = content.strip()
-                if cleaned.startswith("```"):
-                    cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-                parsed_dict = json.loads(cleaned)
-                result = _AllDecisionsOutput.model_validate(parsed_dict)
-            except Exception:
-                # Default empty output if mock/fake returns raw text
-                result = _AllDecisionsOutput()
+                structured_llm = self.chat_model.with_structured_output(_AllDecisionsOutput)
+                result: _AllDecisionsOutput = structured_llm.invoke(messages, config=config)  # type: ignore[assignment]
+            except (NotImplementedError, AttributeError):
+                # Fallback for models without native with_structured_output (e.g. fake models or simple mock LLMs)
+                schema_json = json.dumps(_AllDecisionsOutput.model_json_schema(), indent=2)
+                prompt_with_schema = messages + [
+                    HumanMessage(content=f"Respond strictly with valid JSON conforming to this schema:\n{schema_json}")
+                ]
+                response = self.chat_model.invoke(prompt_with_schema, config=config)
+                content = getattr(response, "content", "")
+                if isinstance(content, list):
+                    content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
+                try:
+                    # Clean possible markdown fences
+                    cleaned = content.strip()
+                    if cleaned.startswith("```"):
+                        cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+                    parsed_dict = json.loads(cleaned)
+                    result = _AllDecisionsOutput.model_validate(parsed_dict)
+                except Exception:
+                    # Default empty output if mock/fake returns raw text
+                    result = _AllDecisionsOutput()
 
-        answers = self._parse_structured_result(result, request)
+            answers = self._parse_structured_result(result, request)
 
-        return ClassifierResponse(
-            model=getattr(self.chat_model, "model_name", self.model_name),
-            answers=answers,
-            usage=Usage(input_tokens=0, output_tokens=0),
-            provider="chat_adapter",
-        )
+            final_resp = ClassifierResponse(
+                model=getattr(self.chat_model, "model_name", self.model_name),
+                answers=answers,
+                usage=Usage(input_tokens=0, output_tokens=0),
+                provider="chat_adapter",
+            )
+            self._emit_trace_event(handle, final_resp)
+            return final_resp
 
     async def ainvoke(
         self,
@@ -173,34 +176,37 @@ class ChatModelDecisionModel(BaseDecisionModel):
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
         self.validate_question_count(request)
-        messages = self._build_prompt(request)
+        with self._trace_scope(request) as handle:
+            messages = self._build_prompt(request)
 
-        try:
-            structured_llm = self.chat_model.with_structured_output(_AllDecisionsOutput)
-            result: _AllDecisionsOutput = await structured_llm.ainvoke(messages, config=config)  # type: ignore[assignment]
-        except (NotImplementedError, AttributeError):
-            schema_json = json.dumps(_AllDecisionsOutput.model_json_schema(), indent=2)
-            prompt_with_schema = messages + [
-                HumanMessage(content=f"Respond strictly with valid JSON conforming to this schema:\n{schema_json}")
-            ]
-            response = await self.chat_model.ainvoke(prompt_with_schema, config=config)
-            content = getattr(response, "content", "")
-            if isinstance(content, list):
-                content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
             try:
-                cleaned = content.strip()
-                if cleaned.startswith("```"):
-                    cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-                parsed_dict = json.loads(cleaned)
-                result = _AllDecisionsOutput.model_validate(parsed_dict)
-            except Exception:
-                result = _AllDecisionsOutput()
+                structured_llm = self.chat_model.with_structured_output(_AllDecisionsOutput)
+                result: _AllDecisionsOutput = await structured_llm.ainvoke(messages, config=config)  # type: ignore[assignment]
+            except (NotImplementedError, AttributeError):
+                schema_json = json.dumps(_AllDecisionsOutput.model_json_schema(), indent=2)
+                prompt_with_schema = messages + [
+                    HumanMessage(content=f"Respond strictly with valid JSON conforming to this schema:\n{schema_json}")
+                ]
+                response = await self.chat_model.ainvoke(prompt_with_schema, config=config)
+                content = getattr(response, "content", "")
+                if isinstance(content, list):
+                    content = "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in content)
+                try:
+                    cleaned = content.strip()
+                    if cleaned.startswith("```"):
+                        cleaned = cleaned.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+                    parsed_dict = json.loads(cleaned)
+                    result = _AllDecisionsOutput.model_validate(parsed_dict)
+                except Exception:
+                    result = _AllDecisionsOutput()
 
-        answers = self._parse_structured_result(result, request)
+            answers = self._parse_structured_result(result, request)
 
-        return ClassifierResponse(
-            model=getattr(self.chat_model, "model_name", self.model_name),
-            answers=answers,
-            usage=Usage(input_tokens=0, output_tokens=0),
-            provider="chat_adapter",
-        )
+            final_resp = ClassifierResponse(
+                model=getattr(self.chat_model, "model_name", self.model_name),
+                answers=answers,
+                usage=Usage(input_tokens=0, output_tokens=0),
+                provider="chat_adapter",
+            )
+            self._emit_trace_event(handle, final_resp)
+            return final_resp

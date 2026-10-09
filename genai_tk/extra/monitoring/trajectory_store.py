@@ -258,6 +258,44 @@ class Trajectory(BaseModel):
 
         return turns
 
+    def match_tools(
+        self,
+        expected_tools: list[str],
+        mode: str = "superset",
+    ) -> bool:
+        """Deterministically check if tool calls match expected tool names."""
+        actual_names = [t.name for t in self.tool_calls]
+        return match_trajectory_tools(actual_names, expected_tools, mode=mode)
+
+
+def match_trajectory_tools(
+    actual_tools: list[str],
+    expected_tools: list[str],
+    mode: str = "superset",
+) -> bool:
+    """Evaluate trajectory tool call sequences deterministically without external dependencies.
+
+    Args:
+        actual_tools: Ordered list of tool names executed in the trajectory.
+        expected_tools: List of expected tool names.
+        mode: Match mode:
+            - ``"superset"``: all expected tools must have been called (actual >= expected).
+            - ``"subset"``: only allowed tools were called (actual <= expected).
+            - ``"strict"``: exact sequence match (actual == expected).
+
+    Returns:
+        True if the actual tools satisfy the expectation under the given mode.
+    """
+    if mode == "strict":
+        return actual_tools == expected_tools
+    actual_set = set(actual_tools)
+    expected_set = set(expected_tools)
+    if mode == "superset":
+        return expected_set.issubset(actual_set)
+    if mode == "subset":
+        return actual_set.issubset(expected_set)
+    raise ValueError(f"Unknown match mode '{mode}'. Choose 'superset', 'subset', or 'strict'.")
+
 
 # ── Store ────────────────────────────────────────────────────────────────────
 
@@ -271,6 +309,18 @@ class TrajectoryStore:
 
     def __init__(self, root: Path | None = None) -> None:
         self.root = Path(root) if root is not None else _default_store_dir()
+
+    def match_tools(
+        self,
+        run_id: str,
+        expected_tools: list[str],
+        mode: str = "superset",
+    ) -> bool:
+        """Deterministically check if a run's tool calls match expected tool names."""
+        traj = self.get(run_id)
+        if traj is None:
+            return False
+        return traj.match_tools(expected_tools, mode=mode)
 
     # ── listing ──────────────────────────────────────────────────────────────
 
@@ -565,6 +615,9 @@ class TrajectoryStore:
                 for m in msgs:
                     if isinstance(m, dict) and m.get("type") in ("human", "user"):
                         return str(m.get("content") or "")
+                for m in msgs:
+                    if isinstance(m, (list, tuple)) and len(m) >= 2 and m[0] in ("human", "user"):
+                        return str(m[1] or "")
         return None
 
     def skills(self, run_id: str) -> list[SkillLoad]:

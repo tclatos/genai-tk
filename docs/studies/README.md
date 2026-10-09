@@ -10,6 +10,7 @@ Unlike core framework documentation (in `docs/`) which documents stable user-fac
 
 | Study / Report | Topic | Key Finding / Focus |
 |---|---|---|
+| [tracing_and_evaluation_refactoring.md](tracing_and_evaluation_refactoring.md) | **Telemetry & Eval Refactoring** | Unifying tracing, trajectories, and evaluations with NeMo Relay as core, retiring openevals/agentevals for Decision Models, and closing BAML/Decision tracing gaps |
 | [deerflow_architecture_and_benchmarks.md](deerflow_architecture_and_benchmarks.md) | **Benchmark Evaluation Report** | Multi-dataset benchmark evaluation (OfficeQA, MMLongBench) comparing DeerFlow vs DeepAgents, Python CodeAct calculations, and Document Graph navigation |
 | [cloud_agent_architectures_ms_aws_gcp.md](cloud_agent_architectures_ms_aws_gcp.md) | **Cloud Enterprise Architectures** | Implementation patterns for Graph Navigation, Code Sandboxing, and Multi-Agent Orchestration across Azure, AWS, and GCP |
 | [azure_foundry_hosted_agents.md](azure_foundry_hosted_agents.md) | **Azure Foundry Viability** | Technical assessment of Microsoft Azure AI Foundry hosted agents and SDK trade-offs |

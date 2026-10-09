@@ -1,5 +1,8 @@
 # Performance
 # in genai-tk hybrid search, check if we could parallelize
+# docling serve  to reduce package size https://github.com/docling-project/docling-serve 
+
+
 
 
 # More Typing
@@ -16,10 +19,10 @@ What we did for the benchmarks (llm grader) could likely be generalyzed, and imp
 We have also some holes, such as the tracing of BAML, or the tracing of Decisions Models.
 My feeling is that we not fully leverage the power of Nemo Relay (export, plugins, ...).
 
-I still don't have a clear idea on how to refactor that suff (notably for simplification, ease of maintenance, ..).  Investigate the possibilities, anslyse existing code, think, evaluate pro and cons, think again, write a report, and propose a plan.
+I still don't have a clear idea on how to refactor that suff (notably for simplification, ease of maintenance, ..).  Investigate the possibilities, anslyse existing code, think, evaluate pro and cons, think again, write a report (in docs/studies) with a plan.
 
 
-
+# 
 
 # Improving  Trajectories and Traces
 

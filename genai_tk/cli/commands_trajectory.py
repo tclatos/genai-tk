@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Any
@@ -92,6 +93,10 @@ class TrajectoryCommands(CliTopCommand):
                 bool,
                 typer.Option("--tui", "-t", help="Launch interactive TUI navigator"),
             ] = False,
+            open_ui: Annotated[
+                bool,
+                typer.Option("--open", help="Open the corresponding trace in Langfuse after display"),
+            ] = False,
         ) -> None:
             """Render a trajectory (tree, json, messages, dot, or interactive TUI)."""
             console = Console()
@@ -113,6 +118,42 @@ class TrajectoryCommands(CliTopCommand):
                 console.print(_to_dot(traj))
             else:
                 _print_tree(console, traj)
+
+            if open_ui:
+                _open_run_in_backend(run_id, backend="langfuse", console=console)
+
+        @cli_app.command("open")
+        def open_cmd(
+            run_id: Annotated[str, typer.Argument(help="Run id (root agent scope uuid)")],
+            backend: Annotated[
+                str,
+                typer.Option("--backend", "-b", help="UI backend to open: langfuse | harbor"),
+            ] = "langfuse",
+        ) -> None:
+            """Open a recorded run directly in the Langfuse UI or Harbor viewer."""
+            console = Console()
+            _open_run_in_backend(run_id, backend=backend, console=console)
+
+        @cli_app.command("link")
+        def link_cmd(
+            run_id: Annotated[str, typer.Argument(help="Run id (root agent scope uuid)")],
+        ) -> None:
+            """Show URLs and viewer links for a recorded run (Langfuse & Harbor)."""
+            import os
+
+            from genai_tk.extra.monitoring.tracing import monitoring_config
+
+            console = Console()
+            cfg = monitoring_config()
+            host = (cfg.langfuse.host or os.environ.get("LANGFUSE_HOST") or "http://localhost:3000").rstrip("/")
+            langfuse_url = f"{host}/trace/{run_id}"
+
+            console.print(f"[bold]Trace links for run [cyan]{run_id}[/cyan]:[/bold]")
+            console.print(f"  [bold]Langfuse:[/bold] [link={langfuse_url}]{langfuse_url}[/link]")
+            console.print(
+                "  [bold]Harbor:[/bold]   [dim]cli trajectory view[/dim] (or [dim]harbor view --jobs data/trajectories/.harbor-view[/dim])"
+            )
+            console.print(f"  [bold]Local:[/bold]    [dim]cli trajectory show {run_id}[/dim]")
 
         @cli_app.command("tui")
         def tui_cmd(
@@ -194,7 +235,7 @@ class TrajectoryCommands(CliTopCommand):
             run_id: Annotated[str, typer.Argument(help="Run id to export")],
             fmt: Annotated[
                 str,
-                typer.Option("--format", "-f", help="atif | atof | messages | otel"),
+                typer.Option("--format", "-f", help="atif | atof | messages | otel | langfuse"),
             ] = "atof",
             out: Annotated[str | None, typer.Option("--out", "-o", help="Write to file (default: stdout)")] = None,
         ) -> None:
@@ -213,6 +254,21 @@ class TrajectoryCommands(CliTopCommand):
                 payload = json.dumps(_to_atif(traj), indent=2)
             elif fmt == "otel":
                 payload = json.dumps(_to_otel_spans(traj), indent=2)
+            elif fmt == "langfuse":
+                import os
+
+                from genai_tk.extra.monitoring.tracing import monitoring_config
+
+                cfg = monitoring_config()
+                host = (cfg.langfuse.host or os.environ.get("LANGFUSE_HOST") or "http://localhost:3000").rstrip("/")
+                payload = json.dumps(
+                    {
+                        "run_id": run_id,
+                        "langfuse_trace_url": f"{host}/trace/{run_id}",
+                        "exported_at": datetime.now(timezone.utc).isoformat(),
+                    },
+                    indent=2,
+                )
             else:
                 console.print(f"[red]Unknown format: {fmt}[/red]")
                 raise typer.Exit(1)
@@ -324,6 +380,32 @@ class TrajectoryCommands(CliTopCommand):
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     process.kill()
+
+
+def _open_run_in_backend(run_id: str, backend: str, console: Console) -> None:
+    """Open a run in the requested backend UI (Langfuse or Harbor)."""
+    import os
+
+    if backend == "langfuse":
+        from genai_tk.extra.monitoring.tracing import monitoring_config
+
+        cfg = monitoring_config()
+        host = (cfg.langfuse.host or os.environ.get("LANGFUSE_HOST") or "http://localhost:3000").rstrip("/")
+        url = f"{host}/trace/{run_id}"
+        console.print(f"Opening Langfuse trace for run [cyan]{run_id}[/cyan]: [link={url}]{url}[/link]")
+        webbrowser.open(url)
+    elif backend == "harbor":
+        s = TrajectoryStore()
+        from genai_tk.extra.monitoring.harbor_export import export_store_to_harbor
+
+        export_dir = export_store_to_harbor(s, s.root / ".harbor-view")
+        try:
+            console.print(f"Opening Harbor viewer for run [cyan]{run_id}[/cyan]...")
+            subprocess.run(["harbor", "view", "--jobs", str(export_dir)], check=False)
+        except FileNotFoundError:
+            console.print("[yellow]harbor not installed. Install via: uv tool install harbor[/yellow]")
+    else:
+        console.print(f"[red]Unknown backend: '{backend}'. Choose 'langfuse' or 'harbor'.[/red]")
 
 
 # ── Render helpers ───────────────────────────────────────────────────────────

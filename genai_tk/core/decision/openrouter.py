@@ -71,25 +71,28 @@ class OpenRouterDecisionModel(BaseDecisionModel):
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
         self.validate_question_count(request)
-        payload = self._build_payload(request)
-        headers = self._build_headers()
+        with self._trace_scope(request) as handle:
+            payload = self._build_payload(request)
+            headers = self._build_headers()
 
-        with httpx.Client(timeout=self.timeout) as client:
-            resp = client.post(self.api_base, json=payload, headers=headers)
-            if not resp.is_success:
-                raise RuntimeError(f"OpenRouter Decisions API error ({resp.status_code}): {resp.text}")
-            data = resp.json()
+            with httpx.Client(timeout=self.timeout) as client:
+                resp = client.post(self.api_base, json=payload, headers=headers)
+                if not resp.is_success:
+                    raise RuntimeError(f"OpenRouter Decisions API error ({resp.status_code}): {resp.text}")
+                data = resp.json()
 
-        # If OpenRouter returned answers dict
-        return ClassifierResponse.model_validate(
-            {
-                "model": data.get("model", self.model),
-                "answers": data.get("answers", {}),
-                "usage": data.get("usage", {}),
-                "provider": data.get("provider", "openrouter"),
-                "request_id": data.get("id"),
-            }
-        )
+            # If OpenRouter returned answers dict
+            response = ClassifierResponse.model_validate(
+                {
+                    "model": data.get("model", self.model),
+                    "answers": data.get("answers", {}),
+                    "usage": data.get("usage", {}),
+                    "provider": data.get("provider", "openrouter"),
+                    "request_id": data.get("id"),
+                }
+            )
+            self._emit_trace_event(handle, response)
+            return response
 
     async def ainvoke(
         self,
@@ -99,21 +102,24 @@ class OpenRouterDecisionModel(BaseDecisionModel):
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
         self.validate_question_count(request)
-        payload = self._build_payload(request)
-        headers = self._build_headers()
+        with self._trace_scope(request) as handle:
+            payload = self._build_payload(request)
+            headers = self._build_headers()
 
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(self.api_base, json=payload, headers=headers)
-            if not resp.is_success:
-                raise RuntimeError(f"OpenRouter Decisions API error ({resp.status_code}): {resp.text}")
-            data = resp.json()
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.post(self.api_base, json=payload, headers=headers)
+                if not resp.is_success:
+                    raise RuntimeError(f"OpenRouter Decisions API error ({resp.status_code}): {resp.text}")
+                data = resp.json()
 
-        return ClassifierResponse.model_validate(
-            {
-                "model": data.get("model", self.model),
-                "answers": data.get("answers", {}),
-                "usage": data.get("usage", {}),
-                "provider": data.get("provider", "openrouter"),
-                "request_id": data.get("id"),
-            }
-        )
+            response = ClassifierResponse.model_validate(
+                {
+                    "model": data.get("model", self.model),
+                    "answers": data.get("answers", {}),
+                    "usage": data.get("usage", {}),
+                    "provider": data.get("provider", "openrouter"),
+                    "request_id": data.get("id"),
+                }
+            )
+            self._emit_trace_event(handle, response)
+            return response

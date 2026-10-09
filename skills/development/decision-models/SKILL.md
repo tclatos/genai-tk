@@ -94,6 +94,36 @@ chat_llm = get_llm("gpt-4o-mini@openai")
 decision_model = get_decision_model_from_chat_model(chat_llm)
 ```
 
+## Agent Evaluation & Grader Helpers
+
+Decision Models serve as typed evaluators, replacing legacy prompt-based LLM judges (such as `openevals`):
+
+```python
+from genai_tk.core.decision.evaluators import (
+    evaluate_correctness,
+    evaluate_conciseness,
+    evaluate_groundedness,
+    evaluate_tool_selection,
+)
+
+# 1. Correctness (returns NoulAnswer with noul probability [0.0, 1.0])
+c_verdict = evaluate_correctness(model, question="What is 2+2?", gold_answer="4", agent_answer="4")
+
+# 2. Conciseness (returns ScoreAnswer on a 3-point scale: 0=padded, 1=acceptable, 2=concise)
+s_verdict = evaluate_conciseness(model, question="What is 2+2?", agent_answer="4")
+
+# 3. Groundedness (returns NoulAnswer)
+g_verdict = evaluate_groundedness(model, evidence=["Revenue in 2025 was $10M"], agent_answer="Revenue was $10M")
+
+# 4. Tool Selection Quality (returns ChoiceAnswer: optimal | suboptimal | incorrect)
+t_verdict = evaluate_tool_selection(
+    model,
+    task="Calculate 15*3",
+    available_tools=["calculator", "web_search"],
+    selected_tools=["calculator"],
+)
+```
+
 ## CLI Usage
 
 ```bash

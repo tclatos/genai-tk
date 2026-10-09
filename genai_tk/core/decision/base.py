@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import abc
-from typing import Any
+from contextlib import contextmanager
+from typing import Any, Generator
 
 from langchain_core.runnables import RunnableConfig, RunnableSerializable
 from pydantic import ConfigDict
@@ -41,6 +42,41 @@ class BaseDecisionModel(RunnableSerializable[ClassifierRequest, ClassifierRespon
                 f"Decision model '{model_name}' accepts at most {self.max_questions} questions per request, "
                 f"but {len(request.questions)} were provided. Consider chunking questions into batches."
             )
+
+    @contextmanager
+    def _trace_scope(self, request: ClassifierRequest) -> Generator[Any, None, None]:
+        """Wrap decision model execution in a NeMo Relay Evaluator scope if available."""
+        try:
+            import nemo_relay
+
+            model_name = getattr(self, "model", self.__class__.__name__)
+            with nemo_relay.scope.scope(
+                name=f"decision.{model_name}",
+                scope_type=nemo_relay.ScopeType.Evaluator,
+                input={"questions": list(request.questions.keys())},
+                metadata={"decision_model": model_name},
+            ) as handle:
+                yield handle
+        except (ImportError, Exception):
+            yield None
+
+    def _emit_trace_event(self, handle: Any, response: ClassifierResponse) -> None:
+        """Emit a decision.verdict event if NeMo Relay is active."""
+        if handle is None:
+            return
+        try:
+            import nemo_relay
+
+            nemo_relay.scope.event(
+                "decision.verdict",
+                handle=handle,
+                data={q_id: ans.model_dump() for q_id, ans in response.answers.items()},
+                metadata={
+                    "total_tokens": response.usage.input_tokens + response.usage.output_tokens,
+                },
+            )
+        except Exception:
+            pass
 
     @abc.abstractmethod
     def invoke(
