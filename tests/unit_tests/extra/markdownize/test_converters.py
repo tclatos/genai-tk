@@ -472,10 +472,11 @@ async def test_mistral_ocr_converter_table_inlining_complex_unexpanded(
 @pytest.mark.asyncio
 async def test_mistral_ocr_converter_with_sample_pdf_and_tables(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     """Test conversion on a real sample PDF file with mock OCR output containing inlined tables."""
-    sample_pdf = Path("/home/tcl/prj/genai-graph/tests/data/sample-pdf-a4-size.pdf")
-    assert sample_pdf.exists(), f"Sample PDF not found at {sample_pdf}"
+    sample_pdf = tmp_path / "sample.pdf"
+    sample_pdf.write_bytes(b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF")
 
     fake_table = MagicMock()
     fake_table.id = "tbl-0"

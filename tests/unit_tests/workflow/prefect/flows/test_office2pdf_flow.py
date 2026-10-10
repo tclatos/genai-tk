@@ -35,6 +35,12 @@ from genai_tk.workflow.prefect.flows.office2pdf_flow import (
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _mock_libreoffice_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Default to pretending LibreOffice is on PATH for flow tests; availability tests override explicitly."""
+    monkeypatch.setattr(office2pdf_module.shutil, "which", lambda name: "/usr/bin/libreoffice")
+
+
 def test_is_libreoffice_available_true(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(office2pdf_module.shutil, "which", lambda name: "/usr/bin/libreoffice")
     assert is_libreoffice_available() is True
