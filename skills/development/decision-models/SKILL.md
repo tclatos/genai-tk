@@ -61,13 +61,15 @@ frustration = model.decide_score(
 print(frustration.score, frustration.probabilities)
 
 # 4. Multi-question batch on shared state
-response = model.invoke({
-    "state": {"ticket": "Cancel subscription", "customer_tier": "pro"},
-    "questions": {
-        "churn_risk": Noul(instructions="Is the customer canceling due to dissatisfaction?"),
-        "team": Choice(instructions="Assign to team", criteria={"retention": "Cancel", "billing": "Pay"}),
-    },
-})
+response = model.invoke(
+    {
+        "state": {"ticket": "Cancel subscription", "customer_tier": "pro"},
+        "questions": {
+            "churn_risk": Noul(instructions="Is the customer canceling due to dissatisfaction?"),
+            "team": Choice(instructions="Assign to team", criteria={"retention": "Cancel", "billing": "Pay"}),
+        },
+    }
+)
 
 # 5. Automatic chunking with batch_invoke (when exceeding model limits)
 response = model.batch_invoke(request, batch_size=32)

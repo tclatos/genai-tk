@@ -118,6 +118,7 @@ dept = model.decide_choice(
 
 # Chat model fallback adapter
 from genai_tk.core.factories import get_llm
+
 chat_decider = get_decision_model_from_chat_model(get_llm("fake"))
 ```
 

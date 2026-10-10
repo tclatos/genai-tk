@@ -1,3 +1,38 @@
+# LoCoMo Bechnmark 
+see https://github.com/Backboard-io/Backboard-Locomo-Benchmark 
+
+
+
+# Better decison model support:
+
+1 / Laya  (with Router)
+https://huggingface.co/convaiinnovations/laya 
+Possibly with server
+
+2/ Eden.ai
+    import requests
+
+    url = "https://api.edenai.run/v3/alpha/decisions"
+    headers = {
+        "Authorization": "Bearer <your-api-key>",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "typesafe/jev-latest",
+        "state": "I was charged twice for my subscription. Please refund me.",
+        "questions": {
+            "is_billing": {
+                "type": "noul",
+                "instructions": "Is this message about billing?"
+            }
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=payload)
+    data = response.json()
+    print(data["answers"]["is_billing"]["noul"])
+
+
 # Performance
 # in genai-tk hybrid search, check if we could parallelize
 # docling serve  to reduce package size https://github.com/docling-project/docling-serve 

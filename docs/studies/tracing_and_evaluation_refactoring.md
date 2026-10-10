@@ -278,9 +278,7 @@ def build_benchmark_decision_request(run: BenchRunRecord) -> ClassifierRequest:
                     "incorrect": "Contradicts gold answer or hallucinated.",
                 },
             ),
-            "numeric_match": Noul(
-                instructions="Are all numbers, percentages, and currencies numerically identical?"
-            ),
+            "numeric_match": Noul(instructions="Are all numbers, percentages, and currencies numerically identical?"),
             "groundedness": Choice(
                 instructions="Is the agent answer supported by the retrieved document evidence?",
                 criteria={

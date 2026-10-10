@@ -35,16 +35,34 @@ jobs:
           node-version: 'lts/*'
 
       - name: Build All Slide Decks
-        run: python3 scripts/build_slides.py
+        id: build_slides
+        run: |
+          if [ ! -d "docs/theme" ]; then
+            echo "::notice::docs/theme not found in repository. Slides are maintained in the dedicated 'slides' repository. Skipping build."
+            exit 0
+          fi
+          python3 scripts/build_slides.py
+
+      - name: Check dist directory
+        id: check_dist
+        run: |
+          if [ -d "dist" ] && [ -n "$(ls -A dist 2>/dev/null)" ]; then
+            echo "has_dist=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_dist=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup GitHub Pages
+        if: steps.check_dist.outputs.has_dist == 'true'
         uses: actions/configure-pages@v5
 
       - name: Upload Pages Artifact
+        if: steps.check_dist.outputs.has_dist == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
       - name: Deploy to GitHub Pages
+        if: steps.check_dist.outputs.has_dist == 'true'
         id: deployment
         uses: actions/deploy-pages@v4

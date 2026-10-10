@@ -160,9 +160,7 @@ async def get_mcp_tools_info(filter: list[str] | None = None) -> dict:
                 async with open_mcp_client(param_desc) as client:
                     tools_result = await client.list_tools()
                     tool_list = getattr(tools_result, "tools", tools_result)
-                    tools_info[server_name] = {
-                        tool.name: getattr(tool, "description", "") or "" for tool in tool_list
-                    }
+                    tools_info[server_name] = {tool.name: getattr(tool, "description", "") or "" for tool in tool_list}
             except Exception as e:
                 logger.warning("Error fetching tools for MCP server {}: {}", server_name, e)
     return tools_info
@@ -199,9 +197,7 @@ async def get_mcp_prompts(filter: list[str] | None = None) -> dict:
                 async with open_mcp_client(param_desc) as client:
                     prompts_result = await client.list_prompts()
                     prompt_list = getattr(prompts_result, "prompts", prompts_result)
-                    prompts_info[server_name] = {
-                        p.name: getattr(p, "description", "") or "" for p in prompt_list
-                    }
+                    prompts_info[server_name] = {p.name: getattr(p, "description", "") or "" for p in prompt_list}
             except Exception as e:
                 logger.warning("Error fetching prompts for MCP server {}: {}", server_name, e)
     return prompts_info
