@@ -32,7 +32,12 @@ description: Work on core LLM, embeddings, vector store, provider, cache, prompt
 ## Patterns
 
 - Model IDs use `model@provider` or config aliases such as `default` and `fast_model`.
-- Keep provider-specific branching inside factories or provider adapters.
+- **Inversion of Control (IoC) Providers**:
+  - Providers in `config/providers/providers.yaml` specify role-targeted classes: `chat_class`, `embeddings_class`, and `decision_class` (avoiding duplicate legacy `use:` entries).
+  - Providers without chat capability (e.g. `laya` which is decision-only, or `local` which is embedding-only) omit `chat_class`.
+  - Factories (`LlmFactory`, `EmbeddingsFactory`, `DecisionModelFactory`) dynamically resolve and instantiate classes via `ImportResolver`.
+  - Subclassed LangChain models live in `genai_tk/core/providers/chat.py` with modular mixins in `genai_tk/core/providers/mixins.py` (e.g. `SeedHandlingMixin`, `OpenRouterRoutingMixin`, `EdenAIRoutingMixin`, `ReasoningMixin`, `EdenAIReasoningMixin`).
+- Downstream applications can dynamically add custom providers or local servers (such as on-prem vLLM or Ollama) by defining top-level `providers:` in their YAML configuration.
 - Prefer YAML aliases in `config/providers/*.yaml` for new models.
 - Use fake providers or the `pytest` profile for unit tests.
 - Structured output should use Pydantic models and `with_structured_output` when available.

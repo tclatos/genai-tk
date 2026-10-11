@@ -446,7 +446,10 @@ class EmbeddingsFactory(BaseModel):
         return embeddings
 
     def model_factory(self) -> Embeddings:
-        """Create an embeddings model based on configuration.
+        """Create an embeddings model based on configuration via Inversion of Control.
+
+        Uses provider_info.embeddings_class when configured in providers.yaml,
+        supporting custom extensions without hardcoded elif chains.
 
         Returns:
             Instantiated embeddings model
@@ -455,7 +458,45 @@ class EmbeddingsFactory(BaseModel):
             ValueError: If embeddings model is not supported
         """
         api_key = get_provider_api_key(self.info.provider)
+        provider_info = self.info.get_provider_info()
+        embeddings_class_path = provider_info.embeddings_class
 
+        if embeddings_class_path:
+            from genai_tk.config_mgmt.import_utils import ImportResolver
+
+            cls = ImportResolver.import_from_qualified(embeddings_class_path)
+            if cls is not None:
+                if hasattr(cls, "create") and callable(cls.create):
+                    return cls.create(
+                        model=self.info.model,
+                        api_key=api_key,
+                        base_url=self.info.get_api_base(),
+                        cache=embeddings_config().cache,
+                    )
+                # Try standard instantiations
+                try:
+                    kwargs: dict[str, Any] = {}
+                    if api_key:
+                        kwargs["api_key"] = api_key
+                    if self.info.get_api_base():
+                        kwargs["base_url"] = self.info.get_api_base()
+                    if self.info.model:
+                        kwargs["model_name"] = self.info.model
+                        kwargs["model"] = self.info.model
+                    if embeddings_config().cache:
+                        kwargs["cache_dir"] = embeddings_config().cache
+                    import inspect
+
+                    sig = inspect.signature(cls.__init__)
+                    accepted = sig.parameters.keys()
+                    has_var_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                    if not has_var_kwargs:
+                        kwargs = {k: v for k, v in kwargs.items() if k in accepted}
+                    return cls(**kwargs)
+                except Exception:
+                    pass
+
+        # Fallback to standard provider mappings
         if self.info.provider == "openai":
             from langchain_openai import OpenAIEmbeddings
 
@@ -478,23 +519,20 @@ class EmbeddingsFactory(BaseModel):
             from genai_tk.utils.langchain_community_repl.fastembed_embeddings import FastEmbedEmbeddings
 
             cache = embeddings_config().cache
-            kwargs: dict[str, Any] = {"model_name": self.info.model}
+            kwargs_local: dict[str, Any] = {"model_name": self.info.model}
             if cache:
-                kwargs["cache_dir"] = cache
-            emb = FastEmbedEmbeddings(**kwargs)
-        elif self.info.provider == "edenai":
-            # from langchain_community.embeddings.edenai import EdenAiEmbeddings
-
-            # provider, _, model = self.info.model.partition("/")
-            # emb = EdenAiEmbeddings(model=model, provider=provider, edenai_api_key=api_key)
+                kwargs_local["cache_dir"] = cache
+            emb = FastEmbedEmbeddings(**kwargs_local)
+        elif self.info.provider in ("edenai", "openrouter", "deepinfra"):
             from langchain_openai import OpenAIEmbeddings
 
             emb = OpenAIEmbeddings(
                 model=self.info.model,
                 api_key=api_key,
-                base_url=self.info.get_api_base(),
+                base_url=self.info.get_api_base()
+                if self.info.provider != "deepinfra"
+                else "https://api.deepinfra.com/v1/openai",
             )
-
         elif self.info.provider == "azure":
             from langchain_openai import AzureOpenAIEmbeddings
 
@@ -509,22 +547,6 @@ class EmbeddingsFactory(BaseModel):
             from langchain_ollama import OllamaEmbeddings
 
             emb = OllamaEmbeddings(model=self.info.model)
-        elif self.info.provider == "deepinfra":
-            from langchain_openai import OpenAIEmbeddings
-
-            emb = OpenAIEmbeddings(
-                model=self.info.model,
-                api_key=api_key.get_secret_value() if api_key else None,
-                base_url="https://api.deepinfra.com/v1/openai",
-            )
-        elif self.info.provider == "openrouter":
-            from langchain_openai import OpenAIEmbeddings
-
-            emb = OpenAIEmbeddings(
-                model=self.info.model,
-                api_key=api_key,
-                base_url=self.info.get_api_base(),
-            )
         elif self.info.provider == "fake":
             from langchain_core.embeddings.fake import DeterministicFakeEmbedding
 

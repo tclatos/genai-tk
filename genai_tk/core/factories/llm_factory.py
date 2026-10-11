@@ -1103,14 +1103,12 @@ class LlmFactory(BaseModel):
         return llm
 
     def model_factory(self) -> BaseChatModel:
-        """Model factory, according to the model class.
+        """Model factory delegating to provider chat classes via Inversion of Control.
 
-        This method supports two main paths:
-        1. OpenAI-compatible API: Handles most modern providers using ChatOpenAI as base class.
-           Configuration is mostly in YAML (api_base, extra_body, seed handling, etc.)
-        2. Provider-specific classes: For APIs with truly different interfaces
-           (anthropic, google, azure, ollama, litellm, mistral, huggingface, together, deepseek)
-        3. Fake: For testing
+        Uses the provider's configured chat class (chat_class or use) via ImportResolver.
+        If the resolved class exposes a `.create(...)` factory method, it is invoked with
+        the resolved arguments; otherwise standard constructor instantiation is used.
+        Falls back to LangChain's init_chat_model() if no specialized class exists.
         """
         from langchain_core.globals import get_llm_cache
 
@@ -1137,29 +1135,65 @@ class LlmFactory(BaseModel):
                     f"Reasoning options requested: {self.reasoning_payload}."
                 )
 
-        # Get provider info for configuration details
         provider_info = self.info.get_provider_info()
+        target_class_path = provider_info.chat_class
 
-        # --- Route 1: OpenAI-compatible API (default for most providers) ---
-        if provider_info.is_openai_compatible():
-            return self._create_openai_compatible_llm(provider_info, llm_params, api_key)
+        if not target_class_path:
+            raise ValueError(f"Provider '{self.provider}' does not support chat models (no chat_class configured).")
 
-        # --- Route 2: Fake model (testing) ---
+        # Check if target class can be imported dynamically
+        from genai_tk.config_mgmt.import_utils import ImportResolver
+
+        cls = ImportResolver.import_from_qualified(target_class_path)
+        if cls is not None:
+            # Check for provider-level or specialized create() factory method
+            if hasattr(cls, "create") and callable(cls.create):
+                create_kwargs: dict[str, Any] = {
+                    "model": self.info.model,
+                    "api_key": api_key,
+                    "provider": self.provider,
+                    "base_url": provider_info.api_base,
+                    "max_tokens": self.info.max_tokens,
+                    "custom_headers": provider_info.custom_headers,
+                    "extra_body": provider_info.extra_body,
+                    "seed_location": provider_info.seed_param_location,
+                    "reasoning_payload": self.reasoning_payload,
+                    "routing_strategy": self.routing_strategy,
+                    "json_mode": self.json_mode,
+                    "special_env_vars": provider_info.get_special_env_vars(),
+                    "llm_params": llm_params,
+                }
+                # Filter out parameters not accepted if needed or pass directly
+                import inspect
+
+                sig = inspect.signature(cls.create)
+                has_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                if not has_kwargs:
+                    create_kwargs = {k: v for k, v in create_kwargs.items() if k in sig.parameters}
+                return cls.create(**create_kwargs)
+
+            # Route OpenAI-compatible or direct ChatOpenAI subclasses
+            if provider_info.is_openai_compatible():
+                return self._create_openai_compatible_llm(provider_info, llm_params, api_key, chat_cls=cls)
+
+        # Route fake model
         if self.provider == "fake":
             return self._create_fake_llm()
 
-        # --- Route 3: Provider-specific LangChain classes ---
+        # Fallback to specialized / init_chat_model
         return self._create_specialized_llm(provider_info, llm_params, api_key)
 
     def _create_openai_compatible_llm(
-        self, provider_info: ProviderInfo, llm_params: dict[str, Any], api_key: SecretStr | None
+        self,
+        provider_info: ProviderInfo,
+        llm_params: dict[str, Any],
+        api_key: SecretStr | None,
+        chat_cls: type | None = None,
     ) -> "BaseChatModel":
-        """Create an LLM using OpenAI-compatible API.
-
-        This handles providers using ChatOpenAI or compatible endpoints, with configuration
-        from YAML (api_base, extra_body, seed location, etc).
-        """
+        """Create an LLM using OpenAI-compatible API."""
         from langchain_openai import ChatOpenAI
+
+        target_cls = chat_cls or ChatOpenAI
 
         # Handle seed parameter placement
         if provider_info.seed_param_location == "model_kwargs":
@@ -1287,7 +1321,7 @@ class LlmFactory(BaseModel):
                     f"Ignoring routing."
                 )
 
-        llm = ChatOpenAI(**create_params)
+        llm = target_cls(**create_params)
         return llm
 
     def _create_fake_llm(self) -> "BaseChatModel":

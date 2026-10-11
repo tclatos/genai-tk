@@ -37,7 +37,7 @@ dependencies = [
     # ============================================
     # Provider Integrations
     # ============================================
-    "langchain-openai>=1.0",         # OpenAI models (GPT-4, GPT-3.5, etc.)
+    "langchain-openai>=1.7.0",       # OpenAI models and decisions
     "langchain-ollama>=1.0",         # Local Ollama models integration
     "langchain-deepseek>=1.0",       # DeepSeek models integration
     "langchain-mistralai>=1.0",      # Mistral AI models integration
@@ -228,7 +228,7 @@ constraint-dependencies = [
     "requests<2.34",   # 2.34.x has broken compat.py (missing JSONDecodeError)
  #   "langsmith<0.9",   # 0.9.x has circular import in _openapi_client
     "alembic<1.18",    # 1.18.x has missing PriorityDispatcher (breaks Prefect)
-    "openai<2.44",     # 2.44.0 has circular import in _utils/_files
+    "openai!=2.44.0",  # 2.44.0 has circular import in _utils/_files
 ]
 
 # Note: a patched wheel (without the spurious volcengine-python-sdk dep) lives in vendor/.

@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, SecretStr
+from omegaconf import DictConfig
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from genai_tk.config_mgmt.config_mngr import QualifiedClassName
 from genai_tk.config_mgmt.import_utils import ImportResolver
@@ -28,20 +29,24 @@ class ProviderInfo(BaseModel):
     """Structured information about an LLM provider.
 
     Attributes:
-        use: Combined module.ClassName string (e.g., 'langchain_openai.ChatOpenAI')
+        chat_class: Qualified class for chat models (None if provider doesn't support chat)
+        embeddings_class: Optional qualified class for embeddings models
+        decision_class: Optional qualified class for decision models
         api_key_env_var: Environment variable name for API key
         api_base: Optional API base URL for OpenAI-compatible providers
         litellm_prefix: LiteLLM provider prefix; null means no prefix (openai-style)
         gateway: True for providers that accept vendor-prefixed model names
         extra_body: Optional extra fields to pass to API (e.g. for OpenRouter quantization)
         special_env_vars: Additional environment variables needed (e.g. AZURE_OPENAI_API_VERSION)
-        openai_compatible: True if provider uses OpenAI-compatible API (defaults to detecting from 'use')
+        openai_compatible: True if provider uses OpenAI-compatible API (defaults to detecting from chat_class)
         seed_param_location: Where to place seed parameter ('root' for root params, 'model_kwargs' for groq, None to omit)
         custom_headers: Custom headers to send with API requests
     """
 
-    use: QualifiedClassName = Field(..., description="Module and class in format 'module.path.ClassName'")
-    api_key_env_var: str
+    chat_class: QualifiedClassName | None = Field(None, description="Qualified class for chat models")
+    embeddings_class: QualifiedClassName | None = Field(None, description="Qualified class for embeddings models")
+    decision_class: QualifiedClassName | None = Field(None, description="Qualified class for decision models")
+    api_key_env_var: str = ""
     api_base: str | None = None
     litellm_prefix: str | None = None
     gateway: bool = False
@@ -51,14 +56,16 @@ class ProviderInfo(BaseModel):
     seed_param_location: str | None = "root"
     custom_headers: dict[str, str] | None = None
 
-    model_config = {"frozen": True}
+    model_config = ConfigDict(frozen=True, populate_by_name=True)
 
     def is_openai_compatible(self) -> bool:
         """Check if provider uses OpenAI-compatible API."""
         if self.openai_compatible is not None:
             return self.openai_compatible
-        # Auto-detect: if using ChatOpenAI or has api_base, it's OpenAI-compatible
-        return "ChatOpenAI" in self.langchain_class or self.api_base is not None
+        target = self.chat_class or ""
+        return (
+            "ChatOpenAI" in target or "BaseOpenAIChat" in target or "OpenAIChat" in target or self.api_base is not None
+        )
 
     def get_special_env_vars(self) -> dict[str, str]:
         """Get special environment variables needed for this provider."""
@@ -71,17 +78,21 @@ class ProviderInfo(BaseModel):
 
     @property
     def module(self) -> str:
-        """Extract module path from use string."""
-        return ImportResolver.get_module(self.use)
+        """Extract module path from chat_class, embeddings_class, or decision_class."""
+        target = self.chat_class or self.embeddings_class or self.decision_class or ""
+        return ImportResolver.get_module(target) if target else ""
 
     @property
     def langchain_class(self) -> str:
-        """Extract class name from use string."""
-        return ImportResolver.get_object_name(self.use)
+        """Extract class name from chat_class, embeddings_class, or decision_class."""
+        target = self.chat_class or self.embeddings_class or self.decision_class or ""
+        return ImportResolver.get_object_name(target) if target else ""
 
     def get_use_string(self) -> str:
-        """Get the 'use' string in module:ClassName format."""
-        return self.use
+        """Get the chat class string in module:ClassName format."""
+        if self.chat_class:
+            return self.chat_class
+        raise ValueError("Provider has no chat_class configured.")
 
 
 # ── Lab (model-creator) information ────────────────────────────────────────────
@@ -157,7 +168,9 @@ def _load_provider_info_from_yaml() -> dict[str, ProviderInfo]:
     providers = {}
     for name, info in data["providers"].items():
         providers[name] = ProviderInfo(
-            use=info["use"],
+            chat_class=info.get("chat_class") or info.get("use"),
+            embeddings_class=info.get("embeddings_class"),
+            decision_class=info.get("decision_class"),
             api_key_env_var=info.get("api_key_env_var", ""),
             api_base=info.get("api_base"),
             litellm_prefix=info.get("litellm_prefix"),
@@ -261,8 +274,11 @@ def get_provider_api_key(provider: str) -> SecretStr | None:
 def get_provider_info(provider: str) -> ProviderInfo:
     """Get the full ProviderInfo for a given provider.
 
+    Checks global configuration first (allows dynamic application-level extension),
+    then falls back to default PROVIDER_INFO.
+
     Args:
-        provider: Name of the AI provider (e.g. "openai", "google")
+        provider: Name of the AI provider (e.g. "openai", "google", "vllm")
 
     Returns:
         ProviderInfo object with all provider configuration
@@ -270,6 +286,30 @@ def get_provider_info(provider: str) -> ProviderInfo:
     Raises:
         ValueError: If provider is unknown
     """
+    try:
+        from genai_tk.config_mgmt.config_mngr import global_config
+
+        app_providers = global_config().get("providers", default={})
+        if isinstance(app_providers, (dict, DictConfig)) and provider in app_providers:
+            info = app_providers[provider]
+            if isinstance(info, (dict, DictConfig)):
+                return ProviderInfo(
+                    chat_class=info.get("chat_class") or info.get("use"),
+                    embeddings_class=info.get("embeddings_class"),
+                    decision_class=info.get("decision_class"),
+                    api_key_env_var=info.get("api_key_env_var", ""),
+                    api_base=info.get("api_base"),
+                    litellm_prefix=info.get("litellm_prefix"),
+                    gateway=info.get("gateway", False),
+                    extra_body=info.get("extra_body"),
+                    special_env_vars=info.get("special_env_vars"),
+                    openai_compatible=info.get("openai_compatible"),
+                    seed_param_location=info.get("seed_param_location", "root"),
+                    custom_headers=info.get("custom_headers"),
+                )
+    except Exception:
+        pass
+
     if provider not in PROVIDER_INFO:
         raise ValueError(f"Unknown provider: {provider}. Valid providers are: {list(PROVIDER_INFO.keys())}")
     return PROVIDER_INFO[provider]

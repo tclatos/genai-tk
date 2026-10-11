@@ -17,10 +17,14 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.core.decision_models.base import BaseDecisionModel
 from genai_tk.core.decision_models.chat_adapter import ChatModelDecisionModel
+from genai_tk.core.decision_models.edenai import EdenAIDecisionModel
 from genai_tk.core.decision_models.fake import FakeDecisionModel
+from genai_tk.core.decision_models.laya import LayaDecisionModel
+from genai_tk.core.decision_models.openai import OpenAIDecisionModel
 from genai_tk.core.decision_models.openrouter import OpenRouterDecisionModel
 from genai_tk.core.decision_models.typesafe import TypeSafeDecisionModel
 from genai_tk.core.factories.llm_factory import get_llm
+from genai_tk.core.providers import get_provider_info
 
 
 class DecisionModelInfo(BaseModel):
@@ -176,10 +180,28 @@ class DecisionModelFactory(BaseModel):
         if info.max_questions is not None:
             kwargs.setdefault("max_questions", info.max_questions)
 
+        # Dynamic class resolution via provider info
+        try:
+            p_info = get_provider_info(info.provider)
+            if p_info.decision_class:
+                from genai_tk.config_mgmt.import_utils import ImportResolver
+
+                dec_cls = ImportResolver.import_from_qualified(p_info.decision_class)
+                if dec_cls is not None:
+                    return dec_cls(model=info.model, **kwargs)
+        except Exception:
+            pass
+
         if info.provider == "openrouter":
             return OpenRouterDecisionModel(model=info.model, **kwargs)
         elif info.provider == "typesafe":
             return TypeSafeDecisionModel(model=info.model, **kwargs)
+        elif info.provider == "edenai":
+            return EdenAIDecisionModel(model=info.model, **kwargs)
+        elif info.provider == "laya":
+            return LayaDecisionModel(model=info.model, **kwargs)
+        elif info.provider == "openai":
+            return OpenAIDecisionModel(model=info.model, **kwargs)
         elif info.provider == "fake":
             return FakeDecisionModel(model=info.id, **kwargs)
         else:

@@ -1,11 +1,23 @@
 ---
 name: decision-models
-description: Use and configure System One / Decision Models (OpenRouter, TypeSafe, Cloudflare Clef, Solar Decide, chat adapter fallback) in genai-tk for fast, low-cost classification, routing, and scoring.
+description: Use and configure System One / Decision Models (OpenRouter, TypeSafe, Eden.ai, Laya, OpenAI, Cloudflare Clef, Solar Decide, chat adapter fallback) in genai-tk for fast, low-cost classification, routing, and scoring.
 ---
 
 # Decision Models (System One)
 
 Decision models evaluate structured state against narrow, typed questions returning calibrated probabilities rather than generating text. They run non-autoregressively (output tokens are typically free and latency is ~50-100ms).
+
+## Supported Providers & Backends
+
+- **OpenRouter**: Cloudflare Clef / Clef-flash, TypeSafe Jev, Solar Decide, Perplexity Decider (`clef_flash@openrouter`).
+- **TypeSafe**: Direct System One API (`jev@typesafe`).
+- **Eden.ai**: Decisions API (`jev@edenai` via `https://api.edenai.run/v3/alpha/decisions`).
+- **Laya**: Fast multilingual non-autoregressive decision model (`laya@laya`, `laya_multilingual@laya`, `laya_typed@laya`):
+  - In-process `mode="router"`: Sub-35ms GPU / 100ms CPU execution with automated script/language detection.
+  - Remote `mode="server"`: Connects to self-hosted `laya-serve` HTTP daemon on `/v1/systemone`.
+- **OpenAI**: Native `OpenAIDecisions` integration via `langchain-openai>=1.7.0` (`gpt_6_luna@openai`, `gpt_6_sol@openai`).
+- **Chat Model Fallback**: Structured prompting adapter for any standard LangChain `BaseChatModel`.
+- **Fake**: Deterministic offline model for fast unit testing (`fake_decision@fake`).
 
 ## Core Primitives
 
@@ -32,7 +44,7 @@ from genai_tk.core.factories import (
 ## Quick Python Usage
 
 ```python
-model = get_decision_model("clef_flash@openrouter")  # or "default", "fake"
+model = get_decision_model("clef_flash@openrouter")  # or "laya@laya", "jev@edenai", "default", "fake"
 
 # 1. Quick binary decision
 p_urgent = model.decide_noul(
@@ -73,6 +85,31 @@ response = model.invoke(
 
 # 5. Automatic chunking with batch_invoke (when exceeding model limits)
 response = model.batch_invoke(request, batch_size=32)
+```
+
+## Local Laya Decision Model
+
+Laya runs locally in-process without cloud API calls or costs:
+
+```python
+from genai_tk.core.factories import get_decision_model
+
+# In-process multilingual router (preloads checkpoints or on-demand)
+laya_dm = get_decision_model("laya@laya")
+res = laya_dm.invoke(
+    {
+        "state": "Hi, we were billed twice for March. Please refund the duplicate today.",
+        "questions": {
+            "dept": Choice(
+                instructions="Which dept?",
+                criteria={"billing": "Payment & invoices", "tech": "Bugs & crashes"},
+            ),
+            "refund": Noul(instructions="Is refund requested?"),
+        },
+    }
+)
+print(res.choices["dept"].choice)  # "billing"
+print(res.nouls["refund"].noul)  # e.g. 0.8899
 ```
 
 ## Question Limits & Batching

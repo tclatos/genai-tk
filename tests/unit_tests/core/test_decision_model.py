@@ -161,3 +161,180 @@ async def test_abatch_invoke_chunking() -> None:
     resp = await fake.abatch_invoke(req)
     assert len(resp.answers) == 9
     assert all(f"q_{i}" in resp.answers for i in range(9))
+
+
+@pytest.mark.unit
+def test_edenai_decision_model_wire_format() -> None:
+    """Test EdenAIDecisionModel builds payload and parses response correctly."""
+    from unittest.mock import MagicMock, patch
+
+    from genai_tk.core.decision_models.edenai import EdenAIDecisionModel
+
+    model = EdenAIDecisionModel(
+        model="typesafe/jev-latest",
+        api_key="mock-key",  # type: ignore[arg-type]
+    )
+
+    req = ClassifierRequest(
+        state="I was charged twice for my subscription. Please refund me.",
+        questions={
+            "is_billing": Noul(instructions="Is this message about billing?"),
+        },
+    )
+
+    mock_resp = MagicMock()
+    mock_resp.is_success = True
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "id": "eden-123",
+        "model": "typesafe/jev-latest",
+        "answers": {
+            "is_billing": {"noul": 0.98},
+        },
+        "usage": {"input_tokens": 12, "output_tokens": 1},
+    }
+
+    with patch("httpx.Client.post", return_value=mock_resp) as mock_post:
+        res = model.invoke(req)
+
+    mock_post.assert_called_once()
+    payload = mock_post.call_args.kwargs["json"]
+    assert payload["model"] == "typesafe/jev-latest"
+    assert "state" in payload
+    assert payload["questions"]["is_billing"]["type"] == "noul"
+    assert res.nouls["is_billing"].noul == 0.98
+
+
+@pytest.mark.unit
+def test_laya_decision_model_server_mode_wire_format() -> None:
+    """Test LayaDecisionModel in server mode targeting laya-serve /v1/systemone."""
+    from unittest.mock import MagicMock, patch
+
+    from genai_tk.core.decision_models.laya import LayaDecisionModel
+
+    model = LayaDecisionModel(
+        model="laya",
+        mode="server",
+        server_url="http://localhost:8000/v1/systemone",
+    )
+
+    req = ClassifierRequest(
+        state="Server error 500 on checkout",
+        questions={
+            "dept": Choice(
+                instructions="Which dept?",
+                criteria={"billing": "Payment", "tech": "Bugs"},
+            ),
+        },
+    )
+
+    mock_resp = MagicMock()
+    mock_resp.is_success = True
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "id": "laya-1",
+        "model": "laya",
+        "answers": {
+            "dept": {"choice": "tech", "confidence": 0.94},
+        },
+        "usage": {"input_tokens": 15, "output_tokens": 2},
+    }
+
+    with patch("httpx.Client.post", return_value=mock_resp) as mock_post:
+        res = model.invoke(req)
+
+    mock_post.assert_called_once()
+    assert res.choices["dept"].choice == "tech"
+    assert res.choices["dept"].confidence == 0.94
+
+
+@pytest.mark.unit
+def test_openai_decision_model_adaptation() -> None:
+    """Test OpenAIDecisionModel adapts ClassifierRequest to langchain_openai OpenAIDecisions."""
+    from unittest.mock import MagicMock, patch
+
+    from genai_tk.core.decision_models.openai import OpenAIDecisionModel
+
+    model = OpenAIDecisionModel(model="gpt-6-luna", api_key="sk-fake")  # type: ignore[arg-type]
+
+    req = ClassifierRequest(
+        state="Deploy failed twice and customers are seeing 500 errors.",
+        questions={
+            "urgent": Noul(instructions="Does this need attention now?"),
+            "team": Choice(
+                instructions="Which team?",
+                criteria={"infra": "Deploys, availability", "billing": "Payments"},
+            ),
+            "severity": Score(
+                instructions="Impact level",
+                criteria=["Cosmetic", "Degraded", "Outage"],
+            ),
+        },
+    )
+
+    mock_lc_client = MagicMock()
+    mock_resp = MagicMock()
+    mock_resp.model = "gpt-6-luna"
+    mock_resp.request_id = "req-123"
+
+    pred_ans = MagicMock()
+    pred_ans.probability = 0.96
+    mock_resp.predicates = {"urgent": pred_ans}
+
+    choice_ans = MagicMock()
+    choice_ans.choice = "infra"
+    choice_ans.confidence = 0.92
+    choice_ans.probabilities = {"infra": 0.92, "billing": 0.08}
+    mock_resp.choices = {"team": choice_ans}
+
+    score_ans = MagicMock()
+    score_ans.score = 2.0
+    score_ans.confidence = 0.88
+    score_ans.probabilities = {0: 0.02, 1: 0.10, 2: 0.88}
+    score_ans.legend = {0: "Cosmetic", 1: "Degraded", 2: "Outage"}
+    mock_resp.scores = {"severity": score_ans}
+
+    mock_resp.usage.input_tokens = 32
+    mock_resp.usage.output_tokens = 3
+
+    mock_lc_client.invoke.return_value = mock_resp
+
+    with patch.object(model, "_get_client", return_value=mock_lc_client):
+        res = model.invoke(req)
+
+    mock_lc_client.invoke.assert_called_once()
+    assert res.model == "gpt-6-luna"
+    assert res.nouls["urgent"].noul == 0.96
+    assert res.choices["team"].choice == "infra"
+    assert res.choices["team"].confidence == 0.92
+    assert res.scores["severity"].score == 2.0
+    assert res.scores["severity"].legend[2] == "Outage"
+    assert res.usage.input_tokens == 32
+
+
+@pytest.mark.unit
+def test_laya_decision_model_router_mode_e2e() -> None:
+    """End-to-end test with Laya Router mode."""
+    pytest.importorskip("laya")
+    from genai_tk.core.factories.decision_model_factory import get_decision_model
+
+    dm = get_decision_model("laya@laya")
+    req = ClassifierRequest(
+        state="Hi, we were billed twice for March. Please refund the duplicate today.",
+        questions={
+            "department": Choice(
+                instructions="Which department should handle this?",
+                criteria={
+                    "billing": "invoices, payments, refunds",
+                    "technical": "bugs, outages, system errors",
+                },
+            ),
+            "refund_requested": Noul(instructions="Does the user ask for refund?"),
+        },
+    )
+    res = dm.invoke(req)
+    assert res.provider == "laya"
+    assert "department" in res.choices
+    assert res.choices["department"].choice == "billing"
+    assert "refund_requested" in res.nouls
+    assert 0.0 <= res.nouls["refund_requested"].noul <= 1.0

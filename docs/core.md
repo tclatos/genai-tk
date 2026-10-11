@@ -71,9 +71,25 @@ When reasoning options are requested for a model that is not marked as thinking-
 in models.dev metadata, or when provider routing is requested for an unsupported provider,
 the factory logs a warning and continues.
 
+### Provider Architecture & Inversion of Control (`genai_tk.core.providers`)
+
+**Purpose:** Pluggable, extensible provider management using Inversion of Control (IoC), eliminating hardcoded conditional chains across factories.
+
+**Architecture:**
+- **Dynamic Registry:** Providers are defined in `config/providers/providers.yaml` and can be extended or overridden dynamically in downstream applications via `global_config().get("providers")`.
+- **Role-Based Classes:** Each provider explicitly specifies its implementation classes:
+  - `chat_class`: Fully qualified LangChain chat model (`BaseChatModel`).
+  - `embeddings_class`: Fully qualified embeddings model (`Embeddings`).
+  - `decision_class`: Fully qualified decision model (`BaseDecisionModel`).
+  Providers that only support specific workloads (e.g. `laya` is decision-only, `local` is embedding-only) configure only their supported roles.
+- **Inheritance & Modular Mixins:** Provider implementations in `genai_tk/core/providers/chat.py` inherit standard LangChain base classes (`ChatOpenAI`, `ChatOllama`, `ChatMistralAI`, etc.) and compose reusable mixins from `genai_tk/core/providers/mixins.py`:
+  - `SeedHandlingMixin`: encapsulates seed placement (`root`, `model_kwargs`, or omitted).
+  - `OpenRouterRoutingMixin` & `EdenAIRoutingMixin`: translates semantic routing strategies (`speed`, `cost`, `latency`, `exact`).
+  - `ReasoningMixin` & `EdenAIReasoningMixin`: translates reasoning effort and provider-specific thinking options (e.g. Qwen on Eden.ai).
+
 **Related:**
 - `models_db.py` - Model registry and metadata storage
-- `providers.py` - Provider configuration and API key management
+- `genai_tk/core/providers/` - Provider configuration, chat models, and mixins
 - `cache.py` - Response caching system
 
 ### Decision Models Factory (`decision_model_factory.py`)
@@ -83,7 +99,10 @@ the factory logs a warning and continues.
 **Features:**
 - Support for OpenRouter Decisions API (`/api/alpha/decisions`, `/systemone`)
 - Support for TypeSafe System One API
-- Native support for Cloudflare Clef Flash, Clef, Jev, Solar Decide, Mercury Decide
+- Support for Eden.ai Decisions API (`/v3/alpha/decisions`)
+- Support for Laya multilingual decision models (`convaiinnovations/laya`) via in-process `Router` (sub-35ms) or remote `laya-serve` HTTP daemon
+- Support for OpenAI Decisions API via `langchain_openai.decisions.OpenAIDecisions` (`OpenAIDecisionModel`)
+- Native support for Cloudflare Clef Flash, Clef, Jev, Solar Decide, Mercury Decide, Laya
 - Chat model fallback adapter: convert any standard LangChain `BaseChatModel` into a Decision Model
 - Three decision primitives: `Noul` (binary/yes-no), `Choice` (categorical), and `Score` (ordinal rubric)
 - Fake decision model (`FakeDecisionModel`) for offline testing
@@ -95,6 +114,7 @@ decision:
     default: clef_flash@openrouter
     fast: clef_flash@openrouter
     accurate: jev@openrouter
+    local: laya@laya
     fake: fake_decision@fake
 ```
 
@@ -103,8 +123,10 @@ decision:
 from genai_tk.core.factories import get_decision_model, get_decision_model_from_chat_model
 from genai_tk.core.decision_models import Noul, Choice, Score
 
-# Get configured decision model
+# Get configured decision model (OpenRouter, Eden.ai, Laya, or OpenAI)
 model = get_decision_model("clef_flash@openrouter")
+laya_model = get_decision_model("laya@laya")
+eden_model = get_decision_model("jev@edenai")
 
 # Quick binary decision
 p_urgent = model.decide_noul("Server 500 on payments", "Is this urgent?")

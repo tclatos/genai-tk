@@ -2,6 +2,7 @@
 
 from genai_tk.core.decision_models.base import BaseDecisionModel
 from genai_tk.core.decision_models.chat_adapter import ChatModelDecisionModel
+from genai_tk.core.decision_models.edenai import EdenAIDecisionModel
 from genai_tk.core.decision_models.evaluators import (
     evaluate_conciseness,
     evaluate_correctness,
@@ -9,6 +10,9 @@ from genai_tk.core.decision_models.evaluators import (
     evaluate_tool_selection,
 )
 from genai_tk.core.decision_models.fake import FakeDecisionModel
+from genai_tk.core.decision_models.http_base import HttpSystemOneDecisionModel
+from genai_tk.core.decision_models.laya import LayaDecisionModel
+from genai_tk.core.decision_models.openai import OpenAIDecisionModel
 from genai_tk.core.decision_models.openrouter import OpenRouterDecisionModel
 from genai_tk.core.decision_models.types import (
     Answer,
@@ -41,10 +45,14 @@ __all__ = [
     "ClassifierRequest",
     "ClassifierResponse",
     "DecisionState",
+    "EdenAIDecisionModel",
     "FakeDecisionModel",
+    "HttpSystemOneDecisionModel",
+    "LayaDecisionModel",
     "Noul",
     "NoulAnswer",
     "NoulCriteria",
+    "OpenAIDecisionModel",
     "OpenRouterDecisionModel",
     "Question",
     "Score",

@@ -15,7 +15,9 @@
 providers:
   # --- Standard OpenAI API ---
   openai:
-    use: langchain_openai.ChatOpenAI
+    chat_class: genai_tk.core.providers.chat.OpenAIChat
+    embeddings_class: langchain_openai.OpenAIEmbeddings
+    decision_class: genai_tk.core.decision_models.openai.OpenAIDecisionModel
     api_key_env_var: OPENAI_API_KEY
     litellm_prefix: null
     openai_compatible: true
@@ -23,19 +25,20 @@ providers:
   # --- Non-OpenAI APIs (use LangChain provider-specific classes) ---
 
   anthropic:
-    use: langchain_anthropic.ChatAnthropic
+    chat_class: langchain_anthropic.ChatAnthropic
     api_key_env_var: ANTHROPIC_API_KEY
     litellm_prefix: anthropic
     openai_compatible: false
 
   google:
-    use: langchain_google_genai.ChatGoogleGenerativeAI
+    chat_class: langchain_google_genai.ChatGoogleGenerativeAI
+    embeddings_class: langchain_google_genai.GoogleGenerativeAIEmbeddings
     api_key_env_var: GOOGLE_API_KEY
     litellm_prefix: google
     openai_compatible: false
 
   mistral:
-    use: langchain_mistralai.ChatMistralAI
+    chat_class: genai_tk.core.providers.chat.MistralChat
     api_key_env_var: MISTRAL_API_KEY
     litellm_prefix: mistralai
     openai_compatible: false
@@ -44,7 +47,7 @@ providers:
   # --- OpenAI-compatible providers ---
 
   groq:
-    use: langchain_openai.ChatOpenAI
+    chat_class: genai_tk.core.providers.chat.GroqChat
     api_key_env_var: GROQ_API_KEY
     api_base: https://api.groq.com/openai/v1
     litellm_prefix: groq
@@ -52,16 +55,18 @@ providers:
     seed_param_location: model_kwargs  # Groq expects seed in model_kwargs
 
   deepinfra:
-    use: langchain_openai.ChatOpenAI
+    chat_class: genai_tk.core.providers.chat.DeepInfraChat
+    embeddings_class: langchain_openai.OpenAIEmbeddings
     api_key_env_var: DEEPINFRA_API_TOKEN
     api_base: https://api.deepinfra.com/v1/openai
     litellm_prefix: deepinfra
     openai_compatible: true
     gateway: false
-    # DeepInfra uses OpenAI-compatible API with vendor-prefixed model names
 
   edenai:
-    use: langchain_openai.ChatOpenAI
+    chat_class: genai_tk.core.providers.chat.EdenAIChat
+    embeddings_class: langchain_openai.OpenAIEmbeddings
+    decision_class: genai_tk.core.decision_models.edenai.EdenAIDecisionModel
     api_key_env_var: EDENAI_API_KEY
     api_base: https://api.edenai.run/v3/llm
     openai_compatible: true
@@ -69,16 +74,18 @@ providers:
     # EdenAI v3: accepts vendor/model format (e.g. openai/gpt-4, anthropic/claude-sonnet)
 
   edenai-eur:
-    use: langchain_openai.ChatOpenAI
+    chat_class: genai_tk.core.providers.chat.EdenAIChat
+    embeddings_class: langchain_openai.OpenAIEmbeddings
+    decision_class: genai_tk.core.decision_models.edenai.EdenAIDecisionModel
     api_key_env_var: EDENAI_API_KEY
     api_base: https://api.eu.edenai.run/v3/llm
     openai_compatible: true
     gateway: true
-    # Select with MODEL@edenai-eur to use the EU catalogue and inference endpoint.
-    # The same EDENAI_API_KEY is used for global and EU requests.
 
   openrouter:
-    use: langchain_openai.ChatOpenAI
+    chat_class: genai_tk.core.providers.chat.OpenRouterChat
+    embeddings_class: langchain_openai.OpenAIEmbeddings
+    decision_class: genai_tk.core.decision_models.openrouter.OpenRouterDecisionModel
     api_key_env_var: OPENROUTER_API_KEY
     api_base: https://openrouter.ai/api/v1
     litellm_prefix: openrouter
@@ -90,7 +97,7 @@ providers:
       default_quantization: ["fp8", "unknown", "fp16", "fp32", "bf16"]
 
   github:
-    use: langchain_openai.ChatOpenAI
+    chat_class: genai_tk.core.providers.chat.BaseOpenAIChat
     api_key_env_var: GITHUB_PRO_PAM
     api_base: https://models.github.ai/inference
     litellm_prefix: github
@@ -101,25 +108,29 @@ providers:
   # --- Other providers ---
 
   fake:
-    use: langchain_core.language_models.fake_chat_models.ParrotFakeChatModel
+    chat_class: genai_tk.core.providers.chat.FakeChat
+    embeddings_class: langchain_core.embeddings.fake.DeterministicFakeEmbedding
+    decision_class: genai_tk.core.decision_models.fake.FakeDecisionModel
     api_key_env_var: ""
     openai_compatible: false
 
   ollama:
-    use: langchain_ollama.ChatOllama
+    chat_class: genai_tk.core.providers.chat.OllamaChat
+    embeddings_class: langchain_ollama.OllamaEmbeddings
     api_key_env_var: ""
     litellm_prefix: ollama
     openai_compatible: false
     # Note: Ollama runs locally; requires special proxy handling in code
 
   local:
-    use: genai_tk.utils.langchain_community_repl.fastembed_embeddings.FastEmbedEmbeddings
+    embeddings_class: genai_tk.utils.langchain_community_repl.fastembed_embeddings.FastEmbedEmbeddings
     api_key_env_var: ""
     openai_compatible: false
     # FastEmbed local ONNX models for embeddings; no API key required
 
   azure:
-    use: langchain_openai.AzureChatOpenAI
+    chat_class: genai_tk.core.providers.chat.AzureChat
+    embeddings_class: genai_tk.core.providers.embeddings.AzureEmbeddingsWrapper
     api_key_env_var: AZURE_OPENAI_API_KEY
     litellm_prefix: null
     openai_compatible: false  # Uses custom AzureChatOpenAI class
@@ -128,32 +139,45 @@ providers:
     # Azure OpenAI requires special model name parsing (name/version format)
 
   together:
-    use: langchain_together.ChatTogether
+    chat_class: langchain_together.ChatTogether
     api_key_env_var: TOGETHER_API_KEY
     litellm_prefix: together
     openai_compatible: false
 
   deepseek:
-    use: langchain_deepseek.ChatDeepSeek
+    chat_class: langchain_deepseek.ChatDeepSeek
     api_key_env_var: DEEPSEEK_API_KEY
     litellm_prefix: deepseek
     openai_compatible: false
 
   huggingface:
-    use: langchain_huggingface.ChatHuggingFace
+    chat_class: genai_tk.core.providers.chat.HuggingFaceChat
+    embeddings_class: langchain_huggingface.HuggingFaceEmbeddings
     api_key_env_var: HUGGINGFACEHUB_API_TOKEN
     litellm_prefix: huggingface
     openai_compatible: false
 
+  vllm:
+    chat_class: genai_tk.core.providers.chat.VllmChat
+    embeddings_class: langchain_openai.OpenAIEmbeddings
+    api_key_env_var: VLLM_API_KEY
+    api_base: http://localhost:8000/v1
+    openai_compatible: true
+
+  laya:
+    decision_class: genai_tk.core.decision_models.laya.LayaDecisionModel
+    api_key_env_var: LAYA_API_KEY
+    openai_compatible: false
+
   custom:
-    use: langchain_openai.ChatOpenAI
+    chat_class: genai_tk.core.providers.chat.BaseOpenAIChat
     api_key_env_var: ""
     openai_compatible: true
     # For vLLM and other OpenAI-compatible providers;
     # base_url and other params should be set in llm.yaml exceptions
 
   litellm:
-    use: langchain_litellm.ChatLiteLLM
+    chat_class: genai_tk.core.providers.chat.LiteLLMChat
     api_key_env_var: ""
     litellm_prefix: null
     openai_compatible: false

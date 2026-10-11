@@ -23,7 +23,7 @@ Use these paths as the source of truth:
 | Entry point, profile, paths, CLI command classes | `config/app_conf.yaml` |
 | Local/default model settings | `config/profiles/local/genai_def.yaml` |
 | Test fake model settings | `config/profiles/pytest/genai_def.yaml` |
-| Providers | `config/providers/llm.yaml`, `config/providers/embeddings.yaml` |
+| Providers | `config/providers/providers.yaml`, `config/providers/llm.yaml`, `config/providers/embeddings.yaml`, `config/providers/decision_models.yaml` |
 | Agents | `config/agents/` |
 | RAG | `config/rag.yaml` |
 | Workflows | `config/workflows.yaml` |
