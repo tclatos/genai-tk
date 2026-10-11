@@ -202,7 +202,7 @@ flowchart TD
 ```
 
 * **Agent Orchestration & M365 Delivery:**
-  * **Microsoft 365 Agents SDK & Azure Bot Service:** Exposes the agent across Microsoft Teams, Outlook, and Microsoft 365 Copilot using Model A (LangGraph / Agent as Orchestrator), as detailed in [docs/design/copilot-studio-integration.md](docs/design/copilot-studio-integration.md).
+  * **Microsoft 365 Agents SDK & Azure Bot Service:** Exposes the agent across Microsoft Teams, Outlook, and Microsoft 365 Copilot using Model A (LangGraph / Agent as Orchestrator), as detailed in [docs/studies/copilot_studio_integration.md](copilot_studio_integration.md).
   * **Azure AI Agent Service / Foundry Hosted Agents:** Managed hosting of LangGraph or Semantic Kernel agents with built-in streaming, conversation memory, and Application Insights tracing.
 * **DocGraph Integration:**
   * **Phase 1 (Immediate):** Run `mcp-server-ladybug-docgraph` as an Azure Container App reading the Ladybug database file from Azure Files / Blob storage. Semantic Kernel or LangGraph connects via MCP.
@@ -362,10 +362,10 @@ If enterprise requirements demand distributed multi-region replication, horizont
 
 ## 8. References & Related Documents
 
-* [docs/studies/deerflow_architecture_and_benchmarks.md](docs/studies/deerflow_architecture_and_benchmarks.md)
-* [docs/design/copilot-studio-integration.md](docs/design/copilot-studio-integration.md)
-* [docs/studies/azure_foundry_hosted_agents.md](docs/studies/azure_foundry_hosted_agents.md)
-* [docs/design/sandbox_backend.md](docs/design/sandbox_backend.md)
-* [genai-graph/docs/graph-definition-guide.md](genai-graph/docs/graph-definition-guide.md)
-* [genai-graph/docs/access-control-security-trimming.md](genai-graph/docs/access-control-security-trimming.md)
+* [docs/deerflow_architecture_and_benchmarks.md](../deerflow_architecture_and_benchmarks.md)
+* [docs/studies/copilot_studio_integration.md](copilot_studio_integration.md)
+* [docs/studies/azure_foundry_hosted_agents.md](azure_foundry_hosted_agents.md)
+* [docs/design/06_sandbox_and_codeact.md](../design/06_sandbox_and_codeact.md)
+* [genai-graph/docs/graph-definition-guide.md](../../../genai-graph/docs/graph-definition-guide.md)
+* [genai-graph/docs/access-control-security-trimming.md](../../../genai-graph/docs/access-control-security-trimming.md)
 

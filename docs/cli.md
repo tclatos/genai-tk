@@ -86,8 +86,7 @@ uv run cli example agent "What is 2 + 2?"     # ReAct agent with calculator tool
 uv run cli example deerflow "Explain RAG"      # Deer-flow (requires --deer-flow)
 ```
 
-See [docs/scaffolding.md](scaffolding.md) for the full reference and
-[docs/design/copilot-agent-support.md](design/copilot-agent-support.md) for details on the
+See [docs/scaffolding.md](scaffolding.md) for the full reference on project scaffolding and
 generated Copilot files.
 
 ---

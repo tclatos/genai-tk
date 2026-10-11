@@ -12,17 +12,18 @@ The toolkit is organized around complementary, composable domains:
 
 ```mermaid
 flowchart TD
-    subgraph Core["1. Core & Extraction"]
-        LLM["Multi-Provider LLM & Embeddings Factory<br/>(OpenAI, Anthropic, Mistral, Groq, Ollama, ...)"]
+    subgraph Core["1. Core & Extraction (IoC)"]
+        LLM["Inversion of Control (IoC) Provider Registry<br/>(OpenAI, Anthropic, Mistral, Groq, Laya, EdenAI, ...)"]
+        DECIDE["Fast System 1 Decision Models (Clef, Laya, Jev)"]
         BAML["BAML Structured Data Extraction"]
         NLP["NLP & Presidio PII Anonymization"]
         VEC["Vector Stores (Chroma, PgVector, ZVec)"]
     end
 
     subgraph Orchestration["2. Workflows & Pipelines"]
-        PREF["Prefect Task & Flow Orchestration"]
-        DSL["YAML Task DSL & Pipeline Profiles"]
-        DOC["Document OCR & Markdownize Ladder"]
+        PREF["Prefect Task & Flow Orchestration (prefect-yaml)"]
+        DSL["Rule-Selected Ingestion Routes & Dispatcher"]
+        DOC["Document OCR & Markdownize Ladder (Docling, Mistral)"]
         RAG["BM25 + Dense Hybrid RAG Pipelines"]
     end
 
@@ -37,8 +38,9 @@ flowchart TD
 
     subgraph Observability["4. Evaluation & Observability"]
         BENCH["Unified Benchmark Framework (cli bench)"]
-        TRAJ["Trajectory Store (ATOF / NeMo Relay)"]
-        MON["LangFuse, LangSmith, OTel Tracing"]
+        TRAJ["Trajectory Store (ATOF / NeMo Relay / TUI)"]
+        MON["LangFuse OTLP, LangSmith, OTel Tracing"]
+        EVALS["Decision Model Calibrated Evaluators"]
     end
 
     Core --> Orchestration
@@ -47,6 +49,24 @@ flowchart TD
     Agentic --> BENCH
     Agentic --> Observability
 ```
+
+---
+
+## 📚 Architectural Design Curriculum
+
+For a didactic, deep-dive understanding of the internal architecture and design patterns, read the numbered design specifications in [docs/design/](docs/design/README.md):
+
+1. **[Design 01: Configuration & Profiles](docs/design/01_configuration_and_profiles.md)** — OmegaConf hierarchy, `${profile}` overlays, `${oc.env:VAR}` substitution, and network proxy derivation.
+2. **[Design 02: Inversion of Control (IoC) Provider Architecture](docs/design/02_ioc_provider_architecture.md)** — Decoupling model factories via role-based class fields (`chat_class`, `embeddings_class`, `decision_class`) and modular mixins (`ReasoningMixin`, `RoutingMixin`, `SeedMixin`).
+3. **[Design 03: Core LLM, Embeddings & Factories](docs/design/03_core_llm_and_factories.md)** — `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, semantic caching (`LlmCache`), and LCEL runnables.
+4. **[Design 04: Fast System 1 Decision Models](docs/design/04_decision_models_system1.md)** — Sub-100ms non-autoregressive decision models (`Noul`, `Choice`, `Score`), OpenRouter, EdenAI, Laya, OpenAI, and batch auto-chunking.
+5. **[Design 05: Autonomous Agent Harness & Middleware](docs/design/05_agent_harness_and_middleware.md)** — Unified `BaseHarness`, event streaming, LangChain and DeerFlow adapters, Presidio PII redaction, and user context propagation.
+6. **[Design 06: Sandbox Isolation & Python CodeAct](docs/design/06_sandbox_and_codeact.md)** — `AioSandboxBackend` protocol, Docker OpenSandbox lifecycle, core dump elimination (`ulimit core=0`), LibreOffice concurrency isolation, and CodeAct execution.
+7. **[Design 07: Workflow Engine & Prefect-YAML Integration](docs/design/07_workflow_engine_and_prefect.md)** — Declarative YAML workflow DSL, standalone `prefect-yaml` engine, DAG dependencies, and rule-selected ingestion routing.
+8. **[Design 08: Document Processing Pipeline & Markdownization](docs/design/08_document_processing_pipeline.md)** — Converter ladder (Docling, Mistral OCR, MarkItDown), table preservation and splitting for RAG, BAML structured extraction.
+9. **[Design 09: Observability, Trajectories & Evaluation Architecture](docs/design/09_observability_and_trajectories.md)** — NeMo Relay OTLP telemetry to Langfuse, Agent Trajectory Observability Format (ATOF), terminal TUI explorer (`cli trajectory`), and Decision Model evaluators.
+
+---
 
 ### 🧠 **Core GenAI**
 Build intelligent applications with multi-provider LLM/embeddings support, prompt engineering, and state management.
@@ -798,7 +818,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | NLP / PII / spaCy | — | `genai_tk.extra.nlp` | [docs/nlp.md](docs/nlp.md) |
 | Configuration | `cli init` | `global_config()` | [docs/configuration.md](docs/configuration.md) |
 | Project scaffolding | `cli init --name` | `ProjectScaffolder` | [docs/scaffolding.md](docs/scaffolding.md) |
-| Copilot Agent support | `cli init` | — | [docs/design/copilot-agent-support.md](docs/design/copilot-agent-support.md) |
+| Copilot Agent support | `cli init` | — | [docs/scaffolding.md](docs/scaffolding.md) |
 | CLI extension | — | `CliTopCommand` | [docs/cli.md](docs/cli.md) |
 | Streamlit webapp | `just webapp` | `genai_tk.webapp` | [docs/webapp.md](docs/webapp.md) |
 | Testing | `cli test` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |

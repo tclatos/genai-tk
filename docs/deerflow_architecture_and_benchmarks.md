@@ -241,4 +241,4 @@ For in-depth explanations of specific sub-systems, consult the companion documen
   * [DeerFlow Integration Guide](../deer-flow.md)
   * [Docker Sandbox & OpenSandbox Architecture](../sandbox_support.md)
   * [CodeAct & Sandboxed Python Execution](../codeact.md)
-  * [Trajectory Logging & NeMo Relay ATOF](../design/agent_trajectory_nemo_relay.md)
+  * [Trajectory Logging & NeMo Relay ATOF](../design/09_observability_and_trajectories.md)

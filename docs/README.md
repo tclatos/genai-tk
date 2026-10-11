@@ -93,12 +93,21 @@ flowchart TD
 
 ---
 
-## 5. Studies, Design & Skills
+## 5. Architecture Design Curriculum & Studies
 
 | Guide | Description | Key Topics |
 |---|---|---|
-| [studies/README.md](studies/README.md) | **Empirical Studies & Reports** | DeerFlow vs DeepAgents benchmark report, cloud agent architectures, security studies |
-| [design/README.md](design/README.md) | **Design Specifications** | Active proposals and implemented architectural designs |
+| [design/README.md](design/README.md) | **Architectural Design Curriculum** | Didactic 9-part numbered curriculum covering configuration, IoC, core models, harness, sandbox, workflows, and observability |
+| [design/01_configuration_and_profiles.md](design/01_configuration_and_profiles.md) | **Design 01: Configuration & Profiles** | OmegaConf hierarchy, profile overlays, env interpolation, proxy derivation |
+| [design/02_ioc_provider_architecture.md](design/02_ioc_provider_architecture.md) | **Design 02: IoC Provider Architecture** | Role-based class fields, dynamic provider registry, modular mixins |
+| [design/03_core_llm_and_factories.md](design/03_core_llm_and_factories.md) | **Design 03: Core LLM & Factories** | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, semantic cache, LCEL |
+| [design/04_decision_models_system1.md](design/04_decision_models_system1.md) | **Design 04: Decision Models (System 1)** | Calibrated `Noul`, `Choice`, `Score` classification, sub-100ms drivers |
+| [design/05_agent_harness_and_middleware.md](design/05_agent_harness_and_middleware.md) | **Design 05: Agent Harness & Middleware** | Unified `BaseHarness`, canonical event stream, PII & sensitivity routing |
+| [design/06_sandbox_and_codeact.md](design/06_sandbox_and_codeact.md) | **Design 06: Sandbox & Python CodeAct** | `AioSandboxBackend`, Docker pre-warming, `ulimit core=0`, LibreOffice isolation |
+| [design/07_workflow_engine_and_prefect.md](design/07_workflow_engine_and_prefect.md) | **Design 07: Workflows & Prefect-YAML** | Declarative YAML workflows, `prefect-yaml`, route tables, ingest dispatch |
+| [design/08_document_processing_pipeline.md](design/08_document_processing_pipeline.md) | **Design 08: Document Processing** | Converter ladder (Docling, Mistral, MarkItDown), table preservation, BAML |
+| [design/09_observability_and_trajectories.md](design/09_observability_and_trajectories.md) | **Design 09: Observability & Trajectories** | NeMo Relay OTLP to Langfuse, ATOF `TrajectoryStore`, terminal TUI |
+| [studies/README.md](studies/README.md) | **Research Studies (Unimplemented)** | Surveys and comparative evaluations (Azure Foundry, Cloud Architectures, NemoClaw) |
 | [SKILLS.md](SKILLS.md) | **Skills Guide** | 4-tier skills architecture (`runtime`, `development`, `governance`, `vendor`) |
 
 ---

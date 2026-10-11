@@ -232,5 +232,5 @@ Skill-load mark (emitted automatically when an instrumented tool reads a `SKILL.
 
 - [docs/monitoring.md](monitoring.md) — multi-backend tracing (LangSmith / LangFuse / OTEL)
 - [docs/evaluation_testing.md](evaluation_testing.md) — the eval test framework
-- [docs/design/agent_trajectory_nemo_relay.md](design/agent_trajectory_nemo_relay.md) — design memo and next phases
+- [docs/design/09_observability_and_trajectories.md](design/09_observability_and_trajectories.md) — architectural design specification
 - [docs/agents.md](agents.md) — agent frameworks and the harness layer

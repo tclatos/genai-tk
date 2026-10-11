@@ -184,39 +184,54 @@ plain `assert` replaces `self.assertEqual`; `pytest.raises` replaces `self.asser
 - Create a new skill: `cli skills create <name>` (scaffolds skills.sh-format SKILL.md)
 - Keep site-specific selectors, commands, and domain details in the skill file, not in Python
 
-## Documentation
+## Documentation & Skills Invariants (Mandatory on Every Commit)
 
-Keep docs in `docs/`. Organisation:
-- **User-facing features** — one file per major feature (`browser_control.md`, `sandbox_support.md`, etc.)
-- **Design notes, investigations, patches** — go in `docs/design/` (internal reference)
-- Do not add comments for obvious code; document *why*, not *what*
-- Do not duplicate code examples between module docstring and function docstring
+**Rule: Documentation and skills MUST be updated in the same commit as the code changes.**
+
+Whenever you introduce a new feature, refactor architecture, add a provider/driver, or modify configurations/CLI flags:
+1. **Update Skills**: Any change affecting tools, models, workflows, or CLI commands must be reflected in the matching `skills/**/SKILL.md` file. Always run `uv run cli skills validate --all` to ensure zero schema errors.
+2. **Update Design / Guides**:
+   - `docs/design/`: Foundational architectural blueprints and specifications, organized in a didactic numbered sequence (`01_configuration_and_profiles.md`, `02_ioc_provider_architecture.md`, ...). Update these when internal design patterns, IoC registries, protocols, or class hierarchies evolve.
+   - `docs/`: User-facing guides and tutorials (`core.md`, `agents.md`, `workflows.md`, `trajectory.md`). Update these when user-facing APIs, CLI commands, or YAML syntax change.
+   - `docs/studies/`: Strictly reserved for research, external surveys, benchmark evaluations, and proposals that have **not** yet been implemented. Once an architecture from a study is implemented, promote the design to `docs/design/` or core documentation and remove it from `docs/studies/`.
+3. **Update CHANGELOG.md**: Record notable changes under `## [Unreleased]` in a pedagogical, readable style explaining *what* changed and *why* (leave raw line-by-line diffs to git).
+4. **Linkification & Style**: Never use backticks around file links. Use clean Markdown links `[path/file.py](path/file.py)`. Do not cite line numbers with backticks.
 
 Current docs index:
 
 | File | Topic |
-|------|-------|
-| `docs/cli.md` | All CLI command groups, sub-commands, and how to add new commands |
-| `docs/scaffolding.md` | `cli init` — template presets, generated files, skills setup, multi-agent support files |
-| `docs/design/copilot-agent-support.md` | Copilot Agent skills, AGENTS.md, copilot-instructions.md |
+|---|---|
+| `docs/design/README.md` | Didactic 9-part architectural design curriculum |
+| `docs/design/01_configuration_and_profiles.md` | Configuration management, profile overlays, proxy derivation |
+| `docs/design/02_ioc_provider_architecture.md` | Inversion of Control (IoC) provider registry, role-based class fields, mixins |
+| `docs/design/03_core_llm_and_factories.md` | Core LLM & Embeddings factories, model IDs, semantic caching, LCEL chains |
+| `docs/design/04_decision_models_system1.md` | Fast System 1 decision models (Clef, Laya, Jev, OpenAI), calibrated rubrics |
+| `docs/design/05_agent_harness_and_middleware.md` | Unified BaseHarness, event streaming, LangChain/DeerFlow adapters, PII/routing |
+| `docs/design/06_sandbox_and_codeact.md` | Sandbox isolation, Docker pre-warming, `ulimit core=0`, LibreOffice isolation |
+| `docs/design/07_workflow_engine_and_prefect.md` | Declarative workflows, `prefect-yaml`, DAG dependencies, route tables |
+| `docs/design/08_document_processing_pipeline.md` | Multi-tier converter ladder (Docling, Mistral, MarkItDown), table preservation |
+| `docs/design/09_observability_and_trajectories.md` | NeMo Relay OTLP to Langfuse, ATOF TrajectoryStore, terminal TUI, evaluators |
 | `docs/core.md` | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, `LlmCache`, `ChainRegistry` |
+| `docs/cli.md` | All CLI command groups, sub-commands, and how to add new commands |
+| `docs/trajectory.md` | NeMo Relay ATOF trajectory store, replay engines, and TUI |
+| `docs/scaffolding.md` | `cli init` — template presets, generated files, skills setup, multi-agent support |
 | `docs/extra.md` | Non-pipeline tooling: agent graphs, NLP, BAML, image analysis, KV store, PgVector |
-| `docs/nlp.md` | NLP package (`extra.nlp`): spaCy engine, model manager, preprocessing, PII detection, anonymization, classifiers, French support |
-| `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, all retriever types, CLI, Prefect flow, agent tools |
-| `docs/prefect.md` | Prefect flows in `workflow/prefect/flows/` — markdownize, office2pdf, rag, baml |
-| `docs/markdownize.md` | Document → Markdown conversion — `fast`/`medium`/`best` profiles, requirements, customisation |
+| `docs/nlp.md` | NLP package (`extra.nlp`): spaCy engine, model manager, PII detection, French support |
+| `docs/rag.md` | RAG deep-dive — `RetrieverFactory`, `ManagedRetriever`, hybrid search, agent tools |
+| `docs/markdownize.md` | Document conversion — Docling, Mistral OCR, MarkItDown profiles |
 | `docs/baml.md` | BAML structured extraction — setup, CLI, programmatic API |
-| `docs/workflows.md` | YAML-driven task orchestration — defining workflows, profiles, CLI integration, multi-step pipelines |
-| `docs/prefect.md` | Prefect flows — ephemeral vs. server mode, available flows, writing new flows, workflow engine integration |
+| `docs/workflows.md` | YAML-driven task orchestration, route tables, dispatcher |
+| `docs/prefect.md` | Prefect flows — ephemeral vs. server mode, available flows, workflow engine |
 | `docs/agents.md` | LangChain / DeerFlow agent profiles, config, and the shared harness layer |
-| `docs/harness.md` | `agents.harness` — `BaseHarness`, shared event model, adapters, cross-harness middleware, `cli agents run`/`list` |
-| `docs/mcp-servers.md` | MCP server configuration, CLI, and standalone scripts |
+| `docs/harness.md` | `agents.harness` — `BaseHarness`, shared event model, adapters, middleware |
+| `docs/mcp-servers.md` | MCP 2.0 server configuration, transports (`stdio`, `sse`), and tools |
 | `docs/browser_control.md` | Browser automation (sandbox vs. direct Playwright) |
-| `docs/sandbox_support.md` | OpenSandbox Docker container setup and integration |
+| `docs/sandbox_support.md` | OpenSandbox Docker container setup, pre-warming, and integration |
 | `docs/deer-flow.md` | DeerFlow integration — profiles, modes, chat commands |
-| `docs/webapp.md` | Built-in Streamlit webapp — `just webapp`, built-in agent pages, `genai_tk://` cross-package nav, `cli init` |
-| `docs/docker.md` | Docker image build — generic Dockerfile, just recipes, extras, scaffolded app setup |
+| `docs/webapp.md` | Built-in Streamlit webapp — `just webapp`, built-in agent pages, `genai_tk://` nav |
+| `docs/docker.md` | Docker image build — generic Dockerfile, just recipes, extras |
 | `docs/TESTING_GUIDE.md` | Pytest fixtures, fake LLM/embeddings, async tests |
-| `docs/benchmark_framework.md` | Unified multi-dataset benchmark framework architecture, pipeline stages, selection criteria, and CLI/TUI |
-| `docs/benchmarks_financebench_officeqa.md` | Benchmark implementation studies & empirical evaluation on FinanceBench and OfficeQA Pro |
-| `docs/studies/deerflow_architecture_and_benchmarks.md` | DeerFlow & meta-harness architecture, sandboxed Python calculations, and benchmark evaluation report |
+| `docs/benchmark_framework.md` | Unified multi-dataset benchmark framework architecture, stages, and CLI/TUI |
+| `docs/benchmarks_financebench_officeqa.md` | Benchmark implementation studies & empirical evaluation on FinanceBench / OfficeQA |
+| `docs/deerflow_architecture_and_benchmarks.md` | DeerFlow & meta-harness architecture, sandboxed Python calculations report |
+| `docs/studies/README.md` | Index of unimplemented research, external framework surveys, and exploratory studies |

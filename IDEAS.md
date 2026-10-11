@@ -1,43 +1,13 @@
 # LoCoMo Bechnmark 
 see https://github.com/Backboard-io/Backboard-Locomo-Benchmark 
 
-
-
-# Better decison model support:
-
-1 / Laya  (with Router)
-https://huggingface.co/convaiinnovations/laya 
-Possibly with server
-
-2/ Eden.ai
-    import requests
-
-    url = "https://api.edenai.run/v3/alpha/decisions"
-    headers = {
-        "Authorization": "Bearer <your-api-key>",
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "model": "typesafe/jev-latest",
-        "state": "I was charged twice for my subscription. Please refund me.",
-        "questions": {
-            "is_billing": {
-                "type": "noul",
-                "instructions": "Is this message about billing?"
-            }
-        }
-    }
-
-    response = requests.post(url, headers=headers, json=payload)
-    data = response.json()
-    print(data["answers"]["is_billing"]["noul"])
-
+https://agentnativedev.medium.com/jev-mem-faster-memory-by-using-llms-less-1e8c06d4fc9f ? 
 
 # Performance
-# in genai-tk hybrid search, check if we could parallelize
-# docling serve  to reduce package size https://github.com/docling-project/docling-serve 
-
-
+-  in genai-tk hybrid search, check if we could parallelize
+-  docling serve  to reduce package size https://github.com/docling-project/docling-serve 
+- Simplify cli info config-keys
+-  remove trace to local ? 
 
 
 # More Typing
@@ -45,24 +15,6 @@ Enforce good practive in existing code (genai-tk and genai-graph). Whenever poss
 - Remove "Any" and maximize explicit typing, domain models, generic parameters, class inheritance hierarchies, type aliases, union types etc.
 -  replace bare Python classes or dataclasses with Pydantic models (with model_post_init instead of __init__, fields check,s etc )
 
-# Tracing
-We have today  many approaches for LLM/Agent tracing.  We started with Langsmith, then added langfuse, OTLP and local trace, and lately added NeMo Relay.  In paralleml we also introduced Langcain openeval and traceeval. 
-That's too much....  My idea is to have NeMo Relay as core, and use its ability to pass traces to OTLP (and then LangFuse). Local storage is redundant.
-We could keeep  Langfuse and LangsSmith because they are already supported by DeerFlow and DeepAgents - Analyse the tradefoffs.
-openeval and traceeval could be removed I think - we could use Nemo Relay, and then come custom logic or, better to start with, the new Decisions Models that we have introduced in the toolkit recently. 
-What we did for the benchmarks (llm grader) could likely be generalyzed, and improved with Decision Model. It's the direction I want to take, to go toward self improving agents.
-We have also some holes, such as the tracing of BAML, or the tracing of Decisions Models.
-My feeling is that we not fully leverage the power of Nemo Relay (export, plugins, ...).
-
-I still don't have a clear idea on how to refactor that suff (notably for simplification, ease of maintenance, ..).  Investigate the possibilities, anslyse existing code, think, evaluate pro and cons, think again, write a report (in docs/studies) with a plan.
-
-
-# 
-
-# Improving  Trajectories and Traces
-
-- replace agentevals 
-- simplify => opentelemetry, langfuse
 
 
 # Routing Middleware

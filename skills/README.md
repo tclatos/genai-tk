@@ -49,6 +49,9 @@ Use `skills/governance/repo-map` first when you need orientation.
 | `webapp` | Streamlit multi-page webapp configuration | `docs/webapp.md` | `genai_tk/webapp/`, `config/webapp.yaml` |
 | `streamlit-workflow-runner` | Visual workflow execution in Streamlit | `docs/webapp.md` | `genai_tk/webapp/components/` |
 | `baml-structured-extraction` | BAML structured schema extraction | `docs/baml.md` | `genai_tk/extra/structured/` |
+| `decision-models` | System 1 fast decision models (Clef, Laya, Jev, OpenAI) | `docs/design/04_decision_models_system1.md` | `genai_tk/core/decision_models/` |
+| `observability-and-trajectories` | NeMo Relay OTLP telemetry, Langfuse, ATOF TrajectoryStore & TUI | `docs/design/09_observability_and_trajectories.md`, `docs/trajectory.md` | `genai_tk/extra/monitoring/`, `genai_tk/cli/` |
+| `prefect-yaml` | Standalone declarative workflow DSL compilation & DAG execution | `docs/design/07_workflow_engine_and_prefect.md`, `docs/workflows.md` | `src/prefect_yaml/`, `config/workflows/` |
 | `nlp` | spaCy, model manager & text classification | `docs/nlp.md` | `genai_tk/extra/nlp/` |
 | `docker` | Docker container build & deployment | `docs/docker.md` | `deploy/Dockerfile` |
 | `optional-features` | Managing `[project.optional-dependencies]` | — | `genai_tk/config_mgmt/features.py` |

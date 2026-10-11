@@ -298,7 +298,7 @@ mcp_tools = await mcp_client.get_tools()
 agent.tools.extend(mcp_tools)
 ```
 
-**Related:** See [MCP Servers Documentation](../docs/mcp-servers.md)
+**Related:** See [MCP Servers Documentation](mcp-servers.md) and [Design 02: IoC Provider Architecture](design/02_ioc_provider_architecture.md).
 
 ### Prompts (`prompts.py`)
 

@@ -179,7 +179,7 @@ cli skills add --skillssh langchain-ai/langchain-skills
 cli skills create my-domain-skill
 ```
 
-See [docs/skills.md](skills.md) for the complete guide.
+See [docs/SKILLS.md](SKILLS.md) for the complete guide.
 
 ---
 

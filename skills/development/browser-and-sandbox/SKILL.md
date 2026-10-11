@@ -9,7 +9,7 @@ description: Work on browser automation, sandbox browser tools, direct Playwrigh
 
 - `docs/browser_control.md`
 - `docs/sandbox_support.md`
-- `docs/design/sandbox_backend.md`
+- `docs/design/06_sandbox_and_codeact.md`
 - `genai_tk/agents/tools/sandbox_browser/`
 - `genai_tk/agents/tools/direct_browser/`
 - `genai_tk/agents/sandbox/`
