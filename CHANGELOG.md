@@ -7,10 +7,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Added
 
-#### Core Architecture & Inversion of Control (IoC)
-- **Inversion of Control (IoC) Provider Architecture**: Refactored `LlmFactory`, `EmbeddingsFactory`, and `DecisionModelFactory` to an IoC registry pattern. Provider implementations are declared in `config/providers/providers.yaml` via role-based class fields (`chat_class`, `embeddings_class`, `decision_class`), completely eliminating hardcoded `if/elif` branching.
+#### Core Architecture & Universal Inversion of Control (IoC)
+- **Universal Inversion of Control (IoC) Dynamic Registry**: Elevated IoC to a foundational design principle across the framework. Configuration files declare fully qualified Python class names and callables (`module.path.ClassName`), dynamically resolved via `ImportResolver` without modifying core library code:
+  - **Model & Decision Providers**: `config/providers/providers.yaml` uses role-based class fields (`chat_class`, `embeddings_class`, `decision_class`), completely eliminating hardcoded `if/elif` branching.
+  - **CLI Command Groups**: `config/app_conf.yaml` (`cli.commands`) mounts subclasses of `CliTopCommand` or registration callables dynamically into the root Typer CLI.
+  - **Streamlit Webapp Navigation**: `config/app_conf.yaml` (`ui.navigation`) resolves local page paths and cross-package library resources (`genai_tk://demos/agent.py`) without file duplication.
+  - **Workflow Orchestration Tasks**: Declarative YAML workflows (`uses:`) resolve flow and task functions dynamically in `prefect-yaml`.
+  - **Document Converters**: `config/markdownize.yaml` maps named converters (`docling`, `mistral_ocr`, `markitdown`) to target Python classes via `ConverterFactory`.
 - **Modular Provider Mixins**: Decomposed model behavior handling into composable mixins (`ReasoningMixin` for effort normalization across OpenAI, Anthropic, and Gemini; `RoutingMixin` for OpenRouter/EdenAI gateway routing; `SeedMixin` for deterministic seed placement).
-- **Dynamic Provider Registry**: Enabled downstream applications to register proprietary or on-prem models (e.g. vLLM, Ollama) purely in YAML via `global_config().get('providers')`.
+- **Dynamic Downstream Extension**: Enabled downstream projects (`genai-graph`, `wiki`, `officeqa`, `rfq_pricing`, `ekg-atos`) to register on-prem servers (e.g. vLLM, Ollama), custom CLI suites, and workflow steps purely in YAML via `global_config()`.
 
 #### Fast System 1 Decision Models
 - **Sub-100ms Decision Engine** (`genai_tk/core/decision_models/`): Introduced non-autoregressive decision models for high-throughput, low-cost classification, routing, and scoring.

@@ -57,7 +57,7 @@ flowchart TD
 For a didactic, deep-dive understanding of the internal architecture and design patterns, read the numbered design specifications in [docs/design/](docs/design/README.md):
 
 1. **[Design 01: Configuration & Profiles](docs/design/01_configuration_and_profiles.md)** — OmegaConf hierarchy, `${profile}` overlays, `${oc.env:VAR}` substitution, and network proxy derivation.
-2. **[Design 02: Inversion of Control (IoC) Provider Architecture](docs/design/02_ioc_provider_architecture.md)** — Decoupling model factories via role-based class fields (`chat_class`, `embeddings_class`, `decision_class`) and modular mixins (`ReasoningMixin`, `RoutingMixin`, `SeedMixin`).
+2. **[Design 02: Inversion of Control (IoC) & Dynamic Registry](docs/design/02_ioc_provider_architecture.md)** — Universal framework extensibility via `ImportResolver`: dynamic class/callable resolution across model providers, CLI command groups, UI navigation, workflow step dispatch, and document converters.
 3. **[Design 03: Core LLM, Embeddings & Factories](docs/design/03_core_llm_and_factories.md)** — `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, semantic caching (`LlmCache`), and LCEL runnables.
 4. **[Design 04: Fast System 1 Decision Models](docs/design/04_decision_models_system1.md)** — Sub-100ms non-autoregressive decision models (`Noul`, `Choice`, `Score`), OpenRouter, EdenAI, Laya, OpenAI, and batch auto-chunking.
 5. **[Design 05: Autonomous Agent Harness & Middleware](docs/design/05_agent_harness_and_middleware.md)** — Unified `BaseHarness`, event streaming, LangChain and DeerFlow adapters, Presidio PII redaction, and user context propagation.

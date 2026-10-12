@@ -99,7 +99,7 @@ flowchart TD
 |---|---|---|
 | [design/README.md](design/README.md) | **Architectural Design Curriculum** | Didactic 9-part numbered curriculum covering configuration, IoC, core models, harness, sandbox, workflows, and observability |
 | [design/01_configuration_and_profiles.md](design/01_configuration_and_profiles.md) | **Design 01: Configuration & Profiles** | OmegaConf hierarchy, profile overlays, env interpolation, proxy derivation |
-| [design/02_ioc_provider_architecture.md](design/02_ioc_provider_architecture.md) | **Design 02: IoC Provider Architecture** | Role-based class fields, dynamic provider registry, modular mixins |
+| [design/02_ioc_provider_architecture.md](design/02_ioc_provider_architecture.md) | **Design 02: IoC & Dynamic Registry** | Universal extensibility via `ImportResolver`, role-based class fields, CLI commands, UI navigation, workflows, converters |
 | [design/03_core_llm_and_factories.md](design/03_core_llm_and_factories.md) | **Design 03: Core LLM & Factories** | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, semantic cache, LCEL |
 | [design/04_decision_models_system1.md](design/04_decision_models_system1.md) | **Design 04: Decision Models (System 1)** | Calibrated `Noul`, `Choice`, `Score` classification, sub-100ms drivers |
 | [design/05_agent_harness_and_middleware.md](design/05_agent_harness_and_middleware.md) | **Design 05: Agent Harness & Middleware** | Unified `BaseHarness`, canonical event stream, PII & sensitivity routing |

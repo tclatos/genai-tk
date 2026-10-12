@@ -203,7 +203,7 @@ Current docs index:
 |---|---|
 | `docs/design/README.md` | Didactic 9-part architectural design curriculum |
 | `docs/design/01_configuration_and_profiles.md` | Configuration management, profile overlays, proxy derivation |
-| `docs/design/02_ioc_provider_architecture.md` | Inversion of Control (IoC) provider registry, role-based class fields, mixins |
+| `docs/design/02_ioc_provider_architecture.md` | Inversion of Control (IoC) dynamic registry (providers, CLI, UI, workflows, converters) |
 | `docs/design/03_core_llm_and_factories.md` | Core LLM & Embeddings factories, model IDs, semantic caching, LCEL chains |
 | `docs/design/04_decision_models_system1.md` | Fast System 1 decision models (Clef, Laya, Jev, OpenAI), calibrated rubrics |
 | `docs/design/05_agent_harness_and_middleware.md` | Unified BaseHarness, event streaming, LangChain/DeerFlow adapters, PII/routing |
