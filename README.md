@@ -1,8 +1,9 @@
 # GenAI Toolkit (`genai-tk`)
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tclatos/genai-tk)
+
 A comprehensive framework and developer toolkit for building enterprise GenAI, GraphRAG, and Autonomous Agentic applications with LangChain, DeepAgents, DeerFlow, Prefect, and 100+ LLM providers.
 
-See also the [DeepWiki generated documentation](https://deepwiki.com/tclatos/genai-tk).
 
 ---
 
