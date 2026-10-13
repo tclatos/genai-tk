@@ -55,6 +55,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 - **Didactic Numbered Curriculum**: Reorganized architectural documentation in `docs/design/` into a 9-part numbered curriculum starting with configuration and IoC, through core models, harness, sandbox, workflows, and observability.
 - **Strict Studies Policy**: Cleaned `docs/studies/` to strictly contain unimplemented research and exploratory surveys, promoting implemented features to design specifications.
 
+### Fixed
+- **OpenAI & OpenRouter Chat Model Parameter Sanitization**: Cleaned internal metadata (`provider`, `special_env_vars`, OmegaConf `ListConfig` objects, and `default_quantization`) before passing payloads to `ChatOpenAI`, preventing `TypeError: Completions.create() got an unexpected keyword argument 'provider'` and serialization errors with OpenAI-compatible chat endpoints.
+
 ---
 
 ### Previous Changes

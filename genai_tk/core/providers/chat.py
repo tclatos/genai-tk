@@ -43,6 +43,9 @@ class BaseOpenAIChat(ChatOpenAI):
         **kwargs: Any,
     ) -> Any:
         params = (llm_params or {}).copy()
+        json_mode = kwargs.pop("json_mode", False)
+        kwargs.pop("provider", None)
+        kwargs.pop("special_env_vars", None)
         params.update(kwargs)
 
         params = SeedHandlingMixin.apply_seed(params, location=seed_location)
@@ -60,6 +63,8 @@ class BaseOpenAIChat(ChatOpenAI):
             create_params["extra_body"] = extra_body.copy()
         if custom_headers:
             create_params["default_headers"] = custom_headers.copy()
+        if json_mode:
+            create_params.setdefault("model_kwargs", {})["response_format"] = {"type": "json_object"}
 
         cls._configure_extra(create_params, model=model, reasoning=reasoning_payload, routing=routing_strategy)
         from langchain_openai import ChatOpenAI

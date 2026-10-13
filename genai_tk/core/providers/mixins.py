@@ -51,12 +51,19 @@ class OpenRouterRoutingMixin:
     ) -> None:
         extra_body: dict[str, Any] = {}
         if extra_body_default:
-            extra_body = extra_body_default.copy()
+            try:
+                from omegaconf import OmegaConf
+
+                extra_body = OmegaConf.to_container(extra_body_default, resolve=True) or {}
+                if not isinstance(extra_body, dict):
+                    extra_body = {}
+            except Exception:
+                extra_body = extra_body_default.copy()
             vendor = model_name.partition("/")[0]
             if vendor not in ["openai", "anthropic", "mistralai"]:
                 default_quantization = extra_body.pop("default_quantization", [])
                 if default_quantization:
-                    extra_body = {"provider": {"quantizations": default_quantization}}
+                    extra_body = {"provider": {"quantizations": list(default_quantization)}}
                 else:
                     extra_body = {}
             else:
@@ -64,7 +71,18 @@ class OpenRouterRoutingMixin:
 
         existing_extra = create_params.get("extra_body", {})
         if isinstance(existing_extra, dict):
+            try:
+                from omegaconf import OmegaConf
+
+                existing_clean = OmegaConf.to_container(existing_extra, resolve=True)
+                if isinstance(existing_clean, dict):
+                    existing_extra = existing_clean
+            except Exception:
+                pass
             extra_body.update(existing_extra)
+
+        # default_quantization is genai-tk internal config, not an OpenRouter API field
+        extra_body.pop("default_quantization", None)
 
         if routing_strategy:
             provider_payload = extra_body.get("provider", {})
