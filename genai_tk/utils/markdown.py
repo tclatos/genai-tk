@@ -18,6 +18,8 @@ BACKTICK_BLOCK = re.compile(r"```")
 INLINE_CODE = re.compile(r"`[^`\n]+`")
 LINK_OR_IMG = re.compile(r"!?\[.*?\]\(.+?\)")
 HR = re.compile(r"^(\s*\*\s*){3,}$|^(\s*\-{3,}\s*)$", re.MULTILINE)
+TABLE = re.compile(r"^\s*\|.+?\|\s*$", re.MULTILINE)
+BOLD = re.compile(r"\*\*[^*\n]+\*\*")
 
 
 def looks_like_markdown(text: str, threshold: int = 3) -> Tuple[bool, List[str]]:
@@ -51,14 +53,19 @@ def looks_like_markdown(text: str, threshold: int = 3) -> Tuple[bool, List[str]]
         (OLIST, "ol_list"),
         (BLOCKQUOTE, "blockquote"),
         (HR, "horizontal_rule"),
+        (TABLE, "table"),
     ]:
         if pattern.findall(text):
-            positive_count += len(pattern.findall(text))
+            matches = pattern.findall(text)
+            if tag == "heading":
+                positive_count += len(matches) * 2
+            else:
+                positive_count += len(matches)
             reasons.append(tag)
 
     # 2. frequent inline / fenced constructs -----------------------------------
     if len(BACKTICK_BLOCK.findall(text)) >= 1:
-        positive_count += 1
+        positive_count += 2
         reasons.append("code_fence")
     if len(INLINE_CODE.findall(text)) >= 3:
         positive_count += 1
@@ -66,6 +73,9 @@ def looks_like_markdown(text: str, threshold: int = 3) -> Tuple[bool, List[str]]
     if len(LINK_OR_IMG.findall(text)) >= 2:
         positive_count += 1
         reasons.append("link_or_img")
+    if len(BOLD.findall(text)) >= 2:
+        positive_count += 1
+        reasons.append("bold")
 
     # 3. Final verdict ---------------------------------------------------------
     return (positive_count >= threshold), reasons

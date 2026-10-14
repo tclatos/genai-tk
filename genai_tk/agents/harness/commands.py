@@ -67,6 +67,7 @@ def register(cli_app: typer.Typer) -> None:
         ] = [],
         thread_id: Annotated[Optional[str], Option("--thread-id", "-t", help="Conversation thread ID")] = None,
         json_output: Annotated[bool, Option("--json", help="Print raw NDJSON events instead of rendered text")] = False,
+        raw: Annotated[bool, Option("--raw", help="Print raw LLM response text without Markdown rendering")] = False,
         trace: Annotated[bool, Option("--trace", help="Show node-level execution trace lines")] = False,
         verbose: Annotated[bool, Option("--verbose", "-v", help="Enable DEBUG logging")] = False,
     ) -> None:
@@ -124,7 +125,7 @@ def register(cli_app: typer.Typer) -> None:
                 if chat:
                     from genai_tk.agents.harness.chat_repl import run_chat_repl
 
-                    await run_chat_repl(harness, initial_query=query, show_trace=trace, console=console)
+                    await run_chat_repl(harness, initial_query=query, show_trace=trace, raw=raw, console=console)
                 else:
                     from genai_tk.agents.harness.chat_repl import astream_turn
 
@@ -135,6 +136,7 @@ def register(cli_app: typer.Typer) -> None:
                         thread_id=thread_id,
                         show_trace=trace,
                         json_output=json_output,
+                        raw=raw,
                         console=console,
                     )
             finally:

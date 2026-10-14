@@ -38,6 +38,7 @@ async def astream_turn(
     thread_id: str | None = None,
     show_trace: bool = False,
     json_output: bool = False,
+    raw: bool = False,
     console: Console | None = None,
 ) -> str:
     """Run one turn against *harness*, render events, return the assistant text.
@@ -54,6 +55,7 @@ async def astream_turn(
         thread_id: Conversation thread ID.
         show_trace: Print node-level trace lines.
         json_output: Print one JSON event per line and skip rendering.
+        raw: Print raw LLM response text without Markdown rendering.
         console: Rich console to render to (default: a fresh one).
 
     Returns:
@@ -61,33 +63,77 @@ async def astream_turn(
     """
     console = console or _DEFAULT_CONSOLE
     parts: list[str] = []
+    status = None
 
-    async for event in harness.astream(query, thread_id=thread_id):
-        if json_output:
-            console.print(event.model_dump_json())
-            continue
-        if isinstance(event, TokenEvent):
-            console.print(event.text, end="", highlight=False)
-            parts.append(event.text)
-        elif isinstance(event, ThinkingEvent):
-            if show_trace:
-                console.print(event.text, end="", style="dim italic", highlight=False)
-        elif isinstance(event, ToolCallEvent):
-            console.print(f"\n[tool] {event.tool_name}({event.args})", style="cyan")
-        elif isinstance(event, ToolResultEvent):
-            content = (event.content or "")[:200]
-            console.print(f"[tool result] {content}", style="cyan")
-        elif isinstance(event, NodeEvent):
-            if show_trace:
-                console.print(f"→ {event.node}", style="dim")
-        elif isinstance(event, ClarificationEvent):
-            console.print(f"\n❓ {event.question}", style="yellow")
-            parts.append(event.question)
-        elif isinstance(event, ErrorEvent):
-            console.print(f"\n[error] {event.message}", style="red")
-        elif isinstance(event, EndEvent):
-            pass
-    return "".join(parts)
+    try:
+        async for event in harness.astream(query, thread_id=thread_id):
+            if json_output:
+                console.print(event.model_dump_json())
+                continue
+            if isinstance(event, TokenEvent):
+                if raw:
+                    console.print(event.text, end="", highlight=False)
+                else:
+                    if status is None and console.is_terminal:
+                        status = console.status("[dim]Generating response...[/dim]")
+                        status.start()
+                parts.append(event.text)
+            elif isinstance(event, ThinkingEvent):
+                if status:
+                    status.stop()
+                    status = None
+                if show_trace:
+                    console.print(event.text, end="", style="dim italic", highlight=False)
+            elif isinstance(event, ToolCallEvent):
+                if status:
+                    status.stop()
+                    status = None
+                console.print(f"\n[tool] {event.tool_name}({event.args})", style="cyan")
+            elif isinstance(event, ToolResultEvent):
+                if status:
+                    status.stop()
+                    status = None
+                content = (event.content or "")[:200]
+                console.print(f"[tool result] {content}", style="cyan")
+            elif isinstance(event, NodeEvent):
+                if show_trace:
+                    console.print(f"→ {event.node}", style="dim")
+            elif isinstance(event, ClarificationEvent):
+                if status:
+                    status.stop()
+                    status = None
+                console.print(f"\n❓ {event.question}", style="yellow")
+                parts.append(event.question)
+            elif isinstance(event, ErrorEvent):
+                if status:
+                    status.stop()
+                    status = None
+                console.print(f"\n[error] {event.message}", style="red")
+            elif isinstance(event, EndEvent):
+                if status:
+                    status.stop()
+                    status = None
+    finally:
+        if status:
+            status.stop()
+
+    full_text = "".join(parts)
+    if not json_output:
+        if raw:
+            if full_text and not full_text.endswith("\n"):
+                console.print()
+        elif full_text.strip():
+            from genai_tk.utils.markdown import looks_like_markdown
+
+            is_md, _ = looks_like_markdown(full_text, threshold=2)
+            if is_md:
+                from rich.markdown import Markdown
+
+                console.print(Markdown(full_text))
+            else:
+                console.print(full_text)
+
+    return full_text
 
 
 def stream_turn(
@@ -97,6 +143,7 @@ def stream_turn(
     thread_id: str | None = None,
     show_trace: bool = False,
     json_output: bool = False,
+    raw: bool = False,
     console: Console | None = None,
 ) -> str:
     """Synchronous wrapper around :func:`astream_turn` for single-shot use.
@@ -114,6 +161,7 @@ def stream_turn(
             thread_id=thread_id,
             show_trace=show_trace,
             json_output=json_output,
+            raw=raw,
             console=console,
         )
     )
@@ -137,6 +185,7 @@ async def run_chat_repl(
     *,
     initial_query: str | None = None,
     show_trace: bool = False,
+    raw: bool = False,
     console: Console | None = None,
 ) -> None:
     """Interactive multi-turn REPL over *harness*.
@@ -149,6 +198,7 @@ async def run_chat_repl(
             adapter supports it so ``/info`` can show the resolved profile/model.
         initial_query: Optional first message sent before entering the loop.
         show_trace: Print node-level trace lines for each turn.
+        raw: Print raw LLM response text without Markdown rendering.
         console: Rich console to render to (default: a fresh one).
     """
     from prompt_toolkit import PromptSession
@@ -179,7 +229,7 @@ async def run_chat_repl(
 
     async def _turn(user_input: str) -> None:
         console.print(Panel(user_input, title="[bold blue]You[/bold blue]", border_style="blue"))
-        await astream_turn(harness, user_input, thread_id=thread_id, show_trace=show_trace, console=console)
+        await astream_turn(harness, user_input, thread_id=thread_id, show_trace=show_trace, raw=raw, console=console)
         console.print()
 
     if initial_query:

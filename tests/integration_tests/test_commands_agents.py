@@ -132,6 +132,24 @@ class TestRunCommand:
         # NDJSON events are printed one per line; the token event carries the text.
         assert "jsontext" in result.stdout
 
+    def test_run_renders_markdown_nicely(self, agents_app, runner) -> None:
+        md_content = "# Service Level Agreement\n\n- 99.9% availability\n- 4-hour response\n"
+        with patch("genai_tk.agents.harness.create_harness", return_value=_FakeHarness(md_content)):
+            result = runner.invoke(agents_app, ["agents", "run", "simple", "hi"])
+        assert result.exit_code == 0
+        assert "Service Level Agreement" in result.stdout
+        # Rendered markdown converts bullet list to bullet symbol
+        assert "•" in result.stdout
+
+    def test_run_with_raw_flag_outputs_raw_markdown(self, agents_app, runner) -> None:
+        md_content = "# Service Level Agreement\n\n- 99.9% availability\n- 4-hour response\n"
+        with patch("genai_tk.agents.harness.create_harness", return_value=_FakeHarness(md_content)):
+            result = runner.invoke(agents_app, ["agents", "run", "simple", "hi", "--raw"])
+        assert result.exit_code == 0
+        # Raw mode preserves literal markdown syntax
+        assert "# Service Level Agreement" in result.stdout
+        assert "- 99.9% availability" in result.stdout
+
 
 class TestRunOptions:
     def test_run_exposes_expected_flags(self, agents_app) -> None:
@@ -139,5 +157,5 @@ class TestRunOptions:
         click_group = typer.main.get_command(agents_app)
         run_cmd = click_group.commands["agents"].commands["run"]
         option_names = {opt for param in run_cmd.params for opt in param.opts}
-        for flag in ("--chat", "--mode", "--sandbox", "--mcp", "--llm", "--json", "--trace"):
+        for flag in ("--chat", "--mode", "--sandbox", "--mcp", "--llm", "--json", "--raw", "--trace"):
             assert flag in option_names, f"run is missing flag {flag}"

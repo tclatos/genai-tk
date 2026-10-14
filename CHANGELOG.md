@@ -13,6 +13,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Added
 
+#### Agent CLI & Markdown Formatting
+- **Automatic Markdown Detection & Formatting in `cli agents run`**: In [genai_tk/agents/harness/chat_repl.py](genai_tk/agents/harness/chat_repl.py) and [genai_tk/agents/harness/commands.py](genai_tk/agents/harness/commands.py), agent responses are now inspected for Markdown formatting via `looks_like_markdown` and rendered as rich Markdown in the terminal. Plain text is preserved, and a new `--raw` CLI option allows bypassing Markdown rendering when raw output is needed for scripts or pipes.
+- **Enhanced Markdown Heuristics**: Added Markdown table detection (`| ... |`) and bold text matching to [genai_tk/utils/markdown.py](genai_tk/utils/markdown.py), weighting headings and structural syntax to reliably detect LLM-generated Markdown without false positives on plain text.
+
 #### Core Architecture & Universal Inversion of Control (IoC)
 - **Universal Inversion of Control (IoC) Dynamic Registry**: Elevated IoC to a foundational design principle across the framework. Configuration files declare fully qualified Python class names and callables (`module.path.ClassName`), dynamically resolved via `ImportResolver` without modifying core library code:
   - **Model & Decision Providers**: `config/providers/providers.yaml` uses role-based class fields (`chat_class`, `embeddings_class`, `decision_class`), completely eliminating hardcoded `if/elif` branching.
