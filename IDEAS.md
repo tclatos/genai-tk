@@ -1,3 +1,9 @@
+
+# Replace RichToolCallMiddleware with Relay
+
+# Remove special case for Eden model catalog : they are now in model.dev
+
+
 # LoCoMo Bechnmark 
 see https://github.com/Backboard-io/Backboard-Locomo-Benchmark 
 
