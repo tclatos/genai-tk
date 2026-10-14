@@ -13,6 +13,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Added
 
+#### Skills & Document Authoring
+- **Quarto Authoring Community Skill**: Integrated official Posit Quarto authoring skill (`quarto-authoring`) in `skills/community/quarto/`, providing agent guidelines and syntax patterns for `.qmd` authoring, cross-references, callout blocks, table formatting, and multi-format publishing.
+
 #### Agent CLI & Markdown Formatting
 - **Automatic Markdown Detection & Formatting in `cli agents run`**: In [genai_tk/agents/harness/chat_repl.py](genai_tk/agents/harness/chat_repl.py) and [genai_tk/agents/harness/commands.py](genai_tk/agents/harness/commands.py), agent responses are now inspected for Markdown formatting via `looks_like_markdown` and rendered as rich Markdown in the terminal. Plain text is preserved, and a new `--raw` CLI option allows bypassing Markdown rendering when raw output is needed for scripts or pipes.
 - **Enhanced Markdown Heuristics**: Added Markdown table detection (`| ... |`) and bold text matching to [genai_tk/utils/markdown.py](genai_tk/utils/markdown.py), weighting headings and structural syntax to reliably detect LLM-generated Markdown without false positives on plain text.
