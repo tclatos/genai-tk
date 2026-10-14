@@ -82,6 +82,16 @@ class OmegaConfig(BaseModel):
     @staticmethod
     def create(app_conf_path: Path) -> OmegaConfig:
         try:
+            from dotenv import load_dotenv
+
+            load_dotenv()
+            home_env = Path.home() / ".env"
+            if home_env.exists():
+                load_dotenv(home_env, override=False)
+        except Exception:
+            pass
+
+        try:
             config = OmegaConf.load(app_conf_path)
         except Exception as e:
             raise ConfigParseError(str(app_conf_path), original_error=e) from e

@@ -268,7 +268,10 @@ def _classify_and_format_block(block: list[list[str]]) -> str:
 
 def excel_to_markdown_messy_xls(path: Path) -> str:
     """Convert an Excel spreadsheet to Markdown, tolerating complex layouts."""
-    import openpyxl
+    try:
+        import openpyxl
+    except (ImportError, ModuleNotFoundError):
+        raise ImportError("openpyxl is required for MessyExcelConverter. Install with 'uv add openpyxl'.") from None
 
     workbook = openpyxl.load_workbook(path, data_only=True)
     md_parts: list[str] = []
@@ -298,6 +301,13 @@ class MessyExcelConverter(DocumentConverter):
     def supported_extensions(self) -> set[str]:
         """Return supported spreadsheet file extensions."""
         return _EXCEL_EXTENSIONS
+
+    def check_dependencies(self) -> None:
+        """Verify that openpyxl is installed."""
+        try:
+            import openpyxl  # noqa: F401
+        except (ImportError, ModuleNotFoundError):
+            raise ImportError("openpyxl is required for MessyExcelConverter. Install with 'uv add openpyxl'.") from None
 
     async def convert(self, path: Path) -> str:
         """Convert a spreadsheet to structured Markdown text."""

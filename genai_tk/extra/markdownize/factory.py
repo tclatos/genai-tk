@@ -58,6 +58,13 @@ class ConverterFactory:
         return converter_cls(**params)
 
     @classmethod
+    def validate_converter(cls, name: str) -> DocumentConverter:
+        """Instantiate and validate that all required dependencies are installed for the converter."""
+        converter = cls.create(name)
+        converter.check_dependencies()
+        return converter
+
+    @classmethod
     def _converters_section(cls, name: str) -> dict[str, Any]:
         """Return the 'markdownize_converters' configuration section.
 

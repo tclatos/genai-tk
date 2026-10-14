@@ -154,10 +154,11 @@ def _resolve_items(sources: list[str], md_output_dir: str) -> list[str]:
 
     items = list(url_items)
     if file_specs:
-        cache_root = Path(resolve_config_path(md_output_dir)) / ".cache"
+        out_resolved = Path(resolve_config_path(md_output_dir)).resolve()
+        cache_root = out_resolved / ".cache"
         cache_root.mkdir(parents=True, exist_ok=True)
         resolved = resolve_sources(file_specs, cache_dir=cache_root, pathspecs=None)
-        items.extend(str(rf.path) for rf in resolved)
+        items.extend(str(rf.path) for rf in resolved if not rf.path.resolve().is_relative_to(out_resolved))
     return items
 
 

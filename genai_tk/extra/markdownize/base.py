@@ -28,6 +28,13 @@ class DocumentConverter(BaseModel, ABC):
         """Convert a single document file to Markdown text."""
         ...
 
+    def check_dependencies(self) -> None:
+        """Verify that required external dependencies for this converter are installed.
+
+        Subclasses should override this method to check for third-party libraries
+        and raise a concise ImportError with installation instructions if missing.
+        """
+
     async def batch_convert(self, paths: list[Path]) -> dict[str, str]:
         """Convert a list of files to Markdown, returning path string to Markdown text mapping.
 

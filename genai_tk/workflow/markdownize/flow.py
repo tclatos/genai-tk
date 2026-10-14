@@ -63,9 +63,13 @@ def _copy_file_task(original_src: str, out_abs: str, rel_out: str) -> tuple[str,
     """Copy a pre-existing Markdown file into the output tree unchanged."""
     import shutil
 
-    out_path = Path(out_abs)
+    orig_p = Path(original_src).resolve()
+    out_path = Path(out_abs).resolve()
+    if orig_p == out_path:
+        return original_src, rel_out
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(original_src, out_path)
+    shutil.copyfile(orig_p, out_path)
     logger.success(f"Copied markdown to {out_path}")
     return original_src, rel_out
 
@@ -140,6 +144,8 @@ def markdownize_flow(
     force_convert = stage_active(force_stage, ForceStage.md)
 
     resolved_files = resolve_sources(sources, cache_dir=cache_root, pathspecs=pathspecs, force_unzip=force_unzip)
+    output_resolved = output_upath.resolve()
+    resolved_files = [rf for rf in resolved_files if not rf.path.resolve().is_relative_to(output_resolved)]
 
     if not resolved_files:
         logger.warning("No files found to process")
@@ -161,6 +167,25 @@ def markdownize_flow(
     logger.info(f"Processing {len(to_process)} files")
 
     routes = {str(fi.path): resolved_profile.select_route(fi.path) for fi in to_process}
+
+    # Pre-validate converter dependencies upfront so missing packages fail fast
+    # without launching dozens of failing task threads with long tracebacks.
+    needed_converters = {c for c in routes.values() if c not in ("copy", "via_pdf")}
+    pdf_route = resolved_profile.select_route(Path("sample.pdf"))
+    if pdf_route == "via_pdf":
+        pdf_route = "mistral_ocr"
+    if any(routes[str(fi.path)] == "via_pdf" or fi.path.suffix.lower() == ".pdf" for fi in to_process):
+        needed_converters.add(pdf_route)
+
+    for c_name in needed_converters:
+        if c_name == "messy_xls_parser":
+            c_name = "messy_xls"
+        try:
+            ConverterFactory.validate_converter(c_name)
+        except (ImportError, ModuleNotFoundError) as exc:
+            logger.error("Missing dependency for converter '{}': {}", c_name, exc)
+            raise exc from None
+
     results: list[tuple[str, str]] = []
 
     # 1. LibreOffice-convert 'via_pdf' files

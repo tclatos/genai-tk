@@ -269,6 +269,18 @@ def main() -> None:
 
     Handles logging setup, command registration, and error handling.
     """
+    try:
+        from pathlib import Path
+
+        from dotenv import load_dotenv
+
+        load_dotenv()
+        home_env = Path.home() / ".env"
+        if home_env.exists():
+            load_dotenv(home_env, override=False)
+    except Exception:
+        pass
+
     # We could do better with Typer @cli_app.callback(), but I haven't succeeded
     if "--logging" in sys.argv:
         level = "TRACE"

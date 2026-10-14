@@ -128,6 +128,15 @@ class MistralOCRConverter(DocumentConverter):
         """Return file extensions supported by Mistral OCR."""
         return _MISTRAL_SUPPORTED_EXTENSIONS
 
+    def check_dependencies(self) -> None:
+        """Verify that mistralai is installed."""
+        try:
+            from mistralai.client import Mistral  # noqa: F401
+        except (ImportError, ModuleNotFoundError):
+            raise ImportError(
+                "mistralai is required for MistralOCRConverter. Install with 'uv add mistralai'."
+            ) from None
+
     def _resolve_api_key(self) -> str:
         """Resolve the Mistral API key from explicit setting or environment."""
         key = self.api_key or os.environ.get("MISTRAL_API_KEY")
@@ -139,8 +148,10 @@ class MistralOCRConverter(DocumentConverter):
         """Lazy import and instantiate the Mistral client."""
         try:
             from mistralai.client import Mistral
-        except ImportError as e:
-            raise ImportError("mistralai is required for MistralOCRConverter. Install with 'uv add mistralai'.") from e
+        except (ImportError, ModuleNotFoundError):
+            raise ImportError(
+                "mistralai is required for MistralOCRConverter. Install with 'uv add mistralai'."
+            ) from None
         return Mistral(api_key=self._resolve_api_key())
 
     @staticmethod

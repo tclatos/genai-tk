@@ -42,6 +42,15 @@ class MarkItDownConverter(DocumentConverter):
         """Return file extensions supported by markitdown."""
         return _SUPPORTED_EXTENSIONS
 
+    def check_dependencies(self) -> None:
+        """Verify that markitdown is installed."""
+        try:
+            import markitdown  # noqa: F401
+        except (ImportError, ModuleNotFoundError):
+            raise ImportError(
+                "markitdown is required for MarkItDownConverter. Install with 'uv add markitdown'."
+            ) from None
+
     async def convert(self, path: Path) -> str:
         """Convert a document file to Markdown text using markitdown."""
         return await asyncio.to_thread(self._sync_convert, path)
@@ -50,10 +59,10 @@ class MarkItDownConverter(DocumentConverter):
         """Execute markitdown conversion synchronously."""
         try:
             from markitdown import MarkItDown, StreamInfo
-        except ImportError as e:
+        except (ImportError, ModuleNotFoundError):
             raise ImportError(
                 "markitdown is required for MarkItDownConverter. Install with 'uv add markitdown'."
-            ) from e
+            ) from None
 
         try:
             return MarkItDown().convert_local(str(path), stream_info=StreamInfo(charset="utf-8")).text_content

@@ -46,18 +46,23 @@ class AnyDocConverter(DocumentConverter):
         """Return file extensions supported by anydoc."""
         return _ANYDOC_EXTENSIONS
 
+    def check_dependencies(self) -> None:
+        """Verify that anydoc is installed."""
+        try:
+            import anydoc  # noqa: F401
+        except (ImportError, ModuleNotFoundError):
+            raise ImportError(
+                "firecrawl-anydoc is required for AnyDocConverter. Install with 'uv add firecrawl-anydoc'."
+            ) from None
+
     async def convert(self, path: Path) -> str:
         """Convert a document file to Markdown text using anydoc."""
         return await asyncio.to_thread(self._sync_convert, path)
 
     def _sync_convert(self, path: Path) -> str:
         """Execute anydoc conversion synchronously."""
-        try:
-            import anydoc
-        except ImportError as e:
-            raise ImportError(
-                "firecrawl-anydoc is required for AnyDocConverter. Install with 'uv add firecrawl-anydoc'."
-            ) from e
+        self.check_dependencies()
+        import anydoc
 
         kwargs: dict = {}
         if self.ocr:

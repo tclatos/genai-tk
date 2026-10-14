@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ## [Unreleased]
 
+### Fixed
+
+- **Document Ingestion Output Filtering & Self-Copy Prevention**: In [genai_tk/workflow/markdownize/flow.py](genai_tk/workflow/markdownize/flow.py) and [genai_tk/workflow/routing/dispatcher.py](genai_tk/workflow/routing/dispatcher.py), excluded files residing inside the target Markdown output directory (`md_output_dir`) when resolving input sources, preventing recursive self-processing, `.cache` ingestion, and `SameFileError` when copying Markdown files onto themselves in `_copy_file_task`.
+- **Fast-Failing Converter Dependency Validation**: Added `check_dependencies()` to `DocumentConverter` and implemented fail-fast dependency verification in `ConverterFactory.validate_converter()` and `markdownize_flow`, raising clean `ImportError` without chaining internal `ModuleNotFoundError` frames or launching dozens of doomed worker tasks with long tracebacks.
+- **Environment Variable Fallback**: Added automatic `~/.env` fallback loading in `OmegaConfig.create` and `cli.main` so user-level API credentials (e.g. OpenRouter) are automatically loaded even when invoking CLI commands directly outside of `just`.
+
 ### Added
 
 #### Core Architecture & Universal Inversion of Control (IoC)

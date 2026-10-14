@@ -121,6 +121,16 @@ class DoclingConverter(DocumentConverter):
         """Return file extensions supported by Docling."""
         return _DOCLING_SUPPORTED_EXTENSIONS
 
+    def check_dependencies(self) -> None:
+        """Verify that docling is installed."""
+        try:
+            import docling  # noqa: F401
+        except (ImportError, ModuleNotFoundError):
+            raise ImportError(
+                "docling is required for DoclingConverter. Install with 'uv add docling' "
+                "or 'uv add \"genai-tk[docling]\"'."
+            ) from None
+
     async def convert(self, path: Path) -> str:
         """Convert a single document file to Markdown text using Docling."""
         return await asyncio.to_thread(self._sync_convert, path)
@@ -167,11 +177,11 @@ class DoclingConverter(DocumentConverter):
             )
             from docling.document_converter import DocumentConverter as SdkDocumentConverter
             from docling.document_converter import PdfFormatOption
-        except ImportError as e:
+        except (ImportError, ModuleNotFoundError):
             raise ImportError(
                 "docling is required for DoclingConverter. Install with 'uv add docling' "
                 "or 'uv add \"genai-tk[docling]\"'."
-            ) from e
+            ) from None
 
         options = PdfPipelineOptions()
         options.do_ocr = ocr_engine != "none"

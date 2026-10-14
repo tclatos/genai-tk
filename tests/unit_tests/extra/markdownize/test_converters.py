@@ -359,6 +359,25 @@ def test_mistral_ocr_converter_prepare_batch_request(tmp_path: Path) -> None:
     assert data["body"]["image_min_size"] == 120
 
 
+def test_converter_check_dependencies_missing_package() -> None:
+    """Verify that check_dependencies raises a clean, concise ImportError when a package is missing."""
+    from genai_tk.extra.markdownize.anydoc_converter import AnyDocConverter
+    from genai_tk.extra.markdownize.factory import ConverterFactory
+
+    conv = AnyDocConverter()
+    with pytest.raises(ImportError) as exc_info:
+        conv.check_dependencies()
+
+    err_msg = str(exc_info.value)
+    assert "firecrawl-anydoc is required" in err_msg
+    # Ensure no chained exception causes a long trace
+    assert exc_info.value.__cause__ is None
+
+    # Test ConverterFactory.validate_converter
+    with pytest.raises(ImportError):
+        ConverterFactory.validate_converter("anydoc")
+
+
 @pytest.mark.asyncio
 async def test_mistral_ocr_converter_table_inlining_simple(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test inlining simple HTML tables from page.tables into markdown table syntax."""
