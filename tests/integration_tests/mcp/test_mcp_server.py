@@ -16,6 +16,9 @@ from pathlib import Path
 
 import pytest
 
+from genai_tk.protocols.mcp.config import MCPServerDefinition, MCPToolConfig, load_mcp_server_definitions
+from genai_tk.protocols.mcp.server_builder import build_mcp_server
+
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
@@ -24,9 +27,6 @@ import pytest
 @pytest.mark.integration
 async def test_list_tools_from_yaml(tmp_path: Path) -> None:
     """Server built from YAML must expose the tool declared in the factory."""
-    from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig
-    from genai_tk.mcp.server_builder import build_mcp_server
-
     # Build an MCPServerDefinition directly (avoids file path resolution issues)
     defn = MCPServerDefinition(
         name="echo",
@@ -42,9 +42,6 @@ async def test_list_tools_from_yaml(tmp_path: Path) -> None:
 @pytest.mark.integration
 async def test_call_tool_returns_string(tmp_path: Path) -> None:
     """Calling an MCP tool must return the expected string result."""
-    from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig
-    from genai_tk.mcp.server_builder import build_mcp_server
-
     defn = MCPServerDefinition(
         name="echo",
         description="Echo server",
@@ -60,9 +57,6 @@ async def test_call_tool_returns_string(tmp_path: Path) -> None:
 @pytest.mark.integration
 async def test_multi_tool_server(tmp_path: Path) -> None:
     """A server with multiple factory entries must expose all tools."""
-    from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig
-    from genai_tk.mcp.server_builder import build_mcp_server
-
     defn = MCPServerDefinition(
         name="multi",
         description="Multi-tool server",
@@ -81,9 +75,6 @@ async def test_multi_tool_server(tmp_path: Path) -> None:
 @pytest.mark.integration
 async def test_tool_with_structured_schema(tmp_path: Path) -> None:
     """Tool with multi-field Pydantic schema must expose all parameters."""
-    from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig
-    from genai_tk.mcp.server_builder import build_mcp_server
-
     defn = MCPServerDefinition(
         name="adder",
         description="Addition server",
@@ -101,9 +92,6 @@ async def test_tool_with_structured_schema(tmp_path: Path) -> None:
 @pytest.mark.integration
 async def test_structured_tool_invocation() -> None:
     """Structured tool with two int params must produce correct sum."""
-    from genai_tk.mcp.config import MCPServerDefinition, MCPToolConfig
-    from genai_tk.mcp.server_builder import build_mcp_server
-
     defn = MCPServerDefinition(
         name="adder",
         description="Addition server",
@@ -138,9 +126,6 @@ def test_cli_mcp_list_runs(tmp_path: Path) -> None:
     )
 
     # Build the Python-level server directly to verify config is parseable
-    from genai_tk.mcp.config import load_mcp_server_definitions
-    from genai_tk.mcp.server_builder import build_mcp_server
-
     servers = load_mcp_server_definitions(config_yaml)
     assert len(servers) == 1
     assert servers[0].name == "smoke"

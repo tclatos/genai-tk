@@ -30,6 +30,7 @@ from __future__ import annotations
 import atexit
 import json
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -295,6 +296,7 @@ class _RelayState:
         self.otel_subscriber: Any | None = None
         self.otel_subscriber_name: str | None = None
         self.otel_endpoint: str | None = None
+        self.listeners: list[Callable[[dict[str, Any]], None]] = []
 
     def on_event(self, event: Any) -> None:
         try:
@@ -311,9 +313,30 @@ class _RelayState:
         elif self.file is not None:
             self.file.write(raw)
 
+        # Notify active event listeners (e.g. AUIP bridge, streaming adapters)
+        for listener in list(self.listeners):
+            try:
+                listener(parsed)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(f"Relay event listener failed: {exc}")
+
 
 _state = _RelayState()
 _setup_lock = threading.Lock()
+
+
+def add_relay_event_listener(listener: Callable[[dict[str, Any]], None]) -> None:
+    """Register a listener for live NeMo Relay lifecycle events."""
+    with _setup_lock:
+        if listener not in _state.listeners:
+            _state.listeners.append(listener)
+
+
+def remove_relay_event_listener(listener: Callable[[dict[str, Any]], None]) -> None:
+    """Remove a previously registered live NeMo Relay event listener."""
+    with _setup_lock:
+        if listener in _state.listeners:
+            _state.listeners.remove(listener)
 
 
 def is_nemo_relay_available() -> bool:

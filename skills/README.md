@@ -33,6 +33,7 @@ Use `skills/governance/repo-map` first when you need orientation.
 | `configuration` | OmegaConf YAML config access & profiles | `docs/configuration.md` | `genai_tk/config_mgmt/`, `config/` |
 | `core-models` | LLM and Embeddings factory selection | `docs/core.md`, `docs/llm-selection.md` | `genai_tk/core/`, `config/providers/` |
 | `agent-profiles` | LangChain / DeerFlow / DeepAgent profiles | `docs/agents.md`, `docs/deer-flow.md` | `genai_tk/agents/`, `config/agents/` |
+| `agent-user-interaction-protocol` | AUIP event streaming, NeMo Relay bridge, and multimodal frontends | `docs/design/10_agent_user_interaction_protocol.md` | `genai_tk/protocols/auip/` |
 | `add-tool` | Authoring LangChain & DeepAgent tools | — | `genai_tk/agents/tools/` |
 | `add-skill` | Authoring and discovering SKILL.md files | `docs/SKILLS.md` | `skills/` |
 | `add-mcp-server` | MCP server configuration & connection | `docs/mcp-servers.md` | `config/mcp_servers.yaml` |
@@ -43,7 +44,7 @@ Use `skills/governance/repo-map` first when you need orientation.
 | `rag-systems` | RAG retrievers and indexing pipelines | `docs/rag.md` | `genai_tk/core/retrievers/`, `config/rag.yaml` |
 | `workflow-engine` | YAML-driven task orchestration & Prefect | `docs/workflows.md`, `docs/prefect.md` | `genai_tk/workflow/`, `config/workflows.yaml` |
 | `browser-and-sandbox` | Playwright browser & OpenSandbox Docker | `docs/browser_control.md`, `docs/sandbox_support.md` | `genai_tk/agents/sandbox/` |
-| `mcp-servers` | Built-in and standalone MCP servers | `docs/mcp-servers.md` | `genai_tk/mcp/` |
+| `mcp-servers` | Built-in and standalone MCP servers | `docs/mcp-servers.md` | `genai_tk/protocols/mcp/` |
 | `cli-and-scaffolding` | CLI commands & `cli init` scaffolding engine | `docs/cli.md`, `docs/scaffolding.md` | `genai_tk/cli/`, `genai_tk/main/` |
 | `cli-chat-interfaces` | Interactive REPL & chat CLI subcommands | `docs/cli.md` | `genai_tk/cli/` |
 | `webapp` | Streamlit multi-page webapp configuration | `docs/webapp.md` | `genai_tk/webapp/`, `config/webapp.yaml` |

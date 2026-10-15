@@ -37,7 +37,6 @@ from genai_tk.agents.langchain.factory import (
     create_langchain_agent,
 )
 from genai_tk.agents.langchain.middleware.empty_response_retry import EmptyResponseRetryMiddleware
-from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
 
 # --------------------------------------------------------------------------- #
 # Test tools (real LangChain @tool functions, used via extra_tools)
@@ -229,43 +228,6 @@ async def test_empty_response_retry_not_duplicated_when_present(fake_llm_id: str
     empties = [m for m in captured["middleware"] if isinstance(m, EmptyResponseRetryMiddleware)]
     assert len(empties) == 1
     assert empties[0]._max_retries == 3
-
-
-async def test_details_flag_propagates_to_rich_middleware(fake_llm_id: str) -> None:
-    profile = _react_profile(
-        llm=fake_llm_id,
-        middlewares=[
-            MiddlewareConfig.model_validate(
-                {"class": "genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware"}
-            ),
-        ],
-    )
-
-    with spy_react_engine() as captured:
-        await create_langchain_agent(profile, details=True)
-
-    richs = [m for m in captured["middleware"] if isinstance(m, RichToolCallMiddleware)]
-    assert len(richs) == 1
-    assert richs[0]._details is True
-    # EmptyResponseRetryMiddleware still prepended ahead of the rich middleware.
-    assert isinstance(captured["middleware"][0], EmptyResponseRetryMiddleware)
-
-
-async def test_rich_middleware_details_off_by_default(fake_llm_id: str) -> None:
-    profile = _react_profile(
-        llm=fake_llm_id,
-        middlewares=[
-            MiddlewareConfig.model_validate(
-                {"class": "genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware"}
-            ),
-        ],
-    )
-
-    with spy_react_engine() as captured:
-        await create_langchain_agent(profile)
-
-    richs = [m for m in captured["middleware"] if isinstance(m, RichToolCallMiddleware)]
-    assert richs and richs[0]._details is False
 
 
 # --------------------------------------------------------------------------- #

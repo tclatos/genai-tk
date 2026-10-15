@@ -32,6 +32,17 @@ class HarnessEvent(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    def to_auip(
+        self,
+        *,
+        session_id: str | None = None,
+        turn_id: str | None = None,
+    ) -> Any:
+        """Convert this harness event into an Agent-User Interaction Protocol (AUIP) event."""
+        from genai_tk.protocols.auip.converters import harness_event_to_auip
+
+        return harness_event_to_auip(self, session_id=session_id, turn_id=turn_id)
+
 
 class TokenEvent(HarnessEvent):
     """Incremental or complete assistant response text."""

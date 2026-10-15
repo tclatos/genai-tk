@@ -11,7 +11,7 @@ except (ImportError, ModuleNotFoundError):
     from mcp.server.fastmcp import FastMCP as MCPServer  # type: ignore[no-redef]
 from pydantic import BaseModel
 
-from genai_tk.mcp.tool_adapter import (
+from genai_tk.protocols.mcp.tool_adapter import (
     _make_mcp_wrapper,
     _params_from_pydantic,
     _safe_name,

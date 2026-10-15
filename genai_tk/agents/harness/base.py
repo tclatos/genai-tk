@@ -90,6 +90,30 @@ class BaseHarness(ABC):
                 raise RuntimeError(event.message)
         return "".join(chunks)
 
+    async def astream_auip(
+        self,
+        message: str,
+        *,
+        thread_id: str | None = None,
+        context: Any | None = None,
+        session_id: str | None = None,
+    ) -> AsyncIterator[Any]:
+        """Stream one conversation turn as normalized Agent-User Interaction Protocol (AUIP) events.
+
+        Args:
+            message: User message text.
+            thread_id: Conversation thread ID.
+            context: Optional user / execution context.
+            session_id: Optional session identifier for AUIP event correlation.
+
+        Yields:
+            Typed AUIP event instances.
+        """
+        from genai_tk.protocols.auip.converters import harness_event_to_auip
+
+        async for event in self.astream(message, thread_id=thread_id, context=context):
+            yield harness_event_to_auip(event, session_id=session_id, turn_id=thread_id)
+
     async def list_threads(self) -> list[HarnessThread]:
         """Return persisted conversation threads, if the harness supports it."""
         return []

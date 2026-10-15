@@ -300,31 +300,23 @@ async def prepare_profile(
 def build_cli_middlewares(
     profile_middlewares: list,
     *,
-    rich_console: object | None = None,
+    rich_console: object | None = None,  # noqa: ARG001
 ) -> list:
-    """Instantiate profile middlewares and prepend RichToolCallMiddleware.
+    """Instantiate profile middlewares for DeerFlow.
 
-    Mirrors the LangChain agent default: every run gets Rich tool-call tracing
-    automatically, regardless of what the profile config lists.
+    Telemetry and execution tracing are captured automatically via NeMo Relay,
+    so presentation middleware is no longer prepended.
 
     Args:
         profile_middlewares: List of :class:`MiddlewareConfig` entries.
-        rich_console: Optional rich console to attach to the
-            :class:`RichToolCallMiddleware`. ``None`` uses a fresh console.
+        rich_console: Optional rich console (deprecated / unused).
 
     Returns:
         List of instantiated middleware objects.
     """
-    from rich.console import Console
-
     from genai_tk.agents.langchain.config import instantiate_middlewares
-    from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
 
-    user_mws = instantiate_middlewares(profile_middlewares, "custom")
-    if not any(isinstance(m, RichToolCallMiddleware) for m in user_mws):
-        console = rich_console if rich_console is not None else Console()
-        user_mws.insert(0, RichToolCallMiddleware(console=console))
-    return user_mws
+    return instantiate_middlewares(profile_middlewares, "custom")
 
 
 def stable_thread_id() -> str:

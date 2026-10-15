@@ -3,7 +3,7 @@
 import tempfile
 from pathlib import Path
 
-from genai_tk.mcp.script_generator import generate_server_script, write_server_script
+from genai_tk.protocols.mcp.script_generator import generate_server_script, write_server_script
 
 
 class TestGenerateServerScript:

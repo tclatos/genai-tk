@@ -30,7 +30,6 @@ langchain_agents:
         - genai_tk.agents.tools.sandbox_browser.factory.create_sandbox_browser_tools
 
       middlewares:
-        - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
         - class: langchain.agents.middleware.summarization.SummarizationMiddleware
           model: haiku@edenai
           trigger:
@@ -86,7 +85,6 @@ langchain_agents:
         - genai_tk.agents.tools.direct_browser.factory.create_direct_browser_tools
 
       middlewares:
-        - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
         - class: langchain.agents.middleware.summarization.SummarizationMiddleware
           model: haiku@edenai
           trigger:

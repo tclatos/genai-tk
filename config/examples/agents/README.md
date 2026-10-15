@@ -26,8 +26,7 @@ not here, since they are runtime config rather than agent profiles.
 ```yaml
 agent_defaults:          # optional, langchain-only inheritance
   type: react
-  middlewares:
-    - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+  middlewares: []
   default_profile: simple
 
 agents:

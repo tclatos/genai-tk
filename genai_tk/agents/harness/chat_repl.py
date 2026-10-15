@@ -16,17 +16,8 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 
-from genai_tk.agents.harness import (
-    ClarificationEvent,
-    EndEvent,
-    ErrorEvent,
-    NodeEvent,
-    ThinkingEvent,
-    TokenEvent,
-    ToolCallEvent,
-    ToolResultEvent,
-)
 from genai_tk.agents.harness.base import BaseHarness
+from genai_tk.protocols.auip.renderers.rich_console import RichAuipRenderer
 
 _DEFAULT_CONSOLE = Console()
 
@@ -62,62 +53,17 @@ async def astream_turn(
         The concatenated assistant token text for the turn.
     """
     console = console or _DEFAULT_CONSOLE
-    parts: list[str] = []
-    status = None
+    renderer = RichAuipRenderer(console=console, show_trace=show_trace, raw=raw)
 
     try:
-        async for event in harness.astream(query, thread_id=thread_id):
+        async for event in harness.astream_auip(query, thread_id=thread_id):
             if json_output:
                 console.print(event.model_dump_json())
                 continue
-            if isinstance(event, TokenEvent):
-                if raw:
-                    console.print(event.text, end="", highlight=False)
-                else:
-                    if status is None and console.is_terminal:
-                        status = console.status("[dim]Generating response...[/dim]")
-                        status.start()
-                parts.append(event.text)
-            elif isinstance(event, ThinkingEvent):
-                if status:
-                    status.stop()
-                    status = None
-                if show_trace:
-                    console.print(event.text, end="", style="dim italic", highlight=False)
-            elif isinstance(event, ToolCallEvent):
-                if status:
-                    status.stop()
-                    status = None
-                console.print(f"\n[tool] {event.tool_name}({event.args})", style="cyan")
-            elif isinstance(event, ToolResultEvent):
-                if status:
-                    status.stop()
-                    status = None
-                content = (event.content or "")[:200]
-                console.print(f"[tool result] {content}", style="cyan")
-            elif isinstance(event, NodeEvent):
-                if show_trace:
-                    console.print(f"→ {event.node}", style="dim")
-            elif isinstance(event, ClarificationEvent):
-                if status:
-                    status.stop()
-                    status = None
-                console.print(f"\n❓ {event.question}", style="yellow")
-                parts.append(event.question)
-            elif isinstance(event, ErrorEvent):
-                if status:
-                    status.stop()
-                    status = None
-                console.print(f"\n[error] {event.message}", style="red")
-            elif isinstance(event, EndEvent):
-                if status:
-                    status.stop()
-                    status = None
+            renderer.render_event(event)
     finally:
-        if status:
-            status.stop()
+        full_text = renderer.finalize()
 
-    full_text = "".join(parts)
     if not json_output:
         if raw:
             if full_text and not full_text.endswith("\n"):

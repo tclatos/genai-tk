@@ -11,8 +11,7 @@ one ``agents:`` top-level dict, optionally with a ``agent_defaults:`` block
 
     agent_defaults:
       type: react
-      middlewares:
-        - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+      middlewares: []
       ...
 
     agents:

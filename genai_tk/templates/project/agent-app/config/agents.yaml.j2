@@ -8,8 +8,7 @@
 agent_defaults:
   type: react
   llm: null  # null = use the global default LLM from config
-  middlewares:
-    - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+  middlewares: []
   checkpointer:
     type: none
   backend:

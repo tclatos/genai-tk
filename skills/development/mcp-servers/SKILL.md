@@ -8,10 +8,10 @@ description: Expose genai-tk tools and agents as MCP servers, generate standalon
 ## Read First
 
 - `docs/mcp-servers.md`
-- `genai_tk/mcp/config.py`
-- `genai_tk/mcp/server_builder.py`
-- `genai_tk/mcp/tool_adapter.py`
-- `genai_tk/mcp/script_generator.py`
+- `genai_tk/protocols/mcp/config.py`
+- `genai_tk/protocols/mcp/server_builder.py`
+- `genai_tk/protocols/mcp/tool_adapter.py`
+- `genai_tk/protocols/mcp/script_generator.py`
 - `config/examples/tk_servers.yaml`
 
 ## Concepts
@@ -20,18 +20,18 @@ description: Expose genai-tk tools and agents as MCP servers, generate standalon
 |---|---|
 | Server definition | `config/examples/tk_servers.yaml` under `mcp_expose_servers` |
 | External server registry | `config/mcp_servers.yaml` under `mcpServers` |
-| Tool factory loading | `genai_tk/mcp/config.py`, `genai_tk/mcp/tool_adapter.py` |
-| Runtime server | `genai_tk/mcp/server_builder.py` |
-| Agent-as-a-tool | `genai_tk/mcp/agent_tool.py` |
-| Standalone script | `genai_tk/mcp/script_generator.py` |
-| CLI | `genai_tk/mcp/cli_commands.py` |
+| Tool factory loading | `genai_tk/protocols/mcp/config.py`, `genai_tk/protocols/mcp/tool_adapter.py` |
+| Runtime server | `genai_tk/protocols/mcp/server_builder.py` |
+| Agent-as-a-tool | `genai_tk/protocols/mcp/agent_tool.py` |
+| Standalone script | `genai_tk/protocols/mcp/script_generator.py` |
+| CLI | `genai_tk/protocols/mcp/cli_commands.py` |
 
 ## Agent Tool (`agent.enabled: true`)
 
 `register_agent_tool()` bundles a server's resolved tools into a single
 `run_<name>` MCP tool, built lazily and **cached** across calls (rebuilding a
 sandbox-backed DeepAgent per call would be expensive). Key behaviors to keep
-in mind when touching `genai_tk/mcp/agent_tool.py`:
+in mind when touching `genai_tk/protocols/mcp/agent_tool.py`:
 
 - `agent.profile` resolves through `create_harness()` — any profile in the
   unified `agents:` dict works (`type: react`/`deep`/`custom` LangChain, or a

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from genai_tk.mcp.config import (
+from genai_tk.protocols.mcp.config import (
     MCPAgentConfig,
     MCPServerDefinition,
     MCPToolConfig,

@@ -36,8 +36,8 @@ def summarize_tool_result(tool_name: str, result_text: str, *, max_chars: int = 
     """Produce a short one-line summary of a tool result.
 
     Smart summaries for known tool types (SQL, planning, file reads);
-    generic truncation for everything else.  Used by both the
-    RichToolCallMiddleware (langchain) and the deerflow event renderer.
+    generic truncation for everything else. Used by the AUIP rich renderer
+    and the deerflow event renderer.
     """
     text = result_text.strip()
 

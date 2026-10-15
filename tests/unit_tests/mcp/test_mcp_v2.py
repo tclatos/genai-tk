@@ -6,9 +6,9 @@ import pytest
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from genai_tk.mcp.config import MCPAgentConfig, MCPServerDefinition
-from genai_tk.mcp.server_builder import build_mcp_server
-from genai_tk.mcp.tool_adapter import register_tools
+from genai_tk.protocols.mcp.config import MCPAgentConfig, MCPServerDefinition
+from genai_tk.protocols.mcp.server_builder import build_mcp_server
+from genai_tk.protocols.mcp.tool_adapter import register_tools
 
 
 class CalculatorInput(BaseModel):

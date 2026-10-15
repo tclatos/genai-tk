@@ -39,7 +39,7 @@ except (ImportError, ModuleNotFoundError):
 from pydantic import BaseModel
 
 from genai_tk.agents.harness.base import BaseHarness
-from genai_tk.mcp.config import MCPAgentConfig
+from genai_tk.protocols.mcp.config import MCPAgentConfig
 
 
 class AgentToolResult(BaseModel):

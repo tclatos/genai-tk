@@ -11,7 +11,6 @@ middleware wrapper is needed.
 from genai_tk.agents.deer_flow.profile import DeerFlowProfile
 from genai_tk.agents.deer_flow.runtime import build_cli_middlewares
 from genai_tk.agents.langchain.middleware import AnonymizationMiddleware, SensitivityRouterMiddleware
-from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
 
 
 def test_deerflow_profile_has_harness_discriminator() -> None:
@@ -62,5 +61,4 @@ def test_build_cli_middlewares_instantiates_shared_middleware(fake_llm_id: str) 
 
     assert any(isinstance(m, AnonymizationMiddleware) for m in middlewares)
     assert any(isinstance(m, SensitivityRouterMiddleware) for m in middlewares)
-    # RichToolCallMiddleware is always prepended for DeerFlow runs, same as LangChain agents.
-    assert any(isinstance(m, RichToolCallMiddleware) for m in middlewares)
+    assert len(middlewares) == 2

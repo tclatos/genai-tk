@@ -54,7 +54,6 @@ def test_unified_loader_applies_langchain_defaults() -> None:
     profile_mw = profiles["simple"].middlewares
     assert profile_mw is not None
     assert len(profile_mw) == len(defaults.middlewares)
-    assert profile_mw[0].class_path.endswith("RichToolCallMiddleware")
     # `research` didn't specify backend/checkpointer; should inherit defaults.
     research = profiles["research"]
     assert isinstance(research, AgentProfileConfig)

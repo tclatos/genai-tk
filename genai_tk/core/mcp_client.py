@@ -38,7 +38,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 
-import genai_tk.mcp.compat  # noqa: F401
+import genai_tk.protocols.mcp.compat  # noqa: F401
 from genai_tk.config_mgmt.config_mngr import get_raw_config, paths_config
 
 load_dotenv()

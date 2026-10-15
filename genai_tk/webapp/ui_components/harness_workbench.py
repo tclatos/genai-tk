@@ -28,6 +28,15 @@ from genai_tk.agents.harness.events import (
     ToolCallEvent,
     ToolResultEvent,
 )
+from genai_tk.protocols.auip.models import (
+    AuipErrorEvent,
+    AuipHitlRequestEvent,
+    AuipPhaseEvent,
+    AuipThinkingEvent,
+    AuipTokenEvent,
+    AuipToolCallEvent,
+    AuipToolResultEvent,
+)
 from genai_tk.webapp.ui_components.message_renderer import render_message_with_mermaid
 
 # ---------------------------------------------------------------------------
@@ -278,49 +287,53 @@ def stream_harness_turn(
     async def _collect() -> None:
         nonlocal current_step, pending_tool
         async for event in harness.astream(user_input, thread_id=thread_id):
-            if isinstance(event, NodeEvent):
-                if (not current_step) or (event.node != current_step.node):
+            if isinstance(event, (NodeEvent, AuipPhaseEvent)):
+                phase_name = getattr(event, "node", None) or getattr(event, "phase", "")
+                if phase_name and ((not current_step) or (phase_name != current_step.node)):
                     _flush_pending()
-                    _get_or_create_step(event.node)
+                    _get_or_create_step(phase_name)
 
-            elif isinstance(event, ToolCallEvent):
-                if event.tool_name:
-                    node = TOOL_TO_NODE.get(event.tool_name, "tools")
+            elif isinstance(event, (ToolCallEvent, AuipToolCallEvent)):
+                tool_name = event.tool_name
+                if tool_name:
+                    node = TOOL_TO_NODE.get(tool_name, "tools")
                     if not current_step or current_step.node != node:
                         _flush_pending()
                         _get_or_create_step(node)
                     else:
                         _flush_pending()
-                    pending_tool = ToolDetail(name=event.tool_name, args=event.args or {})
+                    pending_tool = ToolDetail(name=tool_name, args=event.args or {})
 
-            elif isinstance(event, ClarificationEvent):
+            elif isinstance(event, (ClarificationEvent, AuipHitlRequestEvent)):
                 if not current_step:
                     _get_or_create_step("planner")
                 clarification_text.append(event.question)
                 if response_placeholder is not None:
                     response_placeholder.markdown(event.question + " ▌")
 
-            elif isinstance(event, ToolResultEvent):
-                if pending_tool and event.tool_name == pending_tool.name:
-                    pending_tool.result = event.content or ""
+            elif isinstance(event, (ToolResultEvent, AuipToolResultEvent)):
+                tool_name = event.tool_name
+                content = event.content or ""
+                if pending_tool and tool_name == pending_tool.name:
+                    pending_tool.result = content
                     pending_tool.artifact = extract_tool_artifact(
                         pending_tool.name, pending_tool.args, pending_tool.result
                     )
                     if current_step:
                         current_step.tools.append(pending_tool)
                     pending_tool = None
-                elif event.tool_name:
-                    tool = ToolDetail(name=event.tool_name, result=event.content or "")
+                elif tool_name:
+                    tool = ToolDetail(name=tool_name, result=content)
                     tool.artifact = extract_tool_artifact(tool.name, {}, tool.result)
                     if current_step:
                         current_step.tools.append(tool)
 
-            elif isinstance(event, ThinkingEvent):
+            elif isinstance(event, (ThinkingEvent, AuipThinkingEvent)):
                 # Thinking tokens: do not append to visible final answer text
                 if not current_step:
                     _get_or_create_step("planner")
 
-            elif isinstance(event, TokenEvent):
+            elif isinstance(event, (TokenEvent, AuipTokenEvent)):
                 if not current_step or current_step.node not in ("reporter", "agent"):
                     _flush_pending()
                     _get_or_create_step("reporter")
@@ -328,7 +341,7 @@ def stream_harness_turn(
                 if response_placeholder is not None:
                     response_placeholder.markdown("".join(token_parts) + " ▌")
 
-            elif isinstance(event, ErrorEvent):
+            elif isinstance(event, (ErrorEvent, AuipErrorEvent)):
                 token_parts.append(f"\n\n⚠️ *{event.message}*")
                 if current_step:
                     current_step.tools.append(ToolDetail(name="❌ Error", result=event.message))

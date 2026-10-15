@@ -13,7 +13,7 @@ import pytest
 from langchain_core.language_models.chat_models import BaseChatModel
 from prefect.testing.utilities import prefect_test_harness
 
-import genai_tk.mcp.compat  # noqa: F401
+import genai_tk.protocols.mcp.compat  # noqa: F401
 from genai_tk.config_mgmt.config_mngr import switch_profile
 from genai_tk.config_mgmt.features import is_available
 from genai_tk.config_mgmt.test_config import PytestConfig, get_pytest_config

@@ -54,8 +54,7 @@ class LangchainAgent(BaseModel):
         agent_type: Override the profile's agent type (``"react"`` or ``"deep"``).
         system_prompt: Override the profile's system prompt.
             remembers conversation history across turns.
-        details: When ``True`` the ``RichToolCallMiddleware`` shows full panels
-            for every LLM call and tool call instead of the compact summary.
+        details: When ``True`` enables detailed debug logging for model calls and tool calls.
         sandbox: Sandbox override: ``"docker"`` starts an ``AioSandboxBackend``
             container and promotes the profile to ``deep`` if needed. ``None``
             or ``"local"`` uses the profile's configured backend unchanged.

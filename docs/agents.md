@@ -29,8 +29,7 @@ agent_defaults:
   llm: null                            # null = use default from config
   enable_planning: true                # for deep agents only
   enable_file_system: true             # for deep agents only
-  middlewares:                         # default middleware pipeline
-    - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
+  middlewares: []                      # default middleware pipeline
   checkpointer:
     type: none                         # none | memory | class
   backend:
@@ -66,9 +65,7 @@ agents:
     enable_file_system: true
     tools:
       - spec: filesystem_tools
-    middlewares:
-      - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
-        details: true
+    middlewares: []
       
   # Profile key: "data_analysis"
   data_analysis:
@@ -227,21 +224,23 @@ tools:
 
 ### Middleware Pipeline
 
-Middlewares enhance agent behavior with logging, rate limiting, and output formatting.
+Middlewares enhance agent behavior with rate limiting, PII redaction, and security routing. Tool execution telemetry and console rendering are automatically captured by NeMo Relay and rendered via the Agent-User Interaction Protocol (AUIP) without needing presentation middleware.
 
 ```yaml
 middlewares:
-  - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
-    details: true                    # Show detailed output
+  - class: genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware
+    analyzed_fields: ["PERSON", "EMAIL_ADDRESS"]
   - class: deepagents.middleware.summarization.SummarizationMiddleware
     model: gpt-35-turbo@openai
     trigger: ["tokens", 4000]        # Summarize after 4000 tokens
 ```
 
 **Built-in Middlewares:**
-- `RichToolCallMiddleware` - Pretty-print tool calls with Rich
+- `AnonymizationMiddleware` - PII masking with Presidio
+- `SensitivityRouterMiddleware` - Route sensitive queries to private models
 - `ToolCallLimitMiddleware` - Limit tool calls per thread
 - `SummarizationMiddleware` - Summarize long conversations
+- `RichToolCallMiddleware` - *(Deprecated)* Replaced by NeMo Relay + AUIP rendering
 
 ### Checkpointing
 

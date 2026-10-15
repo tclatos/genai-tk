@@ -43,9 +43,9 @@ class MiddlewareConfig(BaseModel):
     plus any additional kwargs passed to the constructor.
     ```yaml
     middlewares:
-      - class: genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware
-      - class: genai_tk.agents.langchain.middleware.rich_middleware.ToolCallLimitMiddleware
-        thread_limit: 20
+      - class: genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware
+      - class: genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware
+        max_retries: 2
     ```
     """
 
@@ -71,9 +71,6 @@ _MIDDLEWARE_REGISTRY: dict[str, dict[str, Any]] = {
         "class": "genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware",
         "analyzed_fields": ["PERSON", "EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD", "LOCATION"],
         "fuzzy_deanonymize": True,
-    },
-    "RichToolCallMiddleware": {
-        "class": "genai_tk.agents.langchain.middleware.rich_middleware.RichToolCallMiddleware",
     },
     "EmptyResponseRetryMiddleware": {
         "class": "genai_tk.agents.langchain.middleware.empty_response_retry.EmptyResponseRetryMiddleware",

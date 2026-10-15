@@ -31,7 +31,7 @@ _CONFIG_PATH: str | None = {{ config_path_repr }}
 
 def main() -> None:
     """Entry-point: build and serve the '{{ server_name }}' MCP server."""
-    from genai_tk.mcp.server_builder import serve
+    from genai_tk.protocols.mcp.server_builder import serve
 
     serve(
         name={{ server_name | tojson }},

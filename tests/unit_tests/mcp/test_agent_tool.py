@@ -23,8 +23,8 @@ except (ImportError, ModuleNotFoundError):
     from mcp.server.fastmcp import FastMCP as MCPServer  # type: ignore[no-redef]
 
 from genai_tk.agents.harness.base import BaseHarness
-from genai_tk.mcp.agent_tool import AgentToolResult, register_agent_tool
-from genai_tk.mcp.config import MCPAgentConfig
+from genai_tk.protocols.mcp.agent_tool import AgentToolResult, register_agent_tool
+from genai_tk.protocols.mcp.config import MCPAgentConfig
 
 pytestmark = pytest.mark.unit
 
@@ -54,7 +54,7 @@ async def test_invoke_agent_uses_fresh_isolated_thread_id_per_call() -> None:
     cfg = MCPAgentConfig(name="run_test", profile="test-profile")
     server, captured = _fake_server()
 
-    with patch("genai_tk.mcp.agent_tool._build_harness", new=AsyncMock(return_value=fake_harness)):
+    with patch("genai_tk.protocols.mcp.agent_tool._build_harness", new=AsyncMock(return_value=fake_harness)):
         register_agent_tool(server, cfg)
         invoke = captured["fn"]
 
@@ -75,7 +75,7 @@ async def test_invoke_agent_reuses_explicit_thread_id() -> None:
     cfg = MCPAgentConfig(name="run_test", profile="test-profile")
     server, captured = _fake_server()
 
-    with patch("genai_tk.mcp.agent_tool._build_harness", new=AsyncMock(return_value=fake_harness)):
+    with patch("genai_tk.protocols.mcp.agent_tool._build_harness", new=AsyncMock(return_value=fake_harness)):
         register_agent_tool(server, cfg)
         invoke = captured["fn"]
 
@@ -92,7 +92,7 @@ async def test_invoke_agent_returns_structured_text_result() -> None:
     cfg = MCPAgentConfig(name="run_test", profile="test-profile")
     server, captured = _fake_server()
 
-    with patch("genai_tk.mcp.agent_tool._build_harness", new=AsyncMock(return_value=fake_harness)):
+    with patch("genai_tk.protocols.mcp.agent_tool._build_harness", new=AsyncMock(return_value=fake_harness)):
         register_agent_tool(server, cfg)
         result = await captured["fn"]("what is the answer?")
 
@@ -107,7 +107,7 @@ async def test_invoke_agent_captures_run_failure_as_structured_error() -> None:
     cfg = MCPAgentConfig(name="run_test", profile="test-profile")
     server, captured = _fake_server()
 
-    with patch("genai_tk.mcp.agent_tool._build_harness", new=AsyncMock(return_value=fake_harness)):
+    with patch("genai_tk.protocols.mcp.agent_tool._build_harness", new=AsyncMock(return_value=fake_harness)):
         register_agent_tool(server, cfg)
         result = await captured["fn"]("trigger failure")
 
@@ -123,7 +123,7 @@ async def test_invoke_agent_caches_harness_across_calls() -> None:
     cfg = MCPAgentConfig(name="run_test", profile="test-profile")
     server, captured = _fake_server()
 
-    with patch("genai_tk.mcp.agent_tool._build_harness", new=build_mock):
+    with patch("genai_tk.protocols.mcp.agent_tool._build_harness", new=build_mock):
         register_agent_tool(server, cfg)
         invoke = captured["fn"]
         await invoke("first")
@@ -133,7 +133,7 @@ async def test_invoke_agent_caches_harness_across_calls() -> None:
 
 
 async def test_build_harness_with_profile_delegates_to_create_harness() -> None:
-    from genai_tk.mcp.agent_tool import _build_harness
+    from genai_tk.protocols.mcp.agent_tool import _build_harness
 
     fake_harness = MagicMock(spec=BaseHarness)
     cfg = MCPAgentConfig(name="run_test", profile="Research", llm="gpt_41mini@openai")
@@ -152,7 +152,7 @@ async def test_build_harness_with_profile_delegates_to_create_harness() -> None:
 
 
 async def test_build_harness_without_profile_builds_adhoc_react_harness() -> None:
-    from genai_tk.mcp.agent_tool import _build_harness
+    from genai_tk.protocols.mcp.agent_tool import _build_harness
 
     cfg = MCPAgentConfig(name="run_adhoc", profile=None, llm="parrot_local@fake")
     extra_tools = [_fake_tool]

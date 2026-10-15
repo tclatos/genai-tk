@@ -44,7 +44,7 @@ class McpCommands(CliTopCommand):
             host: str,
             port: int,
         ) -> None:
-            from genai_tk.mcp.server_builder import serve as _serve
+            from genai_tk.protocols.mcp.server_builder import serve as _serve
 
             try:
                 _serve(name=name, config_path=config, transport=transport, host=host, port=port)
@@ -127,7 +127,7 @@ class McpCommands(CliTopCommand):
             from rich.console import Console
             from rich.table import Table
 
-            from genai_tk.mcp.server_builder import list_servers as _list
+            from genai_tk.protocols.mcp.server_builder import list_servers as _list
 
             console = Console()
 
@@ -178,7 +178,7 @@ class McpCommands(CliTopCommand):
             """
             from rich.console import Console
 
-            from genai_tk.mcp.script_generator import write_server_script
+            from genai_tk.protocols.mcp.script_generator import write_server_script
 
             console = Console()
             try:

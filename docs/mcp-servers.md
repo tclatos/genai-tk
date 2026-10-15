@@ -1,6 +1,6 @@
 # Exposing genai-tk Assets as MCP Servers (MCP 2.0)
 
-The `genai_tk.mcp` package lets you expose LangChain tools, Python callables, and agents as
+The `genai_tk.protocols.mcp` package (with backward-compatible alias `genai_tk.mcp`) lets you expose LangChain tools, Python callables, and agents as
 [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) 2.0 servers using
 only a YAML configuration file — no extra Python boilerplate required.
 

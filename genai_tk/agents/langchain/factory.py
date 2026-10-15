@@ -56,7 +56,7 @@ async def create_langchain_agent(
         extra_mcp_servers: Additional MCP server names appended to profile servers.
         force_memory_checkpointer: When True, always use ``MemorySaver`` even if the
             profile specifies ``checkpointer.type: none``. Use for ``--chat`` mode.
-        details: When True, enable verbose output in ``RichToolCallMiddleware``.
+        details: When True, enable verbose debug output.
 
     Returns:
         A compiled LangGraph agent (``CompiledStateGraph`` or ``Pregel``).
@@ -83,7 +83,7 @@ async def create_langchain_agent(
     if all_mcp_servers:
         from langchain_mcp_adapters.client import MultiServerMCPClient
 
-        import genai_tk.mcp.compat  # noqa: F401
+        import genai_tk.protocols.mcp.compat  # noqa: F401
 
         mcp_servers_dict = get_mcp_servers_dict(all_mcp_servers)
         if mcp_servers_dict:
@@ -106,17 +106,8 @@ async def create_langchain_agent(
     middleware_cfgs = profile.middlewares or []
     middlewares = instantiate_middlewares(middleware_cfgs, profile.type)
 
-    # Propagate --details flag to RichToolCallMiddleware instances
-    if details:
-        from genai_tk.agents.langchain.middleware.rich_middleware import RichToolCallMiddleware
-
-        for mw in middlewares:
-            if isinstance(mw, RichToolCallMiddleware):
-                mw._details = True
-
     # Always prepend the empty-response retry guard so reasoning models that
     # produce thinking tokens but no visible output are retried automatically.
-    # Inserted at position 0 (outermost) so it wraps before RichToolCallMiddleware.
     from genai_tk.agents.langchain.middleware.empty_response_retry import EmptyResponseRetryMiddleware  # noqa: PLC0415
 
     if not any(isinstance(mw, EmptyResponseRetryMiddleware) for mw in middlewares):

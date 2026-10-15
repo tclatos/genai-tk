@@ -32,9 +32,9 @@ try:
 except (ImportError, ModuleNotFoundError):
     from mcp.server.fastmcp import FastMCP as MCPServer  # type: ignore[no-redef]
 
-from genai_tk.mcp.agent_tool import register_agent_tool
-from genai_tk.mcp.config import MCPServerDefinition, get_mcp_server_definition, load_mcp_server_definitions
-from genai_tk.mcp.tool_adapter import register_tools, resolve_tools_from_config
+from genai_tk.protocols.mcp.agent_tool import register_agent_tool
+from genai_tk.protocols.mcp.config import MCPServerDefinition, get_mcp_server_definition, load_mcp_server_definitions
+from genai_tk.protocols.mcp.tool_adapter import register_tools, resolve_tools_from_config
 
 
 def build_mcp_server(definition: MCPServerDefinition) -> MCPServer:

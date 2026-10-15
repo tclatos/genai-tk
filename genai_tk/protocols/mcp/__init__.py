@@ -16,4 +16,4 @@ Example:
     ```
 """
 
-import genai_tk.mcp.compat  # noqa: F401
+import genai_tk.protocols.mcp.compat  # noqa: F401

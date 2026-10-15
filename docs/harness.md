@@ -163,16 +163,16 @@ can be added later without changing the command surface. See
 
 ## Middleware Is Shared, Not Adapted
 
-DeerFlow's embedded client already forwards LangChain `AgentMiddleware`
-instances to the upstream `DeerFlowClient` (used today for
-`RichToolCallMiddleware`). Because of this, `AnonymizationMiddleware` and
+DeerFlow's embedded client forwards LangChain `AgentMiddleware` instances to
+the upstream `DeerFlowClient`. Because of this, `AnonymizationMiddleware` and
 `SensitivityRouterMiddleware` run **unmodified** in DeerFlow profiles — no
 harness-neutral middleware vocabulary (`ModelIoMiddleware`,
-`ToolPolicyMiddleware`, etc.) is needed. `DeerFlowProfile.middlewares` uses the
-exact same `class` + kwargs shape as LangChain profiles and is instantiated
-through the same `instantiate_middlewares()` factory (which also resolves any
-`model`/`safe_llm` kwarg via `LlmFactory`). See
-[middleware-pii-and-routing.md](middleware-pii-and-routing.md#cross-harness-usage-deerflow).
+`ToolPolicyMiddleware`, etc.) is needed. Meanwhile, execution telemetry and
+tool tracing are captured across all harnesses by NeMo Relay and rendered via
+the Agent-User Interaction Protocol (AUIP), retiring presentation-only middlewares.
+`DeerFlowProfile.middlewares` uses the exact same `class` + kwargs shape as
+LangChain profiles and is instantiated through the same `instantiate_middlewares()`
+factory. See [Design 10: Agent-User Interaction Protocol (AUIP)](design/10_agent_user_interaction_protocol.md).
 
 ## Streamlit Workbench
 
