@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from rich.markup import escape
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -300,13 +301,17 @@ class TrajectoryTuiApp(App[None]):
                 tout = usage.get("completion_tokens") or 0
                 tok_str = f" [dim]({tin}/{tout})[/]" if (tin or tout) else ""
 
-                turn_label = f"Turn {turn.index}: [blue]llm[/] [bold]{m_short}[/]{tok_str}"
+                agent_str = f" [magenta]\\[sub-agent: {escape(lc.agent)}][/]" if lc.agent else ""
+                turn_label = f"Turn {turn.index}: [blue]llm[/] [bold]{m_short}[/]{tok_str}{agent_str}"
                 turn_node = tree.root.add(
                     turn_label, data={"type": "turn", "turn": turn, "llm": lc, "tooltip": _turn_tooltip(lc)}
                 )
 
                 for tc in turn.tool_calls:
-                    tool_label = f"🛠️ [magenta]tool[/] [bold]{tc.name}[/]"
+                    tool_agent = (
+                        f" [magenta]\\[sub-agent: {escape(tc.agent)}][/]" if tc.agent and tc.agent != lc.agent else ""
+                    )
+                    tool_label = f"🛠️ [magenta]tool[/] [bold]{tc.name}[/]{tool_agent}"
                     turn_node.add(tool_label, data={"type": "tool", "tool": tc, "tooltip": _tool_tooltip(tc)})
 
                 for sl in turn.skill_loads:
@@ -314,8 +319,9 @@ class TrajectoryTuiApp(App[None]):
                     turn_node.add(skill_label, data={"type": "skill", "skill": sl, "tooltip": _skill_tooltip(sl)})
             else:
                 for tc in turn.tool_calls:
+                    tool_agent = f" [magenta]\\[sub-agent: {escape(tc.agent)}][/]" if tc.agent else ""
                     tree.root.add(
-                        f"🛠️ [magenta]tool[/] [bold]{tc.name}[/]",
+                        f"🛠️ [magenta]tool[/] [bold]{tc.name}[/]{tool_agent}",
                         data={"type": "tool", "tool": tc, "tooltip": _tool_tooltip(tc)},
                     )
                 for sl in turn.skill_loads:

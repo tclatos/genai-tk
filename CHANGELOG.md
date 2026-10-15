@@ -5,6 +5,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ## [Unreleased]
 
+### Changed
+
+- **Sub-agent labelling in trajectories**: `cli trajectory show` and `cli trajectory tui` now tag LLM and tool activity performed by a deep-agent sub-agent with its name. The trajectory model records the owning agent per call (`LlmCall.agent`, `ToolCall.agent`), resolved from the ATOF scope hierarchy.
+
 ### Fixed
 
 - **Per-document tolerance in markdownize batches**: In [genai_tk/workflow/markdownize/flow.py](genai_tk/workflow/markdownize/flow.py), batch fan-in now collects results per future through `_collect_results`. A failing document is logged and skipped instead of aborting the whole markdownize bucket and discarding its successful outputs.

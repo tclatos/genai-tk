@@ -66,6 +66,7 @@ class LlmCall(BaseModel):
     message: str | None
     started_at: str
     ended_at: str | None
+    agent: str | None = None
 
 
 class ToolCall(BaseModel):
@@ -78,6 +79,7 @@ class ToolCall(BaseModel):
     tool_call_id: str | None
     started_at: str
     ended_at: str | None
+    agent: str | None = None
 
 
 class SkillLoad(BaseModel):
@@ -424,6 +426,8 @@ class TrajectoryStore:
                 if isinstance(uuid, str):
                     starts[uuid] = e
 
+        agent_names = _agent_scope_names(events)
+
         llm_calls: list[LlmCall] = []
         tool_calls: list[ToolCall] = []
         skill_loads: list[SkillLoad] = []
@@ -463,6 +467,7 @@ class TrajectoryStore:
                             message=msg if isinstance(msg, str) else None,
                             started_at=str(start.get("timestamp") or ts),
                             ended_at=ts,
+                            agent=_owning_agent(start, starts, agent_names),
                         )
                     )
                 elif cat == "tool":
@@ -486,6 +491,7 @@ class TrajectoryStore:
                             tool_call_id=tool_call_id if isinstance(tool_call_id, str) else None,
                             started_at=str(start.get("timestamp") or ts),
                             ended_at=ts,
+                            agent=_owning_agent(start, starts, agent_names),
                         )
                     )
 
@@ -755,6 +761,40 @@ def _openai_tool_calls(tool_calls: list[dict[str, Any]]) -> list[dict[str, Any]]
             }
         )
     return out
+
+
+def _agent_scope_names(events: list[dict[str, Any]]) -> dict[str, str]:
+    """Map agent scope uuids to their names, including the root agent."""
+    names: dict[str, str] = {}
+    for e in events:
+        if e.get("kind") == "scope" and e.get("scope_category") == "start" and e.get("category") == "agent":
+            uuid = e.get("uuid")
+            if isinstance(uuid, str):
+                names[uuid] = str(e.get("name") or "")
+    return names
+
+
+def _owning_agent(start: dict[str, Any], starts: dict[str, dict[str, Any]], agent_names: dict[str, str]) -> str | None:
+    """Return the sub-agent name owning a call, or None when called by the root agent.
+
+    Walks the parent chain from the call upwards. The root agent scope is parented outside the run (on the run id),
+    while a sub-agent scope is parented on another agent scope of the same run.
+    """
+    seen: set[str] = set()
+    parent = start.get("parent_uuid")
+    while isinstance(parent, str) and parent not in seen:
+        seen.add(parent)
+        if parent in agent_names:
+            parent_start = starts.get(parent)
+            grand_parent = parent_start.get("parent_uuid") if parent_start is not None else None
+            if not isinstance(grand_parent, str) or grand_parent == parent or grand_parent not in agent_names:
+                return None
+            return agent_names[parent]
+        parent_start = starts.get(parent)
+        if parent_start is None:
+            return None
+        parent = parent_start.get("parent_uuid")
+    return None
 
 
 def _stringify(value: Any) -> str | None:

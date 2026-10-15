@@ -28,6 +28,7 @@ from typing import Annotated, Any
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 from rich.tree import Tree as RichTree
 
@@ -431,6 +432,11 @@ def _format_args_summary(tool_name: str, args: dict[str, Any]) -> str:
     return _snip(", ".join(parts), 70)
 
 
+def _agent_tag(agent: str | None) -> str:
+    """Return a Rich label marking work done by a sub-agent, or an empty string for the root agent."""
+    return f" [magenta]\\[sub-agent: {escape(agent)}][/magenta]" if agent else ""
+
+
 def _print_tree(console: Console, traj: Any) -> None:
     """Render a trajectory as an intertwined scope timeline tree."""
     from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore, short_model_name
@@ -467,6 +473,7 @@ def _print_tree(console: Console, traj: Any) -> None:
             tok_info = f" [dim]({tok_in} in / {tok_out} out)[/dim]" if (tok_in or tok_out) else ""
 
             turn_label = f"Turn {turn.index}: [blue]llm[/blue] [bold]{model_short}[/bold]{tok_info}"
+            turn_label += _agent_tag(lc.agent)
             step_node = root_node.add(turn_label)
 
             if lc.message:
@@ -478,6 +485,8 @@ def _print_tree(console: Console, traj: Any) -> None:
             for tc in turn.tool_calls:
                 args_str = _format_args_summary(tc.name, tc.args)
                 tool_label = f"[magenta]tool[/magenta] [bold]{tc.name}[/bold]({args_str})"
+                if tc.agent != lc.agent:
+                    tool_label += _agent_tag(tc.agent)
                 tool_node = step_node.add(tool_label)
                 if tc.result:
                     tool_node.add(f"[dim]result:[/dim] {_snip(tc.result, 100)}")
@@ -490,7 +499,9 @@ def _print_tree(console: Console, traj: Any) -> None:
             # Standalone tools/skills without an LLM call
             for tc in turn.tool_calls:
                 args_str = _format_args_summary(tc.name, tc.args)
-                tool_node = root_node.add(f"[magenta]tool[/magenta] [bold]{tc.name}[/bold]({args_str})")
+                tool_node = root_node.add(
+                    f"[magenta]tool[/magenta] [bold]{tc.name}[/bold]({args_str}){_agent_tag(tc.agent)}"
+                )
                 if tc.result:
                     tool_node.add(f"[dim]result:[/dim] {_snip(tc.result, 100)}")
             for sl in turn.skill_loads:

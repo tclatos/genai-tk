@@ -419,3 +419,79 @@ def test_trajectory_turns_intertwined(store: TrajectoryStore) -> None:
     assert turns[1].llm_call.message == "The echo result is echo:hello."
     assert len(turns[1].tool_calls) == 0
     assert turns[1].is_final is True
+
+
+_SUB = "01SUB00000-0000-0000-0000-000000000003"
+_SUB_LLM = "01SUBLLM000-0000-0000-0000-000000000004"
+_SUB_TOOL = "01SUBTOOL00-0000-0000-0000-000000000005"
+_TASK = "01TASK0000-0000-0000-0000-000000000006"
+
+
+_RUN_ID_PARENT = "01RUNID0000-0000-0000-0000-000000000099"
+
+
+def _sub_agent_events(root_parent: str) -> list[dict[str, Any]]:
+    """Root agent delegating to a sub-agent through a ``task`` tool call.
+
+    The root's parent is either itself or a run id that is not an event uuid, as produced by the relay.
+    """
+    return [
+        _scope(_ROOT, root_parent, "agent", "start", "rfq-analyst", ts="2026-08-21T12:00:00Z", data={"messages": "q"}),
+        _scope(_TASK, _ROOT, "tool", "start", "task", ts="2026-08-21T12:00:01Z", data={"subagent_type": "pricing"}),
+        _scope(_SUB, _ROOT, "agent", "start", "pricing", ts="2026-08-21T12:00:01Z"),
+        _scope(_SUB_LLM, _SUB, "llm", "start", "gpt-oss-120b", ts="2026-08-21T12:00:01Z"),
+        _scope(
+            _SUB_LLM,
+            _SUB,
+            "llm",
+            "end",
+            "gpt-oss-120b",
+            ts="2026-08-21T12:00:02Z",
+            category_profile={
+                "model_name": "gpt-oss-120b",
+                "annotated_response": {
+                    "model": "gpt-oss-120b",
+                    "message": "",
+                    "tool_calls": [{"name": "match_rfq_analyst", "arguments": {}, "id": "tc-sub"}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                },
+            },
+        ),
+        _scope(_SUB_TOOL, _SUB, "tool", "start", "match_rfq_analyst", ts="2026-08-21T12:00:02Z", data={}),
+        _scope(
+            _SUB_TOOL,
+            _SUB,
+            "tool",
+            "end",
+            "match_rfq_analyst",
+            ts="2026-08-21T12:00:03Z",
+            data={
+                "__nv_pydantic__": "langchain_core.messages.tool.ToolMessage",
+                "data": {"content": "ok", "name": "match_rfq_analyst", "tool_call_id": "tc-sub", "status": "success"},
+            },
+        ),
+        _scope(_SUB, _ROOT, "agent", "end", "pricing", ts="2026-08-21T12:00:04Z"),
+        _scope(
+            _TASK,
+            _ROOT,
+            "tool",
+            "end",
+            "task",
+            ts="2026-08-21T12:00:04Z",
+            data={
+                "__nv_pydantic__": "langchain_core.messages.tool.ToolMessage",
+                "data": {"content": "done", "name": "task", "tool_call_id": "tc-task", "status": "success"},
+            },
+        ),
+        _scope(_ROOT, root_parent, "agent", "end", "rfq-analyst", ts="2026-08-21T12:00:05Z"),
+    ]
+
+
+@pytest.mark.parametrize("root_parent", [_ROOT, _RUN_ID_PARENT], ids=["self-parented", "run-id-parented"])
+def test_sub_agent_calls_are_attributed_to_sub_agent(tmp_path: Path, root_parent: str) -> None:
+    _write_run(tmp_path, _ROOT, _sub_agent_events(root_parent), {**_sample_meta(), "n_scopes": 9, "n_llm_calls": 1})
+    traj = TrajectoryStore(root=tmp_path).get(_ROOT)
+    assert traj is not None
+    assert traj.llm_calls[0].agent == "pricing"
+    assert [t.agent for t in traj.tool_calls if t.name == "match_rfq_analyst"] == ["pricing"]
+    assert [t.agent for t in traj.tool_calls if t.name == "task"] == [None]

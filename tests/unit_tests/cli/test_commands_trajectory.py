@@ -3,14 +3,23 @@
 from __future__ import annotations
 
 import json
+from io import StringIO
 from pathlib import Path
 
 import pytest
 import typer
+from rich.console import Console
 from typer.testing import CliRunner
 
-from genai_tk.cli.commands_trajectory import TrajectoryCommands
+from genai_tk.cli.commands_trajectory import TrajectoryCommands, _print_tree
 from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore
+from tests.unit_tests.utils.test_trajectory_store import (
+    _ROOT,
+    _RUN_ID_PARENT,
+    _sample_meta,
+    _sub_agent_events,
+    _write_run,
+)
 
 
 @pytest.fixture
@@ -161,3 +170,17 @@ class TestTrajectorySkillsAndStats:
     def test_prune_requires_args(self, trajectory_app, runner, populated_store) -> None:
         result = runner.invoke(trajectory_app, ["trajectory", "prune"])
         assert result.exit_code == 1
+
+
+class TestSubAgentRendering:
+    def test_tree_marks_sub_agent_turns(self, tmp_path: Path) -> None:
+        _write_run(tmp_path, _ROOT, _sub_agent_events(_RUN_ID_PARENT), _sample_meta())
+        traj = TrajectoryStore(root=tmp_path).get(_ROOT)
+        assert traj is not None
+
+        buffer = StringIO()
+        _print_tree(Console(file=buffer, width=200, force_terminal=False, color_system=None), traj)
+        output = buffer.getvalue()
+
+        assert output.count("[sub-agent: pricing]") == 1
+        assert "[sub-agent: None]" not in output
