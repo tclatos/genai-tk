@@ -741,21 +741,13 @@ class InfoCommands(CliTopCommand):
             console = Console()
 
             if reload:
-                console.print("[cyan]Reloading model catalogues…[/cyan]")
+                console.print("[cyan]Reloading models.dev catalogue…[/cyan]")
                 get_models_db.invalidate()  # type: ignore[attr-defined]
                 models_db = get_models_db()
                 models_db.fetch()
-                edenai_updated = models_db.fetch_edenai()
-                edenai_eur_updated = models_db.fetch_edenai(provider_id="edenai-eur")
                 get_models_db.invalidate()  # type: ignore[attr-defined]  # reload from freshly saved file
                 get_models_db()
                 console.print("[green]✓ models.dev database updated.[/green]")
-                if edenai_updated:
-                    console.print("[green]✓ EdenAI model catalogue updated.[/green]")
-                else:
-                    console.print("[dim]EdenAI model catalogue skipped (EDENAI_API_KEY is not set).[/dim]")
-                if edenai_eur_updated:
-                    console.print("[green]✓ EdenAI Europe model catalogue updated.[/green]")
 
             if model_id is None:
                 return

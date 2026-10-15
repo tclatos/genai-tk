@@ -53,7 +53,7 @@ from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, SecretStr, compu
 
 from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.core.cache import CacheMethod, LlmCache
-from genai_tk.core.models_db import EDENAI_CATALOGUES, ModelEntry, get_models_db
+from genai_tk.core.models_db import ModelEntry, get_models_db
 from genai_tk.core.providers import (
     PROVIDER_INFO,
     ProviderInfo,
@@ -234,58 +234,38 @@ def resolve_model(compact_alias: str, provider_id: str) -> "tuple[str, ModelEntr
     """
     db = get_models_db()
     provider_info = PROVIDER_INFO.get(provider_id)
+    lookup_provider = "edenai" if provider_id == "edenai-eur" else provider_id
+    models = db.provider_models(lookup_provider)
 
-    if provider_id in EDENAI_CATALOGUES:
-        models = db.provider_models(provider_id)
-        candidates = list(models.keys())
-        if not candidates:
-            raise ValueError(
-                f"Provider '{provider_id}' has no cached model catalogue. "
-                "Set EDENAI_API_KEY and run 'cli info llm-profile --reload'."
-            )
-        matches = _edenai_fuzzy_match(compact_alias, candidates, n=len(candidates))
-        if matches:
-            best_name, _ = matches[0]
-            return best_name, models.get(best_name), matches
-        top3 = [candidate for candidate, _ in _edenai_fuzzy_match(compact_alias, candidates, n=3, cutoff=0)]
-        raise ValueError(f"No model matching '{compact_alias}' for provider '{provider_id}'. Closest: {top3}")
-
-    if provider_info and provider_info.gateway:
-        # Use openrouter catalogue which covers most vendors in vendor/model format.
+    if not models and provider_info and provider_info.gateway:
+        # Gateway without its own catalogue in models.dev (e.g. github) — fallback to openrouter
         models = db.provider_models("openrouter")
-        candidates = list(models.keys())
-        matches = _fuzzy_match(compact_alias, candidates)
-        if matches:
-            best_name, _ = matches[0]
-            return best_name, models.get(best_name), matches
-        top3 = [c for c, _ in _fuzzy_match(compact_alias, candidates, n=3, cutoff=0)][:3]
-        raise ValueError(f"No model matching '{compact_alias}' for gateway provider '{provider_id}'. Closest: {top3}")
 
-    elif provider_info:
-        models = db.provider_models(provider_id)
-        if not models:
-            # Provider not in models.dev — fall back to searching openrouter with vendor prefix
-            models = {k: v for k, v in db.provider_models("openrouter").items() if k.startswith(f"{provider_id}/")}
-        candidates = list(models.keys())
-        if not candidates:
-            raise ValueError(
-                f"Provider '{provider_id}' has no entries in the models.dev database. "
-                "Add the model explicitly to llm.yaml as an exception."
-            )
-        matches = (
-            _edenai_fuzzy_match(compact_alias, candidates, n=len(candidates))
-            if provider_id == "edenai"
-            else _fuzzy_match(compact_alias, candidates)
+    if not models and provider_info:
+        # Provider not in models.dev — fall back to searching openrouter with vendor prefix
+        models = {k: v for k, v in db.provider_models("openrouter").items() if k.startswith(f"{lookup_provider}/")}
+
+    if not models:
+        if not provider_info:
+            raise ValueError(f"Unknown provider '{provider_id}'.")
+        raise ValueError(
+            f"Provider '{provider_id}' has no entries in the models.dev database. "
+            "Add the model explicitly to llm.yaml as an exception."
         )
-        if matches:
-            best_name, _ = matches[0]
-            return best_name, models.get(best_name), matches
-        matcher = _edenai_fuzzy_match if provider_id == "edenai" else _fuzzy_match
-        top3 = [c for c, _ in matcher(compact_alias, candidates, n=3, cutoff=0)][:3]
-        raise ValueError(f"No model matching '{compact_alias}' for provider '{provider_id}'. Closest: {top3}")
 
-    else:
-        raise ValueError(f"Unknown provider '{provider_id}'.")
+    candidates = list(models.keys())
+    matcher = _edenai_fuzzy_match if lookup_provider == "edenai" else _fuzzy_match
+    matches = (
+        matcher(compact_alias, candidates, n=len(candidates))
+        if matcher is _edenai_fuzzy_match
+        else matcher(compact_alias, candidates)
+    )
+    if matches:
+        best_name, _ = matches[0]
+        return best_name, models.get(best_name), matches
+
+    top3 = [c for c, _ in matcher(compact_alias, candidates, n=3, cutoff=0)][:3]
+    raise ValueError(f"No model matching '{compact_alias}' for provider '{provider_id}'. Closest: {top3}")
 
 
 def lookup_model_entry(model_name: str, provider: str) -> ModelEntry | None:

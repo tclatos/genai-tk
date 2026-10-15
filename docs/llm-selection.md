@@ -224,35 +224,29 @@ The file is stored at `data/models_dev.json` relative to the project root.
 
 ### EdenAI catalogue
 
-EdenAI models are fetched from authenticated `/v3/models` endpoints and cached
-beside the models.dev catalogue. `edenai` uses `https://api.edenai.run/v3/models`
-and `data/edenai_models.json`; `edenai-eur` uses
-`https://api.eu.edenai.run/v3/models` and `data/edenai_eur_models.json`. Both
-requests use `EDENAI_API_KEY`. The European catalogue contains only models eligible
-for EU inference and is maintained separately from the global catalogue.
+EdenAI is natively supported as a provider in [models.dev](https://models.dev/providers/edenai/).
+All EdenAI models, metadata (input/output modalities, reasoning, function calling, structured output,
+context limits, token pricing), and inference backends are cached directly in the `models.dev`
+database (`data/models_dev.json`). No separate authenticated API calls or auxiliary cache files
+are required.
 
-EdenAI metadata is normalized into the same model profile used for models.dev. This
-includes input and output modalities, reasoning, function calling, structured output,
-context length, and token pricing. The `llm-profile` command derives `vision`, `pdf`,
-`audio`, and `video` from the model's advertised input modalities. A capability is shown
-only when EdenAI reports it for the selected inference route.
+`cli info llm-profile --reload` refreshes `data/models_dev.json`, which automatically updates
+the EdenAI model catalogue along with all other providers.
 
-EdenAI can expose one model through several inference backends. Fuzzy resolution
-groups all backends for the selected model before similar model versions, so
+EdenAI can expose one model through several inference backends (e.g. `deepinfra/nemotron...`, `openai/gpt-4o...`).
+Fuzzy resolution groups all backends for the selected model before similar model versions, so
 `glm-5.2@edenai` shows each available GLM-5.2 route before GLM-5.1 alternatives.
-An explicit backend suffix, such as `glm-5.2-cloudflare@edenai`, selects that
-backend first. The CLI displays at most 20 fuzzy-resolution candidates.
+An explicit backend suffix, such as `glm-5.2-cloudflare@edenai`, selects that backend first.
+The CLI displays fuzzy-resolution candidates ranked by relevance.
 
-Use `@edenai-eur` to resolve and call only EU-eligible routes. For example,
-`glm-5.2-scaleway@edenai-eur` resolves against the European catalogue and sends
-the request to EdenAI's European endpoint. The provider suffix controls this
-selection:
+The European endpoint `@edenai-eur` uses the same unified model definitions from `models.dev`
+while routing inference requests to EdenAI's European endpoint (`https://api.eu.edenai.run/v3/llm`):
 
 ```bash
-# Global EdenAI catalogue and endpoint
+# Global EdenAI endpoint
 cli core llm -i "Tell me a joke" -m glm-5.2-scaleway@edenai
 
-# EU-filtered EdenAI catalogue and European inference endpoint
+# European EdenAI inference endpoint
 cli core llm -i "Tell me a joke" -m glm-5.2-scaleway@edenai-eur
 ```
 

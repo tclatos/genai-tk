@@ -113,42 +113,35 @@ class TestLlmProfileCommand:
     def test_llm_profile_resolves_edenai_models(self, info_app, runner, model_id, selected_route) -> None:
         """EdenAI profiles show every route for the selected model before GLM-5.1."""
         db = ModelsDb()
-        db._build_index({})
-        db._merge_edenai_models(
-            "edenai",
+        db._build_index(
             {
-                "data": [
-                    {
-                        "id": "scaleway/glm-5.2",
-                        "capabilities": {"supports_reasoning": True, "supports_response_schema": True},
-                        "regions": [{"code": "eu", "name": "Europe"}],
+                "edenai": {
+                    "name": "Eden AI",
+                    "models": {
+                        "scaleway/glm-5.2": {
+                            "id": "scaleway/glm-5.2",
+                            "name": "GLM-5.2 (Scaleway)",
+                            "reasoning": True,
+                            "structured_output": True,
+                            "regions": [{"code": "eu", "name": "Europe"}],
+                        },
+                        "nebius/zai-org/GLM-5.2": {
+                            "id": "nebius/zai-org/GLM-5.2",
+                            "name": "GLM-5.2 (Nebius)",
+                            "regions": [{"code": "us", "name": "United States"}],
+                        },
+                        "cloudflare/@cf/zai-org/glm-5.2": {
+                            "id": "cloudflare/@cf/zai-org/glm-5.2",
+                            "name": "GLM-5.2 (Cloudflare)",
+                            "regions": [{"code": "global", "name": "Global"}],
+                        },
+                        "scaleway/glm-5.1": {
+                            "id": "scaleway/glm-5.1",
+                            "name": "GLM-5.1 (Scaleway)",
+                        },
                     },
-                    {
-                        "id": "nebius/zai-org/GLM-5.2",
-                        "capabilities": {},
-                        "regions": [{"code": "us", "name": "United States"}],
-                    },
-                    {
-                        "id": "cloudflare/@cf/zai-org/glm-5.2",
-                        "capabilities": {},
-                        "regions": [{"code": "global", "name": "Global"}],
-                    },
-                    {"id": "scaleway/glm-5.1", "capabilities": {}},
-                ]
-            },
-        )
-        db._merge_edenai_models(
-            "edenai-eur",
-            {
-                "data": [
-                    {
-                        "id": "scaleway/glm-5.2",
-                        "capabilities": {"supports_reasoning": True},
-                        "regions": [{"code": "eu", "name": "Europe"}],
-                    },
-                    {"id": "qwen/glm-5.2", "capabilities": {}},
-                ]
-            },
+                }
+            }
         )
 
         with (
@@ -160,13 +153,9 @@ class TestLlmProfileCommand:
 
         assert result.exit_code == 0
         assert selected_route in result.stdout
-        if model_id.endswith("@edenai-eur"):
-            assert "qwen/glm-5.2" in result.stdout
-            assert "nebius/zai-org/GLM-5.2" not in result.stdout
-        else:
-            assert result.stdout.index("scaleway/glm-5.2") < result.stdout.index("scaleway/glm-5.1")
-            assert result.stdout.index("nebius/zai-org/GLM-5.2") < result.stdout.index("scaleway/glm-5.1")
-            assert result.stdout.index("cloudflare/@cf/zai-org/glm-5.2") < result.stdout.index("scaleway/glm-5.1")
+        assert result.stdout.index("scaleway/glm-5.2") < result.stdout.index("scaleway/glm-5.1")
+        assert result.stdout.index("nebius/zai-org/GLM-5.2") < result.stdout.index("scaleway/glm-5.1")
+        assert result.stdout.index("cloudflare/@cf/zai-org/glm-5.2") < result.stdout.index("scaleway/glm-5.1")
         if model_id == "glm-5.2-cloudflare@edenai":
             assert "Low-confidence resolution" not in result.stdout
 

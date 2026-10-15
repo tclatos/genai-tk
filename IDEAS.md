@@ -1,7 +1,6 @@
 
-# Replace RichToolCallMiddleware with Relay
+# Replace RichToolCallMiddleware with Relay  -> study
 
-# Remove special case for Eden model catalog : they are now in model.dev
 
 
 # LoCoMo Bechnmark 

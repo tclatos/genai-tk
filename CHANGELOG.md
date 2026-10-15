@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Changed
 
+- **Native EdenAI support in models.dev and simplified catalog handling**: Since Eden.ai is now officially supported in [models.dev](https://models.dev/providers/edenai/), removed the custom EdenAI `/v3/models` scraping, authenticated downloads, and dedicated cache files (`edenai_models.json`, `edenai_eur_models.json`) in [genai_tk/core/models_db.py](genai_tk/core/models_db.py). `cli info llm-profile --reload` in [genai_tk/cli/commands_info.py](genai_tk/cli/commands_info.py) now performs a single unified download of `models.dev`, and [genai_tk/core/factories/llm_factory.py](genai_tk/core/factories/llm_factory.py) resolves `@edenai` and `@edenai-eur` directly from `models.dev` without special-case branches or API key requirements.
 - **Deep-agent artifacts no longer pollute the project root**: filesystem backends are now wrapped in a `CompositeBackend` whose artifacts root is `data/generated/`, so DeepAgents' offloaded `large_tool_results/` land in a gitignored folder instead of the project root.
 - **Sub-agent labelling in trajectories**: `cli trajectory show` and `cli trajectory tui` now tag LLM and tool activity performed by a deep-agent sub-agent with its name. The trajectory model records the owning agent per call (`LlmCall.agent`, `ToolCall.agent`), resolved from the ATOF scope hierarchy.
 
