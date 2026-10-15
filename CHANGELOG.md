@@ -13,11 +13,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Fixed
 
+- **Git repository ingestion no longer drops its clones**: The output-directory exclusion added for markdownize sources (which skips `.cache` content) also swallowed git clones, because [genai_tk/workflow/prefect/flows/git_repo_flow.py](genai_tk/workflow/prefect/flows/git_repo_flow.py) stored them in `<md_output_dir>/.cache`. The `git_repo` flow now keeps its clone cache in a sibling `.cache` directory next to the output, so repositories are ingested again and the `test_git_repo_flow_e2e` CI failure is resolved.
 - **Per-document tolerance in markdownize batches**: In [genai_tk/workflow/markdownize/flow.py](genai_tk/workflow/markdownize/flow.py), batch fan-in now collects results per future through `_collect_results`. A failing document is logged and skipped instead of aborting the whole markdownize bucket and discarding its successful outputs.
 - **Document Ingestion Output Filtering & Self-Copy Prevention**: In [genai_tk/workflow/markdownize/flow.py](genai_tk/workflow/markdownize/flow.py) and [genai_tk/workflow/routing/dispatcher.py](genai_tk/workflow/routing/dispatcher.py), excluded files residing inside the target Markdown output directory (`md_output_dir`) when resolving input sources, preventing recursive self-processing, `.cache` ingestion, and `SameFileError` when copying Markdown files onto themselves in `_copy_file_task`.- **Fast-Failing Converter Dependency Validation**: Added `check_dependencies()` to `DocumentConverter` and implemented fail-fast dependency verification in `ConverterFactory.validate_converter()` and `markdownize_flow`, raising clean `ImportError` without chaining internal `ModuleNotFoundError` frames or launching dozens of doomed worker tasks with long tracebacks.
 - **Environment Variable Fallback**: Added automatic `~/.env` fallback loading in `OmegaConfig.create` and `cli.main` so user-level API credentials (e.g. OpenRouter) are automatically loaded even when invoking CLI commands directly outside of `just`.
 
 ### Added
+
+#### Observability, Telemetry & Agent Frontends
+- **Architectural Study on NeMo Relay & Agent-User Interaction Protocol (AUIP)**: Published [docs/studies/agent_user_interaction_protocol_and_relay.md](docs/studies/agent_user_interaction_protocol_and_relay.md) evaluating the retirement of `RichToolCallMiddleware`. The study proposes using NeMo Relay as a cross-harness lifecycle and telemetry bus feeding a standardized, bidirectional Agent-User Interaction Protocol (AUIP). This decouples execution loops from display and drives multimodal client adapters across Console CLI, Terminal TUI, Streamlit, and remote web applications (SSE / WebSockets).
 
 #### Skills & Document Authoring
 - **Quarto Authoring Community Skill**: Integrated official Posit Quarto authoring skill (`quarto-authoring`) in `skills/community/quarto/`, providing agent guidelines and syntax patterns for `.qmd` authoring, cross-references, callout blocks, table formatting, and multi-format publishing.

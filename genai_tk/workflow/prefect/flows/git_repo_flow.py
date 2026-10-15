@@ -101,7 +101,8 @@ def git_repo_flow(
 
     output_root = Path(resolve_config_path(md_output_dir))
     output_root.mkdir(parents=True, exist_ok=True)
-    cache_root = output_root / ".cache"
+    # Clones are kept outside md_output_dir so markdownize does not treat them as ignored output cache.
+    cache_root = output_root.parent / ".cache" / output_root.name
     cache_root.mkdir(parents=True, exist_ok=True)
 
     force = stage_active(force_stage, ForceStage.md) or stage_active(force_stage, ForceStage.all)

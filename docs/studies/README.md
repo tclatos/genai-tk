@@ -10,6 +10,7 @@ This directory contains research studies, comparative evaluations of external fr
 
 | Study / Report | Topic | Key Finding / Focus |
 |---|---|---|
+| [agent_user_interaction_protocol_and_relay.md](agent_user_interaction_protocol_and_relay.md) | **NeMo Relay & Agent-User Interaction Protocol (AUIP)** | Retiring `RichToolCallMiddleware`, unifying telemetry with NeMo Relay, and driving multimodal frontends (Console, TUI, Streamlit, Web) via AUIP |
 | [copilot_studio_integration.md](copilot_studio_integration.md) | **Microsoft Copilot Studio Integration** | Architecture for exposing LangChain/DeepAgent bots via Microsoft 365 Agents SDK |
 | [cloud_agent_architectures_ms_aws_gcp.md](cloud_agent_architectures_ms_aws_gcp.md) | **Cloud Enterprise Architectures** | Reference patterns for Graph Navigation, Code Sandboxing, and Multi-Agent Orchestration across Azure, AWS, and GCP |
 | [azure_foundry_hosted_agents.md](azure_foundry_hosted_agents.md) | **Azure Foundry Viability** | Technical assessment of Microsoft Azure AI Foundry hosted agents and SDK trade-offs |

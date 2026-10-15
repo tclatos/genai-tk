@@ -1,5 +1,10 @@
 
-# Replace RichToolCallMiddleware with Relay  -> study
+# Replace RichToolCallMiddleware with Relay & AUIP
+See comprehensive architectural study: [docs/studies/agent_user_interaction_protocol_and_relay.md](docs/studies/agent_user_interaction_protocol_and_relay.md).
+- Retire `RichToolCallMiddleware` (LangChain-only, terminal stdout coupling, duplicate rendering hazard).
+- Connect NeMo Relay scopes and marks to a formalized Agent-User Interaction Protocol (AUIP).
+- Drive multimodal frontends: Console CLI (`cli agents run`), Terminal TUI (`cli agents tui`), Streamlit workbench, and remote web apps (SSE / WebSockets).
+
 
 
 
