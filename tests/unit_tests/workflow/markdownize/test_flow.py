@@ -19,6 +19,7 @@ from genai_tk.workflow.markdownize.flow import (
     MarkdownizeManifest,
     MarkdownizeManifestEntry,
     _chunked,
+    _collect_results,
     _convert_file_task,
     markdownize_flow,
 )
@@ -73,6 +74,31 @@ def test_chunked_splits_into_batches() -> None:
 
 def test_chunked_zero_size_returns_single_batch() -> None:
     assert list(_chunked([1, 2, 3], 0)) == [[1, 2, 3]]
+
+
+class _StubFuture:
+    def __init__(self, value: tuple[str, str] | None = None, error: Exception | None = None) -> None:
+        self._value = value
+        self._error = error
+
+    def result(self) -> tuple[str, str]:
+        if self._error is not None:
+            raise self._error
+        assert self._value is not None
+        return self._value
+
+
+def test_collect_results_skips_failed_futures() -> None:
+    futures = [
+        _StubFuture(value=("a.pdf", "a.md")),
+        _StubFuture(error=RuntimeError("Docling could not parse")),
+        _StubFuture(value=("c.docx", "c.md")),
+    ]
+    assert _collect_results(futures) == [("a.pdf", "a.md"), ("c.docx", "c.md")]
+
+
+def test_collect_results_all_failed_returns_empty() -> None:
+    assert _collect_results([_StubFuture(error=ValueError("boom"))]) == []
 
 
 def test_chunked_empty() -> None:

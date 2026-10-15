@@ -43,6 +43,17 @@ def _libreoffice_task(src: str, pdf_root: str, root_dir: str) -> tuple[str, str]
     return src, str(pdf)
 
 
+def _collect_results(futures: list) -> list[tuple[str, str]]:
+    """Gather task results, logging and skipping individual failures so one bad file cannot drop the batch."""
+    collected: list[tuple[str, str]] = []
+    for future in futures:
+        try:
+            collected.append(future.result())
+        except Exception as exc:
+            logger.error("Conversion failed for one file, skipping it: {}", exc)
+    return collected
+
+
 @task(log_prints=False)
 def _convert_file_task(
     original_src: str,
@@ -197,7 +208,11 @@ def markdownize_flow(
         for batch in _chunked(via_pdf_files, batch_size):
             futures = [_libreoffice_task.submit(str(fi.path), str(pdf_root), str(fi.root)) for fi in batch]
             for future in futures:
-                src, pdf = future.result()  # type: ignore[misc]
+                try:
+                    src, pdf = future.result()  # type: ignore[misc]
+                except Exception as exc:
+                    logger.error("LibreOffice conversion failed for one file, skipping it: {}", exc)
+                    continue
                 pdf_source[src] = pdf
 
     # 2. Convert PDFs (intermediate via_pdf or native)
@@ -253,7 +268,7 @@ def markdownize_flow(
                     futures.append(
                         _convert_file_task.submit(str(fi.path), pdf, pdf_converter_name, str(out_abs), str(rel_out))
                     )
-                results.extend(f.result() for f in futures)  # type: ignore[misc]
+                results.extend(_collect_results(futures))
 
     # 3. Direct conversions for all other non-PDF, non-via_pdf, non-copy files
     pdf_processed_sources = {str(fi.path) for fi, _ in pdf_items}
@@ -270,7 +285,7 @@ def markdownize_flow(
             futures.append(
                 _convert_file_task.submit(str(fi.path), str(fi.path), converter_name, str(out_abs), str(rel_out))
             )
-        results.extend(f.result() for f in futures)  # type: ignore[misc]
+        results.extend(_collect_results(futures))
 
     # 4. Copy pre-existing Markdown files
     copy_files = [fi for fi in to_process if routes[str(fi.path)] == "copy"]
@@ -279,7 +294,7 @@ def markdownize_flow(
         for fi in batch:
             rel_out, out_abs = _output_paths(fi.path, fi.root, output_upath, route="copy")
             futures.append(_copy_file_task.submit(str(fi.path), str(out_abs), str(rel_out)))
-        results.extend(f.result() for f in futures)  # type: ignore[misc]
+        results.extend(_collect_results(futures))
 
     # Record manifest
     for source_path, relative_output_path in results:
