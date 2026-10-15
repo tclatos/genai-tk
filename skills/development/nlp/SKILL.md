@@ -46,7 +46,8 @@ genai_tk/extra/nlp/
 uv sync --extra nlp
 ```
 
-Installs: `spacy`, `en_core_web_md`, `presidio-analyzer`, `presidio-anonymizer`.
+Installs: `spacy`, `presidio-analyzer`, `presidio-anonymizer`.
+The spaCy model (e.g. `en_core_web_md`) is not pinned in the extra (it is hosted on GitHub, which breaks `uv` on restricted networks). It is downloaded on first use by `SpaCyModelManager`, or manually with `uv run python -m spacy download en_core_web_md`.
 
 ## Configuration
 

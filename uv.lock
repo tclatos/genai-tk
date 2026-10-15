@@ -2091,14 +2091,6 @@ wheels = [
 ]
 
 [[package]]
-name = "en-core-web-md"
-version = "3.8.0"
-source = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl" }
-wheels = [
-    { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl", hash = "sha256:5e6329fe3fecedb1d1a02c3ea2172ee0fede6cea6e4aefb6a02d832dba78a310" },
-]
-
-[[package]]
 name = "et-xmlfile"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2499,7 +2491,6 @@ all = [
     { name = "deerflow-harness", extra = ["tui"] },
     { name = "docling" },
     { name = "easyocr" },
-    { name = "en-core-web-md" },
     { name = "langchain-chroma" },
     { name = "langchain-huggingface" },
     { name = "langchain-postgres" },
@@ -2542,7 +2533,6 @@ monitoring = [
     { name = "opentelemetry-sdk" },
 ]
 nlp = [
-    { name = "en-core-web-md" },
     { name = "langchain-huggingface" },
     { name = "presidio-analyzer" },
     { name = "presidio-anonymizer" },
@@ -2594,7 +2584,6 @@ requires-dist = [
     { name = "devtools", specifier = ">=0.12.2" },
     { name = "docling", marker = "extra == 'docling'", specifier = ">=2.130" },
     { name = "easyocr", marker = "extra == 'docling'", specifier = ">=1.7" },
-    { name = "en-core-web-md", marker = "extra == 'nlp'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_md-3.8.0/en_core_web_md-3.8.0-py3-none-any.whl" },
     { name = "fastembed", specifier = ">=0.8.0" },
     { name = "fuzzysearch", specifier = ">=0.8.0" },
     { name = "genai-tk", extras = ["harnessing", "browser", "nlp", "postgres", "streamlit", "baml", "chromadb", "docling"], marker = "extra == 'all'" },

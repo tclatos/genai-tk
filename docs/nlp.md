@@ -16,7 +16,11 @@ uv sync --extra nlp
 uv add "genai-tk[nlp]"
 ```
 
-This installs spaCy, English model (`en_core_web_md`), and Presidio.
+This installs spaCy and Presidio. The spaCy language model (e.g. `en_core_web_md`) is not part of the extra, because it is hosted on GitHub and `uv` fails on networks that cannot reach it. It is downloaded automatically the first time it is needed (via `SpaCyModelManager`), or you can fetch it up front:
+
+```bash
+uv run python -m spacy download en_core_web_md
+```
 
 ---
 
