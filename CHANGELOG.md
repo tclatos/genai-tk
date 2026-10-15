@@ -7,6 +7,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Changed
 
+- **Deep-agent artifacts no longer pollute the project root**: filesystem backends are now wrapped in a `CompositeBackend` whose artifacts root is `data/generated/`, so DeepAgents' offloaded `large_tool_results/` land in a gitignored folder instead of the project root.
 - **Sub-agent labelling in trajectories**: `cli trajectory show` and `cli trajectory tui` now tag LLM and tool activity performed by a deep-agent sub-agent with its name. The trajectory model records the owning agent per call (`LlmCall.agent`, `ToolCall.agent`), resolved from the ATOF scope hierarchy.
 
 ### Fixed

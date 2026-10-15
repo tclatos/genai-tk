@@ -274,8 +274,8 @@ async def _create_deep_agent(
     from pathlib import Path  # noqa: PLC0415
 
     from deepagents import create_deep_agent
-    from deepagents.backends.filesystem import FilesystemBackend
 
+    from genai_tk.agents.langchain.config import filesystem_backend_with_artifacts
     from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
 
     skill_dirs = _resolve_skill_dirs(profile.skill_directories)
@@ -286,7 +286,7 @@ async def _create_deep_agent(
         from genai_tk.config_mgmt.config_mngr import paths_config
 
         project_root = paths_config().project
-        backend = FilesystemBackend(root_dir=project_root, virtual_mode=True)
+        backend = filesystem_backend_with_artifacts(str(project_root))
 
     # For AioSandboxBackend: volumes were already mounted before container start
     # (done in create_langchain_agent).  Just compute the container paths.
@@ -295,7 +295,7 @@ async def _create_deep_agent(
         relative_skills = [f"/mnt/skills/{Path(d).name}" for d in skill_dirs]
     elif skill_dirs and backend is not None:
         # FilesystemBackend: convert to backend-relative paths
-        backend_root = str(getattr(backend, "cwd", ""))
+        backend_root = str(getattr(getattr(backend, "default", backend), "cwd", ""))
         relative_skills = []
         for d in skill_dirs:
             rel = __import__("os").path.relpath(d, backend_root)

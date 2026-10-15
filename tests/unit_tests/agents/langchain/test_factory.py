@@ -423,10 +423,13 @@ async def test_deep_agent_with_skills_creates_filesystem_backend(fake_llm_id: st
     with spy_deep_engine() as captured:
         agent = await create_langchain_agent(profile, force_memory_checkpointer=True)
 
+    from deepagents.backends.composite import CompositeBackend
     from deepagents.backends.filesystem import FilesystemBackend
 
-    assert isinstance(agent._backend, FilesystemBackend)
-    assert isinstance(captured["backend"], FilesystemBackend)
+    assert isinstance(agent._backend, CompositeBackend)
+    assert isinstance(agent._backend.default, FilesystemBackend)
+    assert isinstance(captured["backend"], CompositeBackend)
+    assert captured["backend"].artifacts_root == "/data/generated"
     # Skills are passed through as backend-relative paths.
     assert captured["skills"] is not None
     assert len(captured["skills"]) == 1

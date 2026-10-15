@@ -388,6 +388,21 @@ def instantiate_middlewares(
 # ============================================================================
 
 
+ARTIFACTS_ROOT = "/data/generated"
+
+
+def filesystem_backend_with_artifacts(root_dir: str) -> "BackendProtocol":
+    """Return a filesystem backend that offloads DeepAgents artifacts under `data/generated/`."""
+    from deepagents.backends.composite import CompositeBackend
+    from deepagents.backends.filesystem import FilesystemBackend
+
+    return CompositeBackend(
+        default=FilesystemBackend(root_dir=root_dir, virtual_mode=True),
+        routes={},
+        artifacts_root=ARTIFACTS_ROOT,
+    )
+
+
 def _resolve_interpolation(value: str) -> str:
     """Resolve OmegaConf ``${…}`` interpolations in a single string value."""
     if "${" not in value:
@@ -418,10 +433,8 @@ async def instantiate_backend(config: BackendConfig | None) -> BackendProtocol |
         return None
 
     if config.type == "filesystem":
-        from deepagents.backends.filesystem import FilesystemBackend
-
         root = _resolve_interpolation(config.root_dir) if config.root_dir else "."
-        return FilesystemBackend(root_dir=root, virtual_mode=True)
+        return filesystem_backend_with_artifacts(root)
 
     if config.type == "class":
         if not config.class_path:
