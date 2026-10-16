@@ -19,6 +19,8 @@ Downstream projects (e.g. genai-blueprint) can embed these pages alongside
 their own pages using the `genai_tk://` reference prefix described below,
 so the agent UIs stay maintained in one place.
 
+> **Alternative web UI:** agents can also be served over the AG-UI protocol with `cli auip serve` and used from the standalone React client [auip-client](https://github.com/tclatos/auip-client) — see [Design 10](design/10_agent_user_interaction_protocol.md).
+
 ---
 
 ## Installation

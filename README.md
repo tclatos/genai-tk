@@ -37,7 +37,15 @@ flowchart TD
         SANDBOX["OpenSandbox Docker & Playwright Browser"]
     end
 
-    subgraph Observability["4. Evaluation & Observability"]
+    subgraph Frontends["4. Frontends & Protocols"]
+        CLIUI["Rich CLI chat (cli agents run)"]
+        STUI["Streamlit webapp (just webapp)"]
+        AUIP["AUIP / AG-UI server (cli auip serve)"]
+        WEBC["auip-client (React + assistant-ui)"]
+        MCPS["MCP server & client"]
+    end
+
+    subgraph Observability["5. Evaluation & Observability"]
         BENCH["Unified Benchmark Framework (cli bench)"]
         TRAJ["Trajectory Store (ATOF / NeMo Relay / TUI)"]
         MON["LangFuse OTLP, LangSmith, OTel Tracing"]
@@ -48,6 +56,8 @@ flowchart TD
     Core --> Agentic
     Orchestration --> BENCH
     Agentic --> BENCH
+    Agentic --> Frontends
+    AUIP --> WEBC
     Agentic --> Observability
 ```
 
@@ -91,10 +101,12 @@ Three agent frameworks (ReAct, DeepAgents, DeerFlow) sharing YAML profiles, LLM 
 - **DeerFlow** — native web research, multi-agent orchestration (LangGraph / ByteDance)
 - **Shared harness layer** — one `BaseHarness` interface and event model across LangChain and DeerFlow; `cli agents run` works seamlessly across both
 - **4-Tier Skills system** — progressive disclosure of domain knowledge via `SKILL.md` files; managed with `cli skills`
+- **Two web UIs** — a built-in **Streamlit** webapp (`just webapp`) and a standalone **React** client served through the **AUIP / AG-UI** gateway; both render the same harness events (see [Web UIs](#web-uis-streamlit-and-auip--ag-ui))
 - **AUIP / AG-UI server** — `cli auip serve` exposes any agent profile over the standard [AG-UI protocol](https://github.com/ag-ui-protocol/ag-ui) (SSE) for web UIs such as [auip-client](https://github.com/tclatos/auip-client); needs `uv sync --extra harnessing`. See [Design 10](docs/design/10_agent_user_interaction_protocol.md)
 - **Docker sandbox & browser control** — isolated code execution and Playwright automation
 - **MCP servers** — Model Context Protocol tool integrations
-- See: `cli agents`, [docs/agents.md](docs/agents.md), [AGENTS.md](AGENTS.md)
+- **MCP** — consume MCP servers as tools, or expose agents as MCP servers (`cli mcpserver`)
+- See: `cli agents`, `cli auip`, [docs/agents.md](docs/agents.md), [AGENTS.md](AGENTS.md)
 
 ### ⚙️ **Workflows & Document Processing**
 Orchestrate multi-step AI pipelines with Prefect and a YAML DSL for composable, reproducible workflows.
@@ -380,9 +392,21 @@ See [docs/cli.md](docs/cli.md) for the full command reference.
 
 ---
 
-## First steps — Web UI
+## Web UIs: Streamlit and AUIP / AG-UI
 
-Test agents interactively without code:
+genai-tk supports **two web UIs** for talking to agents. Both are driven by the same shared harness event model
+([Design 05](docs/design/05_agent_harness_and_middleware.md)) and the Agent-User Interaction Protocol
+([Design 10](docs/design/10_agent_user_interaction_protocol.md)), so every agent profile (ReAct, Deep, DeerFlow) works in either.
+
+| | Streamlit webapp | AUIP / AG-UI + web client |
+|---|---|---|
+| Start | `just webapp` → http://localhost:8501 | `uv run cli auip serve` (API on http://127.0.0.1:8000) + [auip-client](https://github.com/tclatos/auip-client) (`npm run dev`) |
+| Runs in | Python process (Streamlit) | Standalone FastAPI server + React 19 / Vite / assistant-ui front-end |
+| Best for | Quick testing, trace + artifact inspection, embedding pages in Python apps | Custom/production front-ends, any [AG-UI](https://github.com/ag-ui-protocol/ag-ui)-compatible client |
+| Features | 2-panel trace + chat, artifacts, profile picker | Token streaming, reasoning blocks, tool-call badges, profile selector, error display |
+| Docs | [docs/webapp.md](docs/webapp.md) | [Design 10](docs/design/10_agent_user_interaction_protocol.md), skill `agent-user-interaction-protocol` |
+
+### Streamlit webapp
 
 ```bash
 just webapp          # launches Streamlit on http://localhost:8501
@@ -408,6 +432,24 @@ ui:
 
 See [docs/webapp.md](docs/webapp.md) for configuration, cross-package navigation,
 custom pages, and running from a new project via `cli init --name "My Project"`.
+
+### AUIP / AG-UI server and web client
+
+```bash
+uv sync --extra harnessing                    # deep agents / DeerFlow need this extra
+uv run cli auip serve --profile research      # default profile; --port to change
+uv run cli auip info                          # show endpoints and settings
+```
+
+The server (settings in `config/auip.yaml`) exposes:
+
+- `POST /agent` — standard AG-UI SSE endpoint (`?profile=<key>` selects the agent profile)
+- `POST /api/v1/auip/stream` — canonical AUIP SSE endpoint
+- `GET /profiles` — agent profiles for UI selectors; `GET /health` — liveness
+
+Then start the companion client from the [auip-client](https://github.com/tclatos/auip-client) repository
+(`npm install && npm run dev`) and chat with any profile. If the chat stays empty, check the server log:
+the usual cause is a missing optional extra, and run errors are also displayed in the chat.
 
 ---
 
@@ -827,6 +869,9 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | Copilot Agent support | `cli init` | — | [docs/scaffolding.md](docs/scaffolding.md) |
 | CLI extension | — | `CliTopCommand` | [docs/cli.md](docs/cli.md) |
 | Streamlit webapp | `just webapp` | `genai_tk.webapp` | [docs/webapp.md](docs/webapp.md) |
+| AUIP / AG-UI server (web client) | `cli auip serve` | `harness_events_to_ag_ui()` | [Design 10](docs/design/10_agent_user_interaction_protocol.md) |
+| Trajectories (ATOF / TUI) | `cli trajectory` | `TrajectoryStore` | [docs/trajectory.md](docs/trajectory.md) |
+| Benchmarks | `cli bench` | — | [docs/benchmark_framework.md](docs/benchmark_framework.md) |
 | Testing | `cli test` | pytest | [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md) |
 | Browser automation | — | `browser_use` tools | [docs/browser_control.md](docs/browser_control.md) |
 
@@ -847,22 +892,34 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 
 ```
 genai_tk/
-├── core/          # LLM factory, embeddings, vector stores, cache, MCP client
-│   └── vector_backends/  # Chroma, InMemory, PgVector (+ Postgres connection mgmt)
+├── core/            # LLM factory, embeddings, cache, prompts, MCP client, models.dev catalog
+│   ├── providers/         # chat / embeddings provider registry (IoC)
+│   ├── decision_models/   # fast System 1 decision models (Clef, Laya, Jev, ...)
+│   ├── retrievers/        # retriever factory (BM25, hybrid, rerankers)
+│   └── vector_backends/   # Chroma, InMemory, PgVector, ZVec
 ├── agents/
-│   ├── harness/   # Shared BaseHarness + event model across LangChain and DeerFlow
-│   ├── langchain/ # Unified ReAct / Deep / Custom agents + middleware
-│   └── deer_flow/ # DeerFlow embedded client + CLI
-├── workflow/      # ETL orchestration: Prefect flows, RAG, loaders, retrievers
-│   ├── prefect/   # run helpers + flows/ (markdownize, office2pdf, rag, baml)
-│   ├── rag/       # chunkers, RAG CLI commands
-│   ├── loaders/   # Markdown loader, Mistral OCR loader
-│   └── retrievers/ # BM25, ZeroEntropy
-├── extra/         # Non-pipeline tooling: document converters (genai_tk.extra.markdownize), agent graphs, NLP (spaCy/Presidio/classifiers), BAML, image analysis
-├── tools/         # LangChain tool sets
-├── utils/         # Config manager, Pydantic helpers, LangGraph utilities
-└── main/          # CLI entry point + command modules
+│   ├── harness/     # BaseHarness, event model, registry, chat REPL (LangChain + DeerFlow adapters)
+│   ├── langchain/   # ReAct / Deep / custom agents, factory, middleware
+│   ├── deer_flow/   # DeerFlow embedded client
+│   ├── sandbox/     # OpenSandbox Docker backend + `cli sandbox`
+│   └── tools/       # LangChain tools, Python executor, browser (direct + sandbox)
+├── protocols/
+│   ├── auip/        # Agent-User Interaction Protocol: events, NeMo Relay bridge, AG-UI bridge + FastAPI server, renderers
+│   └── mcp/         # MCP server builder, agent-as-tool, adapters
+├── workflow/        # YAML workflow engine, Prefect flows, routing/dispatcher, markdownize, RAG, loaders
+├── webapp/          # Streamlit app: pages, UI components (harness workbench)
+├── extra/           # NLP (spaCy/Presidio), BAML structured extraction, monitoring, markdownize converters, image analysis, KV store
+├── config_mgmt/     # OmegaConf config manager, profiles, optional-feature checks
+├── cli/             # CLI base classes + core / info / monitoring / skills / trajectory commands
+├── main/            # CLI entry point, `cli init` scaffolder, skills manager
+├── skills/          # Bundled SKILL.md tiers (runtime, development, governance, vendor, community, custom)
+├── templates/       # Project scaffolding templates
+├── default_config/  # Default YAML config shipped with the package (incl. auip.yaml)
+└── utils/           # Logging, Pydantic helpers, tracing, Streamlit and LangGraph utilities
 ```
+
+Companion projects: [genai-graph](../genai-graph/README.md) (knowledge graphs) and
+[auip-client](https://github.com/tclatos/auip-client) (React web client for the AUIP / AG-UI server).
 
 ---
 

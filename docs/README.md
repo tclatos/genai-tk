@@ -107,6 +107,7 @@ flowchart TD
 | [design/07_workflow_engine_and_prefect.md](design/07_workflow_engine_and_prefect.md) | **Design 07: Workflows & Prefect-YAML** | Declarative YAML workflows, `prefect-yaml`, route tables, ingest dispatch |
 | [design/08_document_processing_pipeline.md](design/08_document_processing_pipeline.md) | **Design 08: Document Processing** | Converter ladder (Docling, Mistral, MarkItDown), table preservation, BAML |
 | [design/09_observability_and_trajectories.md](design/09_observability_and_trajectories.md) | **Design 09: Observability & Trajectories** | NeMo Relay OTLP to Langfuse, ATOF `TrajectoryStore`, terminal TUI |
+| [design/10_agent_user_interaction_protocol.md](design/10_agent_user_interaction_protocol.md) | **Design 10: AUIP & Multimodal Frontends** | AUIP events, NeMo Relay bridge, AG-UI server (`cli auip serve`), Rich/Streamlit/web clients |
 | [studies/README.md](studies/README.md) | **Research Studies (Unimplemented)** | Surveys and comparative evaluations (Azure Foundry, Cloud Architectures, NemoClaw) |
 | [SKILLS.md](SKILLS.md) | **Skills Guide** | 4-tier skills architecture (`runtime`, `development`, `governance`, `vendor`) |
 
