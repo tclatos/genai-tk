@@ -66,6 +66,7 @@ For a didactic, deep-dive understanding of the internal architecture and design 
 7. **[Design 07: Workflow Engine & Prefect-YAML Integration](docs/design/07_workflow_engine_and_prefect.md)** — Declarative YAML workflow DSL, standalone `prefect-yaml` engine, DAG dependencies, and rule-selected ingestion routing.
 8. **[Design 08: Document Processing Pipeline & Markdownization](docs/design/08_document_processing_pipeline.md)** — Converter ladder (Docling, Mistral OCR, MarkItDown), table preservation and splitting for RAG, BAML structured extraction.
 9. **[Design 09: Observability, Trajectories & Evaluation Architecture](docs/design/09_observability_and_trajectories.md)** — NeMo Relay OTLP telemetry to Langfuse, Agent Trajectory Observability Format (ATOF), terminal TUI explorer (`cli trajectory`), and Decision Model evaluators.
+10. **[Design 10: Agent-User Interaction Protocol (AUIP) & Multimodal Frontends](docs/design/10_agent_user_interaction_protocol.md)** — Decoupling agent execution from presentation: normalized AUIP events, NeMo Relay bridge, Rich/Streamlit renderers, and the standard AG-UI FastAPI gateway (`cli auip serve`) used by web clients.
 
 ---
 
@@ -90,6 +91,7 @@ Three agent frameworks (ReAct, DeepAgents, DeerFlow) sharing YAML profiles, LLM 
 - **DeerFlow** — native web research, multi-agent orchestration (LangGraph / ByteDance)
 - **Shared harness layer** — one `BaseHarness` interface and event model across LangChain and DeerFlow; `cli agents run` works seamlessly across both
 - **4-Tier Skills system** — progressive disclosure of domain knowledge via `SKILL.md` files; managed with `cli skills`
+- **AUIP / AG-UI server** — `cli auip serve` exposes any agent profile over the standard [AG-UI protocol](https://github.com/ag-ui-protocol/ag-ui) (SSE) for web UIs such as [auip-client](https://github.com/tclatos/auip-client); needs `uv sync --extra harnessing`. See [Design 10](docs/design/10_agent_user_interaction_protocol.md)
 - **Docker sandbox & browser control** — isolated code execution and Playwright automation
 - **MCP servers** — Model Context Protocol tool integrations
 - See: `cli agents`, [docs/agents.md](docs/agents.md), [AGENTS.md](AGENTS.md)
@@ -275,6 +277,9 @@ uv run cli agents run coding "Explain async generators"
 
 # Show all agent profiles and frameworks
 uv run cli agents list
+
+# Serve agents over AG-UI for a web client (http://127.0.0.1:8000)
+uv run cli auip serve --profile research
 ```
 
 **Python:**
