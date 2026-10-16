@@ -1,0 +1,13 @@
+# Agent-User Interaction Protocol (AUIP) & AG-UI Server Configuration
+
+auip:
+  server:
+    host: "127.0.0.1"
+    port: 8000
+    default_profile: "research"
+    allowed_profiles:
+      - "*"
+    cors_origins:
+      - "*"
+    title: "GenAI Toolkit AUIP Gateway"
+    endpoint: "/agent"

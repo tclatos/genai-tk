@@ -72,6 +72,46 @@ full_answer = await astream_turn(harness, query, show_trace=True)
 
 ---
 
+## Official AG-UI Standard Support & `cli auip serve`
+
+`genai-tk` natively supports the [AG-UI protocol](https://github.com/ag-ui-protocol/ag-ui) standard via `harness_events_to_ag_ui()` ([genai_tk/protocols/auip/ag_ui_bridge.py](/home/tcl/prj/genai-tk/genai_tk/protocols/auip/ag_ui_bridge.py)) and the built-in server in [genai_tk/protocols/auip/server.py](/home/tcl/prj/genai-tk/genai_tk/protocols/auip/server.py).
+
+> **Troubleshooting:** an empty chat usually means agent creation failed (e.g. missing optional extra). Run `uv sync --extra harnessing`; errors are shown in the chat and server log.
+
+### 1. Launching the AUIP / AG-UI Server
+
+```bash
+# Start on default port 8000 (profile from config/auip.yaml or --profile)
+uv run cli auip serve
+
+# Start with a specific profile on custom port
+uv run cli auip serve --profile coding --port 8080
+
+# Inspect configured endpoints and available agent profiles
+uv run cli auip info
+```
+
+### 2. Endpoints Exposed
+
+- `POST /agent`: Official AG-UI SSE stream consumed by `@assistant-ui/react-ag-ui` and `@ag-ui/client`.
+- `POST /api/v1/auip/stream`: Canonical AUIP SSE stream for custom web applications.
+- `GET /profiles`: Enumerate all available LangChain and DeerFlow agent profiles for UI dropdowns.
+- `GET /health`: Server health and active default profile.
+
+### 3. Dedicated React Web Client (`auip-client`)
+
+A complete reference web client is available in `/home/tcl/prj/auip-client`:
+- Built with React, Vite, Tailwind CSS, `@assistant-ui/react`, `@assistant-ui/react-ag-ui`, and `@ag-ui/client`.
+- Supports dynamic profile switching via dropdown, real-time token streaming, thinking/reasoning blocks, and tool call inspection badges.
+- Run with:
+  ```bash
+  cd /home/tcl/prj/auip-client
+  npm install
+  npm run dev
+  ```
+
+---
+
 ## Exposing AUIP Over Remote HTTP / Server-Sent Events (SSE)
 
 To connect remote web frontends (React, Vue, Next.js, Electron, or mobile apps) to `genai-tk` agents, implement an SSE gateway with FastAPI:

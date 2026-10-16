@@ -7,6 +7,8 @@ Terminal TUI, Streamlit Webapp, Remote Web APIs).
 
 from __future__ import annotations
 
+from genai_tk.protocols.auip.ag_ui_bridge import harness_events_to_ag_ui
+from genai_tk.protocols.auip.config import AuipConfig, AuipServerSettings, auip_config
 from genai_tk.protocols.auip.models import (
     AuipArtifactEvent,
     AuipEndEvent,
@@ -26,9 +28,11 @@ from genai_tk.protocols.auip.models import (
     AuipUsageTelemetryEvent,
     AuipUserMessage,
 )
+from genai_tk.protocols.auip.server import create_app, serve
 
 __all__ = [
     "AuipArtifactEvent",
+    "AuipConfig",
     "AuipEndEvent",
     "AuipErrorEvent",
     "AuipEvent",
@@ -38,6 +42,7 @@ __all__ = [
     "AuipInterruptControl",
     "AuipOutboundEvent",
     "AuipPhaseEvent",
+    "AuipServerSettings",
     "AuipThinkingEvent",
     "AuipTokenEvent",
     "AuipToolCallEvent",
@@ -45,4 +50,8 @@ __all__ = [
     "AuipToolResultEvent",
     "AuipUsageTelemetryEvent",
     "AuipUserMessage",
+    "auip_config",
+    "create_app",
+    "harness_events_to_ag_ui",
+    "serve",
 ]

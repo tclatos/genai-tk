@@ -54,6 +54,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.0.3", # SQLite checkpoint persistence for LangGraph
     "langchain-mcp-adapters>=0.1",        # Model Context Protocol adapters
     "mcp[cli]>=2.0.0",                    # Model Context Protocol core (MCP 2.0+)
+    "ag-ui-protocol>=1.0.0",              # Agent-User Interaction Protocol (AG-UI) models & encoder
     # ============================================
     # NLP & Text Processing (spaCy + models are optional — see [nlp] extra)
     # ============================================
