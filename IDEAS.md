@@ -1,11 +1,6 @@
 
-# Replace RichToolCallMiddleware with Relay & AUIP
-See comprehensive architectural study: [docs/studies/agent_user_interaction_protocol_and_relay.md](docs/studies/agent_user_interaction_protocol_and_relay.md).
-- Retire `RichToolCallMiddleware` (LangChain-only, terminal stdout coupling, duplicate rendering hazard).
-- Connect NeMo Relay scopes and marks to a formalized Agent-User Interaction Protocol (AUIP).
-- Drive multimodal frontends: Console CLI (`cli agents run`), Terminal TUI (`cli agents tui`), Streamlit workbench, and remote web apps (SSE / WebSockets).
-
-
+# Doc
+docs/design/03_core_llm_and_factories.md is to be updated (richer llm string formatn no semantic cache, ...)
 
 
 # LoCoMo Bechnmark 
@@ -155,6 +150,7 @@ examples/notebooks/middleware_anonymization_demo.ipynb
 
  - Integrate open-code in similar way than deep-flow, lanchain, deepagents  (using https://github.com/anomalyco/opencode-sdk-python)
 
+- NVIDIA Sandbox ? 
 
 ## Other  
 

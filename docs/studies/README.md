@@ -18,6 +18,7 @@ This directory contains research studies, comparative evaluations of external fr
 | [workflow_dsl_vs_kestra.md](workflow_dsl_vs_kestra.md) | **Workflow Engine Comparison** | Comparative study of GenAI-TK YAML workflow DSL vs Kestra orchestration (Kestra not adopted; prefect-yaml created) |
 | [sandbox_bot_detection.md](sandbox_bot_detection.md) | **Bot Detection & Browser Sandbox** | Diagnostic investigation of third-party login redirects and bot detection blockers in Docker/OpenSandbox |
 | [codebase_audit_2026-09.md](codebase_audit_2026-09.md) | **Codebase Quality & Security Audit** | Comprehensive static analysis audit covering security, performance, and maintainability |
+| [windows_portability_study.md](windows_portability_study.md) | **Windows Portability & Feasibility** | Technical feasibility, gap analysis, and roadmap for running genai-tk natively under Windows |
 | [harness_interoperability_proposal_historical.md](harness_interoperability_proposal_historical.md) | **Harness Interoperability (Historical)** | Original proposal for cross-harness abstraction (superseded by Design 05) |
 | [sandbox_backend_historical.md](sandbox_backend_historical.md) | **AioSandboxBackend (Historical)** | Initial sandbox specification (superseded by Design 06 & sandbox_support.md) |
 | [llm_factory_refactoring_historical.md](llm_factory_refactoring_historical.md) | **LLM Factory Refactoring (Historical)** | Early 3-route factory proposal (superseded by Design 02 & 03) |
