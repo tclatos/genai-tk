@@ -266,6 +266,31 @@ def _classify_and_format_block(block: list[list[str]]) -> str:
     return "\n".join(md_lines) + "\n"
 
 
+def _convert_xlsb_to_temp_xlsx(xlsb_path: Path) -> Path:
+    """Convert binary .xlsb workbook to standard openpyxl .xlsx."""
+    import tempfile
+
+    import openpyxl
+    import pyxlsb
+
+    tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+    tmp_path = Path(tmp.name)
+    tmp.close()
+
+    wb_out = openpyxl.Workbook()
+    wb_out.remove(wb_out.active)  # remove default sheet
+    with pyxlsb.open_workbook(str(xlsb_path)) as wb_in:
+        for sname in wb_in.sheets:
+            ws_out = wb_out.create_sheet(title=sname)
+            with wb_in.get_sheet(sname) as s_in:
+                for row in s_in.rows():
+                    vals = [c.v for c in row]
+                    if any(v is not None for v in vals):
+                        ws_out.append(vals)
+    wb_out.save(tmp_path)
+    return tmp_path
+
+
 def excel_to_markdown_messy_xls(path: Path) -> str:
     """Convert an Excel spreadsheet to Markdown, tolerating complex layouts."""
     try:
@@ -273,26 +298,40 @@ def excel_to_markdown_messy_xls(path: Path) -> str:
     except (ImportError, ModuleNotFoundError):
         raise ImportError("openpyxl is required for MessyExcelConverter. Install with 'uv add openpyxl'.") from None
 
-    workbook = openpyxl.load_workbook(path, data_only=True)
-    md_parts: list[str] = []
+    target_path = path
+    tmp_to_cleanup: Path | None = None
+    if path.suffix.lower() == ".xlsb":
+        try:
+            target_path = _convert_xlsb_to_temp_xlsx(path)
+            tmp_to_cleanup = target_path
+        except Exception:
+            # Fall back to opening directly if pyxlsb is not available
+            pass
 
-    for worksheet in workbook.worksheets:
-        if worksheet.sheet_state != "visible":
-            continue
+    try:
+        workbook = openpyxl.load_workbook(target_path, data_only=True)
+        md_parts: list[str] = []
 
-        grid = _build_grid(worksheet)
-        if not any(any(c.strip() for c in row) for row in grid):
-            continue
+        for worksheet in workbook.worksheets:
+            if worksheet.sheet_state != "visible":
+                continue
 
-        md_parts.append(f"## Sheet: {worksheet.title}\n")
+            grid = _build_grid(worksheet)
+            if not any(any(c.strip() for c in row) for row in grid):
+                continue
 
-        for block in _split_sheet_into_vertical_blocks(grid):
-            for subblock in _split_block_into_horizontal_blocks(block):
-                formatted_block = _classify_and_format_block(subblock)
-                if formatted_block.strip():
-                    md_parts.append(formatted_block)
+            md_parts.append(f"## Sheet: {worksheet.title}\n")
 
-    return "\n\n".join(md_parts)
+            for block in _split_sheet_into_vertical_blocks(grid):
+                for subblock in _split_block_into_horizontal_blocks(block):
+                    formatted_block = _classify_and_format_block(subblock)
+                    if formatted_block.strip():
+                        md_parts.append(formatted_block)
+
+        return "\n\n".join(md_parts)
+    finally:
+        if tmp_to_cleanup and tmp_to_cleanup.exists():
+            tmp_to_cleanup.unlink(missing_ok=True)
 
 
 class MessyExcelConverter(DocumentConverter):
