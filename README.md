@@ -67,10 +67,10 @@ flowchart TD
 
 Get up and running with `genai-tk` in minutes.
 
-### 1. Quickstart (New Project)
+### Quickstart 
 
 ```bash
-# Install uv (fast Python package manager)
+# Install uv (fast Python package manager) (if not already installed)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Create and enter your project directory
@@ -80,37 +80,11 @@ uv init
 # Add genai-tk from GitHub
 uv add git+https://github.com/tclatos/genai-tk@main
 
-# Scaffolding: interactive template picker
-# Configures config/, skills/, justfile, sets hatchling backend, and runs uv sync
-uv run cli init
-
-# Or choose a specific template preset directly:
-uv run cli init -t agent-app  --name "My AI Project"   # tools, skills, agent profiles
-uv run cli init -t rag-app    --name "My RAG App"       # document ingestion & hybrid retrieval
-uv run cli init -t workflow-app                         # YAML-driven pipelines
-uv run cli init -t minimal                              # config + justfile only
-
-# (Optional) install extras during init (e.g. DeerFlow/DeepAgents harness, browser automation)
-uv run cli init --extra harnessing --extra browser
-
-# Sync dependencies
-uv sync
-```
-
-### 2. Add to an Existing Project
-
-```bash
-# Add genai-tk to your existing pyproject.toml
-uv add git+https://github.com/tclatos/genai-tk@main
-
-# Or with optional extras (e.g. harnessing, browser, postgres, docling)
-uv add "genai-tk[harnessing,browser] @ git+https://github.com/tclatos/genai-tk@main"
-
-# Initialize config and tooling in the current directory
+# Initialize config and tooling in the current directory (with default options)
 uv run cli init
 ```
 
-### 3. Development Setup (Clone & Edit)
+### Development Setup (Clone & Edit)
 
 If you are contributing to or extending `genai-tk` directly:
 
@@ -123,7 +97,7 @@ uv sync --all-groups # + postgres, browser, evals, harnessing
 # uv add --editable /path/to/genai-tk
 ```
 
-### 4. API Keys & Environment Configuration
+### API Keys & Environment Configuration
 
 Set your model provider credentials in a `.env` file at the root of your project (auto-loaded on startup):
 
@@ -149,23 +123,26 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 Once installed, use the built-in `cli info` command suite to inspect and validate your environment, check provider reachability, and discover available capabilities:
 
 ```bash
-# 1. Pre-flight check: verify optional extras, model provider reachability, cache, and Prefect
+
+# List all registered CLI commands and subcommands across the toolkit
+uv run cli 
+
+#  Pre-flight check: verify optional extras, model provider reachability, cache, and Prefect
+# (Normal if some features are nots installed at that stage)
 uv run cli info doctor
 
-# 2. Inspect active profile, default LLM & embeddings, configured model tags, and detected API keys
+# Inspect active profile, default LLM & embeddings, configured model tags, and detected API keys
 uv run cli info config
 
-# 3. Explore 1,000+ available LLMs, embeddings models, and vector stores
+# Explore 1,000+ available LLMs, embeddings models, and vector stores
 uv run cli info models
 
-# 4. Discover all resolved configuration keys and the exact YAML source files defining them
+# Discover all resolved configuration keys and the exact YAML source files defining them
 uv run cli info config-keys
 
 # Deep-dive into a specific section (e.g. llm, providers, agents, workflows)
 uv run cli info config-keys llm
 
-# 5. List all registered CLI commands and subcommands across the toolkit
-uv run cli info commands
 ```
 
 #### What to look for during exploration:
