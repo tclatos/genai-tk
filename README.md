@@ -63,6 +63,163 @@ flowchart TD
 
 ---
 
+## Installation
+
+Get up and running with `genai-tk` in minutes.
+
+### 1. Quickstart (New Project)
+
+```bash
+# Install uv (fast Python package manager)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create and enter your project directory
+mkdir my-genai-project && cd my-genai-project
+uv init
+
+# Add genai-tk from GitHub
+uv add git+https://github.com/tclatos/genai-tk@main
+
+# Scaffolding: interactive template picker
+# Configures config/, skills/, justfile, sets hatchling backend, and runs uv sync
+uv run cli init
+
+# Or choose a specific template preset directly:
+uv run cli init -t agent-app  --name "My AI Project"   # tools, skills, agent profiles
+uv run cli init -t rag-app    --name "My RAG App"       # document ingestion & hybrid retrieval
+uv run cli init -t workflow-app                         # YAML-driven pipelines
+uv run cli init -t minimal                              # config + justfile only
+
+# (Optional) install extras during init (e.g. DeerFlow/DeepAgents harness, browser automation)
+uv run cli init --extra harnessing --extra browser
+
+# Sync dependencies
+uv sync
+```
+
+### 2. Add to an Existing Project
+
+```bash
+# Add genai-tk to your existing pyproject.toml
+uv add git+https://github.com/tclatos/genai-tk@main
+
+# Or with optional extras (e.g. harnessing, browser, postgres, docling)
+uv add "genai-tk[harnessing,browser] @ git+https://github.com/tclatos/genai-tk@main"
+
+# Initialize config and tooling in the current directory
+uv run cli init
+```
+
+### 3. Development Setup (Clone & Edit)
+
+If you are contributing to or extending `genai-tk` directly:
+
+```bash
+git clone https://github.com/tclatos/genai-tk.git && cd genai-tk
+uv sync              # core + development dependencies
+uv sync --all-groups # + postgres, browser, evals, harnessing
+
+# Using your clone in another project (local editable dependency):
+# uv add --editable /path/to/genai-tk
+```
+
+### 4. API Keys & Environment Configuration
+
+Set your model provider credentials in a `.env` file at the root of your project (auto-loaded on startup):
+
+```bash
+# Core LLM Providers
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GROQ_API_KEY=gsk_...
+MISTRAL_API_KEY=...
+OPENROUTER_API_KEY=sk-or-...
+EDENAI_API_KEY=...
+
+# Observability (Optional)
+LANGFUSE_PUBLIC_KEY=pk-lf-...
+LANGFUSE_SECRET_KEY=sk-lf-...
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+---
+
+### 🔍 First Exploration with CLI (`cli info`)
+
+Once installed, use the built-in `cli info` command suite to inspect and validate your environment, check provider reachability, and discover available capabilities:
+
+```bash
+# 1. Pre-flight check: verify optional extras, model provider reachability, cache, and Prefect
+uv run cli info doctor
+
+# 2. Inspect active profile, default LLM & embeddings, configured model tags, and detected API keys
+uv run cli info config
+
+# 3. Explore 1,000+ available LLMs, embeddings models, and vector stores
+uv run cli info models
+
+# 4. Discover all resolved configuration keys and the exact YAML source files defining them
+uv run cli info config-keys
+
+# Deep-dive into a specific section (e.g. llm, providers, agents, workflows)
+uv run cli info config-keys llm
+
+# 5. List all registered CLI commands and subcommands across the toolkit
+uv run cli info commands
+```
+
+#### What to look for during exploration:
+
+- **`cli info doctor`**: Runs automated pre-flight checks against your environment. It reports which optional extras (`harnessing`, `browser`, `nlp`, `postgres`, etc.) are installed, verifies that external provider hosts (`models.dev`, `openrouter.ai`, `edenai.run`) are reachable from your network, validates local model cache freshness, checks your `NO_PROXY` settings, and confirms Prefect server status.
+- **`cli info config`**: Displays your active context (`local`, `prod`, `pytest`), the default LLM and Embeddings model IDs, all configured model aliases/tags (`fast_model`, `safe_llm`, `cheap_model`, `fake`), and the status of detected API keys.
+- **`cli info models`**: Browses the unified catalog of over 1,000 LLMs and embeddings models across 100+ providers powered by `models.dev`, including context window sizes, maximum tokens, and pricing details.
+- **`cli info config-keys`**: Shows the full provenance of your configuration. Running `cli info config-keys <key>` (such as `cli info config-keys llm`) prints the merged, resolved YAML content for that section and indicates which files contributed to it.
+
+---
+
+### ✍️ Configure Your Application: Customize the YAML Files
+
+In `genai-tk`, **system behaviors, model bindings, agent definitions, prompts, and pipeline routes are declared in readable YAML files** rather than hardcoded in Python. You are encouraged to explore and edit the files under [config/](config/) to adapt the toolkit to your needs:
+
+| Configuration File / Directory | What to Customize |
+|---|---|
+| [config/app_conf.yaml](config/app_conf.yaml) | **Application Entry Point**: Select the active configuration profile (`local`, `prod`, `pytest`), define project paths (`paths.data_root`, `paths.project`), and register custom CLI command groups under `cli.commands`. |
+| [config/providers/llm.yaml](config/providers/llm.yaml) | **LLM Configuration & Tags**: Define available models, assign semantic tags (`default`, `fast_model`, `safe_llm`, `cheap_model`), configure context windows, and declare fallback exceptions for custom endpoints. |
+| [config/providers/embeddings.yaml](config/providers/embeddings.yaml) | **Embeddings Models**: Configure embedding model IDs, dimensionality, batch sizes, and provider backends for vector search. |
+| [config/providers/providers.yaml](config/providers/providers.yaml) | **Custom Gateways & Providers**: Configure custom API endpoints, base URLs (for corporate gateways, local vLLM, Ollama, or LiteLLM instances), and custom request headers. |
+| [config/agents/](config/agents/) & [config/agents.yaml](config/agents.yaml) | **Agent Profiles**: Customize agent personas, system prompts, tool bindings, and framework engine (`langchain`, `deep`, `deerflow`). |
+| [config/workflows.yaml](config/workflows.yaml) | **Declarative Workflows**: Define composable multi-step pipelines and DAG tasks orchestrated by Prefect without boilerplate Python. |
+| [config/ingest_routes.yaml](config/ingest_routes.yaml) | **Document Routing Rules**: Map file extensions (`.pdf`, `.docx`, `.xlsx`, `.md`) to specific document converters (Mistral OCR, Docling, MarkItDown). |
+| [config/profiles/](config/profiles/) | **Environment Overlays**: Environment-specific overlays (`profiles/local/`, `profiles/prod/`, `profiles/pytest/`) to override settings per environment without modifying base YAMLs. |
+
+#### YAML Features & Best Practices:
+
+- **Environment Variable Interpolation**: Use `${oc.env:VAR_NAME}` or `${oc.env:VAR_NAME,default_value}` to inject sensitive secrets or dynamic environment values safely.
+- **Path Resolution**: Reference project root paths with `${paths.project}` or data directories with `${paths.data_root}` to ensure paths stay portable across local machines and containers.
+- **Model Aliases**: Avoid hardcoding specific provider strings across your codebase. Reference tags configured in [config/providers/llm.yaml](config/providers/llm.yaml) (e.g. `fast_model` or `safe_llm`).
+- **Profile Switching**: Switch active environments effortlessly with `GENAITK_PROFILE=prod` in your environment or `switch_profile("prod")` in code.
+
+---
+
+### 🚀 First Run & Quick Check
+
+Once your `.env` is configured and you have checked your configuration with `cli info`:
+
+```bash
+# 1. Test an LLM call directly with streaming output
+uv run cli core llm -i "Explain quantum computing in one sentence" --stream
+
+# 2. Start an interactive agent chat session
+uv run cli agents run --chat
+# or with the justfile alias:
+just run
+
+# 3. Launch the Streamlit web interface
+just webapp
+```
+
+---
+
 ## 📚 Architectural Design Curriculum
 
 For a didactic, deep-dive understanding of the internal architecture and design patterns, read the numbered design specifications in [docs/design/](docs/design/README.md):
@@ -177,78 +334,6 @@ Scaffolding automatically sets up:
 - Developer tooling: `justfile`, `AGENTS.md`, `docs/SKILLS.md`, `docs/EXTENDING.md`, `.github/copilot-instructions.md`
 
 See [docs/scaffolding.md](docs/scaffolding.md) for full scaffolding options.
-
----
-
-## Installation
-
-**Start from scratch:**
-
-```bash
-# Install uv (Python package manager)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Create a new project directory
-mkdir my-genai-project && cd my-genai-project
-
-# Initialize a Python project (creates pyproject.toml and a stub main.py)
-uv init
-
-# Add genai-tk to your project
-uv add git+https://github.com/tclatos/genai-tk@main
-
-# Interactive template picker (recommended)
-# cli init scaffolds config/, skills/, justfile, sets hatchling as the build
-# backend, removes the uv-init stub (main.py), and runs `uv sync` automatically.
-uv run cli init
-
-# Or choose a template directly:
-uv run cli init -t agent-app  --name "My AI Project"   # tools, skills, agent profiles
-uv run cli init -t rag-app    --name "My RAG App"       # document ingestion + retrieval
-uv run cli init -t workflow-app                         # YAML-driven pipelines
-uv run cli init -t minimal                              # config + justfile only
-
-# (optional) also install the DeerFlow / DeepAgents harness
-uv run cli init --extra harnessing
-
-just run                                                # start the application
-```
-
-**Add to existing project:**
-
-```bash
-# Add to your project  
-uv add git+https://github.com/tclatos/genai-tk@main
-
-# With PostgreSQL / Playwright extras
-uv add "genai-tk[extra] @ git+https://github.com/tclatos/genai-tk@main"
-
-# Initialize config in the current directory
-# (scaffolds config/, skills/, justfile, hatchling build backend, runs uv sync)
-uv run cli init                      # interactive template picker
-uv run cli init -t agent-app         # agent app with tools + skills
-uv run cli init --extra harnessing   # also install the DeerFlow / DeepAgents harness
-```
-
-**Development (clone & edit):**
-
-```bash
-git clone https://github.com/tclatos/genai-tk.git && cd genai-tk
-uv sync              # core + dev
-uv sync --all-groups # + postgres, browser, evals
-```
-
-> **Using your clone in another project:** add it as a local path dependency so changes are picked up immediately:
-> ```bash
-> uv add --editable /path/to/genai-tk
-> ```
-
-**Add your API key** to `.env` in the project root (auto-loaded at startup):
-
-```bash
-OPENAI_API_KEY=sk-...
-# ANTHROPIC_API_KEY=...  GROQ_API_KEY=...  etc.
-```
 
 ---
 
