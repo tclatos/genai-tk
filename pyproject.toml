@@ -85,7 +85,7 @@ dependencies = [
     # Workflow Orchestration
     # ============================================
     "prefect>=3.6.7",     # Modern workflow orchestration
-    "prefect-yaml",
+    "prefect-yaml @ git+https://github.com/tclatos/prefect-yaml@main",
     "jinaai>=0.2.10",     # Jina AI embeddings and reranking
     "readabilipy>=0.3.0", # Web article extraction and readability parsing
     #  "edgeparse>=0.2.2",   # Structured data extraction from text
@@ -200,8 +200,6 @@ dev = [
     "pytest-beartype>=0.2.0", # Runtime type checking for pytest
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.6.0",    # Parallel test execution (-n auto)
-    # Root-only git ref for this repo's own `uv sync` (Rule 2: do NOT bake in [tool.uv.sources] in a library).
-    "prefect-yaml @ git+https://github.com/tclatos/prefect-yaml@main",
     "faker>=25.0.0",          # Generate fake data for testing
     "ipykernel>=6.29.4",      # Jupyter kernel for notebooks
     "ipywidgets>=8.1.2",      # Interactive widgets for Jupyter
