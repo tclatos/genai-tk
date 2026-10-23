@@ -273,7 +273,12 @@ def get_stopwords(language_code: str = "en", *, fallback_to_english: bool = True
         if hasattr(lang_cls, "Defaults") and hasattr(lang_cls.Defaults, "stop_words"):
             return set(lang_cls.Defaults.stop_words)
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Could not load spaCy stop words for '{}': {}", code, exc)
+        # A missing optional spaCy dependency is expected and handled by the
+        # fallback below; only surface unexpected load failures as warnings.
+        if isinstance(exc, ImportError):
+            logger.debug("spaCy not installed; using fallback stop words for '{}'", code)
+        else:
+            logger.warning("Could not load spaCy stop words for '{}': {}", code, exc)
 
     if fallback_to_english:
         try:

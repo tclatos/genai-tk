@@ -148,6 +148,11 @@ class _StoreState:
         """Finalize the current run: write meta.json + index line, close file."""
         if self.current is None:
             return
+        if self.current.ended_at is None:
+            # The root agent-scope-end event never arrived (e.g. process exit
+            # before the agent scope was popped); fall back to wall-clock now
+            # so meta.json / index lines never carry a null ended_at.
+            self.current.ended_at = _now_iso()
         try:
             if self.current_dir is not None:
                 (self.current_dir / "meta.json").write_text(
