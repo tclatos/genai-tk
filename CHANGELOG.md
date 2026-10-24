@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ## [Unreleased]
 
+### Security
+
+- **Reviewed dependency and build inputs**: require patched uv/Python/certifi, update compatible vulnerable dependencies, and keep CI installs locked. Actions, Git dependencies, and Docker base images now use reviewed immutable references; weekly update proposals and daily audits help keep those pins current.
+- **Build secrets and production dependency scope**: Docker excludes credentials before they reach the builder, omits development/evaluation groups, and uses the patched certifi trust bundle. Regression tests exercise the real Docker context, certificate trust, and Requests JSON error behavior.
+- **Visible upstream blockers**: the strict audit does not suppress findings without fixes. [The security guide](docs/security.md) records the FastEmbed/Pillow compatibility blocker and unresolved Chroma/DiskCache advisories, with operational limits and private disclosure guidance.
+
 ### Changed
 
 - **Onboarding and installation guide restructured in README**: Promoted the Installation section in [README.md](README.md) to the upper portion of the page directly beneath Core Domains & Pillars. Added a dedicated first-exploration section covering essential diagnostic and discovery CLI commands (`cli info doctor`, `cli info config`, `cli info models`, `cli info config-keys`, `cli info commands`), and added an onboarding guide inviting developers to explore and customize declarative YAML configuration files in `config/` ([config/app_conf.yaml](config/app_conf.yaml), [config/providers/](config/providers/), [config/agents/](config/agents/), [config/workflows.yaml](config/workflows.yaml)) using OmegaConf interpolations.

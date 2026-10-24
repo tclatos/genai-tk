@@ -90,7 +90,19 @@ ARG EXTRA_COPY_DIRS=""
 
 4. Create `.dockerignore` — copy from `genai-tk/.dockerignore`, remove project-irrelevant lines.
 
-5. Commit `uv.lock` — the Dockerfile uses `uv sync --locked`.
+5. Commit `uv.lock` and `.python-version` — the Dockerfile uses `uv sync --locked --no-default-groups`.
+
+## Security Invariants
+
+- Preserve the version tags and verified digests for uv, Python, and optional Node.
+  Node is copied from its pinned image; do not restore a floating network installer.
+- Both sync stages exclude default dev/eval groups. Comma-separated extras are
+  expanded into separate `--extra` arguments.
+- Keep the credential exclusions in `.dockerignore`, even when customizing it.
+  Preserve the exception for skill Markdown and referenced Markdown assets.
+  Run the real Docker build-context regression described in [docs/security.md](../../../docs/security.md).
+- Keep Python/Requests/curl on the patched certifi bundle. Custom CA overrides
+  need their own trust review. Do not turn off certificate verification.
 
 ## Common Issues
 
@@ -98,11 +110,8 @@ ARG EXTRA_COPY_DIRS=""
 Variables in `docker.just` conflict with the importing justfile. Remove ALL variable definitions from `docker.just` — it must only contain recipes and the `_image` computed variable.
 
 ### "directory not found" during COPY of node dir
-The Dockerfile guards against this with:
-```dockerfile
-RUN mkdir -p /root/.nvm/versions/node   # after the conditional nvm install
-```
-If the dir is missing in runtime stage, the guard `[ "$(ls -A ...)" ]` skips the node setup.
+The builder always creates `/opt/node`. It contains the pinned Node binary and
+npm only when `INSTALL_NODE=true`; otherwise copying the empty directory is safe.
 
 ### `EXTRA_COPY_DIRS` — copying optional dirs
 Uses a `RUN --mount=from=builder` loop:

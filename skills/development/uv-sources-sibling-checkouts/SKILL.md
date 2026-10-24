@@ -119,5 +119,14 @@ docling = ["genai-tk[docling]"]
    consumers resolve differently; move the pin into a root-only
    dependency-group.
 4. Express git pins inside extras as direct URL requirements, not sources.
-5. Re-lock from scratch (`rm -rf .venv uv.lock && uv sync --extra <name>`) —
-   uv may consider a previously-wrong lockfile "consistent".
+5. Correct the manifest, run `uv lock --upgrade-package <affected-package>`, and
+   review the lock diff before `uv sync --locked --extra <name>`. Preserve the
+   reviewed lockfile rather than deleting it to bypass a conflict.
+
+## Security Updates
+
+Use immutable reviewed commits for Git dependencies, including root-only groups.
+Keep `prefect-yaml` bare in published core metadata so consumers retain control
+of their source; its repository development group carries the reviewed commit.
+Follow [dependency-security](../../governance/dependency-security/SKILL.md) for
+advisories, current toolchain pins, and unresolved upstream constraints.

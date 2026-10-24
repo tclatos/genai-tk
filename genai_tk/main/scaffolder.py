@@ -439,20 +439,21 @@ class ProjectScaffolder:
                 "Prefer [tool.uv.sources] instead.[/yellow]"
             )
 
-        requires_python = 'requires-python = ">=3.12,<3.13"'
+        requires_python = 'requires-python = ">=3.12.15,<3.13"'
+        legacy_python_pins = ('requires-python = ">=3.12"', 'requires-python = ">=3.12,<3.13"')
         if "requires-python" not in content:
             content = content.replace("[project]", f"[project]\n{requires_python}", 1)
             changed = True
             console.print(
-                "[green]✓ Pinned requires-python = '>=3.12,<3.13' in pyproject.toml[/green]"
+                "[green]✓ Pinned requires-python = '>=3.12.15,<3.13' in pyproject.toml[/green]"
                 "[dim] (matches genai-tk; avoids uv solving future-python splits git-only deps cannot satisfy)[/dim]"
             )
-        elif 'requires-python = ">=3.12"' in content:
-            # Loose lower-bound-only pin: uv may try to solve a future Python
-            # that git-only deps cannot satisfy — add the upper bound.
-            content = content.replace('requires-python = ">=3.12"', requires_python, 1)
+        elif any(pin in content for pin in legacy_python_pins):
+            # Upgrade former scaffold defaults while preserving custom ranges.
+            for pin in legacy_python_pins:
+                content = content.replace(pin, requires_python, 1)
             changed = True
-            console.print("[green]✓ Tightened requires-python to '>=3.12,<3.13' in pyproject.toml[/green]")
+            console.print("[green]✓ Tightened requires-python to '>=3.12.15,<3.13' in pyproject.toml[/green]")
 
         if "[tool.uv]" not in content:
             content += "\n[tool.uv]\npackage = true\n"
@@ -461,10 +462,14 @@ class ProjectScaffolder:
             content = content.replace("[tool.uv]", "[tool.uv]\npackage = true")
             changed = True
 
+        if not re.search(r"^\s*required-version\s*=", content, re.MULTILINE):
+            content = content.replace("[tool.uv]", '[tool.uv]\nrequired-version = ">=0.13.4"', 1)
+            changed = True
+
         if "[build-system]" not in content:
             build_section = (
                 "\n[build-system]\n"
-                'requires = ["hatchling"]\n'
+                'requires = ["hatchling==1.32.4"]\n'
                 'build-backend = "hatchling.build"\n'
                 "\n[tool.hatch.build.targets.wheel]\n"
                 f'packages = ["{self.package_name}"]\n'

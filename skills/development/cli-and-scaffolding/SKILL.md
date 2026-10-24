@@ -42,6 +42,14 @@ GENAITK_PROFILE=pytest uv run pytest tests/unit_tests/cli -q
 
 ## Avoid
 
+- Keep security floors aligned between the common pyproject template and
+  `ProjectScaffolder._ensure_package_installed`: Python `>=3.12.15,<3.13`, uv
+  `>=0.13.4`, and the reviewed Hatchling pin when adding build metadata. Upgrade
+  former scaffold defaults while preserving explicit custom project constraints.
+- Generated install/test recipes must use the lockfile. Use `just lock` only
+  for reviewed dependency updates and `just security-audit` for advisories; see
+  [dependency-security](../../governance/dependency-security/SKILL.md).
+
 - Do not import heavy optional dependencies at module import time; lazy-load inside command functions.
 - Do not hardcode command groups in `main.cli` when config registration is intended.
 - Do not make scaffold output diverge from docs without updating `docs/scaffolding.md`.

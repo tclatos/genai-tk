@@ -3,7 +3,7 @@ name = "genai-tk"
 version = "0.1.0"
 description = "GenAI Toolkit - Core components for building AI applications"
 authors = [{ name = "Thierry Caminel", email = "thierry.caminel@atos.ai" }]
-requires-python = ">=3.12"
+requires-python = ">=3.12.15"
 dependencies = [
     # ============================================
     # Core Infrastructure
@@ -23,6 +23,7 @@ dependencies = [
     "xxhash>=3.6.0",            # Fast non-cryptographic hash functions
     "pathspec>=1.0.2,<1.1.1",   # .gitignore-style file matching (gitwildmatch); 1.1.1 ships a broken re2 backend (missing re2_error)
     "httpx>=0.28.0",            # Async HTTP client
+    "certifi>=2026.10.19",      # Excludes the compromised emSign ECC Root CA - G3
     "wrapt>=1.17",              # Transparent function/decorator wrapping
     # ============================================
     # LangChain Core Framework
@@ -51,7 +52,7 @@ dependencies = [
     # ============================================
     # Agent Frameworks (core only — harnessing extras are optional)
     # ============================================
-    "langgraph-checkpoint-sqlite>=3.0.3", # SQLite checkpoint persistence for LangGraph
+    "langgraph-checkpoint-sqlite>=3.1.2", # Patched SQLite checkpoint persistence for LangGraph
     "langchain-mcp-adapters>=0.1",        # Model Context Protocol adapters
     "mcp[cli]>=2.0.0",                    # Model Context Protocol core (MCP 2.0+)
     "ag-ui-protocol>=1.0.0",              # Agent-User Interaction Protocol (AG-UI) models & encoder
@@ -127,7 +128,7 @@ harnessing = [
                                  # 0.7.13 floor: raw tool results are coerced to ToolMessage in the
                                  # eviction middleware instead of raising AssertionError (OfficeQA bug).
     "agent-sandbox>=0.0.24",     # AIO sandbox HTTP SDK client
-    "opensandbox>=0.1.5",        # Container lifecycle manager
+    "opensandbox>=1.1.0",        # ConnectionConfig.transport supports bounded sandbox response streams
     "opensandbox-server>=0.1.7", # OpenSandbox REST server
     # Pinned to a tested commit (not `rev = "main"`) because genai-tk's harness layer
     # reaches into private DeerFlowClient internals (`_agent`, `_checkpointer`) — see
@@ -172,7 +173,7 @@ baml = ["baml-py==0.223.0"]
 chromadb = ["chromadb>=1.0", "langchain-chroma>=1.0"]
 
 # Docling: fully local document conversion to Markdown (PDF, Office, HTML, images)
-docling = ["docling>=2.130", "easyocr>=1.7"]
+docling = ["docling>=2.132", "easyocr>=1.7"]
 
 # Monitoring extras: LangFuse + OpenTelemetry + OpenInference instrumentors
 monitoring = [
@@ -195,13 +196,14 @@ all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb,docling
 # ============================================
 dev = [
     "ruff>=0.9.1",            # Fast Python linter and formatter
+    "pyright>=1.1.414",       # Keep CI's advisory type checker in the reviewed lockfile
     "pytest>=8.1.1",          # Modern testing framework
     "pytest-asyncio>=0.24.0", # Async test support for pytest
     "pytest-beartype>=0.2.0", # Runtime type checking for pytest
     "pytest-cov>=7.0.0",
     "pytest-xdist>=3.6.0",    # Parallel test execution (-n auto)
     # Root-only git ref for this repo's own `uv sync` (Rule 2: do NOT bake in [project.dependencies] or [tool.uv.sources]).
-    "prefect-yaml @ git+https://github.com/tclatos/prefect-yaml@main",
+    "prefect-yaml @ git+https://github.com/tclatos/prefect-yaml@178d4e37ca11b15a4702207fd631683ec7a0b1f9",
     "faker>=25.0.0",          # Generate fake data for testing
     "ipykernel>=6.29.4",      # Jupyter kernel for notebooks
     "ipywidgets>=8.1.2",      # Interactive widgets for Jupyter
@@ -219,6 +221,7 @@ evals = [
 
 
 [tool.uv]
+required-version = ">=0.13.4"
 default-groups = ["dev", "evals"]
 override-dependencies = [
     "mcp>=2.0.0",
@@ -227,7 +230,9 @@ override-dependencies = [
 package = true
 constraint-dependencies = [
     "ipython<9",       # 9.x has circular import (ultratb → from IPython import get_ipython during __init__)
-    "requests<2.34",   # 2.34.x has broken compat.py (missing JSONDecodeError)
+    "requests>=2.34.2", # Required by patched Docling; JSONDecodeError compatibility is regression-tested
+    "filelock>=4.2.1", # Patched symlink handling
+    "setuptools>=84.1.0", # Patched package extraction
  #   "langsmith<0.9",   # 0.9.x has circular import in _openapi_client
     "alembic<1.18",    # 1.18.x has missing PriorityDispatcher (breaks Prefect)
     "openai!=2.44.0",  # 2.44.0 has circular import in _utils/_files
@@ -258,7 +263,7 @@ exclude = ["genai_tk/default_config", "genai_tk/skills"]
 "skills" = "genai_tk/skills"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling==1.32.4"]
 build-backend = "hatchling.build"
 
 [tool.ruff]

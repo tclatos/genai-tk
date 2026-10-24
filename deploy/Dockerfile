@@ -24,7 +24,17 @@ ARG EXTRA_COPY_DIRS=""
 
 # ── Builder stage ────────────────────────────────────────────────────────────
 
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS builder
+# Keep tags for update discovery and digests for immutable image selection.
+FROM ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff AS uv
+FROM node:24.22.1-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS node
+FROM python:3.12.15-bookworm@sha256:14a4933e6cef421424f7a66d89a3f4eafcbd0d90e0a822251f298e05132dc735 AS builder
+
+COPY --from=uv /uv /uvx /usr/local/bin/
+COPY --from=node /usr/local/bin/node /opt/node-src/bin/node
+COPY --from=node /usr/local/lib/node_modules /opt/node-src/lib/node_modules
+
+ENV UV_PYTHON_DOWNLOADS=never \
+    PATH="/opt/node/bin:$PATH"
 
 ARG EXTRAS
 ARG INSTALL_NODE
@@ -35,33 +45,38 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates openssl wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Conditionally install Node.js (needed for some Streamlit components)
-RUN if [ "$INSTALL_NODE" = "true" ]; then \
-        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash \
-        && export NVM_DIR="$HOME/.nvm" \
-        && [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" \
-        && nvm install --lts \
-        && nvm alias default node \
-        && nvm use default; \
-    fi
-# Ensure the node dir exists even when not installing (prevents COPY failure)
-RUN mkdir -p /root/.nvm/versions/node
+# No network installer is executed for optional Node.js support.
+RUN mkdir -p /opt/node \
+    && if [ "$INSTALL_NODE" = "true" ]; then \
+        cp -a /opt/node-src/. /opt/node/ \
+        && ln -s ../lib/node_modules/npm/bin/npm-cli.js /opt/node/bin/npm \
+        && ln -s ../lib/node_modules/npm/bin/npx-cli.js /opt/node/bin/npx; \
+    fi \
+    && rm -rf /opt/node-src
 
 WORKDIR /app
 
 # Install dependencies first (layer cache: only re-runs when lockfile changes)
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-install-project --extra ${EXTRAS}
+    set -eu; set --; \
+    for extra in $(printf '%s' "$EXTRAS" | tr ',' ' '); do set -- "$@" --extra "$extra"; done; \
+    uv sync --locked --no-default-groups --no-install-project "$@"
 
 # Copy source and install the project itself
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --extra ${EXTRAS}
+    set -eu; set --; \
+    for extra in $(printf '%s' "$EXTRAS" | tr ',' ' '); do set -- "$@" --extra "$extra"; done; \
+    uv sync --locked --no-default-groups "$@"
 
 # ── Runtime stage ────────────────────────────────────────────────────────────
 
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS runtime
+FROM python:3.12.15-slim-bookworm@sha256:6a0e06f5ba0b373d051aabd3fffb9b873f27f9a2a3a14bcbe37dee6f0e3bbc70 AS runtime
+
+COPY --from=uv /uv /uvx /usr/local/bin/
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates wget \
+    && rm -rf /var/lib/apt/lists/*
 
 ARG PKG_NAME
 ARG INSTALL_NODE
@@ -76,18 +91,8 @@ ENV VIRTUAL_ENV=/app/.venv \
 # Copy virtualenv from builder
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
-# Conditionally copy Node.js from builder
-RUN if [ "$INSTALL_NODE" = "true" ]; then \
-        echo "Node.js will be copied from builder"; \
-    fi
-COPY --from=builder /root/.nvm/versions/node /opt/node-versions-src/
-RUN if [ "$INSTALL_NODE" = "true" ] && [ -d /opt/node-versions-src ] && [ "$(ls -A /opt/node-versions-src 2>/dev/null)" ]; then \
-        mv /opt/node-versions-src /opt/node-versions \
-        && chmod -R a+rx /opt/node-versions \
-        && ln -s /opt/node-versions/* /opt/node; \
-    else \
-        rm -rf /opt/node-versions-src; \
-    fi
+# Empty when INSTALL_NODE=false.
+COPY --from=builder /opt/node /opt/node
 
 # Create non-root user and data directories
 RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser \
@@ -100,6 +105,7 @@ COPY --from=builder --chown=appuser:appuser /app/${PKG_NAME} ./${PKG_NAME}
 COPY --from=builder --chown=appuser:appuser /app/config ./config
 COPY --from=builder --chown=appuser:appuser /app/pyproject.toml ./
 COPY --from=builder --chown=appuser:appuser /app/uv.lock ./
+COPY --from=builder --chown=appuser:appuser /app/.python-version ./
 
 # Copy optional directories (skills, data, .streamlit, use_case_data, etc.)
 # Each project can pass EXTRA_COPY_DIRS="skills data .streamlit" to include them.
@@ -118,9 +124,12 @@ RUN --mount=from=builder,source=/app,target=/build \
 ENV _STREAMLIT_ENTRY=${STREAMLIT_ENTRY:-${PKG_NAME}/webapp/main/streamlit.py}
 
 ENV PYTHONPATH="/app" \
-    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
-    SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-    CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+    UV_PYTHON_DOWNLOADS=never \
+    UV_LOCKED=true \
+    UV_NO_DEFAULT_GROUPS=true \
+    REQUESTS_CA_BUNDLE=/app/.venv/lib/python3.12/site-packages/certifi/cacert.pem \
+    SSL_CERT_FILE=/app/.venv/lib/python3.12/site-packages/certifi/cacert.pem \
+    CURL_CA_BUNDLE=/app/.venv/lib/python3.12/site-packages/certifi/cacert.pem
 
 # Add Node.js to PATH only if installed
 ENV PATH="/opt/node/bin:/app/.venv/bin:/usr/local/bin:/usr/bin:/bin:/sbin"
@@ -132,7 +141,5 @@ EXPOSE 8501
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:8501/_stcore/health || exit 1
 
-# Default: start Streamlit
-CMD streamlit run "/app/${_STREAMLIT_ENTRY}" \
-    --server.port=8501 --server.address=0.0.0.0 --server.headless=true \
-    --server.enableCORS=false --server.enableXsrfProtection=false
+# Expand the configured entrypoint, then deliver container signals to Streamlit.
+CMD ["sh", "-c", "exec streamlit run \"/app/${_STREAMLIT_ENTRY}\" --server.port=8501 --server.address=0.0.0.0 --server.headless=true --server.enableCORS=false --server.enableXsrfProtection=false"]

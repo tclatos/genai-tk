@@ -2,6 +2,21 @@
 .git
 .gitignore
 
+# Credentials must never reach the builder, even through COPY . .
+**/.env
+**/.env.*
+**/.aws
+**/.ssh
+**/.codex
+**/.agents
+**/.npmrc
+**/.pypirc
+**/.netrc
+**/.streamlit/secrets.toml
+**/*credentials*.json
+**/*.pem
+**/*.key
+
 # Python
 .venv
 __pycache__
@@ -28,6 +43,8 @@ tests
 docs
 *.md
 !README.md
+# Runtime skills and their referenced Markdown are application assets.
+!skills/**/*.md
 
 # Temporary files
 tmp
