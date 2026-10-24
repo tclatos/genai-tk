@@ -6,8 +6,6 @@ import json
 
 from genai_tk.protocols.auip.models import (
     AuipArtifactEvent,
-    AuipEndEvent,
-    AuipErrorEvent,
     AuipHitlRequestEvent,
     AuipHitlResponse,
     AuipInterruptControl,

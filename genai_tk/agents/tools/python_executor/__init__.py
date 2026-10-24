@@ -1,4 +1,4 @@
-"""Python executor package: Sandboxed and safe in-process execution tools for agents."""
+"""Isolated Python tools and an explicit trusted-development local interpreter."""
 
 from genai_tk.agents.sandbox.manager import DockerSandboxManager, SandboxManager
 from genai_tk.agents.tools.python_executor.base import BasePythonExecutor

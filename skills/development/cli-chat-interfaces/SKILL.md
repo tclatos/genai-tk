@@ -178,6 +178,7 @@ Key points:
 - Slash commands: `/help`, `/info` (shows harness/profile/model), `/clear` (new thread), `/quit`.
 - Consistent Rich rendering of `TokenEvent`, `ToolCallEvent`, `ToolResultEvent`, `NodeEvent` (trace), `ClarificationEvent`, `ErrorEvent` across every command that uses it.
 - `--trace` (node-level execution trace) and `--json` (raw NDJSON events) support for free if you thread those flags through to `stream_turn`/rendering.
+- JSON output must preserve one AUIP event per physical line and the exact decoded payload. Keep wrapping, markup, highlighting, and emoji substitution disabled in the shared JSON branch; test long text and literal tags/shortcodes by parsing each output line.
 
 ## Avoid
 

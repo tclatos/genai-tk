@@ -19,4 +19,4 @@ class CodeOutput(BaseModel):
 class PythonExecutorInput(BaseModel):
     """Input schema for Python code execution tool."""
 
-    code: str = Field(description="The Python code to execute in the in-process interpreter.")
+    code: str = Field(description="The Python code to execute in the configured backend.")

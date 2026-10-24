@@ -12,7 +12,6 @@ from genai_tk.protocols.auip.models import (
     AuipErrorEvent,
     AuipHitlRequestEvent,
     AuipPhaseEvent,
-    AuipThinkingEvent,
     AuipTokenEvent,
     AuipToolCallEvent,
     AuipToolResultEvent,

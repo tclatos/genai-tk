@@ -6,17 +6,21 @@
 > LLMs have not been systematically validated yet. Expect rough edges and
 > behavior changes.
 
-CodeAct is a SmolAgents-inspired agent paradigm: instead of expressing every
-action as a discrete tool call, the LLM writes **Python code blocks** that are
-executed in a safe in-process sandbox. Multi-step reasoning, loops,
-conditionals, and stateful tool composition become ordinary Python. Sibling
-tools (web search, …) are bound as plain callables inside the sandbox, printed
-output becomes the next observation, tracebacks drive retries, and the run
-terminates when the code calls `final_answer(result)`.
+CodeAct is a SmolAgents-inspired agent paradigm: the LLM writes **Python code
+blocks** to compose tools, process data, and calculate results. The Python tool
+uses a dedicated Docker sandbox by default. Variables persist within that
+executor's session, printed output becomes the next observation, and
+`final_answer(result)` terminates the calculation.
+
+The separate `LocalPythonExecutor` runs inside the host process and is for
+trusted development only. Its AST restrictions are not an isolation boundary.
 
 ## Quick start
 
 ```bash
+uv sync --extra harnessing
+uv run cli sandbox start
+uv run cli sandbox pull
 uv run cli agents run codeact \
   "How many seconds does it takes to a leopart at full speed to run through the Pont des Arts. Use Codeact skill" \
   -m glm5.2@openrouter
@@ -38,24 +42,28 @@ uv run cli agents run codeact "..." -m glm5.2@openrouter --json
 
 ## Architecture
 
-```text
-LLM turn 1..N                    Python Executor (BasePythonExecutor)      Tools
-─────────────                    ────────────────────────────────────      ─────
-write python code block  ─────►  Local AST / Sandboxed Container
-                                         │
-                                         ├── web_search(...)  ───► search provider
-                                         ├── final_answer(x)  ──► stop, return x
-                                         └── print(...)       ──► captured as logs
-observation ◄────  logs + last expression value (or traceback on error)
+```mermaid
+flowchart LR
+    AGENT[Agent] --> TOOL[Python executor]
+    TOOL --> TRANSPORT[Sandbox command transport]
+    subgraph SESSION[Dedicated container per executor]
+        SUPERVISOR[Authenticated loopback supervisor]
+        CHILD[Stateful child process]
+        SUPERVISOR --> CHILD
+        CHILD -->|Bounded JSON result or tool request| SUPERVISOR
+    end
+    TRANSPORT <--> SUPERVISOR
+    TOOL -->|Allowlisted tool invocation| HOSTTOOLS[Configured host tools]
+    TOOL -->|Timeout or infrastructure failure| RETIRE[Retire owned container]
 ```
 
-Components (all under `genai_tk/agents/tools/python_executor/`):
+Components live in [genai_tk/agents/tools/python_executor/](../genai_tk/agents/tools/python_executor/):
 
 | Piece | Role |
 |---|---|
 | `base.BasePythonExecutor` | Common protocol interface (`aexecute_code`, `reset`, `send_tools`, `send_variables`) |
-| `executor.LocalPythonExecutor` | In-process AST safe executor: persists variables across calls, enforces timeouts and import allow-lists |
-| `docker_executor.SandboxedPythonExecutor` | Sandboxed executor: runs inside any `SandboxBackendProtocol` runtime with stateful NumPy/Pandas and host tool RPC bridge |
+| `executor.LocalPythonExecutor` | Trusted, in-process AST interpreter with import and operation restrictions; its thread timeout cannot terminate running host code |
+| `docker_executor.SandboxedPythonExecutor` | Stateful child process in a dedicated sandbox; bounded JSON tool relay, execution deadline, and explicit cleanup |
 | `tool.PythonExecutorTool` | LangChain `BaseTool` wrapper (name `python_interpreter`) that renders `CodeOutput` as text, with a `FINAL ANSWER:` marker on termination |
 | `tool.create_python_executor_tools` | Tool factory accepting nested sandbox `tools` (e.g. search tools) exposed directly inside the interpreter |
 
@@ -64,32 +72,89 @@ Components (all under `genai_tk/agents/tools/python_executor/`):
 1. The agent plans one small step and writes a short Python block.
 2. The block runs in the sandbox. `print()` output and the last expression
    value come back as the observation; variables persist across blocks.
-3. On error, the exception message becomes the observation and the agent is
-   expected to fix and retry.
+3. Ordinary code exceptions become observations. Inspect completed tool actions
+   before retrying. A timeout or infrastructure failure invalidates the executor;
+   it must be replaced, and the original code is never replayed on the host.
 4. Calling `final_answer(value)` raises an internal `FinalAnswerException`
    (a `BaseException` subclass, so agent code can't accidentally catch it),
    stops execution, and surfaces the value with a `FINAL ANSWER:` marker.
 
-## Safety model
+## Execution and trust boundaries
 
-The interpreter is not `eval()`:
+- **Fail closed:** `executor_type="docker"` is the factory default. The legacy
+  `"auto"` and `"sandbox"` names also require isolated execution. Docker startup,
+  worker, and transport failures never switch to local execution.
+- **Dedicated sessions:** without an explicit `backend`, each executor creates
+  and owns a fresh backend. It does not reuse the global `SandboxManager` or a
+  harness's context backend. Configured environment variables and volumes are
+  omitted from this default backend to avoid inheriting credentials or host
+  filesystem access. Worker directories, ports, credentials, and request files
+  are session-specific; calls within a session are serialized.
+- **Tool relay:** code can request only the host tools registered for that
+  executor. Requests and results pass through the sandbox command transport as
+  bounded JSON; the executor opens no host HTTP listener. Host tools remain
+  privileged capabilities and must validate their own inputs.
+  Plain callable tools are registered without being invoked during setup.
+  To invoke a factory during setup, use its qualified name, a configuration
+  mapping, or an explicit `FactoryToolSpec`.
+- **Deadlines and output:** the worker supervisor can terminate its child
+  process group at the execution deadline (default 30 seconds). Captured output
+  is bounded while it is produced (default 50,000 characters). A timeout or
+  transport failure invalidates the executor and retires its owned container.
+  A failed retirement is reported as a cleanup failure and requires intervention.
+- **State lifecycle:** `reset()` clears variables and agent-defined functions
+  while retaining explicitly configured tools. `send_tools()` replaces the
+  allowlist, including rejection of retained aliases to revoked tools.
+  `send_variables()` and initial state for sandbox execution must be JSON-compatible.
+- **Cleanup:** use `await executor.aclose()` in async callers or `executor.close()`
+  in synchronous callers. Closed or invalidated executors cannot be revived by
+  `reset()`; create a replacement. Closing a default executor retires its own
+  container and leaves the shared OpenSandbox service available to peer sessions.
+  Use `uv run cli sandbox stop` to stop the service explicitly.
 
-- **Import allow-list** — only modules in `BASE_BUILTIN_MODULES` plus profile
-  extras (`additional_authorized_imports`) can be imported; dangerous modules
-  (`os`, `sys`, `subprocess`, `socket`, `threading`, …) and functions
-  (`eval`, `exec`, `compile`, `__import__`, …) are blocked.
-- **Dunder restrictions** — forbidden dunder attribute/function access.
-- **Timeout** — per-call execution timeout (default 30 s).
-- **Resource caps** — max operations and loop-iteration counters stop runaway
-  loops; output is truncated to 50 000 characters.
+Supplying `backend=` deliberately uses a caller-owned trust boundary, including
+any configured mounts and environment. The caller must not share it across
+mutually untrusted sessions. Distinct worker tokens and directories do not isolate
+malicious code that already shares a container or OS user. After a timeout, the
+caller must retire that backend to stop any detached descendants; the executor
+only attempts cleanup of its worker on a borrowed backend.
+Known host-shell backends are rejected, including a `LocalShellBackend` wrapped
+as a composite backend's default. Custom backends must provide genuine isolation.
 
-Note: this runs **in-process** on the host interpreter, sandboxed by AST-level
-checks — not in a container. Don't point it at untrusted users without
-understanding that distinction.
+Container limits and restricted mounts, credentials, network access, and host
+tool capabilities are part of the deployment boundary. See
+[Sandbox support](sandbox_support.md). A timeout cannot undo a host-tool action,
+and an already-running synchronous host tool may continue after its await is
+cancelled. Do not automatically retry actions with unknown outcomes.
+
+### Trusted local development
+
+Opt in explicitly with `executor_type="local"`, or construct
+`LocalPythonExecutor` directly. This mode executes in the host process. AST import
+and attribute restrictions and operation counters help catch mistakes, but do
+not make hostile Python safe. A thread timeout cannot kill a native call or host
+tool. [CPython's security policy](https://devguide.python.org/security/policy/)
+does not support in-process Python sandboxing as a security boundary.
+
+For local mode, declare optional imports such as `pandas` explicitly through
+`additional_authorized_imports`; installing a package no longer authorizes it
+automatically. Container mode uses the packages installed in its image and does
+not apply the local AST import policy.
+
+### Migrating existing callers
+
+| Previous assumption | Required change |
+|---|---|
+| `auto` runs on the host when Docker is unavailable | Install the `harnessing` extra and start the sandbox service, or explicitly choose trusted `local` mode |
+| A Docker error can fall back to local code | Handle the error; `fallback_to_local=True` is rejected |
+| Global sandbox reuse separates executor sessions | Let each executor own a backend, or deliberately supply a backend within one trust boundary |
+| Default execution inherits configured volumes and environment | Supply an explicit backend only after reviewing the mounts and credentials it grants |
+| Any Python object can be injected into a container worker | Send JSON-compatible values or transfer a file into the sandbox |
+| Retrying a failed block is harmless | Check completed host-tool actions before retrying; replace an invalidated executor |
 
 ## Configuration
 
-Profiles live in `config/examples/agents/codeact.yaml`:
+Profiles live in [config/examples/agents/codeact.yaml](../config/examples/agents/codeact.yaml):
 
 - **`codeact`** — standalone deep agent. Tools: the Python executor plus
   `create_search_tool` (bound as `web_search(...)` inside the sandbox). Loads
@@ -121,19 +186,21 @@ agents:
 
       1. **Your ONLY action tool is `python_interpreter`**: Never call external tools (like `web_search`)
          directly in the outer agentic loop.
-      2. **External tools are in-process Python functions**: All sibling tools (e.g. `web_search`)
-         are exposed as callable functions inside the Python environment. Call them in Python:
+      2. **External tools are registered capabilities**: Sibling tools (e.g. `web_search`)
+         are exposed as callable proxies inside Python. Call them in Python:
          `result = web_search("...")`.
       3. **Minimize turns**: Write comprehensive Python scripts that retrieve all needed data,
          parse and process results, perform calculations, and call `final_answer(...)` in a
          single or minimal execution turns. Do NOT take separate turns for individual lookups.
       4. **Deterministic math**: Perform all calculations, unit conversions, and rounding in Python.
       5. **Observability**: Use `print()` to log intermediate data and progress.
-      6. **Retry on error**: If a script fails, read the traceback, fix the code, and re-execute.
+      6. **Handle errors deliberately**: Inspect completed tool actions before retrying a code error.
+         On timeout or infrastructure failure, stop and report the error; do not replay the block.
       7. **Termination**: Call `final_answer(result)` to return the final answer.
 
     tools:
       - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+          executor_type: docker
           tools:
             - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
 
@@ -174,11 +241,13 @@ agents:
 
           - web_search(...) is available as a plain function in the sandbox.
           - Variables persist across calls; use print() for observations.
-          - On error, read the traceback, fix the code, and retry.
+          - Inspect completed tool actions before retrying code errors.
+          - Stop on timeout or infrastructure failure; do not replay the block.
           - Terminate by calling final_answer(result).
 
         tools:
           - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+              executor_type: docker
               tools:
                 - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
 ```
@@ -191,9 +260,19 @@ top-level profiles.
 
 ## Extending
 
-- Add imports the sandbox may use with `additional_authorized_imports`.
-- See `skills/custom/codeact/SKILL.md` for the runtime prompt protocol.
-- For developer usage of the interpreter (embedding it in your own code), read
-  the `genai-tk-python-interpreter` dev skill in `skills/genai-tk/`.
-- Tests: `tests/unit_tests/tools/test_python_executor.py` and the factory
-  structural tests under `tests/unit_tests/agents/langchain/`.
+- Configure container packages in the image; configure local AST imports with
+  `additional_authorized_imports` only for trusted local execution.
+- Read the [CodeAct runtime skill](../skills/runtime/codeact/SKILL.md) and
+  [Python interpreter development skill](../skills/development/python-interpreter/SKILL.md).
+- Regression tests cover fail-closed behavior, tool authorization, worker
+  state/reset, output bounds, and process termination:
+
+```bash
+uv run pytest tests/unit_tests/tools/test_python_executor.py \
+  tests/unit_tests/tools/test_docker_python_executor.py \
+  tests/unit_tests/tools/test_sandbox_worker.py -q
+uv run cli skills validate --all
+```
+
+Real container checks require Docker and `--include-docker`; subprocess tests
+alone do not validate a deployed container's mounts, credentials, or network policy.

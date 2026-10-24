@@ -1,25 +1,21 @@
-"""LangChain BaseTool wrapper for Python code execution via Docker sandbox or safe AST."""
+"""LangChain tools for isolated Python execution or explicit trusted local use."""
 
 from __future__ import annotations
 
-import asyncio
-from importlib.util import find_spec
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.tools import BaseTool
-from loguru import logger
 from pydantic import Field
 
-from genai_tk.agents.sandbox.manager import DockerSandboxManager
 from genai_tk.agents.tools.python_executor.docker_executor import DockerPythonExecutor
 from genai_tk.agents.tools.python_executor.executor import LocalPythonExecutor
-from genai_tk.agents.tools.python_executor.models import PythonExecutorInput
+from genai_tk.agents.tools.python_executor.models import CodeOutput, PythonExecutorInput
 
-COMMON_OPTIONAL_PACKAGES: list[str] = ["numpy", "pandas", "scipy", "sympy"]
+ExecutorType = Literal["docker", "sandbox", "auto", "local"]
 
 
 class PythonExecutorTool(BaseTool):
-    """LangChain tool for executing Python code in a Docker sandbox or safe AST interpreter."""
+    """Execute Python in a dedicated sandbox by default."""
 
     name: str = "python_interpreter"
     description: str = (
@@ -28,14 +24,14 @@ class PythonExecutorTool(BaseTool):
         "Supports standard libraries and data science packages (e.g., numpy, pandas, scipy, math, json)."
     )
     args_schema: type[PythonExecutorInput] = PythonExecutorInput
-    executor: Any = Field(default_factory=LocalPythonExecutor)
+    executor: DockerPythonExecutor | LocalPythonExecutor = Field(default_factory=DockerPythonExecutor)
     include_logs: bool = Field(
         default=True, description="Whether to include printed logs in the returned string output"
     )
 
     model_config = {"arbitrary_types_allowed": True}
 
-    def _format_result(self, code_output: Any) -> str:
+    def _format_result(self, code_output: CodeOutput) -> str:
         if code_output.error:
             err_msg = f"Error: {code_output.error}"
             if code_output.logs:
@@ -63,10 +59,7 @@ class PythonExecutorTool(BaseTool):
 
     async def _arun(self, code: str) -> str:
         """Asynchronously execute Python code."""
-        if hasattr(self.executor, "aexecute_code"):
-            result = await self.executor.aexecute_code(code)
-        else:
-            result = await asyncio.to_thread(self._run, code)
+        result = await self.executor.aexecute_code(code)
         return self._format_result(result)
 
 
@@ -77,56 +70,51 @@ def create_python_executor_tool(
     timeout_seconds: int | None = 30,
     include_logs: bool = True,
     initial_state: dict[str, Any] | None = None,
-    executor_type: str = "auto",
+    executor_type: ExecutorType = "docker",
     backend: Any = None,
 ) -> BaseTool:
     """Factory function to instantiate a configured PythonExecutorTool.
 
     Args:
-        authorized_imports: Additional module names allowed to be imported (e.g. ['pandas', 'numpy']).
+        authorized_imports: Explicit additional imports for the trusted local interpreter.
         additional_authorized_imports: Alias for authorized_imports.
-        tools: Tools, tool factories, qualified names, or custom functions to expose inside Python.
-        timeout_seconds: Max execution time allowed in seconds.
+        tools: Tool instances or custom functions to expose inside Python. Specify factories with qualified
+            names or configuration objects; plain callables are registered without being invoked.
+        timeout_seconds: Sandbox wall deadline; local execution offers only a cooperative wait limit.
         include_logs: Whether stdout printed logs should be included in the tool output.
         initial_state: Initial variables injected into the execution state.
-        executor_type: 'docker', 'local', or 'auto' (prefers Docker if available, falls back to local).
-        backend: Optional existing AioSandboxBackend to bind to.
+        executor_type: 'docker' (default), 'sandbox', or 'auto' requires isolation. 'local' opts into trusted host execution.
+        backend: Optional caller-managed sandbox. Its users share a single trust boundary.
 
     Returns:
         Configured PythonExecutorTool instance.
     """
-    discovered = [pkg for pkg in COMMON_OPTIONAL_PACKAGES if find_spec(pkg) is not None]
-    effective_imports = list(set((authorized_imports or []) + (additional_authorized_imports or []) + discovered))
-
-    use_docker = False
-    if executor_type in ("docker", "sandbox"):
-        use_docker = True
-    elif executor_type == "auto":
-        use_docker = backend is not None or DockerSandboxManager.is_docker_available()
-
-    if use_docker:
-        try:
-            logger.info("Instantiating DockerPythonExecutor in Docker sandbox...")
-            executor = DockerPythonExecutor(
-                backend=backend,
+    if executor_type not in ("docker", "sandbox", "auto", "local"):
+        raise ValueError(f"Unknown Python executor type: {executor_type!r}")
+    effective_imports = sorted(set((authorized_imports or []) + (additional_authorized_imports or [])))
+    if executor_type == "local":
+        if backend is not None:
+            raise ValueError("A sandbox backend cannot be combined with trusted local execution")
+        return PythonExecutorTool(
+            executor=LocalPythonExecutor(
                 additional_authorized_imports=effective_imports,
                 tools=tools,
                 timeout_seconds=timeout_seconds,
                 initial_state=initial_state,
-            )
-            return PythonExecutorTool(executor=executor, include_logs=include_logs)
-        except Exception as exc:
-            if executor_type in ("docker", "sandbox"):
-                raise RuntimeError(f"Failed to start Docker sandbox Python executor: {exc}") from exc
-            logger.warning(f"Docker sandbox executor initialization failed, falling back to local: {exc}")
-
-    executor = LocalPythonExecutor(
-        additional_authorized_imports=effective_imports,
-        tools=tools,
-        timeout_seconds=timeout_seconds,
-        initial_state=initial_state,
+            ),
+            include_logs=include_logs,
+            description="Executes trusted Python code on the host. This local interpreter is not a security boundary.",
+        )
+    return PythonExecutorTool(
+        executor=DockerPythonExecutor(
+            backend=backend,
+            additional_authorized_imports=effective_imports,
+            tools=tools,
+            timeout_seconds=timeout_seconds,
+            initial_state=initial_state,
+        ),
+        include_logs=include_logs,
     )
-    return PythonExecutorTool(executor=executor, include_logs=include_logs)
 
 
 def create_python_executor_tools(
@@ -137,7 +125,7 @@ def create_python_executor_tools(
     include_logs: bool = True,
     initial_state: dict[str, Any] | None = None,
     llm: Any = "default",
-    executor_type: str = "auto",
+    executor_type: ExecutorType = "docker",
     backend: Any = None,
 ) -> list[BaseTool]:
     """Factory returning a list of tools for agent profile integration."""

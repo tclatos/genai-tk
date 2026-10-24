@@ -106,6 +106,8 @@ def write_server_config(
         f'[runtime]\ntype = "docker"\nexecd_image = "{execd_image}"\n\n'
         f"[storage]\nallowed_host_paths = [{quoted}]\n\n"
         f"[docker]\n"
+        f"pids_limit = 256\n"
+        f"no_new_privileges = true\n"
         f"# Launch containers with core=0 ulimit to prevent massive core dump generation in overlayfs snapshots\n"
         f'ulimits = [{{ name = "core", soft = 0, hard = 0 }}]\n'
     )
