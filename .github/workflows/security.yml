@@ -34,6 +34,8 @@ jobs:
           version: "0.13.5"
           python-version: "3.12.15"
           enable-cache: false
+      - name: Install reviewed Python interpreter
+        run: uv python install 3.12.15
       - name: Audit every extra and dependency group
         # Native audit is experimental in this pinned uv version. Fail on both
         # vulnerabilities and service/lock errors; never ignore packages without fixes.

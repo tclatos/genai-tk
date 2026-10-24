@@ -54,6 +54,10 @@ markers without installing or building dependencies. This is metadata coverage,
 not proof that all three operating systems can run every optional provider.
 Functional CI remains separate so its results are distinguishable from advisories.
 
+The audit workflow explicitly runs `uv python install 3.12.15` after installing
+uv. Selecting `python-version` in setup-uv does not install that interpreter;
+bootstrap it before an audit that uses `--no-python-downloads`.
+
 Native `uv audit` is experimental in the pinned version. The command exits
 unsuccessfully for vulnerabilities and service/lock errors; CI preserves that
 status through `pipefail` and uploads JSON evidence even on failure. There are

@@ -24,6 +24,8 @@ and [pyproject.toml](../../../pyproject.toml) before changing the security polic
 5. Run `uv audit --locked --no-build --python-version 3.12.15 --python-platform linux`
    and repeat for macOS/Windows markers. Native audit is experimental; keep uv
    pinned and treat network/service/parser failures as failures, not clean scans.
+   In CI, run `uv python install 3.12.15` before auditing with
+   `--no-python-downloads`; setup-uv's `python-version` only selects an interpreter.
 6. Keep findings with no fix visible. Do not add blanket ignores or
    `--ignore-until-fixed`. Any proposed exception needs specific affected-code
    evidence, an owner, an expiry, and a regression check in a separate review.

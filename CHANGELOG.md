@@ -20,6 +20,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Fixed
 
+- **Audit interpreter bootstrap**: The dependency security workflow explicitly installs the reviewed Python interpreter before running the audit with automatic Python downloads disabled, so fresh CI runners reach the advisory checks.
+
 - **Direct Git Requirement for `prefect-yaml` in Core Dependencies**: Declared `prefect-yaml @ git+https://github.com/tclatos/prefect-yaml@main` directly in [pyproject.toml](pyproject.toml) `dependencies` so consuming projects installing `genai-tk` via Git resolve the modern Prefect 3 repository directly instead of attempting to resolve the obsolete `prefect-yaml` package from PyPI.
 - **`cli` no longer fails on networks that cannot reach GitHub**: The `nlp` extra pinned the `en_core_web_md` spaCy model to a GitHub release URL, so every `uv run`/`uv sync` had to fetch it and aborted with a tunnel error when GitHub was unreachable. The model is no longer pinned in [pyproject.toml](pyproject.toml); the existing `SpaCyModelManager` downloads it on first use, and [docs/nlp.md](docs/nlp.md) documents the manual `python -m spacy download` alternative.
 - **Git repository ingestion no longer drops its clones**: The output-directory exclusion added for markdownize sources (which skips `.cache` content) also swallowed git clones, because [genai_tk/workflow/prefect/flows/git_repo_flow.py](genai_tk/workflow/prefect/flows/git_repo_flow.py) stored them in `<md_output_dir>/.cache`. The `git_repo` flow now keeps its clone cache in a sibling `.cache` directory next to the output, so repositories are ingested again and the `test_git_repo_flow_e2e` CI failure is resolved.
