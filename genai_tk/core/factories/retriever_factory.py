@@ -11,7 +11,7 @@ fully-qualified class name pointing to a builder in ``genai_tk.core.retrievers``
     retrievers:
       default:
         type: genai_tk.core.retrievers.VectorRetriever   # qualified name (preferred)
-        embeddings_store: in_memory_chroma
+        embeddings_store: in_memory
         top_k: 4
 
       bm25_local:
@@ -55,11 +55,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal, Protocol, Union, runtime_checkable
 
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
+from langchain_core.vectorstores import InMemoryVectorStore
 from loguru import logger
 from pydantic import BaseModel, Field
 
@@ -205,6 +207,13 @@ def _resolve_builder_class(type_str: str) -> Any:
 # ---------------------------------------------------------------------------
 
 
+@runtime_checkable
+class DocumentIterable(Protocol):
+    """Expose a document snapshot without leaking a native database handle."""
+
+    def iter_documents(self) -> Iterator[Document]: ...
+
+
 class VectorDocumentStore:
     """Ingestion store backed by a LangChain VectorStore."""
 
@@ -229,7 +238,7 @@ class VectorDocumentStore:
                     vs,
                     cleanup="incremental",
                     source_id_key=sid,
-                    key_encoder="blake2b",
+                    key_encoder=getattr(vs, "index_key_encoder", "blake2b"),
                 ),
             )
         return await self.vector_store.aadd_documents(docs)
@@ -440,12 +449,16 @@ class ManagedRetriever:
         if self._vector_store is not None:
             try:
                 if hasattr(self._vector_store, "delete_collection"):
-                    self._vector_store.delete_collection()
-                    return True
-                # Chroma-style: delete all document IDs
-                all_docs = self._vector_store._collection.get()  # type: ignore[attr-defined]
-                if all_docs and all_docs.get("ids"):
-                    self._vector_store._collection.delete(ids=all_docs["ids"])  # type: ignore[attr-defined]
+                    await asyncio.to_thread(self._vector_store.delete_collection)
+                elif isinstance(self._vector_store, InMemoryVectorStore):
+                    await self._vector_store.adelete(ids=list(self._vector_store.store))
+                else:
+                    raise NotImplementedError("This vector backend does not support clearing a collection")
+                if isinstance(self.store, VectorDocumentStore) and self.store.record_manager is not None:
+                    record_manager = self.store.record_manager
+                    keys = await asyncio.to_thread(record_manager.list_keys)
+                    if keys:
+                        await asyncio.to_thread(record_manager.delete_keys, keys)
                 return True
             except Exception as exc:
                 logger.error("Failed to delete vector store '{}': {}", self.config_tag, exc)
@@ -512,9 +525,12 @@ def _bm25_cache_dir(cache_dir_cfg: str | None, config_tag: str) -> Path:
 
 
 def _is_persistent(es: Any) -> bool:
-    if es.backend == "Chroma":
-        return es.config.get("storage", "::memory::") != "::memory::"
-    return es.backend == "PgVector"
+    return es.backend in {
+        "genai_tk.core.vector_backends.ZvecBackend",
+        "genai_tk.core.vector_backends.zvec.ZvecBackend",
+        "genai_tk.core.vector_backends.PgVectorBackend",
+        "genai_tk.core.vector_backends.pgvector.PgVectorBackend",
+    }
 
 
 def _make_record_manager(

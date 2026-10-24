@@ -9,7 +9,7 @@ YAML usage::
     retrievers:
       default:
         type: genai_tk.core.retrievers.VectorRetriever
-        embeddings_store: in_memory_chroma
+        embeddings_store: in_memory
         top_k: 4
 
       bm25_local:

@@ -267,21 +267,16 @@ class TestManagedRetriever:
         results = await managed.aquery("programming")
         assert isinstance(results, list)
 
-    async def test_delete_vector_store(self) -> None:
-        mock_vs = MagicMock(spec=[])  # no attributes → triggers _collection path
-        mock_vs._collection = MagicMock()
-        mock_vs._collection.get = MagicMock(return_value={"ids": ["id1", "id2"]})
-        mock_vs._collection.delete = MagicMock()
-
+    async def test_delete_vector_store(self, fake_embeddings) -> None:
+        vector_store = InMemoryVectorStore(embedding=fake_embeddings)
+        vector_store.add_documents([Document(page_content="to remove")])
         managed = ManagedRetriever(
-            retriever=_EmptyRetriever(),
-            default_k=4,
+            retriever=vector_store.as_retriever(),
             config_tag="deletable",
-            vector_store=mock_vs,
+            vector_store=vector_store,
         )
-        result = await managed.adelete_store()
-        assert result is True
-        mock_vs._collection.delete.assert_called_once_with(ids=["id1", "id2"])
+        assert await managed.adelete_store() is True
+        assert vector_store.store == {}
 
     async def test_delete_bm25_store(self, bm25_store: BM25DocumentStore, sample_docs: list[Document]) -> None:
         await bm25_store.aadd_documents(sample_docs)

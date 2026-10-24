@@ -30,6 +30,12 @@ and [pyproject.toml](../../../pyproject.toml) before changing the security polic
    `--ignore-until-fixed`. Any proposed exception needs specific affected-code
    evidence, an owner, an expiry, and a regression check in a separate review.
    Update the unresolved findings table instead of concealing a blocker.
+   For integrations with no patched release, remove unused dependency extras or
+   retire the integration with explicit configuration errors and migration docs;
+   never silently reinterpret existing persistent data. The Chroma extra and
+   DiskCache backend are retired. Keep Pillow 13 paired with compatible FastEmbed,
+   Streamlit, and Docling releases and run the real compatibility regressions in
+   [tests/integration_tests/security/](../../../tests/integration_tests/security/).
 7. Verify image digests and action SHAs at upstream release refs. Keep credentials
    out of build contexts and run the Docker context regression with
    `uv run --locked pytest tests/integration_tests/security/test_docker_build_context.py --include-docker --no-cov`.

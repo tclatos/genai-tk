@@ -81,7 +81,7 @@ def fresh_embeddings_store():
     """Create a fresh in-memory embeddings store for each test."""
     from genai_tk.core.embeddings_store import EmbeddingsStore
 
-    return EmbeddingsStore.create_from_config("in_memory_chroma")
+    return EmbeddingsStore.create_from_config("in_memory")
 
 
 def test_isolated_search(fresh_embeddings_store, sample_documents):

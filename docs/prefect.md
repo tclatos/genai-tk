@@ -114,8 +114,8 @@ Requires LibreOffice: `sudo apt-get install libreoffice` or equivalent. Uses a
 Processes documents into the configured vector store: load → chunk → embed → upsert.
 
 ```bash
-uv run cli rag add-files ./documents
-uv run cli rag add-files ./documents --retriever persistent --force
+uv run cli rag add-files ./documents --retriever persistent_zvec
+uv run cli rag add-files ./documents --retriever persistent_zvec --force
 ```
 
 **Deduplication:** each file is hashed before ingestion; unchanged files are skipped on

@@ -26,7 +26,7 @@ The RAG layer is built around two central abstractions:
 └──────┬─────────────────┬────────────────────┬────────────┘
        │                 │                    │
   VectorStore      BM25DocumentStore    EnsembleRetriever
-  (Chroma / In-    (bm25s, disk cache)  (weighted fusion)
+  (Zvec / In-      (bm25s, disk cache)  (weighted fusion)
    Memory / PG)
        │
   RecordManager (optional dedup)
@@ -46,15 +46,15 @@ The RAG layer is built around two central abstractions:
 
 ### `VectorRetriever` — dense similarity search
 
-Backed by an `EmbeddingsStore` (Chroma, InMemory, or PgVector).
+Backed by an `EmbeddingsStore` (Zvec, InMemory, or PgVector). Zvec supports similarity search and equality metadata filters; MMR remains available on InMemory and supported PostgreSQL stores.
 
 ```yaml
 retrievers:
   my_store:
     type: genai_tk.core.retrievers.VectorRetriever
-    embeddings_store: chroma_indexed   # key in embeddings_store: section
+    embeddings_store: zvec   # key in embeddings_store: section
     top_k: 4
-    search_type: similarity            # or mmr
+    search_type: similarity            # MMR requires another backend
     record_manager_url: ~              # auto SQLite when null + persistent store
 ```
 
@@ -186,28 +186,60 @@ type: genai_tk.core.retrievers.ZeroEntropyRetriever
 
 This allows you to write **custom retriever builders** in your own codebase without modifying genai-tk. See [Extending with custom retrievers](#extending-with-custom-retrievers) below.
 
-### Backend `backend` field — short names (for EmbeddingsStore)
+### Backend `backend` field — fully qualified class names
 
-Vector store backends in `embeddings_store:` blocks use **short names** (not qualified names). The EmbeddingsStore factory uses a different dispatch mechanism than retrievers:
+Vector store backends use the same explicit import convention as retriever builders:
 
 ```yaml
 embeddings_store:
-  my_store:
-    backend: Chroma                # short name (not qualified)
+  zvec:
+    backend: genai_tk.core.vector_backends.ZvecBackend
     embeddings: default
     config:
-      storage: '::memory::'
+      storage: ${paths.data_root}/vector_store_zvec
 ```
 
-Supported backends:
+| Backend class | Behavior |
+|---|---|
+| `genai_tk.core.vector_backends.InMemoryBackend` | Fresh ephemeral store per factory instance |
+| `genai_tk.core.vector_backends.ZvecBackend` | Persistent local similarity index; no server |
+| `genai_tk.core.vector_backends.PgVectorBackend` | PostgreSQL with pgvector and optional full-text search |
 
-| Short name | Backend |
-|---|----------|
-| `Chroma` | Chroma (in-memory or persistent) |
-| `InMemory` | Ephemeral in-process store |
-| `PgVector` | PostgreSQL with pgvector + full-text |
+### Retiring Chroma and migrating existing indexes
 
-> **Note:** Only `RetrieverFactory` uses fully-qualified class names. `EmbeddingsStore` backends use short names for simpler configuration.
+Chroma support is retired because the reviewed upstream release has unresolved
+code-execution and authorization advisories. The old `chroma`, `in_memory_chroma`,
+`local_fast`, and `persistent` examples intentionally fail with a migration error.
+The importable `ChromaBackend` stub also rejects caller-owned legacy configurations
+before resolving embeddings or opening storage. Installing Chroma manually does
+not re-enable this integration.
+
+Use `default` / `in_memory` only for ephemeral work within one store instance.
+Separate CLI invocations and factory instances do not share that in-memory state.
+For persistent work choose the new `persistent_zvec` or `local_zvec` retriever.
+They use fresh `vector_store_zvec` and `vector_store_local_zvec` directories and
+never interpret or delete an existing Chroma database. Back up the old index and
+re-ingest trusted source documents into the new store; verify retrieved content
+and metadata before retiring the old data. There is no automatic binary-format
+conversion. PostgreSQL remains the service-backed alternative.
+
+```bash
+uv run cli rag embed persistent_zvec --text "A document"
+uv run cli rag query "document" --retriever persistent_zvec
+```
+
+The local Zvec adapter serializes each operation with a file lock, flushes writes,
+and closes native handles before returning. Nonempty equality dictionaries stream
+all documents and rank matches with a bounded heap (O(n) work); native expression
+filters use the query engine. Existing or corrupt directories fail on open
+instead of being recreated. Its dictionary filters use metadata equality;
+Chroma filter operators and MMR are not interchangeable with this API. Use
+`iter_documents()` for document snapshots and ingestion hash checks. Clearing a
+managed Zvec store also clears its record-manager keys so re-ingestion works.
+Zvec's 64-character document-ID limit requires SHA-256 indexing keys; other
+backends retain their existing Blake2b key scheme. For an existing index, the
+persisted schema's distance metric governs both native and equality-filtered
+ranking; reopening with a different creation default does not rewrite the index.
 
 ### Full reference
 
@@ -219,14 +251,14 @@ retrievers:
   # ── vector ──────────────────────────────────────────────
   default:
     type: genai_tk.core.retrievers.VectorRetriever
-    embeddings_store: in_memory_chroma
+    embeddings_store: in_memory
     top_k: 4
     search_type: similarity             # similarity | mmr
     record_manager_url: ~               # null → auto SQLite for persistent stores
 
-  persistent:
+  persistent_zvec:
     type: genai_tk.core.retrievers.VectorRetriever
-    embeddings_store: chroma_indexed
+    embeddings_store: zvec
     top_k: 4
 
   # ── bm25 ────────────────────────────────────────────────
@@ -241,7 +273,7 @@ retrievers:
   hybrid_ensemble:
     type: genai_tk.core.retrievers.EnsembleRetriever
     retrievers:
-      - ref: persistent
+      - ref: persistent_zvec
         weight: 0.7
       - ref: bm25_local
         weight: 0.3
@@ -278,29 +310,24 @@ postgres:
 
 ### `embeddings_store:` blocks (used by `type: VectorRetriever`)
 
-These are referenced from `retrievers.<tag>.embeddings_store`::
+These are referenced from `retrievers.<tag>.embeddings_store`:
 
-    embeddings_store:
-      in_memory_chroma:
-        backend: Chroma
-        embeddings: default
-        table_name_prefix: embeddings
-        config:
-          storage: '::memory::'         # in-memory (no persistence)
-
-      chroma_indexed:
-        backend: Chroma
-        embeddings: default
-        table_name_prefix: embeddings
-        config:
-          storage: ${paths.data_root}/vector_store   # persistent on disk
-
-      local_fast:
-        backend: Chroma
-        embeddings: bge-small-en@local  # local FastEmbed model
-        table_name_prefix: embeddings
-        config:
-          storage: ${paths.data_root}/vector_store_local_fast
+```yaml
+embeddings_store:
+  in_memory:
+    backend: genai_tk.core.vector_backends.InMemoryBackend
+    embeddings: default
+  zvec:
+    backend: genai_tk.core.vector_backends.ZvecBackend
+    embeddings: default
+    config:
+      storage: ${paths.data_root}/vector_store_zvec
+  local_zvec:
+    backend: genai_tk.core.vector_backends.ZvecBackend
+    embeddings: bge-small-en@local
+    config:
+      storage: ${paths.data_root}/vector_store_local_zvec
+```
 
 ---
 
@@ -447,13 +474,13 @@ success = await managed.adelete_store()
 managed.delete_store()
 ```
 
-Chroma collections and BM25 cache directories are cleaned up. PgVector deletion is not yet implemented.
+Zvec and InMemory documents can be cleared; BM25 cache directories are removed. PgVector collection deletion is not yet implemented.
 
 ### Introspection
 
 ```python
 print(managed.get_stats())
-# {'config_tag': 'hybrid_ensemble', 'default_k': 4, 'vector_backend': 'Chroma', ...}
+# {'config_tag': 'hybrid_ensemble', 'default_k': 4, 'vector_backend': 'ZvecVectorStore', ...}
 
 print(managed.has_store)  # True / False
 print(managed.default_k)  # 4
@@ -783,7 +810,7 @@ uv run cli rag --help
 ### `add-files` — ingest a directory
 
 ```bash
-uv run cli rag add-files ./my_docs/ --retriever persistent
+uv run cli rag add-files ./my_docs/ --retriever persistent_zvec
 ```
 
 | Option | Short | Default | Description |
@@ -799,20 +826,20 @@ uv run cli rag add-files ./my_docs/ --retriever persistent
 
 ```bash
 # Auto-detect chunker by file extension (recommended)
-uv run cli rag add-files ./docs/
+uv run cli rag add-files ./docs/ --retriever persistent_zvec
 
 # Explicit markdown chunker
-uv run cli rag add-files ./docs/ --chunker markdown
+uv run cli rag add-files ./docs/ --chunker markdown --retriever persistent_zvec
 
 # Only Markdown files, with auto-detection
-uv run cli rag add-files ./docs/ \
+uv run cli rag add-files ./docs/ --retriever persistent_zvec \
     --include "**/*.md" --exclude "**/drafts/**"
 
 # Re-index everything with explicit chunker
-uv run cli rag add-files ./docs/ --retriever persistent --chunker recursive --force
+uv run cli rag add-files ./docs/ --retriever persistent_zvec --chunker recursive --force
 
 # Smaller chunks
-uv run cli rag add-files ./docs/ --chunker auto --chunk-size 256
+uv run cli rag add-files ./docs/ --chunker auto --chunk-size 256 --retriever persistent_zvec
 ```
 
 ### `query` — search a retriever
@@ -831,7 +858,7 @@ uv run cli rag query "What is hybrid search?" --retriever hybrid_ensemble
 
 ```bash
 # With filter and more results
-uv run cli rag query "pricing" -r persistent --k 10 --filter '{"source":"contracts"}'
+uv run cli rag query "pricing" -r persistent_zvec --k 10 --filter '{"source":"contracts"}'
 
 # Full content view
 uv run cli rag query "setup guide" --full
@@ -840,22 +867,22 @@ uv run cli rag query "setup guide" --full
 ### `embed` — embed a single text snippet
 
 ```bash
-uv run cli rag embed persistent --text "Hybrid search combines dense and sparse retrieval."
+uv run cli rag embed persistent_zvec --text "Hybrid search combines dense and sparse retrieval."
 
 # With metadata
-uv run cli rag embed persistent --text "BM25 explanation" --metadata '{"source": "manual"}'
+uv run cli rag embed persistent_zvec --text "BM25 explanation" --metadata '{"source": "manual"}'
 
 # From stdin
-echo "Some text to index" | uv run cli rag embed persistent
+echo "Some text to index" | uv run cli rag embed persistent_zvec
 ```
 
 ### `delete` — clear a retriever's store
 
 ```bash
-uv run cli rag delete persistent
+uv run cli rag delete persistent_zvec
 # Prompts for confirmation
 
-uv run cli rag delete persistent --force
+uv run cli rag delete persistent_zvec --force
 # Skips confirmation
 ```
 
@@ -884,7 +911,7 @@ from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
 result = run_flow_ephemeral(
     rag_file_ingestion_flow,
     base_dir="./documents",
-    retriever_name="persistent",
+    retriever_name="persistent_zvec",
     max_chunk_tokens=512,
     chunker_name="auto",  # auto-detect or specify chunker
     pathspecs=["**/*.md", "**/*.txt", "!**/node_modules/**"],  # gitignore-style
@@ -901,7 +928,7 @@ print(result)
 # }
 ```
 
-The flow uses content hashing to skip unchanged files (unless `force=True`). It only hashes files when the backing store is a persistent Chroma collection (checked via `managed._vector_store`).
+The flow hashes source files and skips unchanged content using the Zvec document-iteration capability or an explicitly configured ManifestCache. Use a persistent retriever for ingestion across factory instances or CLI runs; ephemeral in-memory stores do not preserve ingested data.
 
 See [prefect.md](prefect.md) for Prefect server setup and deployed flow patterns.
 

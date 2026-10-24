@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from genai_tk.config_mgmt.file_patterns import resolve_config_path, resolve_files
 from genai_tk.core.factories.chunker_factory import ChunkerFactory
-from genai_tk.core.factories.retriever_factory import ManagedRetriever, RetrieverFactory
+from genai_tk.core.factories.retriever_factory import DocumentIterable, ManagedRetriever, RetrieverFactory
 from genai_tk.utils.hashing import file_digest
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
@@ -50,7 +50,7 @@ def _prepare_files(
     Args:
         files: List of file paths to process
         force: If True, process all files regardless of existing hashes
-        managed: ManagedRetriever used to check for existing file hashes (Chroma only)
+        managed: Retriever whose store may expose document iteration for hash deduplication
 
     Returns:
         Tuple of (files_to_process, skipped_count)
@@ -58,19 +58,13 @@ def _prepare_files(
     to_process: list[FileToProcess] = []
     skipped = 0
 
-    # Attempt fast hash-based dedup for Chroma-backed vector stores
     existing_hashes: set[str] = set()
     vs = managed._vector_store
-    if not force and vs is not None and hasattr(vs, "_collection"):
-        try:
-            all_docs = vs._collection.get(include=["metadatas"])  # type: ignore[attr-defined]
-            if all_docs and "metadatas" in all_docs:
-                for metadata in all_docs["metadatas"]:
-                    if metadata and "file_hash" in metadata:
-                        existing_hashes.add(metadata["file_hash"])
-            logger.debug("Found {} existing file hashes in vector store", len(existing_hashes))
-        except Exception as exc:
-            logger.warning("Could not retrieve existing file hashes: {}", exc)
+    if not force and isinstance(vs, DocumentIterable):
+        existing_hashes = {
+            str(doc.metadata["file_hash"]) for doc in vs.iter_documents() if doc.metadata.get("file_hash") is not None
+        }
+        logger.debug("Found {} existing file hashes in vector store", len(existing_hashes))
 
     for path in files:
         try:
@@ -82,7 +76,7 @@ def _prepare_files(
                 skipped += 1
                 continue
 
-            # Secondary: Chroma hash-based dedup
+            # Secondary: persisted document hash dedup
             if not force and content_hash in existing_hashes:
                 logger.info("Skipping already processed file: {}", path)
                 skipped += 1
@@ -197,7 +191,7 @@ def rag_file_ingestion_flow(
         force: Reprocess all files regardless of existing hashes.
         batch_size: Number of files to process in parallel.
         manifest_dir: Optional directory for persisting a :class:`ManifestCache`.
-            If omitted, only Chroma hash-based dedup is used.
+            If omitted, stores exposing document iteration (Zvec) supply hash-based dedup.
 
     Returns:
         Dictionary with ingestion statistics.

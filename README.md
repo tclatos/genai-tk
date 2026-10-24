@@ -18,7 +18,7 @@ flowchart TD
         DECIDE["Fast System 1 Decision Models (Clef, Laya, Jev)"]
         BAML["BAML Structured Data Extraction"]
         NLP["NLP & Presidio PII Anonymization"]
-        VEC["Vector Stores (Chroma, PgVector, ZVec)"]
+        VEC["Vector Stores (InMemory, PgVector, ZVec)"]
     end
 
     subgraph Orchestration["2. Workflows & Pipelines"]
@@ -226,7 +226,7 @@ For a didactic, deep-dive understanding of the internal architecture and design 
 ### 🧠 **Core GenAI**
 Build intelligent applications with multi-provider LLM/embeddings support, prompt engineering, and state management.
 - Multi-provider LLM and embeddings factory (OpenAI, Groq, Anthropic, Mistral, Ollama, OpenRouter, local, …)
-- Vector stores: ChromaDB, PostgreSQL (PgVector), in-memory, ZVec
+- Vector stores: PostgreSQL (PgVector), in-memory, ZVec. Chroma is retired; see [migration guidance](docs/rag.md).
 - LLM response caching (SQLite, Redis, in-memory), structured outputs, prompt management
 - See: `cli core llm`, `cli info models`, [docs/core.md](docs/core.md)
 
@@ -967,7 +967,7 @@ genai_tk/
 │   ├── providers/         # chat / embeddings provider registry (IoC)
 │   ├── decision_models/   # fast System 1 decision models (Clef, Laya, Jev, ...)
 │   ├── retrievers/        # retriever factory (BM25, hybrid, rerankers)
-│   └── vector_backends/   # Chroma, InMemory, PgVector, ZVec
+│   └── vector_backends/   # InMemory, PgVector, ZVec; retired Chroma compatibility guard
 ├── agents/
 │   ├── harness/     # BaseHarness, event model, registry, chat REPL (LangChain + DeerFlow adapters)
 │   ├── langchain/   # ReAct / Deep / custom agents, factory, middleware

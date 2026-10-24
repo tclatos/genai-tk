@@ -53,18 +53,19 @@ chunkers:
 # ============================================================
 embeddings_store:
   # In-memory non-persistent store (good for tests/demos)
-  in_memory:
+  in_memory: &default_store
     backend: genai_tk.core.vector_backends.InMemoryBackend
 
-  # In-memory Chroma backend (ephemeral)
-  in_memory_chroma: &default_store
+  # Retired Chroma configs fail with migration guidance before accessing data.
+  # Keep these names explicit; never reinterpret an existing Chroma directory.
+  in_memory_chroma:
     backend: genai_tk.core.vector_backends.ChromaBackend
     embeddings: default
     table_name_prefix: embeddings
     config:
       storage: '::memory::'
 
-  # Local FastEmbed-backed store with persistent Chroma storage
+  # Retired local FastEmbed + Chroma config; migrate explicitly to local_zvec.
   local_fast:
     backend: genai_tk.core.vector_backends.ChromaBackend
     embeddings: bge-small-en@local
@@ -72,16 +73,33 @@ embeddings_store:
     config:
       storage: ${paths.data_root}/vector_store_local_fast
 
-  # Default: in-memory Chroma
+  # Default: fresh ephemeral store for each factory instance
   default: *default_store
 
-  # Persistent Chroma store on disk
+  # Retired persistent Chroma store: retained for a clear migration error.
   chroma:
     backend: genai_tk.core.vector_backends.ChromaBackend
     embeddings: default
     table_name_prefix: embeddings
     config:
       storage: ${paths.data_root}/vector_store
+
+
+  # New local index; re-ingest trusted source documents into this fresh path.
+  zvec:
+    backend: genai_tk.core.vector_backends.ZvecBackend
+    embeddings: default
+    table_name_prefix: embeddings
+    config:
+      storage: ${paths.data_root}/vector_store_zvec
+
+  # Local FastEmbed model with a new persistent Zvec index.
+  local_zvec:
+    backend: genai_tk.core.vector_backends.ZvecBackend
+    embeddings: bge-small-en@local
+    table_name_prefix: embeddings
+    config:
+      storage: ${paths.data_root}/vector_store_local_zvec
 
 
 # ============================================================
@@ -92,15 +110,27 @@ retrievers:
   # Simple in-memory vector retriever (good for tests/demos)
   default:
     type: genai_tk.core.retrievers.VectorRetriever
-    embeddings_store: in_memory_chroma
+    embeddings_store: in_memory
     top_k: 4
 
-  # Persistent Chroma vector retriever with record_manager dedup
+  # Retired legacy tag: choose persistent_zvec explicitly after re-indexing.
   persistent:
     type: genai_tk.core.retrievers.VectorRetriever
     embeddings_store: chroma
     top_k: 4
     # record_manager_url: auto-generated SQLite under ${paths.data_root}/record_manager/
+
+  # New persistent local store with record-manager deduplication.
+  persistent_zvec:
+    type: genai_tk.core.retrievers.VectorRetriever
+    embeddings_store: zvec
+    top_k: 4
+
+  # New local FastEmbed + Zvec store; old local_fast data is untouched.
+  local_zvec:
+    type: genai_tk.core.retrievers.VectorRetriever
+    embeddings_store: local_zvec
+    top_k: 4
 
   # BM25 retriever (index persisted under ${paths.data_root}/bm25_cache/bm25_local/)
   bm25_local:
@@ -125,7 +155,7 @@ retrievers:
     top_k: 3
     fetch_k: 10
 
-  # Local FastEmbed-backed retriever (persistent Chroma)
+  # Retired legacy tag: choose local_zvec explicitly after re-indexing.
   local_fast:
     type: genai_tk.core.retrievers.VectorRetriever
     embeddings_store: local_fast

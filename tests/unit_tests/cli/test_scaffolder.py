@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -158,6 +159,13 @@ class TestProjectScaffolder:
         pyproject = (project_dir / "pyproject.toml").read_text()
         assert "override-dependencies" in pyproject
         assert 'requires-python = ">=3.12.15,<3.13"' in pyproject
+
+    def test_scaffold_does_not_forward_retired_chroma_extra(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        ProjectScaffolder(project_dir, "Test Project").scaffold()
+        project = tomllib.loads((project_dir / "pyproject.toml").read_text())
+        assert "chromadb" not in project["project"]["optional-dependencies"]
 
     def test_scaffolded_gitignore_excludes_runtime_data(self, project_dir: Path):
         from genai_tk.main.scaffolder import ProjectScaffolder

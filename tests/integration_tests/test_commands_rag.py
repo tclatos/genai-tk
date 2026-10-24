@@ -59,7 +59,7 @@ class TestRAGCommands:
         # Should show retriever information
         assert "Retriever Information" in output
         assert "Backend" in output
-        assert "Chroma" in output
+        assert "InMemoryVectorStore" in output
 
     def test_info_command_with_invalid_config(self, cli_app, cli_runner):
         """Test getting info about a non-existent vector store."""
@@ -291,23 +291,13 @@ class TestRAGCommands:
 class TestRAGCommandsWithCustomConfig:
     """Test RAG commands with custom vector store configurations."""
 
-    def test_with_in_memory_chroma_config(self, cli_app, cli_runner):
-        """Test commands with in-memory Chroma configuration if available."""
-        # First check if the config exists
-        list_result = cli_runner.invoke(cli_app, ["rag", "list-configs"])
-        if "in_memory_chroma" not in list_result.stdout:
-            pytest.skip("in_memory_chroma configuration not available")
-
-        # Test info command using the default retriever (which uses in_memory_chroma)
+    def test_with_in_memory_config(self, cli_app, cli_runner):
         result = cli_runner.invoke(cli_app, ["rag", "info", "default"])
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.exception or result.output
+        assert "InMemoryVectorStore" in result.stdout
 
-        output = result.stdout
-        assert "Retriever Information" in output
-        assert "Chroma" in output
-
-    def test_local_fast_smoke_with_mocked_fastembed(self, cli_app, cli_runner, monkeypatch, tmp_path):
-        """Smoke test local_fast RAG workflow with mocked FastEmbed embeddings."""
+    def test_local_zvec_smoke_with_mocked_fastembed(self, cli_app, cli_runner, monkeypatch, tmp_path):
+        """Smoke test local_zvec RAG workflow with mocked FastEmbed embeddings."""
         from langchain_core.embeddings import Embeddings
 
         class FakeFastEmbedEmbeddings(Embeddings):
@@ -331,37 +321,37 @@ class TestRAGCommandsWithCustomConfig:
         monkeypatch.setattr(fastembed_module, "FastEmbedEmbeddings", FakeFastEmbedEmbeddings)
 
         config = global_config()
-        original_storage = config.get("embeddings_store.local_fast.config.storage", default=None)
-        test_storage = tmp_path / "local_fast_chroma"
-        config.set("embeddings_store.local_fast.config.storage", str(test_storage))
+        original_storage = config.get("embeddings_store.local_zvec.config.storage", default=None)
+        test_storage = tmp_path / "local_zvec"
+        config.set("embeddings_store.local_zvec.config.storage", str(test_storage))
 
         try:
             # Start from a clean state in case this storage directory already exists.
-            delete_result = cli_runner.invoke(cli_app, ["rag", "delete", "local_fast", "--force"])
+            delete_result = cli_runner.invoke(cli_app, ["rag", "delete", "local_zvec", "--force"])
             assert delete_result.exit_code == 0
 
             embed_result = cli_runner.invoke(
                 cli_app,
-                ["rag", "embed", "local_fast", "--text", "FastEmbed local smoke test content"],
+                ["rag", "embed", "local_zvec", "--text", "FastEmbed local smoke test content"],
             )
             assert embed_result.exit_code == 0
             assert "Embedded" in embed_result.stdout
             assert "Failed to create vector store" not in embed_result.stdout
 
             query_result = cli_runner.invoke(
-                cli_app, ["rag", "query", "FastEmbed smoke", "--retriever", "local_fast", "--k", "1"]
+                cli_app, ["rag", "query", "FastEmbed smoke", "--retriever", "local_zvec", "--k", "1"]
             )
             assert query_result.exit_code == 0
             assert "Query Summary" in query_result.stdout or "No Results" in query_result.stdout
             assert "Failed to create vector store" not in query_result.stdout
 
             # Cleanup documents created by this smoke test.
-            cleanup_result = cli_runner.invoke(cli_app, ["rag", "delete", "local_fast", "--force"])
+            cleanup_result = cli_runner.invoke(cli_app, ["rag", "delete", "local_zvec", "--force"])
             assert cleanup_result.exit_code == 0
         finally:
             config.set(
-                "embeddings_store.local_fast.config.storage",
-                original_storage or "${paths.data_root}/vector_store_local_fast",
+                "embeddings_store.local_zvec.config.storage",
+                original_storage or "${paths.data_root}/vector_store_local_zvec",
             )
 
 

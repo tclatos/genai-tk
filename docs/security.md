@@ -71,19 +71,47 @@ SHAs, Git requirements use reviewed commits, and Docker base/tool images use
 version tags plus multi-platform digests. OS packages installed with apt remain
 subject to repository updates; this is not a bit-for-bit reproducible image.
 
-## Unresolved upstream findings (reviewed 2026-10-24)
+## Dependency remediation (reviewed 2026-10-24)
 
-The strict security gate is expected to remain red until these findings are
-resolved or a separately reviewed, evidence-based applicability decision is
-made. No exceptions are included in this change.
+The dependency follow-up replaces vulnerable dependency paths rather than adding
+advisory exceptions. On 2026-10-24, strict audits of the regenerated lock for
+Linux, macOS, and Windows each exited successfully with **462 packages audited
+and zero vulnerability findings**. The two archived-package notices described
+below remain visible. These results describe the reviewed lock and advisory data
+at that time; rerun the audit before merging. A version floor alone is not proof
+that every dependency is secure.
 
-| Package | Remaining blocker | Operational limit pending remediation |
+| Dependency | Resolution | Compatibility and migration |
 |---|---|---|
-| Pillow 12.3.0 | Reported image-decoder advisories require Pillow 13.0.0. Core `fastembed>=0.8.0` resolves to a release requiring `pillow<13`; both [FastEmbed 0.9.0](https://github.com/qdrant/fastembed/blob/v0.9.0/pyproject.toml) and its reviewed main branch retain that cap. | Do not process untrusted images/documents in the host process. There is no verified decoder-disable mitigation here; wait for compatible upstream support or separately review replacing/removing the dependency. |
-| chromadb 1.5.9 (optional extra) | The audit reports GHSA-f4j7-r4q5-qw2c, GHSA-2wm9-hf6c-p5cr, GHSA-36p7-vc44-83pf, and GHSA-xph7-9rjv-w5fr with no fixed version. See [upstream tracking](https://github.com/chroma-core/chroma/issues/7691). | Avoid the `chromadb` extra when unused. Keep any Chroma service private and treat tenant isolation/authentication assumptions as unresolved; legacy-code applicability has not been proven for every advisory. |
-| diskcache 5.6.3 | GHSA-w8v5-vhqr-4h9v / CVE-2025-69872 covers pickle execution when an attacker can modify cache files. It is transitive through `py-key-value-aio[disk]`; [upstream discussion](https://github.com/grantjenks/python-diskcache/issues/357) lists no patched release. | Use a dedicated cache directory writable only by the service user. Never share writable cache volumes with untrusted users or agent sandboxes, and do not load downloaded caches. This reduces exposure; it does not resolve the advisory. |
+| Pillow | Require `pillow>=13.0.0`, with the patched decoders from [Pillow 13](https://github.com/python-pillow/Pillow/releases/tag/13.0.0). | [FastEmbed 0.9.1](https://github.com/qdrant/fastembed/releases/tag/v0.9.1) allows Pillow 13. Published metadata for [Streamlit 1.66.1](https://pypi.org/pypi/streamlit/1.66.1/json), [Docling 2.142.1](https://pypi.org/pypi/docling/2.142.1/json) through its pinned [docling-slim 2.142.1](https://pypi.org/pypi/docling-slim/2.142.1/json), and [Docling IBM Models 4.0.4](https://pypi.org/pypi/docling-ibm-models/4.0.4/json) also permits Pillow 13. Keep these supported combinations; do not override an integration's Pillow cap. |
+| DiskCache | Remove the unused `disk` extra from `py-key-value-aio`; no active application configuration used it. | Existing memory and JSON-backed FileTree caches remain supported. Persisted byte and Pydantic cache regressions verify that removing the dependency does not remove persistence. The [upstream advisory](https://github.com/advisories/GHSA-w8v5-vhqr-4h9v) still has no patched release; do not reinstall the retired backend. |
+| ChromaDB | Remove the `chromadb`/`langchain-chroma` extra and stop advertising it in generated projects. | [Upstream tracking](https://github.com/chroma-core/chroma/issues/7691) remains unresolved. Built-in Chroma configurations fail before model initialization or data access. New local persistent stores use Zvec 0.7 or newer; InMemory is ephemeral and PgVector remains an explicit service-backed alternative. |
 
-The compatible update raises Docling to at least 2.132, SQLite checkpoints to
+### Existing Chroma indexes
+
+Follow [the RAG migration guide](rag.md) to choose a new backend, create a separate
+storage path, and re-ingest trusted source documents with the intended embedding
+model. Keep the old index intact until retrieval and document counts have been
+verified. No automatic conversion, deletion, or silent fallback is performed.
+Do not point Zvec at a Chroma directory. Remove `chromadb` from downstream project
+extras and refresh their lockfiles; old generated projects are not rewritten.
+
+The Chroma advisory records are GHSA-f4j7-r4q5-qw2c, GHSA-2wm9-hf6c-p5cr,
+GHSA-36p7-vc44-83pf, and GHSA-xph7-9rjv-w5fr. Removing the integration does not
+patch separately deployed Chroma services or existing environments; rebuild and
+restart deployments after synchronizing the new lock.
+
+Compatibility tests exercise real image resize/decode operations, Streamlit image
+handling, local Docling HTML conversion, and FastEmbed's model catalogue without
+model downloads. Filesystem regressions cover JSON-backed caches and persistent
+Zvec retrieval. The locked-dependency policy prevents retired packages and older
+Pillow compatibility combinations from returning unnoticed.
+
+Archived-package notices for `langchain-community` and `langchain-experimental`
+remain a separate migration concern. Review the actual audit output instead of
+interpreting an archived notice as a patched or exploitable dependency.
+
+The compatible update raises Docling to at least 2.142.1, SQLite checkpoints to
 3.1.2, filelock to 4.2.1, and setuptools to 84.1.0. The former Requests `<2.34`
 cap blocked patched Docling's `docling-core>=2.98` dependency, which requires
 Requests 2.34.2. That cap is replaced with the compatible floor after verifying

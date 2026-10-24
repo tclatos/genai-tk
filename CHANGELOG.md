@@ -9,7 +9,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 - **Reviewed dependency and build inputs**: require patched uv/Python/certifi, update compatible vulnerable dependencies, and keep CI installs locked. Actions, Git dependencies, and Docker base images now use reviewed immutable references; weekly update proposals and daily audits help keep those pins current.
 - **Build secrets and production dependency scope**: Docker excludes credentials before they reach the builder, omits development/evaluation groups, and uses the patched certifi trust bundle. Regression tests exercise the real Docker context, certificate trust, and Requests JSON error behavior.
-- **Visible upstream blockers**: the strict audit does not suppress findings without fixes. [The security guide](docs/security.md) records the FastEmbed/Pillow compatibility blocker and unresolved Chroma/DiskCache advisories, with operational limits and private disclosure guidance.
+- **Resolve vulnerable dependency paths**: require Pillow 13 with compatible FastEmbed, Streamlit, and Docling releases, and remove the unused DiskCache extra while retaining JSON-backed cache persistence. Retire the unpatched Chroma integration and its install/scaffold extras; legacy configurations fail with migration guidance, while new persistent stores use Zvec at separate paths. Existing Chroma data is never converted or deleted automatically. [The security guide](docs/security.md) records the dependency decisions and regression checks; strict audits retain all findings without suppressions.
 
 ### Changed
 

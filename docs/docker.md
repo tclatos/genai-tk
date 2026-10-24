@@ -121,6 +121,9 @@ DOCKER_DATA_DIR=/my/data just docker-run
 
 ## Selecting Extras
 
+Chroma is no longer bundled. New local persistent vector stores use Zvec from the
+core install; existing Chroma indexes need the explicit [RAG migration](rag.md).
+
 Extras control which optional dependencies are installed. They match the extras defined in `pyproject.toml`:
 
 | Extra | Contents |
@@ -129,7 +132,6 @@ Extras control which optional dependencies are installed. They match the extras 
 | `nlp` | spaCy, Presidio PII detection |
 | `postgres` | PostgreSQL vector store |
 | `baml` | BAML structured extraction |
-| `chromadb` | ChromaDB vector store |
 | `harnessing` | DeerFlow, DeepAgents, sandbox |
 | `browser` | Playwright |
 | `monitoring` | LangFuse, OpenTelemetry |

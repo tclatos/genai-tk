@@ -33,7 +33,7 @@ my-feature = [
     "another-package>=2.0",
 ]
 # Keep `all` up to date:
-all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb,my-feature]"]
+all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,docling,my-feature]"]
 ```
 
 Rule: `[project.optional-dependencies]` is for **end users** (published to PyPI).
@@ -178,6 +178,13 @@ SKIPPED — Optional feature 'harnessing' not installed — run: uv sync --extra
 3. Update the `all` extra accordingly.
 4. Search for `require_feature("old-name"` and `is_available("old-name"` with grep and update.
 5. Update test markers: `@pytest.mark.requires_feature("old-name")`.
+6. Remove forwarding extras from project scaffolding and the init selector. Retired
+   integrations need a clear migration error before imports or data access.
+
+Chroma is retired because no patched upstream release is available. Do not restore
+its extra or installation advice. Use the core Zvec backend for new local persistent
+stores, InMemory for ephemeral stores, or the `postgres` extra. Existing Chroma
+indexes require explicit migration; see [the RAG guide](../../../docs/rag.md).
 
 ---
 
@@ -186,7 +193,7 @@ SKIPPED — Optional feature 'harnessing' not installed — run: uv sync --extra
 ```python
 from genai_tk.config_mgmt.features import available_features, missing_features, is_available
 
-print(available_features())  # ['baml', 'browser', 'chromadb', ...]
+print(available_features())  # ['baml', 'browser', 'docling', ...]
 print(missing_features())  # ['harnessing', 'nlp', ...]
 print(is_available("baml"))  # True / False
 ```
@@ -224,7 +231,6 @@ uv add "genai-tk[harnessing,browser]"
 | `postgres` | langchain-postgres, psycopg, psycopg2-binary | Requires PostgreSQL server |
 | `streamlit` | streamlit | Web UI — not needed for CLI-only use |
 | `baml` | baml-cli, baml-lib | Run `uv run baml-cli init --dest baml_src` after install |
-| `chromadb` | chromadb, langchain-chroma | Local vector DB |
 | `docling` | docling, easyocr | Fully local document → Markdown conversion (PDF, Office, HTML, images) |
 | `ladybug` | ladybug | Embedded graph database (Kùzu fork) — not a genai-tk extra, install via `uv add ladybug` |
 
