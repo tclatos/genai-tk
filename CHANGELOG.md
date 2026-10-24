@@ -20,6 +20,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Fixed
 
+- **Deterministic PDF conversion CI**: Local converter and end-to-end tests now use a repository-authored PDF instead of downloading a public sample during shared setup. Live OCR/LLM tests require explicit network and real-model opt-in, so external file-host outages no longer block offline conversion coverage.
+
 - **Agent CLI output and coverage after AUIP migration**: `cli agents run --json` now preserves one AUIP event per line and literal payload text instead of wrapping JSON or interpreting terminal markup and emoji shortcodes. The deterministic test harness inherits `BaseHarness` to exercise the real adapter across text, stdin/default profiles, overrides, JSON, Markdown, and raw output without a live model. JSON regression tests parse every output line, and failing run assertions report the captured CLI error.
 
 - **Audit interpreter bootstrap**: The dependency security workflow explicitly installs the reviewed Python interpreter before running the audit with automatic Python downloads disabled, so fresh CI runners reach the advisory checks.

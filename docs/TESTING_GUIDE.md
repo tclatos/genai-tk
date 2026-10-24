@@ -54,6 +54,26 @@ def test_batch_processing(temp_test_dir):
     assert len(files) == 5
 ```
 
+## Offline Document Fixtures
+
+Local converter tests must use repository-authored fixtures instead of downloading
+sample files during setup. The small [PDF fixture](../tests/fixtures/documents/basic-text.pdf)
+contains extractable text for real MarkItDown conversion and the `fast`
+`markdownize_flow` end-to-end test. It needs no network, credentials, or model
+weights. Keep content assertions so a missing or unreadable fixture fails visibly.
+
+Mark tests that call live OCR or LLM services with both `network` and `real_models`.
+The `real_models` marker requires `--include-real-models`, even when credentials
+happen to exist. Hosted offline CI excludes both markers. Keep network downloads
+inside the explicitly opted-in tests or their dedicated fixtures; never put them
+in a fixture shared with offline conversion coverage.
+
+```bash
+uv run pytest tests/integration_tests/test_pdf_converters_integration.py -m "not network and not real_models" --no-cov
+# Requires provider credentials and may incur API costs:
+uv run pytest tests/integration_tests/test_pdf_converters_integration.py -m real_models --include-real-models --no-cov
+```
+
 ## Vector Store Tests
 
 ### Basic Vector Store Test
