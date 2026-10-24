@@ -117,6 +117,22 @@ whole module (e.g. for module-scoped async fixtures):
 async def test_uses_shared_loop(module_async_fixture): ...
 ```
 
+## Agent CLI Harness Tests
+
+For CLI wiring tests, derive deterministic harnesses from `BaseHarness` and implement
+`astream(message, *, thread_id=None, context=None)` with typed `StreamEvent` values.
+The CLI consumes `astream_auip()`, inherited from the base class, so this exercises
+the real event conversion and renderer without invoking a model. Do not duplicate
+the AUIP conversion in the fake harness.
+
+Keep coverage for normal text, default-profile stdin, overrides, JSON events,
+Markdown rendering, and `--raw`. Include `result.exception or result.output` in
+exit-code assertions so a failing CLI invocation exposes its underlying error.
+For JSON output, validate each physical stdout line against its AUIP event model
+and compare the decoded text exactly, including long strings, markup tags, emoji
+shortcodes, and escaped newlines.
+See [the agent CLI integration tests](../tests/integration_tests/test_commands_agents.py).
+
 ## Mocking External Dependencies
 
 ### Mock Vector Store for Tool Tests
