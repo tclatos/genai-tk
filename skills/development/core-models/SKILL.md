@@ -40,6 +40,7 @@ description: Work on core LLM, embeddings, vector store, provider, cache, prompt
 - Downstream applications can dynamically add custom providers or local servers (such as on-prem vLLM or Ollama) by defining top-level `providers:` in their YAML configuration.
 - Prefer YAML aliases in `config/providers/*.yaml` for new models.
 - Use fake providers or the `pytest` profile for unit tests.
+- Persistent key-value and embedding caches use the JSON-backed `FileTreeStore` through `extra/kv_store_factory.py`; tests use `MemoryStore`. Keep the unused `py-key-value-aio[disk]` extra and DiskCache out of the dependency graph. Preserve binary values through `AsyncKeyValueByteStoreAdapter`, namespace collections, and verify persistence/deletion with [the filesystem cache regressions](../../../tests/integration_tests/security/test_filetree_cache.py). Rebuild old DiskCache caches instead of deserializing them during migration; FileTreeStore requires single-writer coordination for concurrent processes.
 - Structured output should use Pydantic models and `with_structured_output` when available.
 
 ## Verification

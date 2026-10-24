@@ -191,38 +191,36 @@ query_vector = embeddings.embed_query("search term")
 **Purpose:** Manages vector databases and embeddings storage for RAG applications.
 
 **Features:**
-- Multi-backend support (Chroma, Weaviate, PGVector, etc.)
-- Dynamic store creation from configuration
-- Persistent and temporary store modes
-- Serialization for checkpointing
+
+- Explicit backend factories for ephemeral InMemory, persistent local Zvec, and PostgreSQL.
+- Configuration-driven embedding models and index paths.
+- Chroma configurations fail with migration guidance before accessing existing data.
 
 **Configuration:**
+
 ```yaml
 embeddings_store:
-  type: chroma  # chroma, weaviate, pgvector, qdrant
-  chroma:
-    persist_directory: ./data/chroma
-    is_persistent: true
-  pgvector:
-    connection_string: postgresql://user:pass@localhost/db
+  zvec:
+    backend: genai_tk.core.vector_backends.ZvecBackend
+    embeddings: default
+    config:
+      storage: ./data/vector_store_zvec
 ```
 
 **Usage:**
+
 ```python
 from genai_tk.core.embeddings_store import EmbeddingsStore
 
-# Create store from config
-store = EmbeddingsStore.from_config()
-
-# Or specify type directly
-store = EmbeddingsStore.create("chroma", persist_dir="./data")
-
-# Add documents
+factory = EmbeddingsStore.create_from_config("zvec")
+store = factory.get_vector_store()
 store.add_documents(documents)
-
-# Search
 results = store.similarity_search("query", k=5)
 ```
+
+Use a fresh Zvec directory and re-ingest trusted source documents when migrating
+from Chroma. Existing Chroma indexes are neither converted nor deleted. See
+[the RAG migration guide](rag.md#retiring-chroma-and-migrating-existing-indexes).
 
 ### Cache System (`cache.py`)
 
@@ -473,19 +471,10 @@ context = store.similarity_search("user query", k=5)
 
 ## Error Handling
 
-Core components handle optional dependencies gracefully:
-
-```python
-from genai_tk.core.embeddings_store import EmbeddingsStore
-
-try:
-    # May fail if pgvector not installed
-    store = EmbeddingsStore.create("pgvector", ...)
-except ImportError as e:
-    logger.warning("PGVector not available: {}", e)
-    # Fall back to alternative
-    store = EmbeddingsStore.create("chroma")
-```
+Optional providers report missing dependencies explicitly. Choose the backend in
+configuration and install its documented extra where needed; do not silently
+fall back from a persistent database to ephemeral memory. Retired Chroma
+configurations require explicit migration to a fresh Zvec or PostgreSQL index.
 
 ## See Also
 

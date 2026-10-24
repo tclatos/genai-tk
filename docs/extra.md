@@ -153,8 +153,8 @@ await managed.aadd_documents(my_docs)
 
 ```bash
 # CLI
-uv run cli rag add-files ./docs/ --retriever persistent
-uv run cli rag query "hybrid search" --retriever hybrid_ensemble
+uv run cli rag add-files ./docs/ --retriever persistent_zvec
+uv run cli rag query "hybrid search" --retriever persistent_zvec
 uv run cli rag list-retrievers
 ```
 
@@ -344,48 +344,59 @@ print(report.content)
 print(report.citations)
 ```
 
-### KV Store Registry (`kv_store_registry.py`)
+### KV Store Factory
 
-Registry for key-value stores used in caching and persistence.
+[The key-value factory](../genai_tk/extra/kv_store_factory.py) creates async stores
+from a dotted class path in YAML. Instances are shared by store ID until
+`clear_store_cache()` is called. The default persistent backend is the JSON-based
+`FileTreeStore`; the pytest profile uses `MemoryStore`. DiskCache is not required
+or installed by the toolkit.
 
-**Supported backends** (selected by `type` field):
-
-| `type` | Class | Notes |
+| `type` | Storage | Notes |
 |---|---|---|
-| `LocalFileStore` | `LocalFileStoreConfig` | Files on disk — default for dev/prod |
-| `SQLStore` | `SQLStoreConfig` | Any SQLAlchemy DSN (sqlite, postgresql) |
-| `memory` | `MemoryStoreConfig` | Ephemeral temp dir — use for tests |
+| `key_value.aio.stores.filetree.FileTreeStore` | JSON files | Default persistent store; use a service-owned directory |
+| `key_value.aio.stores.memory.MemoryStore` | Process memory | Ephemeral storage for tests |
+| `key_value.aio.stores.postgresql.PostgreSQLStore` | PostgreSQL | Requires the backend's optional dependencies and a running database |
 
 **Configuration:**
 ```yaml
 kv_store:
   default:
-    type: LocalFileStore
-    path: ${paths.data_root}/kv_store
-  sql_cache:
-    type: SQLStore
-    path: postgresql://${oc.env:POSTGRES_USER}:${oc.env:POSTGRES_PASSWORD}@localhost:5432/cache
-  # Tests / pytest profile:
-  default:
-    type: memory
+    type: key_value.aio.stores.filetree.FileTreeStore
+    args:
+      data_directory: ${paths.data_root}/kv_store
+  memory:
+    type: key_value.aio.stores.memory.MemoryStore
+    args: {}
 ```
 
 **Usage:**
 ```python
-from genai_tk.extra.kv_store_registry import get_kv_store
+from genai_tk.extra.kv_store_factory import AsyncKeyValueByteStoreAdapter, get_async_kv_store
 
-store = get_kv_store()  # uses "default" entry
-store = get_kv_store("sql_cache", namespace="llm_cache")
+store = get_async_kv_store()  # uses the "default" entry
 
-# ByteStore interface (LangChain compatible)
-store.mset([("key", b"value")])
-values = store.mget(["key"])
+# LangChain ByteStore bridge: bytes become base64 text inside JSON values.
+byte_store = AsyncKeyValueByteStoreAdapter(store, collection="cache_embeddings")
+byte_store.mset([("key", b"value")])
+values = byte_store.mget(["key"])
 ```
+
+In async code, use the native store's `get`, `put`, and `delete` methods, or the
+byte adapter's `amget`, `amset`, and `amdelete`. Collections isolate namespaces.
+[PydanticStore](../genai_tk/utils/pydantic_utils/kv_store.py) persists Pydantic
+models through the same backend, using the model class name as its collection.
+
+FileTreeStore writes JSON rather than loading pickled Python objects. Its writes
+are atomic, but it does not provide multi-process locking; use a single writer,
+external coordination, or a database backend where concurrent updates require it.
+Keep cache directories private to the service. Existing DiskCache files are not
+read or migrated automatically: rebuild disposable caches with the JSON backend.
 
 **Typed config access (Case 2):**
 ```python
 from genai_tk.config_mgmt.config_mngr import global_config
-from genai_tk.extra.kv_store_registry import KvStoreConfig
+from genai_tk.extra.kv_store_factory import KvStoreConfig
 
 all_stores = global_config().section_dict("kv_store", KvStoreConfig, inject_name=False)
 ```

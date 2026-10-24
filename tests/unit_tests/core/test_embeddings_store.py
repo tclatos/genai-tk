@@ -4,12 +4,8 @@ import pytest
 from langchain_core.documents import Document
 
 from genai_tk.config_mgmt.config_mngr import global_config
-from genai_tk.config_mgmt.features import is_available
 from genai_tk.core.embeddings_store import EmbeddingsStore
 from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
-
-_chromadb_available = is_available("chromadb")
-skip_no_chromadb = pytest.mark.skipif(not _chromadb_available, reason="chromadb extra not installed")
 
 
 @pytest.fixture
@@ -30,13 +26,12 @@ def fresh_embeddings_store():
     This fixture ensures test isolation by creating a unique store
     instance for each test, preventing document pollution between tests.
     """
-    # Use InMemory backend to avoid shared Chroma state across tests
+    # InMemory factories intentionally create an independent ephemeral store.
     embeddings_store = EmbeddingsStore.create_from_config("in_memory")
     yield embeddings_store
 
 
 @pytest.mark.parametrize("config_name", ["default"])  # Use existing config
-@skip_no_chromadb
 def test_vector_store_creation_and_search(sample_documents, config_name) -> None:
     """Test vector store creation, document addition, and similarity search.
 
@@ -66,7 +61,6 @@ def test_vector_store_creation_and_search(sample_documents, config_name) -> None
     assert all(isinstance(content, str) for content in result_contents)
 
 
-@skip_no_chromadb
 def test_vector_store_with_fake_embeddings(sample_documents) -> None:
     """Test vector store specifically with fake embeddings."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
@@ -83,7 +77,6 @@ def test_vector_store_with_fake_embeddings(sample_documents) -> None:
         assert all(isinstance(doc, Document) for doc in results)
 
 
-@skip_no_chromadb
 def test_vector_store_max_marginal_relevance_search(sample_documents) -> None:
     """Test max marginal relevance search functionality."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
@@ -107,7 +100,6 @@ def test_direct_instantiation_blocked(fake_embeddings_id) -> None:
         )
 
 
-@skip_no_chromadb
 def test_vector_store_similarity_search_by_vector(sample_documents) -> None:
     """Test similarity search using vector input."""
     embeddings_store = EmbeddingsStore.create_from_config("default")
@@ -131,7 +123,8 @@ def test_vector_store_factory_known_items() -> None:
     assert isinstance(known_items, list)
     assert len(known_items) > 0
     assert "genai_tk.core.vector_backends.InMemoryBackend" in known_items
-    assert "genai_tk.core.vector_backends.ChromaBackend" in known_items
+    assert "genai_tk.core.vector_backends.ZvecBackend" in known_items
+    assert "genai_tk.core.vector_backends.ChromaBackend" not in known_items
     assert "genai_tk.core.vector_backends.PgVectorBackend" in known_items
 
 
@@ -155,7 +148,6 @@ def test_vector_store_large_k_parameter(sample_documents, fresh_embeddings_store
 
 
 @pytest.mark.performance_tests
-@skip_no_chromadb
 def test_vector_store_performance(sample_documents, performance_threshold) -> None:
     """Test vector store performance with fake embeddings."""
     import time
@@ -180,27 +172,16 @@ def test_vector_store_performance(sample_documents, performance_threshold) -> No
     assert len(results) == 2
 
 
-@skip_no_chromadb
-def test_chroma_memory_storage(sample_documents) -> None:
-    """Test Chroma with in-memory storage using new storage field."""
-    embeddings_store = EmbeddingsStore.create_from_config("in_memory_chroma")
-    assert embeddings_store.backend == "genai_tk.core.vector_backends.ChromaBackend"
-    assert embeddings_store.config.get("storage") == "::memory::"
-
-    db = embeddings_store.get_vector_store()
-    db.add_documents(sample_documents)
-
-    # Verify we can search
-    results = db.similarity_search("test", k=2)
-    assert len(results) == 2
+@pytest.mark.parametrize("config_name", ["in_memory_chroma", "chroma", "local_fast"])
+def test_retired_chroma_configs_fail_with_migration_guidance(config_name: str) -> None:
+    with pytest.raises(RuntimeError, match="Chroma support has been retired"):
+        EmbeddingsStore.create_from_config(config_name)
 
 
-def test_local_fast_store_config_is_available() -> None:
-    """Test that local_fast configuration resolves with local FastEmbed model."""
-    embeddings_store = EmbeddingsStore.create_from_config("local_fast")
-    assert embeddings_store.backend == "genai_tk.core.vector_backends.ChromaBackend"
-    assert embeddings_store.embeddings_factory.embeddings_id == "bge-small-en@local"
-    assert embeddings_store.config.get("storage")
+def test_local_zvec_store_config_is_available() -> None:
+    store = EmbeddingsStore.create_from_config("local_zvec")
+    assert store.backend == "genai_tk.core.vector_backends.ZvecBackend"
+    assert store.config["storage"].endswith("vector_store_local_zvec")
 
 
 def test_legacy_id_key_supported_in_embeddings_store_config() -> None:

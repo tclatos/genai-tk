@@ -5,7 +5,7 @@ This module is intentionally scoped to *store creation only* — document ingest
 retrieval, and deduplication belong to ``genai_tk.core.retriever_factory``.
 
 Backends are referenced by fully-qualified class name:
-    - ``genai_tk.core.vector_backends.ChromaBackend`` — persistent or in-memory
+    - ``genai_tk.core.vector_backends.ZvecBackend`` — persistent local index
     - ``genai_tk.core.vector_backends.InMemoryBackend`` — ephemeral in-process store
     - ``genai_tk.core.vector_backends.PgVectorBackend`` — PostgreSQL with optional hybrid search
     - Any custom class with a ``create()`` or ``create_from_factory()`` classmethod
@@ -14,17 +14,17 @@ Configuration example:
     ```yaml
     embeddings_store:
       default:
-        backend: genai_tk.core.vector_backends.ChromaBackend
+        backend: genai_tk.core.vector_backends.ZvecBackend
         embeddings: default
         config:
-          storage: '::memory::'
+          storage: ${paths.data_root}/vector_store_zvec
 
       persistent:
-        backend: genai_tk.core.vector_backends.ChromaBackend
+        backend: genai_tk.core.vector_backends.ZvecBackend
         embeddings: default
         table_name_prefix: my_docs
         config:
-          storage: ${paths.data_root}/vector_store
+          storage: ${paths.data_root}/vector_store_zvec
 
       pg_store:
         backend: genai_tk.core.vector_backends.PgVectorBackend
@@ -46,7 +46,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from langchain_core.vectorstores import VectorStore
+from langchain_core.vectorstores import InMemoryVectorStore, VectorStore
 from loguru import logger
 from pydantic import (
     AliasChoices,
@@ -60,6 +60,8 @@ from pydantic import (
 from genai_tk.config_mgmt.config_mngr import global_config
 from genai_tk.config_mgmt.import_utils import ImportResolver
 from genai_tk.core.factories.embeddings_factory import EmbeddingsFactory
+from genai_tk.core.vector_backends.chroma import reject_retired_chroma
+from genai_tk.core.vector_backends.zvec import ZvecVectorStore
 
 # ---------------------------------------------------------------------------
 # Config model (parsed from YAML)
@@ -144,14 +146,6 @@ class EmbeddingsStore(BaseModel):
             "Use EmbeddingsStore.create_from_config(config_tag) instead."
         )
 
-    def model_post_init(self, __context: Any) -> None:
-        if "ChromaBackend" in (self.backend or ""):
-            storage = self.config.get("storage") or self.config.get("chroma_path")
-            if not storage:
-                self.config["storage"] = "::memory::"
-            elif "chroma_path" in self.config and "storage" not in self.config:
-                self.config["storage"] = self.config.pop("chroma_path")
-
     # ------------------------------------------------------------------
     # Computed properties
     # ------------------------------------------------------------------
@@ -167,9 +161,10 @@ class EmbeddingsStore(BaseModel):
     def description(self) -> str:
         """Human-readable description of the store configuration."""
         r = f"{self.backend}/{self.table_name}"
-        if "ChromaBackend" in (self.backend or ""):
-            storage = self.config.get("storage", "::memory::")
-            r += " => 'in-memory'" if storage == "::memory::" else " => 'on disk'"
+        if "ZvecBackend" in (self.backend or ""):
+            r += " => 'on disk'"
+        elif "InMemoryBackend" in (self.backend or ""):
+            r += " => 'in-memory'"
         return r
 
     # ------------------------------------------------------------------
@@ -196,6 +191,7 @@ class EmbeddingsStore(BaseModel):
                 f"embeddings_store configuration '{config_tag}' not found. Available: {cls.list_available_configs()}"
             ) from exc
 
+        reject_retired_chroma(cfg.backend)
         instance = cls.model_construct(
             backend=cfg.backend,
             embeddings_factory=cfg.resolve_embeddings_factory(),
@@ -203,7 +199,6 @@ class EmbeddingsStore(BaseModel):
             config=cfg.config,
             collection_metadata=cfg.collection_metadata,
         )
-        instance.model_post_init(None)
         return instance
 
     # ------------------------------------------------------------------
@@ -219,8 +214,8 @@ class EmbeddingsStore(BaseModel):
         if not self.backend:
             raise ValueError("No backend configured for this EmbeddingsStore.")
 
+        reject_retired_chroma(self.backend)
         backend_cls = ImportResolver.import_from_qualified(self.backend)
-        embeddings = self.embeddings_factory.get()
 
         if hasattr(backend_cls, "create_from_factory"):
             vector_store = backend_cls.create_from_factory(
@@ -231,7 +226,7 @@ class EmbeddingsStore(BaseModel):
             )
         else:
             vector_store = backend_cls.create(
-                embeddings=embeddings,
+                embeddings=self.embeddings_factory.get(),
                 table_name=self.table_name,
                 config=self.config,
                 collection_metadata=self.collection_metadata,
@@ -247,10 +242,13 @@ class EmbeddingsStore(BaseModel):
     def document_count(self) -> int:
         """Return the number of documents in the store.
 
-        Only supported for Chroma backends.
+        Supports local Zvec and ephemeral in-memory stores.
         """
-        if "ChromaBackend" in (self.backend or ""):
-            return self.get_vector_store()._collection.count()  # type: ignore[attr-defined]
+        store = self.get_vector_store()
+        if isinstance(store, ZvecVectorStore):
+            return store.document_count()
+        if isinstance(store, InMemoryVectorStore):
+            return len(store.store)
         raise NotImplementedError(f"document_count() not supported for backend '{self.backend}'")
 
     def get_stats(self) -> dict[str, Any]:
@@ -266,18 +264,18 @@ class EmbeddingsStore(BaseModel):
         except (NotImplementedError, Exception):
             stats["document_count"] = "unknown"
 
-        if "ChromaBackend" in (self.backend or ""):
-            storage = self.config.get("storage", "::memory::")
-            stats["storage_type"] = "memory" if storage == "::memory::" else "persistent"
-            if storage != "::memory::":
-                stats["storage_path"] = storage
+        if "ZvecBackend" in (self.backend or ""):
+            stats["storage_type"] = "persistent"
+            stats["storage_path"] = self.config.get("storage", "vector_store_zvec")
+        elif "InMemoryBackend" in (self.backend or ""):
+            stats["storage_type"] = "memory"
         return stats
 
     @staticmethod
     def known_items() -> list[str]:
         """List qualified names of the built-in vector store backends."""
         return [
-            "genai_tk.core.vector_backends.ChromaBackend",
+            "genai_tk.core.vector_backends.ZvecBackend",
             "genai_tk.core.vector_backends.InMemoryBackend",
             "genai_tk.core.vector_backends.PgVectorBackend",
         ]

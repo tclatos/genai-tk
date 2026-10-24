@@ -17,20 +17,13 @@ from genai_tk.extra.markdownize.markitdown_converter import MarkItDownConverter
 from genai_tk.extra.markdownize.mistral_ocr_converter import MistralOCRConverter
 from genai_tk.workflow.markdownize import markdownize_flow
 
-SAMPLE_PDF_URL = "https://sample-files.com/downloads/documents/pdf/basic-text.pdf"
 LOCAL_SAMPLE_PDF = Path("/home/tcl/prj/genai-graph/tests/data/sample-pdf-a4-size.pdf")
 
 
 @pytest.fixture(scope="module")
-def sample_pdf_path(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Download sample PDF once for the test module."""
-    cache_dir = tmp_path_factory.mktemp("pdf_cache")
-    pdf_file = cache_dir / "basic-text.pdf"
-
-    response = httpx.get(SAMPLE_PDF_URL, follow_redirects=True, timeout=30.0)
-    response.raise_for_status()
-    pdf_file.write_bytes(response.content)
-    return pdf_file
+def sample_pdf_path() -> Path:
+    """Return the repository-authored PDF without downloading test data."""
+    return Path(__file__).resolve().parents[1] / "fixtures" / "documents" / "basic-text.pdf"
 
 
 @pytest.mark.integration
@@ -41,10 +34,12 @@ async def test_markitdown_pdf_conversion(sample_pdf_path: Path) -> None:
     text = await converter.convert(sample_pdf_path)
 
     assert len(text) > 100
-    assert "Lorem" in text or "pdf" in text.lower() or "text" in text.lower()
+    assert "Sample PDF" in text
 
 
 @pytest.mark.integration
+@pytest.mark.network
+@pytest.mark.real_models
 @pytest.mark.asyncio
 async def test_lighton_ocr_sync_conversion(sample_pdf_path: Path) -> None:
     """Test LightOn OCR synchronous conversion on real PDF when API key is available."""
@@ -60,6 +55,8 @@ async def test_lighton_ocr_sync_conversion(sample_pdf_path: Path) -> None:
 
 
 @pytest.mark.integration
+@pytest.mark.network
+@pytest.mark.real_models
 @pytest.mark.asyncio
 async def test_lighton_ocr_async_polling_conversion(sample_pdf_path: Path) -> None:
     """Test LightOn OCR async polling mode on real PDF when API key is available."""
@@ -74,6 +71,8 @@ async def test_lighton_ocr_async_polling_conversion(sample_pdf_path: Path) -> No
 
 
 @pytest.mark.integration
+@pytest.mark.network
+@pytest.mark.real_models
 @pytest.mark.asyncio
 async def test_mistral_ocr_single_and_batch_conversion(sample_pdf_path: Path) -> None:
     """Test Mistral OCR single and batch conversion on real PDF when API key is available."""
@@ -92,6 +91,8 @@ async def test_mistral_ocr_single_and_batch_conversion(sample_pdf_path: Path) ->
 
 
 @pytest.mark.integration
+@pytest.mark.network
+@pytest.mark.real_models
 @pytest.mark.asyncio
 async def test_mistral_ocr_with_image_extraction_real_pdf(tmp_path: Path) -> None:
     """Test Mistral OCR image extraction on a sample PDF from internet when API key is available."""
@@ -121,6 +122,8 @@ async def test_mistral_ocr_with_image_extraction_real_pdf(tmp_path: Path) -> Non
 
 
 @pytest.mark.integration
+@pytest.mark.network
+@pytest.mark.real_models
 @pytest.mark.asyncio
 async def test_llm_pdf_conversion(sample_pdf_path: Path) -> None:
     """Test LLM multimodal base64 PDF conversion if default LLM is configured."""
@@ -224,3 +227,4 @@ def test_markdownize_flow_with_real_pdf(sample_pdf_path: Path, tmp_path: Path) -
     assert len(output_files) == 1
     content = output_files[0].read_text(encoding="utf-8")
     assert len(content) > 100
+    assert "Sample PDF" in content

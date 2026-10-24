@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from genai_tk.agents.harness.events import (
-    ArtifactEvent,
     ClarificationEvent,
     EndEvent,
     ErrorEvent,
@@ -16,7 +15,6 @@ from genai_tk.agents.harness.events import (
 )
 from genai_tk.protocols.auip.converters import auip_to_harness_event, harness_event_to_auip
 from genai_tk.protocols.auip.models import (
-    AuipArtifactEvent,
     AuipEndEvent,
     AuipErrorEvent,
     AuipHitlRequestEvent,

@@ -11,7 +11,7 @@ description: Build or debug genai-tk RAG retrievers, ingestion, chunking, hybrid
 - `genai_tk/core/factories/retriever_factory.py`
 - `genai_tk/core/retrievers/`
 - `genai_tk/workflow/rag/`
-- `config/rag.yaml`
+- `config/examples/rag.yaml`
 
 ## Architecture
 
@@ -30,11 +30,22 @@ description: Build or debug genai-tk RAG retrievers, ingestion, chunking, hybrid
 
 ## Change Workflow
 
-1. Start with `config/rag.yaml`; add retriever config before adding code.
+1. Start with `config/examples/rag.yaml`; add retriever config before adding code.
 2. Add new retriever classes under `genai_tk/core/retrievers/` only when composition cannot express the behavior.
 3. Keep ingestion logic async-first; sync wrappers are for CLI/notebooks.
 4. Preserve metadata through chunking, ingestion, retrieval, and agent tool output.
 5. Add tests for config resolution and behavior under `tests/unit_tests/core/` or `tests/unit_tests/workflow/rag/`.
+
+## Vector Backends and Migration
+
+- Use fully qualified backend classes: `InMemoryBackend` for an ephemeral instance, `ZvecBackend` for local persistence, and `PgVectorBackend` for PostgreSQL.
+- Chroma is retired. Preserve the explicit migration error for legacy configs before embeddings initialization or filesystem access. Never reinterpret or remove existing Chroma directories.
+- New `persistent_zvec` and `local_zvec` retrievers use fresh paths; re-ingest trusted source files and verify results before retiring old data.
+- Zvec native collections are opened per operation under a file lock, writes are flushed, and handles are always closed. Existing-path errors must propagate rather than creating a replacement collection.
+- Keep Zvec persistence, upsert/delete, concurrent factory, metadata, and legacy-data-preservation regression coverage. Use the public `iter_documents()` capability for ingestion deduplication, not native SDK internals.
+- Zvec advertises SHA-256 record-manager keys to respect its 64-character ID limit. Preserve existing Blake2b keys for other backends and test clearing followed by re-ingestion.
+- Use the persisted Zvec schema metric for equality-filter ranking when reopening an index; creation defaults must not change ranking or rewrite existing data.
+- Zvec supports similarity search and equality dictionary filters; do not imply Chroma filter syntax or MMR compatibility. InMemory instances do not share state across factory calls or CLI runs.
 
 ## Commands
 

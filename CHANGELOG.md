@@ -5,6 +5,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ## [Unreleased]
 
+### Security
+
+- **Reviewed dependency and build inputs**: require patched uv/Python/certifi, update compatible vulnerable dependencies, and keep CI installs locked. Actions, Git dependencies, and Docker base images now use reviewed immutable references; weekly update proposals and daily audits help keep those pins current.
+- **Build secrets and production dependency scope**: Docker excludes credentials before they reach the builder, omits development/evaluation groups, and uses the patched certifi trust bundle. Regression tests exercise the real Docker context, certificate trust, and Requests JSON error behavior.
+- **Resolve vulnerable dependency paths**: require Pillow 13 with compatible FastEmbed, Streamlit, and Docling releases, and remove the unused DiskCache extra while retaining JSON-backed cache persistence. Retire the unpatched Chroma integration and its install/scaffold extras; legacy configurations fail with migration guidance, while new persistent stores use Zvec at separate paths. Existing Chroma data is never converted or deleted automatically. [The security guide](docs/security.md) records the dependency decisions and regression checks; strict audits retain all findings without suppressions.
+
 ### Changed
 
 - **Onboarding and installation guide restructured in README**: Promoted the Installation section in [README.md](README.md) to the upper portion of the page directly beneath Core Domains & Pillars. Added a dedicated first-exploration section covering essential diagnostic and discovery CLI commands (`cli info doctor`, `cli info config`, `cli info models`, `cli info config-keys`, `cli info commands`), and added an onboarding guide inviting developers to explore and customize declarative YAML configuration files in `config/` ([config/app_conf.yaml](config/app_conf.yaml), [config/providers/](config/providers/), [config/agents/](config/agents/), [config/workflows.yaml](config/workflows.yaml)) using OmegaConf interpolations.
@@ -13,6 +19,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 - **Sub-agent labelling in trajectories**: `cli trajectory show` and `cli trajectory tui` now tag LLM and tool activity performed by a deep-agent sub-agent with its name. The trajectory model records the owning agent per call (`LlmCall.agent`, `ToolCall.agent`), resolved from the ATOF scope hierarchy.
 
 ### Fixed
+
+- **Deterministic PDF conversion CI**: Local converter and end-to-end tests now use a repository-authored PDF instead of downloading a public sample during shared setup. Live OCR/LLM tests require explicit network and real-model opt-in, so external file-host outages no longer block offline conversion coverage.
+
+- **Agent CLI output and coverage after AUIP migration**: `cli agents run --json` now preserves one AUIP event per line and literal payload text instead of wrapping JSON or interpreting terminal markup and emoji shortcodes. The deterministic test harness inherits `BaseHarness` to exercise the real adapter across text, stdin/default profiles, overrides, JSON, Markdown, and raw output without a live model. JSON regression tests parse every output line, and failing run assertions report the captured CLI error.
+
+- **Audit interpreter bootstrap**: The dependency security workflow explicitly installs the reviewed Python interpreter before running the audit with automatic Python downloads disabled, so fresh CI runners reach the advisory checks.
 
 - **Direct Git Requirement for `prefect-yaml` in Core Dependencies**: Declared `prefect-yaml @ git+https://github.com/tclatos/prefect-yaml@main` directly in [pyproject.toml](pyproject.toml) `dependencies` so consuming projects installing `genai-tk` via Git resolve the modern Prefect 3 repository directly instead of attempting to resolve the obsolete `prefect-yaml` package from PyPI.
 - **`cli` no longer fails on networks that cannot reach GitHub**: The `nlp` extra pinned the `en_core_web_md` spaCy model to a GitHub release URL, so every `uv run`/`uv sync` had to fetch it and aborted with a tunnel error when GitHub was unreachable. The model is no longer pinned in [pyproject.toml](pyproject.toml); the existing `SpaCyModelManager` downloads it on first use, and [docs/nlp.md](docs/nlp.md) documents the manual `python -m spacy download` alternative.

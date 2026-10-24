@@ -1,47 +1,41 @@
-"""Chroma vector store backend."""
+"""Migration errors for the retired Chroma vector-store integration."""
 
 from __future__ import annotations
-
-import os
-from typing import Any
 
 from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
 
+CHROMA_MIGRATION_MESSAGE = (
+    "Chroma support has been retired because no patched release is available for the reviewed security advisories. "
+    "Existing Chroma data has not been opened or changed. Use InMemoryBackend for ephemeral work, "
+    "or configure ZvecBackend/PgVectorBackend with a fresh index and re-ingest trusted source documents. "
+    "Use the new persistent_zvec or local_zvec examples; do not reuse a Chroma storage directory. "
+    "See docs/rag.md#retiring-chroma-and-migrating-existing-indexes."
+)
+
+_RETIRED_BACKENDS = {
+    "Chroma",
+    "chroma",
+    "genai_tk.core.vector_backends.ChromaBackend",
+    "genai_tk.core.vector_backends.chroma.ChromaBackend",
+}
+
+
+def reject_retired_chroma(backend: str | None) -> None:
+    """Reject a legacy backend before resolving models or touching storage."""
+    if backend in _RETIRED_BACKENDS:
+        raise RuntimeError(CHROMA_MIGRATION_MESSAGE)
+
 
 class ChromaBackend:
-    """Creates a Chroma VectorStore (in-memory or persistent)."""
+    """Retain an importable migration error for existing Chroma configurations."""
 
     @classmethod
     def create(
         cls,
         embeddings: Embeddings,
         table_name: str,
-        config: dict[str, Any],
+        config: dict[str, object],
         collection_metadata: dict[str, str] | None = None,
     ) -> VectorStore:
-        from genai_tk.config_mgmt.config_mngr import global_config
-        from genai_tk.config_mgmt.features import require_feature
-
-        require_feature("chromadb", context="ChromaBackend.create")
-        from langchain_chroma import Chroma  # noqa: PLC0415
-
-        storage = config.get("storage", "::memory::")
-        persist_directory: str | None
-
-        if storage == "::memory::":
-            persist_directory = None
-        elif os.path.isabs(storage):
-            persist_directory = storage
-        else:
-            try:
-                persist_directory = str(global_config().get_dir_path("vector_store.storage", create_if_not_exists=True))
-            except (ValueError, KeyError):
-                persist_directory = storage
-
-        return Chroma(
-            embedding_function=embeddings,
-            persist_directory=persist_directory,
-            collection_name=table_name,
-            collection_metadata=collection_metadata,
-        )
+        raise RuntimeError(CHROMA_MIGRATION_MESSAGE)

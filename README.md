@@ -18,7 +18,7 @@ flowchart TD
         DECIDE["Fast System 1 Decision Models (Clef, Laya, Jev)"]
         BAML["BAML Structured Data Extraction"]
         NLP["NLP & Presidio PII Anonymization"]
-        VEC["Vector Stores (Chroma, PgVector, ZVec)"]
+        VEC["Vector Stores (InMemory, PgVector, ZVec)"]
     end
 
     subgraph Orchestration["2. Workflows & Pipelines"]
@@ -70,8 +70,11 @@ Get up and running with `genai-tk` in minutes.
 ### Quickstart 
 
 ```bash
-# Install uv (fast Python package manager) (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Install the reviewed uv release after verifying its installer checksum
+installer=$(mktemp)
+curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/0.13.5/install.sh -o "$installer"
+printf '%s  %s\n' '446a6087825fa73eadb045e5a2e9e2adf7df241b571228187728191d961dda1f' "$installer" | shasum -a 256 -c - && sh "$installer"
+rm -f "$installer"
 
 # Create and enter your project directory
 mkdir my-genai-project && cd my-genai-project
@@ -90,14 +93,20 @@ If you are contributing to or extending `genai-tk` directly:
 
 ```bash
 git clone https://github.com/tclatos/genai-tk.git && cd genai-tk
-uv sync              # core + development dependencies
-uv sync --all-groups # + postgres, browser, evals, harnessing
+uv python install 3.12.15
+uv sync --locked              # core + development/evaluation dependencies
+uv sync --locked --all-extras # also install optional providers and tools
 
 # Using your clone in another project (local editable dependency):
 # uv add --editable /path/to/genai-tk
 ```
 
 ### API Keys & Environment Configuration
+
+Use uv 0.13.5 (minimum 0.13.4) and the pinned Python security release. See
+[dependency and CI security](docs/security.md) for audit commands, outstanding
+upstream advisories, and updating deployed environments. Report vulnerabilities
+using [SECURITY.md](SECURITY.md).
 
 Set your model provider credentials in a `.env` file at the root of your project (auto-loaded on startup):
 
@@ -217,7 +226,7 @@ For a didactic, deep-dive understanding of the internal architecture and design 
 ### 🧠 **Core GenAI**
 Build intelligent applications with multi-provider LLM/embeddings support, prompt engineering, and state management.
 - Multi-provider LLM and embeddings factory (OpenAI, Groq, Anthropic, Mistral, Ollama, OpenRouter, local, …)
-- Vector stores: ChromaDB, PostgreSQL (PgVector), in-memory, ZVec
+- Vector stores: PostgreSQL (PgVector), in-memory, ZVec. Chroma is retired; see [migration guidance](docs/rag.md).
 - LLM response caching (SQLite, Redis, in-memory), structured outputs, prompt management
 - See: `cli core llm`, `cli info models`, [docs/core.md](docs/core.md)
 
@@ -958,7 +967,7 @@ genai_tk/
 │   ├── providers/         # chat / embeddings provider registry (IoC)
 │   ├── decision_models/   # fast System 1 decision models (Clef, Laya, Jev, ...)
 │   ├── retrievers/        # retriever factory (BM25, hybrid, rerankers)
-│   └── vector_backends/   # Chroma, InMemory, PgVector, ZVec
+│   └── vector_backends/   # InMemory, PgVector, ZVec; retired Chroma compatibility guard
 ├── agents/
 │   ├── harness/     # BaseHarness, event model, registry, chat REPL (LangChain + DeerFlow adapters)
 │   ├── langchain/   # ReAct / Deep / custom agents, factory, middleware

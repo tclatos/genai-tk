@@ -113,7 +113,6 @@ _INSTALLABLE_EXTRAS: dict[str, str] = {
     "postgres": "PostgreSQL vector store",
     "streamlit": "Streamlit web interface",
     "baml": "BAML structured extraction",
-    "chromadb": "ChromaDB vector database",
 }
 
 

@@ -36,22 +36,29 @@ default:
 [group('Install')]
 [doc('Check if uv is installed, install if missing')]
 check-uv:
-    @if command -v uv >/dev/null 2>&1; then \
-        echo "uv is already installed"; \
-    else \
-        echo "Installing uv..."; \
-        curl -LsSf https://astral.sh/uv/install.sh | sh; \
-    fi
+    #!/usr/bin/env sh
+    set -eu
+    if command -v uv >/dev/null 2>&1; then uv --version; exit 0; fi
+    installer=$(mktemp)
+    trap 'rm -f "$installer"' EXIT
+    curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/0.13.5/install.sh -o "$installer"
+    printf '%s  %s\n' '446a6087825fa73eadb045e5a2e9e2adf7df241b571228187728191d961dda1f' "$installer" | shasum -a 256 -c -
+    sh "$installer"
 
 [group('Install')]
 [doc('Install package (no dev dependencies)')]
 install: check-uv
-    uv sync --no-dev
+    uv sync --locked --no-default-groups
 
 [group('Install')]
 [doc('Install with development dependencies')]
 install-dev: check-uv
-    uv sync
+    uv sync --locked
+
+[group('Code Quality')]
+[doc('Audit all locked extras and groups; vulnerabilities and audit errors fail')]
+security-audit:
+    uv audit --locked --no-build
 
 # ─── Scaffolding ─────────────────────────────────────────────────────────────
 

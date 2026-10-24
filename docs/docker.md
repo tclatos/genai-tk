@@ -68,6 +68,26 @@ docker build -f deploy/Dockerfile \
 
 ## Runtime Configuration
 
+### Build and dependency security
+
+The maintained [Dockerfile](../deploy/Dockerfile) pins Python 3.12.15, uv 0.13.5,
+and optional Node 24.22.1 by version and multi-platform image digest. Both install
+stages use `uv sync --locked --no-default-groups`; development and evaluation
+dependencies are excluded. Each comma-separated extra becomes its own argument.
+Node comes from its pinned image, without executing a downloaded installer.
+
+Run `uv python pin 3.12.15` if a downstream project has no `.python-version`, and
+commit it with `uv.lock`. Copy the maintained Dockerfile and
+[.dockerignore](../.dockerignore) together when creating a downstream image.
+The ignore rules prevent environment files, credential directories, and private
+keys from reaching any build stage while preserving runtime skill Markdown.
+Inject secrets at runtime.
+
+Python, Requests, and curl use the patched certifi bundle rather than an
+unreviewed OS/custom trust bundle. Rebuild existing images after updates. See
+[the security guide](security.md) for audit commands and unresolved upstream
+advisories; a successfully built image is not evidence of a clean security audit.
+
 ### Environment Variables
 
 The container reads secrets from environment variables. Mount your `.env` at runtime (the `docker-run` recipe does this automatically if the file exists):
@@ -101,6 +121,9 @@ DOCKER_DATA_DIR=/my/data just docker-run
 
 ## Selecting Extras
 
+Chroma is no longer bundled. New local persistent vector stores use Zvec from the
+core install; existing Chroma indexes need the explicit [RAG migration](rag.md).
+
 Extras control which optional dependencies are installed. They match the extras defined in `pyproject.toml`:
 
 | Extra | Contents |
@@ -109,7 +132,6 @@ Extras control which optional dependencies are installed. They match the extras 
 | `nlp` | spaCy, Presidio PII detection |
 | `postgres` | PostgreSQL vector store |
 | `baml` | BAML structured extraction |
-| `chromadb` | ChromaDB vector store |
 | `harnessing` | DeerFlow, DeepAgents, sandbox |
 | `browser` | Playwright |
 | `monitoring` | LangFuse, OpenTelemetry |
@@ -138,8 +160,7 @@ ARG INSTALL_NODE=false
 ARG STREAMLIT_ENTRY=""
 ARG EXTRA_COPY_DIRS="skills"
 
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS builder
-# … (rest identical to genai-tk/deploy/Dockerfile)
+# Copy the pinned stages from genai-tk/deploy/Dockerfile unchanged.
 ```
 
 **2. Create `deploy/docker.just`** — copy from genai-tk (recipes only, no variable definitions):
@@ -175,7 +196,7 @@ import 'deploy/docker.just'
 
 **4. Add `.dockerignore`** (copy from genai-tk, adjust if needed).
 
-**5. Ensure `uv.lock` is committed** — the Dockerfile uses `uv sync --locked`.
+**5. Ensure `uv.lock` and `.python-version` are committed** — the Dockerfile uses `uv sync --locked --no-default-groups`.
 
 ## Streamlit Entry Point Resolution
 

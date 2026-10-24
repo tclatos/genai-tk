@@ -54,6 +54,26 @@ def test_batch_processing(temp_test_dir):
     assert len(files) == 5
 ```
 
+## Offline Document Fixtures
+
+Local converter tests must use repository-authored fixtures instead of downloading
+sample files during setup. The small [PDF fixture](../tests/fixtures/documents/basic-text.pdf)
+contains extractable text for real MarkItDown conversion and the `fast`
+`markdownize_flow` end-to-end test. It needs no network, credentials, or model
+weights. Keep content assertions so a missing or unreadable fixture fails visibly.
+
+Mark tests that call live OCR or LLM services with both `network` and `real_models`.
+The `real_models` marker requires `--include-real-models`, even when credentials
+happen to exist. Hosted offline CI excludes both markers. Keep network downloads
+inside the explicitly opted-in tests or their dedicated fixtures; never put them
+in a fixture shared with offline conversion coverage.
+
+```bash
+uv run pytest tests/integration_tests/test_pdf_converters_integration.py -m "not network and not real_models" --no-cov
+# Requires provider credentials and may incur API costs:
+uv run pytest tests/integration_tests/test_pdf_converters_integration.py -m real_models --include-real-models --no-cov
+```
+
 ## Vector Store Tests
 
 ### Basic Vector Store Test
@@ -81,7 +101,7 @@ def fresh_embeddings_store():
     """Create a fresh in-memory embeddings store for each test."""
     from genai_tk.core.embeddings_store import EmbeddingsStore
 
-    return EmbeddingsStore.create_from_config("in_memory_chroma")
+    return EmbeddingsStore.create_from_config("in_memory")
 
 
 def test_isolated_search(fresh_embeddings_store, sample_documents):
@@ -116,6 +136,22 @@ whole module (e.g. for module-scoped async fixtures):
 @pytest.mark.asyncio(loop_scope="module")
 async def test_uses_shared_loop(module_async_fixture): ...
 ```
+
+## Agent CLI Harness Tests
+
+For CLI wiring tests, derive deterministic harnesses from `BaseHarness` and implement
+`astream(message, *, thread_id=None, context=None)` with typed `StreamEvent` values.
+The CLI consumes `astream_auip()`, inherited from the base class, so this exercises
+the real event conversion and renderer without invoking a model. Do not duplicate
+the AUIP conversion in the fake harness.
+
+Keep coverage for normal text, default-profile stdin, overrides, JSON events,
+Markdown rendering, and `--raw`. Include `result.exception or result.output` in
+exit-code assertions so a failing CLI invocation exposes its underlying error.
+For JSON output, validate each physical stdout line against its AUIP event model
+and compare the decoded text exactly, including long strings, markup tags, emoji
+shortcodes, and escaped newlines.
+See [the agent CLI integration tests](../tests/integration_tests/test_commands_agents.py).
 
 ## Mocking External Dependencies
 

@@ -1,0 +1,54 @@
+name: Dependency security
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  schedule:
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit locked dependencies (${{ matrix.platform }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux, macos, windows]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: "0.13.5"
+          python-version: "3.12.15"
+          enable-cache: false
+      - name: Install reviewed Python interpreter
+        run: uv python install 3.12.15
+      - name: Audit every extra and dependency group
+        # Native audit is experimental in this pinned uv version. Fail on both
+        # vulnerabilities and service/lock errors; never ignore packages without fixes.
+        shell: bash
+        run: |
+          set -o pipefail
+          uv audit --locked --no-build --no-python-downloads \
+            --python-version 3.12.15 --python-platform "${{ matrix.platform }}" \
+            --output-format json | tee "audit-${{ matrix.platform }}.json"
+      - name: Preserve audit findings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dependency-audit-${{ matrix.platform }}
+          path: audit-${{ matrix.platform }}.json
+          if-no-files-found: error

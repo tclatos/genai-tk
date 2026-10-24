@@ -14,6 +14,9 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  UV_LOCKED: "true"
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -21,37 +24,42 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: ["3.12"]
+        python-version: ["3.12.15"]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v5
+      uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       with:
+        version: "0.13.5"
         enable-cache: true
 
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
 
     - name: Install dependencies
-      run: uv sync --all-extras
+      run: uv sync --locked --all-extras
 
     - name: Format check
-      run: uv run ruff format --check .
+      run: uv run --locked ruff format --check .
 
     - name: Lint
-      run: uv run ruff check .
+      run: uv run --locked ruff check .
 
     - name: Type check (pyright, advisory)
       # Pyright runs as a non-blocking advisory gate until the codebase is
       # clean enough to enforce. Remove `continue-on-error` once the baseline
       # error count is driven to zero.
-      run: uv run --with pyright pyright
+      run: uv run --locked pyright
       continue-on-error: true
 
     - name: Install just
-      uses: taiki-e/install-action@just
+      uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+      with:
+        tool: just@1.59.0
 
     - name: Test installation
       run: just test-install
@@ -61,7 +69,7 @@ jobs:
       # (~49%) so CI is green and catches regressions; raise it as coverage
       # grows. Branch coverage is enabled via [tool.coverage] in pyproject.toml.
       run: |
-        uv run pytest tests/unit_tests/ \
+        uv run --locked pytest tests/unit_tests/ \
           --cov=genai_tk \
           --cov-report=term-missing \
           --cov-report=xml:coverage.xml \
@@ -72,13 +80,20 @@ jobs:
       # Fast integration tests only: real-model, Docker, network, slow,
       # performance and DeerFlow-backend tests are skipped (opt-in via flags).
       run: |
-        uv run pytest tests/integration_tests/ \
+        uv run --locked pytest tests/integration_tests/ \
           -m "not slow and not docker and not real_models and not network and not performance_tests and not deerflow" \
           -q
 
+    - name: Verify Docker build context excludes secrets
+      if: matrix.os == 'ubuntu-latest'
+      run: uv run --locked pytest tests/integration_tests/security/test_docker_build_context.py --include-docker --no-cov -q
+
+    - name: Validate skills
+      run: uv run --locked cli skills validate --all
+
     - name: Upload coverage report
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: coverage-${{ matrix.os }}
         path: coverage.xml
@@ -90,22 +105,26 @@ jobs:
     if: github.ref == 'refs/heads/main'
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
     
     - name: Install uv
-      uses: astral-sh/setup-uv@v5
+      uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
       with:
+        version: "0.13.5"
         enable-cache: true
         
     - name: Set up Python
-      run: uv python install 3.12
+      run: uv python install 3.12.15
       
     - name: Build package
       run: |
+        uv lock --check --no-build
         uv build --wheel
         
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: dist
         path: dist/

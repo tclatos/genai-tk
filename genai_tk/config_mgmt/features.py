@@ -86,12 +86,6 @@ FEATURES: dict[str, FeatureInfo] = {
         check_modules=["baml_py"],
         install_cmd='uv sync --extra baml  # or: uv add "genai-tk[baml]"',
     ),
-    "chromadb": FeatureInfo(
-        description="ChromaDB vector database",
-        packages=["chromadb", "langchain-chroma"],
-        check_modules=["chromadb"],
-        install_cmd='uv sync --extra chromadb  # or: uv add "genai-tk[chromadb]"',
-    ),
     "docling": FeatureInfo(
         description="Docling fully local document conversion to Markdown (PDF, Office, HTML, images)",
         packages=["docling", "easyocr"],

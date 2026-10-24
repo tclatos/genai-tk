@@ -7,7 +7,7 @@ The `core` subsystem (`genai_tk/core/`) provides the fundamental building blocks
 - **Identity & Aliasing**: Uniform identification format (`model_id@provider`) combined with friendly YAML aliases (`default`, `fast_model`).
 - **Semantic & Exact Caching**: `LlmCache` supporting local SQLite, Redis, or in-memory response caches to minimize cost and latency during development and testing.
 - **Runnable Registry**: `ChainRegistry` for organizing, discovering, and executing LangChain Expression Language (LCEL) chains.
-- **Vector Backends**: `EmbeddingsStore` unifying Chroma, PGVector, and in-memory vector collections.
+- **Vector Backends**: `EmbeddingsStore` unifying Zvec, PGVector, and in-memory vector collections. Zvec operations hold a file lock only while the native collection is open, flush writes, and close handles before returning. Legacy Chroma configurations fail before model resolution or storage access; migrations create fresh indexes from trusted source documents.
 
 ```mermaid
 flowchart LR

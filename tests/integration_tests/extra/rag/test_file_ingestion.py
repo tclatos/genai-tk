@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
 
-from genai_tk.core.factories.retriever_factory import RetrieverFactory
+from genai_tk.config_mgmt.config_mngr import global_config
+from genai_tk.core.factories.retriever_factory import DocumentIterable, RetrieverFactory
 from genai_tk.workflow.prefect.flows.rag_flow import rag_file_ingestion_flow
 
 
@@ -23,6 +25,25 @@ def _run_ingestion(**kwargs):
 
 class TestRagFileIngestionFlowChunkers:
     """Integration tests for RAG file ingestion with different chunkers."""
+
+    @pytest.fixture(autouse=True)
+    def persistent_store(self, tmp_path: Path, fake_embeddings_id: str, monkeypatch):
+        config = global_config()
+        monkeypatch.setattr(config, "root", deepcopy(config.root))
+        original = config.get_dict("embeddings_store.zvec")
+        old_url = config.get("retrievers.persistent_zvec.record_manager_url", default=None)
+        config.set(
+            "embeddings_store.zvec",
+            {
+                "backend": "genai_tk.core.vector_backends.ZvecBackend",
+                "embeddings": fake_embeddings_id,
+                "config": {"storage": str(tmp_path / "zvec")},
+            },
+        )
+        config.set("retrievers.persistent_zvec.record_manager_url", f"sqlite:///{tmp_path}/records.db")
+        yield
+        config.set("embeddings_store.zvec", original)
+        config.set("retrievers.persistent_zvec.record_manager_url", old_url)
 
     @pytest.fixture
     def temp_docs_dir(self) -> Path:
@@ -69,7 +90,7 @@ def another_function():
 
     def test_ingestion_with_auto_chunker(self, temp_docs_dir: Path) -> None:
         """Test file ingestion with auto-detected chunkers."""
-        retriever_name = "default"
+        retriever_name = "persistent_zvec"
 
         result = _run_ingestion(
             base_dir=str(temp_docs_dir),
@@ -88,7 +109,7 @@ def another_function():
 
     def test_ingestion_with_explicit_markdown_chunker(self, temp_docs_dir: Path) -> None:
         """Test file ingestion with explicit markdown chunker for markdown files only."""
-        retriever_name = "default"
+        retriever_name = "persistent_zvec"
 
         result = _run_ingestion(
             base_dir=str(temp_docs_dir),
@@ -107,7 +128,7 @@ def another_function():
 
     def test_ingestion_with_explicit_recursive_chunker(self, temp_docs_dir: Path) -> None:
         """Test file ingestion with explicit recursive chunker."""
-        retriever_name = "default"
+        retriever_name = "persistent_zvec"
 
         result = _run_ingestion(
             base_dir=str(temp_docs_dir),
@@ -126,7 +147,7 @@ def another_function():
 
     def test_ingestion_documents_have_metadata(self, temp_docs_dir: Path) -> None:
         """Test that ingested documents have proper metadata."""
-        retriever_name = "default"
+        retriever_name = "persistent_zvec"
 
         result = _run_ingestion(
             base_dir=str(temp_docs_dir),
@@ -143,27 +164,14 @@ def another_function():
         managed = RetrieverFactory.create(retriever_name)
         vector_store = managed._vector_store
 
-        if vector_store and hasattr(vector_store, "_collection"):
-            # Chroma backend: check metadata. Filter out None entries that may
-            # originate from unrelated documents in a shared collection.
-            results = vector_store._collection.get(include=["metadatas"])
-            if results and "metadatas" in results and results["metadatas"]:
-                non_null = [m for m in results["metadatas"] if m is not None]
-                assert non_null, "Expected at least one document with non-None metadata"
-                metadata = non_null[0]
-                assert "source" in metadata
-                assert "file_hash" in metadata
-                assert "chunk_index" in metadata
-                assert "total_chunks" in metadata
-                # Check for new metadata from splitter
-                if "token_count" in metadata:
-                    print(f"✓ Document has token_count metadata: {metadata['token_count']}")
-                if "chunk_type" in metadata:
-                    print(f"✓ Document has chunk_type metadata: {metadata['chunk_type']}")
+        assert isinstance(vector_store, DocumentIterable)
+        documents = list(vector_store.iter_documents())
+        assert documents
+        assert {"source", "file_hash", "chunk_index", "total_chunks"} <= documents[0].metadata.keys()
 
     def test_ingestion_deduplication_with_force_false(self, temp_docs_dir: Path) -> None:
         """Test that force=False skips already processed files."""
-        retriever_name = "default"
+        retriever_name = "persistent_zvec"
 
         # First ingestion
         result1 = _run_ingestion(
@@ -194,7 +202,7 @@ def another_function():
 
     def test_ingestion_with_different_chunk_sizes(self, temp_docs_dir: Path) -> None:
         """Test that different chunk sizes produce different numbers of chunks."""
-        retriever_name = "default"
+        retriever_name = "persistent_zvec"
 
         # Small chunks
         result_small = _run_ingestion(
@@ -222,7 +230,7 @@ def another_function():
 
     def test_ingestion_with_multiple_file_types(self, temp_docs_dir: Path) -> None:
         """Test auto-detection with mixed file types."""
-        retriever_name = "default"
+        retriever_name = "persistent_zvec"
 
         result = _run_ingestion(
             base_dir=str(temp_docs_dir),

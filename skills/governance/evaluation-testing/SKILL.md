@@ -27,8 +27,10 @@ description: Add or debug pytest unit, integration, and LLM evaluation tests for
 - Use `GENAITK_PROFILE=pytest` for deterministic tests.
 - Use fake LLM/embedding config for unit tests.
 - Mark real model tests explicitly and require opt-in flags.
+- Keep shared converter fixtures local and repository-authored; do not download sample documents in offline setup. Mark live OCR/LLM tests with both `network` and `real_models`, and keep real local converter/end-to-end coverage enabled; see [offline document fixtures](../../../docs/TESTING_GUIDE.md#offline-document-fixtures).
 - Use `pytest.importorskip()` for optional packages.
 - Prefer narrow test files next to the domain being changed.
+- For agent CLI tests, derive deterministic fakes from `BaseHarness`, implement the full `astream` signature (including `context`), and inherit `astream_auip()` so tests exercise real AUIP conversion. Include the captured exception or output in exit-code assertions; see [the testing guide](../../../docs/TESTING_GUIDE.md#agent-cli-harness-tests).
 - Use deterministic trajectory matching (`match_trajectory_tools(actual, expected, mode="superset")` or `traj.match_tools(...)`) from `genai_tk.extra.monitoring.trajectory_store` instead of third-party `agentevals`.
 - Use System One Decision Models (`evaluate_correctness`, `evaluate_conciseness`, `evaluate_groundedness` from `genai_tk.core.decision_models.evaluators`) instead of unstructured prompt-based judges (`openevals`).
 - In end-to-end agent tests, verify the recorded trajectory in `TrajectoryStore(root=store_dir)` (checking `traj.tool_calls`, arguments, tokens, and scopes).

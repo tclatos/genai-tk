@@ -47,7 +47,7 @@ just run                           # start the application
 | `--name` | `-n` | Human-readable project name (determines package name). |
 | `--with-graph` | `-g` | Enable `genai-graph` dependency, benchmark framework CLI (`cli bench`), starter `adapter.py`, and `config/bench.yaml`. |
 | `--graph-path` | | Path to local editable `genai-graph` checkout (defaults to `../genai-graph`). |
-| `--extra` | `-e` | Install optional extras at init time (repeatable: `harnessing`, `browser`, `nlp`, `postgres`, `streamlit`, `baml`, `chromadb`). |
+| `--extra` | `-e` | Install optional extras at init time (repeatable: `harnessing`, `browser`, `nlp`, `postgres`, `streamlit`, `baml`). |
 | `--force` | `-f` | Overwrite existing files. |
 
 ---
@@ -213,12 +213,28 @@ ui:
 ### `pyproject.toml` — package discovery
 
 ```toml
+[project]
+requires-python = ">=3.12.15,<3.13"
+
 [tool.uv]
+required-version = ">=0.13.4"
 package = true
 
-[tool.setuptools.packages.find]
-include = ["my_project*"]
+[build-system]
+requires = ["hatchling==1.32.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["my_project"]
 ```
+
+New projects use the reviewed Python/uv security floors. For existing projects,
+`cli init` updates the former `>=3.12` and `>=3.12,<3.13` defaults, adds a missing
+uv requirement, and pins Hatchling when adding a missing build configuration.
+Custom Python ranges, explicit uv requirements, and existing build systems are
+preserved for the project owner to review. See [dependency security](security.md).
+Generated `just sync` and test recipes use the committed lockfile; use `just lock`
+for intentional dependency changes and `just security-audit` to check advisories.
 
 All patches are **idempotent** — re-running `cli init` is safe.
 

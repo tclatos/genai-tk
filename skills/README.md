@@ -67,6 +67,7 @@ Use `skills/governance/repo-map` first when you need orientation.
 |---|---|---|---|
 | `repo-map` | Full codebase architecture & file locator | `docs/*.md` | `genai_tk/`, `config/`, `tests/` |
 | `evaluation-testing` | Pytest conventions, fake models & evals | `docs/TESTING_GUIDE.md` | `tests/` |
+| `dependency-security` | Dependency advisories, locked CI, image pins, and build secrets | [Security guide](../docs/security.md) | [Security workflow](../.github/workflows/security.yml) |
 | `pii-anonymization` | Presidio PII detection & anonymization | `docs/middleware-pii-and-routing.md` | `genai_tk/extra/nlp/` |
 | `code-review-excellence` | Code quality & best practices checklist | — | — |
 

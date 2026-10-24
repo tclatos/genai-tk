@@ -48,7 +48,7 @@ flowchart TD
 | [core.md](core.md) | **Core Engine** | `LlmFactory`, `EmbeddingsFactory`, `EmbeddingsStore`, `LlmCache`, `ChainRegistry` |
 | [configuration.md](configuration.md) | **Configuration Management** | OmegaConf YAML hierarchy, env substitution (`${oc.env:...}`), profile overlays |
 | [llm-selection.md](llm-selection.md) | **LLM Provider Guide** | Provider aliases, context windows, cost/speed trade-offs |
-| [rag.md](rag.md) | **RAG Deep-Dive** | `RetrieverFactory`, hybrid search (dense + BM25), rerankers, Chroma/PgVector |
+| [rag.md](rag.md) | **RAG Deep-Dive** | `RetrieverFactory`, hybrid search (dense + BM25), rerankers, Zvec/PgVector |
 
 ---
 

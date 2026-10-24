@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -157,7 +158,14 @@ class TestProjectScaffolder:
 
         pyproject = (project_dir / "pyproject.toml").read_text()
         assert "override-dependencies" in pyproject
-        assert 'requires-python = ">=3.12,<3.13"' in pyproject
+        assert 'requires-python = ">=3.12.15,<3.13"' in pyproject
+
+    def test_scaffold_does_not_forward_retired_chroma_extra(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        ProjectScaffolder(project_dir, "Test Project").scaffold()
+        project = tomllib.loads((project_dir / "pyproject.toml").read_text())
+        assert "chromadb" not in project["project"]["optional-dependencies"]
 
     def test_scaffolded_gitignore_excludes_runtime_data(self, project_dir: Path):
         from genai_tk.main.scaffolder import ProjectScaffolder
@@ -173,13 +181,16 @@ class TestProjectScaffolder:
 class TestScaffolderPatches:
     """Idempotent pyproject/.gitignore patches applied by `cli init`."""
 
-    def test_tightens_loose_requires_python(self, project_dir: Path):
+    @pytest.mark.parametrize("previous_range", [">=3.12", ">=3.12,<3.13"])
+    def test_updates_legacy_requires_python(self, project_dir: Path, previous_range: str):
         from genai_tk.main.scaffolder import ProjectScaffolder
 
-        (project_dir / "pyproject.toml").write_text('[project]\nname = "test_project"\nrequires-python = ">=3.12"\n')
+        (project_dir / "pyproject.toml").write_text(
+            f'[project]\nname = "test_project"\nrequires-python = "{previous_range}"\n'
+        )
         ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
 
-        assert 'requires-python = ">=3.12,<3.13"' in (project_dir / "pyproject.toml").read_text()
+        assert 'requires-python = ">=3.12.15,<3.13"' in (project_dir / "pyproject.toml").read_text()
 
     def test_inserts_requires_python_when_missing(self, project_dir: Path):
         from genai_tk.main.scaffolder import ProjectScaffolder
@@ -187,19 +198,37 @@ class TestScaffolderPatches:
         (project_dir / "pyproject.toml").write_text('[project]\nname = "test_project"\n')
         ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
 
-        assert 'requires-python = ">=3.12,<3.13"' in (project_dir / "pyproject.toml").read_text()
+        assert 'requires-python = ">=3.12.15,<3.13"' in (project_dir / "pyproject.toml").read_text()
 
     def test_keeps_existing_upper_bound_pin(self, project_dir: Path):
         from genai_tk.main.scaffolder import ProjectScaffolder
 
         (project_dir / "pyproject.toml").write_text(
-            '[project]\nname = "test_project"\nrequires-python = ">=3.12,<3.13"\n'
+            '[project]\nname = "test_project"\nrequires-python = ">=3.12.15,<3.12.16"\n'
         )
         ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
 
         pyproject = (project_dir / "pyproject.toml").read_text()
         assert pyproject.count("requires-python") == 1
-        assert 'requires-python = ">=3.12,<3.13"' in pyproject
+        assert 'requires-python = ">=3.12.15,<3.12.16"' in pyproject
+
+    def test_inserts_uv_security_floor_when_missing(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text('[project]\nname = "test_project"\n[tool.uv]\npackage = true\n')
+        ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
+
+        assert 'required-version = ">=0.13.4"' in pyproject.read_text()
+
+    def test_preserves_explicit_uv_requirement(self, project_dir: Path):
+        from genai_tk.main.scaffolder import ProjectScaffolder
+
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text('[project]\nname = "test_project"\n[tool.uv]\nrequired-version = ">=0.13.5"\n')
+        ProjectScaffolder(project_dir, "Test Project")._ensure_package_installed()
+
+        assert pyproject.read_text().count('required-version = ">=0.13.5"') == 1
 
     def test_warns_on_override_dependencies_without_crash(self, project_dir: Path):
         from genai_tk.main.scaffolder import ProjectScaffolder
