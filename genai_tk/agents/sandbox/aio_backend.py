@@ -48,6 +48,7 @@ from loguru import logger  # noqa: E402
 from pydantic import BaseModel, Field, PrivateAttr  # noqa: E402
 
 from genai_tk.agents.sandbox.models import DockerAioSettings  # noqa: E402
+from genai_tk.agents.sandbox.transport import BoundedCommandTransport, CommandResponseLimitError  # noqa: E402
 
 if TYPE_CHECKING:
     from opensandbox import Sandbox
@@ -78,9 +79,11 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
     """
 
     config: DockerAioSettings = Field(default_factory=DockerAioSettings)
+    stop_server_on_close: bool = True
 
     _sandbox: Sandbox | None = None
     _server_proc: object | None = None
+    _command_transport: BoundedCommandTransport | None = PrivateAttr(default=None)
     _instance_id: str = PrivateAttr(default_factory=lambda: uuid.uuid4().hex[:12])
     _extra_volumes: list = PrivateAttr(default_factory=list)  # runtime-added VolumeMountConfig items
 
@@ -179,10 +182,22 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             require_feature("harnessing", context="AioSandboxBackend.start")
             raise RuntimeError("unexpected") from exc
 
+        if "transport" not in ConnectionConfig.model_fields:
+            raise RuntimeError(
+                "Bounded sandbox command transport requires opensandbox>=1.1.0; upgrade the harnessing extra."
+            )
+
         server_url = self.config.opensandbox_server_url
         self._server_proc = await self._ensure_server(server_url)
+        if not self.stop_server_on_close:
+            self._detach_server_process()
         parsed = urlparse(server_url)
-        conn_config = ConnectionConfig(domain=parsed.netloc or server_url, protocol=parsed.scheme or "http")
+        self._command_transport = BoundedCommandTransport(self.config.max_command_response_bytes)
+        conn_config = ConnectionConfig(
+            domain=parsed.netloc or server_url,
+            protocol=parsed.scheme or "http",
+            transport=self._command_transport,
+        )
         startup_timeout = self.config.startup_timeout
 
         # Build volume mounts from config + runtime additions
@@ -205,28 +220,39 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             "entrypoint": self.config.entrypoint,
             "env": env,
             "connection_config": conn_config,
+            "resource": {"cpu": str(self.config.cpu_limit), "memory": f"{self.config.memory_limit_mb}Mi"},
         }
         if volumes:
             create_kwargs["volumes"] = volumes
             logger.info(f"Mounting {len(volumes)} volume(s) into sandbox")
         # Let the SDK run its default health check (ping the execd daemon).
-        self._sandbox = await Sandbox.create(self.config.image, **create_kwargs)
+        try:
+            self._sandbox = await Sandbox.create(self.config.image, **create_kwargs)
+        except BaseException:
+            await self._command_transport.aclose()
+            self._command_transport = None
+            raise
         logger.info(f"AioSandbox ready (sandbox id={self._sandbox.id})")
 
     async def stop(self) -> None:
-        """Kill the sandbox and stop the server if we started it."""
+        """Kill the sandbox and optionally stop a server started by this backend."""
         if self._sandbox is not None:
-            sbx, self._sandbox = self._sandbox, None
-            try:
-                await sbx.kill()  # type: ignore[union-attr]
-            except Exception as exc:
-                logger.debug(f"sandbox kill (non-critical): {exc}")
+            sbx = self._sandbox
+            # A failed kill is a containment failure. Keep the reference so the
+            # caller can retry cleanup, and never report the sandbox as stopped.
+            await asyncio.wait_for(sbx.kill(), timeout=10)
+            self._sandbox = None
             try:
                 await sbx.close()  # type: ignore[union-attr]
             except Exception as exc:
                 logger.debug(f"sandbox close (non-critical): {exc}")
             logger.info("AioSandbox stopped")
-        if self._server_proc is not None:
+        if self._command_transport is not None:
+            await self._command_transport.aclose()
+            self._command_transport = None
+        if not self.stop_server_on_close:
+            self._detach_server_process()
+        elif self._server_proc is not None:
             proc, self._server_proc = self._server_proc, None
             proc.terminate()  # type: ignore[attr-defined]
             try:
@@ -238,6 +264,17 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
             pid_file.unlink(missing_ok=True)
             logger.info("opensandbox-server stopped")
 
+    def _detach_server_process(self) -> None:
+        """Leave the shared daemon available for peer containers and CLI management."""
+        # asyncio closes subprocess transports on collection, which kills a
+        # still-running child even when it has its own OS session. The daemon
+        # PID file remains available to the explicit sandbox lifecycle manager.
+        if self._server_proc is not None:
+            transport = getattr(self._server_proc, "_transport", None)
+            if transport is not None:
+                transport._closed = True
+            self._server_proc = None
+
     def detach(self) -> None:
         """Release all references without killing processes or containers.
 
@@ -245,13 +282,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         ``__del__`` from sending SIGKILL to the opensandbox-server on exit.
         The server PID file is preserved so ``cli sandbox stop`` still works.
         """
-        # Detach the asyncio subprocess transport so __del__ won't kill the server.
-        # The actual OS process survives because we used start_new_session=True.
-        if self._server_proc is not None:
-            transport = getattr(self._server_proc, "_transport", None)
-            if transport is not None:
-                transport._closed = True  # prevent __del__ -> close() -> kill()
-            self._server_proc = None
+        self._detach_server_process()
 
         # Release the sandbox reference without killing the container.
         self._sandbox = None
@@ -395,6 +426,9 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         command: str = tool_input["command"]
         try:
             execution = await self._sandbox.commands.run(command)
+        except CommandResponseLimitError:
+            await self.stop()
+            raise
         except Exception as exc:
             # Connectivity errors (execd unreachable — container stopped, idle-evicted,
             # or opensandbox-server restarted) otherwise propagate as raw httpx/opensandbox
@@ -480,12 +514,21 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
 
         Args:
             command: Shell command to run inside the sandbox.
-            timeout: Not enforced by this backend (ignored).
+            timeout: Wall deadline in seconds. Expiry terminates the sandbox, including child processes.
 
         Returns:
             ``ExecuteResponse`` with combined output and exit code.
         """
-        result = await self._run_bash({"command": command})
+        if timeout is not None and timeout <= 0:
+            raise ValueError("Sandbox execution timeout must be positive")
+        try:
+            result = await asyncio.wait_for(self._run_bash({"command": command}), timeout=timeout)
+        except TimeoutError:
+            await self.stop()
+            return ExecuteResponse(output="Execution deadline exceeded; sandbox terminated", exit_code=124)
+        except asyncio.CancelledError:
+            await asyncio.shield(self.stop())
+            raise
         # ExecuteResponse has no `error` field — fold any connectivity error into
         # `output` (with a non-zero exit code) so it's visible to the caller/LLM
         # instead of being silently dropped.

@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ## [Unreleased]
 
+### Security
+
+- **Host-side command response limits**: AIO checks a configurable 16 MiB wire-byte limit before the OpenSandbox SDK parses command SSE frames, rejects compressed command bodies, and retires the backend on violations. This bounds unterminated command frames even when container-side programs are modified; file transfers retain their existing behavior. The bounded transport requires OpenSandbox SDK 1.1.0 or newer.
+
+- **Python execution now fails closed**: The Python tool defaults to Docker; `auto` and `sandbox` also require isolation. Sandbox errors never replay code on the host, and local execution must be selected explicitly for trusted development. Optional installed packages no longer gain local import permission automatically. See [the migration guide](docs/codeact.md#execution-and-trust-boundaries).
+- **Dedicated execution sessions and bounded tool relay**: Each default Python executor owns its backend, omits inherited environment variables and volumes, uses session-specific worker resources, and relays allowlisted host tools through the existing sandbox transport instead of exposing a host HTTP listener. Reset clears agent-defined state and replacing tools revokes old capabilities. See [the execution design](docs/design/06_sandbox_and_codeact.md).
+- **Enforced worker lifecycle and resource limits**: A supervised child process provides bounded log capture and an execution deadline. Timeout and transport failures invalidate the executor and retire its owned container; explicit cleanup is available through `aclose()` and `close()`, with termination failures surfaced. AIO CPU/memory limits and local server process/privilege restrictions complement worker limits. Documentation now distinguishes container isolation from trusted local AST safeguards and explains host-tool side effects, caller-owned backend cleanup, and deployment-dependent network policy.
+
 ### Changed
 
 - **Onboarding and installation guide restructured in README**: Promoted the Installation section in [README.md](README.md) to the upper portion of the page directly beneath Core Domains & Pillars. Added a dedicated first-exploration section covering essential diagnostic and discovery CLI commands (`cli info doctor`, `cli info config`, `cli info models`, `cli info config-keys`, `cli info commands`), and added an onboarding guide inviting developers to explore and customize declarative YAML configuration files in `config/` ([config/app_conf.yaml](config/app_conf.yaml), [config/providers/](config/providers/), [config/agents/](config/agents/), [config/workflows.yaml](config/workflows.yaml)) using OmegaConf interpolations.

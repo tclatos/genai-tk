@@ -1,5 +1,5 @@
 # CodeAct — SmolAgents-style agents that act by writing Python code blocks
-# executed in a safe in-process sandbox (AST interpreter, no eval).
+# executed in a dedicated Docker sandbox by default.
 #
 # Two profiles:
 #   codeact            — standalone agent: every action is a python_interpreter call
@@ -8,7 +8,8 @@
 # Sibling tools (internet_search, …) are bound as plain callables inside the
 # executor namespace at factory time (see bind_executor_tools in factory.py).
 # Termination: the code calls final_answer(result); errors return tracebacks
-# as observations and the agent retries.
+# as observations. Retry ordinary code errors only after checking completed
+# actions; timeout/infrastructure failures invalidate the executor.
 # Inheritable defaults come from defaults.yaml.
 
 agents:
@@ -25,15 +26,17 @@ agents:
 
       1. **Your ONLY action tool is `python_interpreter`**: Never call external tools (like `web_search`)
          directly in the outer agentic loop.
-      2. **External tools are in-process Python functions**: All sibling tools (e.g. `web_search`)
-         are exposed as callable functions inside the Python environment. Call them in Python:
+      2. **External tools are registered capabilities**: Sibling tools (e.g. `web_search`)
+         are exposed as callable proxies inside Python. Call them in Python:
          `result = web_search("...")`.
       3. **Minimize turns**: Write comprehensive Python scripts that retrieve all needed data,
          parse and process results, perform calculations, and call `final_answer(...)` in a
          single or minimal execution turns. Do NOT take separate turns for individual lookups.
       4. **Deterministic math**: Perform all calculations, unit conversions, and rounding in Python.
       5. **Observability**: Use `print()` to log intermediate data and progress.
-      6. **Retry on error**: If a script fails, read the traceback, fix the code, and re-execute.
+      6. **Handle errors deliberately**: Inspect completed tool actions before retrying a code error.
+         On timeout or infrastructure failure, stop and report the error; do not replay the block
+         or switch to local execution. A host tool may still be running after a timeout.
       7. **Termination**: Call `final_answer(result)` to return the final answer.
 
       ## Example
@@ -67,6 +70,7 @@ agents:
 
     tools:
       - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+          executor_type: docker
           tools:
             - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
 
@@ -103,7 +107,7 @@ agents:
 
     subagents:
       - name: codeact
-        description: "CodeAct worker: solves tasks by writing Python code in a sandbox. Tools are plain functions (web_search). Print observations, retry on traceback, terminate with final_answer(x)."
+        description: "CodeAct worker: solves tasks with isolated Python and registered tool proxies. Print observations, inspect errors and completed actions, terminate with final_answer(x)."
         system_prompt: |
           You are a CodeAct agent. Solve tasks EXCLUSIVELY by writing Python
           code executed via the `python_interpreter` tool.
@@ -112,11 +116,13 @@ agents:
           - NEVER attempt to call web_search as an outer agent tool.
           - Minimize turns: batch data retrieval and calculations into a single unified script.
           - Variables persist across calls; use print() for observations.
-          - On error, read the traceback, fix the code, and retry.
+          - Inspect completed tool actions before retrying ordinary code errors.
+          - On timeout or infrastructure failure, stop and report it; do not replay the block or switch to local execution.
           - Terminate by calling final_answer(result).
 
         tools:
           - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+              executor_type: docker
               tools:
                 - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
 

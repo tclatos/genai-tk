@@ -1,7 +1,8 @@
-"""In-process safe Python code executor using AST interpretation.
+"""Trusted-development Python executor using in-process AST interpretation.
 
 Based on smolagents local_python_executor with LangChain BaseTool support,
-Pydantic v2 data models, and Python 3.12+ syntax.
+Pydantic v2 data models, and Python 3.12+ syntax. AST restrictions and thread
+wait limits are not a security boundary or a way to terminate hostile code.
 """
 
 from __future__ import annotations
