@@ -20,6 +20,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Fixed
 
+- **Agent CLI output and coverage after AUIP migration**: `cli agents run --json` now preserves one AUIP event per line and literal payload text instead of wrapping JSON or interpreting terminal markup and emoji shortcodes. The deterministic test harness inherits `BaseHarness` to exercise the real adapter across text, stdin/default profiles, overrides, JSON, Markdown, and raw output without a live model. JSON regression tests parse every output line, and failing run assertions report the captured CLI error.
+
 - **Audit interpreter bootstrap**: The dependency security workflow explicitly installs the reviewed Python interpreter before running the audit with automatic Python downloads disabled, so fresh CI runners reach the advisory checks.
 
 - **Direct Git Requirement for `prefect-yaml` in Core Dependencies**: Declared `prefect-yaml @ git+https://github.com/tclatos/prefect-yaml@main` directly in [pyproject.toml](pyproject.toml) `dependencies` so consuming projects installing `genai-tk` via Git resolve the modern Prefect 3 repository directly instead of attempting to resolve the obsolete `prefect-yaml` package from PyPI.
