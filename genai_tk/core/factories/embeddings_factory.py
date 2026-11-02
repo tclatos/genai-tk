@@ -481,10 +481,14 @@ class EmbeddingsFactory(BaseModel):
                     if self.info.get_api_base():
                         kwargs["base_url"] = self.info.get_api_base()
                     if self.info.model:
-                        kwargs["model_name"] = self.info.model
+                        # `model` is the langchain-openai parameter name. Passing
+                        # `model_name` (or `cache_dir`) as well makes pydantic models
+                        # with extra='allow' fold them into model_kwargs, which are
+                        # then forwarded to the HTTP call — rejected by the SDK with
+                        # "Embeddings.create() got an unexpected keyword argument
+                        # 'model_name'". Persistent caching is handled by
+                        # CacheBackedEmbeddings (cache_embeddings=True), not here.
                         kwargs["model"] = self.info.model
-                    if embeddings_config().cache:
-                        kwargs["cache_dir"] = embeddings_config().cache
                     import inspect
 
                     sig = inspect.signature(cls.__init__)
