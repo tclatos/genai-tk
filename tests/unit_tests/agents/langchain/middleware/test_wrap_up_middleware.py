@@ -140,6 +140,59 @@ def test_tool_call_response_never_recovers():
     assert len(captured) == 1
 
 
+def test_unfinished_narration_below_soft_limit_recovers():
+    """A narration that promises more work is not a final answer, even early on."""
+    mw = WrapUpMiddleware(soft_limit=16, hard_limit=24)
+    narration = AIMessage(
+        content=(
+            "I have the AY-1 table but the year headers were lost in extraction. "
+            "Let me cross-check the year mapping using other bulletins' yield tables and "
+            "search for the Railroad Retirement trust receipts table."
+        )
+    )
+    _, captured = _run(mw, _conversation(3), [narration])
+    assert len(captured) == 2
+    recovery = captured[1].messages[-1]
+    assert "MANDATORY RECOVERY" in recovery.content
+    assert "without delivering a final answer" in recovery.content
+
+
+def test_real_answer_with_high_tool_count_never_recovers():
+    mw = WrapUpMiddleware(soft_limit=2, hard_limit=100)
+    _, captured = _run(
+        mw,
+        _conversation(3),
+        [AIMessage(content="The total was 92,000,000 dollars (Table AY-1, June 1970 bulletin).")],
+    )
+    assert len(captured) == 1
+
+
+def test_long_response_is_never_treated_as_narration():
+    mw = WrapUpMiddleware(soft_limit=2, hard_limit=100)
+    long_text = "Analysis: " + ("x" * 900) + " Let me check further."
+    _, captured = _run(mw, _conversation(3), [AIMessage(content=long_text)])
+    assert len(captured) == 1
+
+
+def test_legit_unanswerable_narration_never_recovers():
+    mw = WrapUpMiddleware(soft_limit=2, hard_limit=100)
+    _, captured = _run(
+        mw,
+        _conversation(3),
+        [AIMessage(content="The document does not provide the figure, so I cannot report one.")],
+    )
+    assert len(captured) == 1
+
+
+def test_narration_recovery_fires_only_once():
+    mw = WrapUpMiddleware(soft_limit=2, hard_limit=100)
+    narration = AIMessage(content="Let me check the next table.")
+    mw.wrap_model_call(FakeRequest(messages=_conversation(3)), lambda r: narration)
+    calls: list[int] = []
+    mw.wrap_model_call(FakeRequest(messages=_conversation(4)), lambda r: calls.append(1))
+    assert len(calls) == 1  # guardrail spent
+
+
 async def test_async_give_up_recovery():
     mw = WrapUpMiddleware(soft_limit=2, hard_limit=100)
     captured: list[FakeRequest] = []

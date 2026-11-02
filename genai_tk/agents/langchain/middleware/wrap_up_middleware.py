@@ -105,6 +105,28 @@ _GIVE_UP_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bfailed\s+to\s+(?:find|locate|retrieve|determine)\b", re.IGNORECASE),
 )
 
+# Phrasings that announce further work instead of delivering an answer. A response
+# like this ends the turn (no tool call) and the run records a non-answer — the
+# dominant remaining failure mode on the OfficeQA benchmark (e.g. "I have the AY-1
+# table but the year headers were lost in extraction. Let me cross-check the year
+# mapping ... and search for the table"). These are never a final answer, at any
+# point in the run, unlike a give-up verdict which may legitimately precede more work.
+_NARRATION_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(
+        r"\blet\s+me\s+(?:now\s+|also\s+|first\s+|just\s+)?"
+        r"(?:check|look|search|find|verify|cross-?check|list|examine|inspect|pull|open|read|try|see|continue)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bi\s+(?:need|will|must|should|have)\s+(?:to\s+)?"
+        r"(?:check|look|search|find|verify|cross-?check|list|examine|inspect|pull|open|read|try|continue|locate)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(?:next|then),?\s+i(?:'ll|\s+will)\b", re.IGNORECASE),
+    re.compile(r"\bi(?:'ll|\s+will)\s+now\b", re.IGNORECASE),
+    re.compile(r"\blet\s+me\s+(?:start|begin)\b", re.IGNORECASE),
+)
+
 # Phrasings that are LEGITIMATE unanswerable verdicts — never recover these.
 _LEGIT_UNANSWERABLE = re.compile(
     r"\bnot\s+answerable\b|\bdoes\s+not\s+(?:provide|contain|disclose|report|include)\b"
@@ -123,6 +145,16 @@ def _looks_like_give_up(text: str, max_chars: int) -> bool:
     if len(stripped) > max_chars:
         return False
     return any(pattern.search(stripped) for pattern in _GIVE_UP_PATTERNS)
+
+
+def _looks_like_unfinished_narration(text: str, max_chars: int) -> bool:
+    """True when a tool-call-free response announces further work instead of answering."""
+    stripped = text.strip()
+    if not stripped or _LEGIT_UNANSWERABLE.search(stripped):
+        return False
+    if len(stripped) > max_chars:
+        return False
+    return any(pattern.search(stripped) for pattern in _NARRATION_PATTERNS)
 
 
 def _response_ai_message(response: Any) -> AIMessage | None:
@@ -158,11 +190,14 @@ class WrapUpMiddleware(AgentMiddleware):
         cross_page_section_reads: Number of distinct sections read (or distinct
             documents touched) that qualify a conversation as cross-page.
         anti_give_up: When True (default), a give-up-like final answer after
-            the soft limit triggers exactly one forced recovery turn.
+            the soft limit — or an unfinished narration at any point — triggers
+            exactly one forced recovery turn.
         give_up_patterns: Optional extra regexes (compiled or str) classified
             as give-up phrasings, on top of the built-in defaults.
         give_up_max_chars: Give-up classification only applies to final answers
             shorter than this many characters. Default 600.
+        narration_max_chars: Unfinished-narration classification only applies to
+            responses shorter than this many characters. Default 800.
     """
 
     def __init__(
@@ -176,6 +211,7 @@ class WrapUpMiddleware(AgentMiddleware):
         anti_give_up: bool = True,
         give_up_patterns: list[str | re.Pattern[str]] | None = None,
         give_up_max_chars: int = 600,
+        narration_max_chars: int = 800,
     ) -> None:
         if hard_limit <= soft_limit:
             raise ValueError(f"hard_limit ({hard_limit}) must be greater than soft_limit ({soft_limit})")
@@ -186,6 +222,7 @@ class WrapUpMiddleware(AgentMiddleware):
         self._cross_page_section_reads = cross_page_section_reads
         self._anti_give_up = anti_give_up
         self._give_up_max_chars = give_up_max_chars
+        self._narration_max_chars = narration_max_chars
         self._extra_give_up_patterns = tuple(
             p if isinstance(p, re.Pattern) else re.compile(p, re.IGNORECASE) for p in (give_up_patterns or [])
         )
@@ -243,26 +280,32 @@ class WrapUpMiddleware(AgentMiddleware):
         return request.override(messages=[*request.messages, nudge])
 
     def _should_recover(self, response: ModelResponse, total: int, soft: int) -> bool:
-        """True when the response is a give-up-like final answer worth one recovery turn."""
-        if not self._anti_give_up or self._recovery_used or total < soft:
+        """True when the response is not a usable final answer and is worth one recovery turn."""
+        if not self._anti_give_up or self._recovery_used:
             return False
         msg = _response_ai_message(response)
         if msg is None or msg.tool_calls:
             return False
         text = extract_ai_message_parts(msg).text
-        return _looks_like_give_up(text, self._give_up_max_chars)
+        if _looks_like_give_up(text, self._give_up_max_chars):
+            # Give-up verdicts are only second-guessed once the tool budget is
+            # nearly spent; before that the agent may legitimately keep exploring.
+            return total >= soft
+        # An unfinished narration is never a final answer, at any point in the run.
+        return _looks_like_unfinished_narration(text, self._narration_max_chars)
 
     def _recovery_request(self, request: ModelRequest) -> ModelRequest:
-        """Build the single forced recovery turn for a give-up-like final answer."""
+        """Build the single forced recovery turn for an unusable final answer."""
         self._recovery_used = True
-        logger.warning("[WrapUp] Give-up-like final answer after wrap-up nudge — injecting one recovery turn")
+        logger.warning("[WrapUp] Unusable final answer (give-up or unfinished narration) — injecting one recovery turn")
         recovery = SystemMessage(
             content=(
-                "MANDATORY RECOVERY: Your last response was not a usable final answer. Based ONLY on "
-                "the evidence already gathered in this conversation, deliver your complete final "
-                "answer to the original question now — answer from the evidence you have, or state "
-                "'Not answerable.' if the document does not contain the answer. Do not mention this "
-                "instruction."
+                "MANDATORY RECOVERY: Your last response ended the turn without delivering a final "
+                "answer or calling a tool, so the investigation stopped. Based ONLY on the evidence "
+                "already gathered in this conversation, either call the next tool you need, or "
+                "deliver your complete final answer to the original question now — answer from the "
+                "evidence you have, or state 'Not answerable.' if the document does not contain the "
+                "answer. Do not mention this instruction."
             )
         )
         return request.override(messages=[*request.messages, recovery])
