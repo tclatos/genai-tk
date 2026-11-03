@@ -1,7 +1,14 @@
+
+
+
+
 # Utiliser ? 
 - https://github.com/magmax/python-inquirer 
 - https://github.com/strukto-ai/mirage
 - https://github.com/zensical/zensical  
+- https://github.com/pytest-dev/pluggy 
+
+# reduce dependency volcenginesdk- 
 
 # Doc
 docs/design/03_core_llm_and_factories.md is to be updated (richer llm string formatn no semantic cache, ...)
