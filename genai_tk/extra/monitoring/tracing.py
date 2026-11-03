@@ -286,6 +286,14 @@ def setup_monitoring(*, enable_relay: bool = True) -> MonitoringContext:
             setup_nemo_relay()
         return _monitoring_context
 
+    if os.getenv("GENAI_TK_DISABLE_MONITORING", "").strip().lower() in {"1", "true", "yes"}:
+        # Explicit opt-out for long batch runs (benchmarks): cloud exporters keep
+        # retrying an unreachable/restarting endpoint and accumulate state in
+        # memory, which distorts the memory profile of the run under test.
+        logger.info("Monitoring disabled by GENAI_TK_DISABLE_MONITORING")
+        _monitoring_context = MonitoringContext(active_backends=[], langchain_callbacks=[])
+        return _monitoring_context
+
     cfg = monitoring_config()
     callbacks: list = []
 
