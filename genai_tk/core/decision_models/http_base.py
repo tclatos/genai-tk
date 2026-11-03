@@ -96,7 +96,7 @@ class HttpSystemOneDecisionModel(BaseDecisionModel, abc.ABC):
         **kwargs: Any,
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
-        self.validate_question_count(request)
+        self.validate_request(request)
         with self._trace_scope(request) as handle:
             payload = self._build_payload(request)
             headers = self._build_headers()
@@ -120,7 +120,7 @@ class HttpSystemOneDecisionModel(BaseDecisionModel, abc.ABC):
         **kwargs: Any,
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
-        self.validate_question_count(request)
+        self.validate_request(request)
         with self._trace_scope(request) as handle:
             payload = self._build_payload(request)
             headers = self._build_headers()

@@ -113,13 +113,42 @@ No untyped dicts or `Any` parameters are permitted at API boundaries.
 
 ---
 
-## 5. Batch Invocation & Auto-Chunking
+## 5. Limits, Validation & Batch Invocation
 
-Decision backends often enforce hardware or protocol limits on the maximum number of questions evaluated simultaneously (e.g. Clef Flash allows up to 64 questions; Jev allows 32).
+Providers cap four different things independently, so the registry records them on four
+separate axes. Conflating them produces guards that reject valid requests and accept
+invalid ones:
 
-`BaseDecisionModel.batch_invoke()` automatically enforces:
-1. **`max_questions` Validation**: Validates the model's configured question ceiling.
-2. **Auto-Chunking**: Splits large candidate lists into compliant batches, dispatches them concurrently, and reconstitutes the results in original order.
+| Axis | Scope | Enforced by |
+|---|---|---|
+| `context_length` | Tokens per request | Provider |
+| `max_questions` | Questions per request | `validate_request()` |
+| `max_options` | Options inside one `Choice` | `validate_request()` |
+| `max_levels` | Levels inside one `Score` | `validate_request()` |
+
+The distinction is not academic. TypeSafe Jev documents **no cap on the number of
+questions** in a request — any number is accepted as long as the request fits its 64k
+token context — while capping a single `Choice` at 255 options and a `Score` at 10
+levels. Cloudflare Clef is the opposite case: it enforces **1–64 questions per call** as
+a hard API constraint (`maxProperties: 64`), and caps options and levels the same way.
+
+A number in `config/providers/decision_models.yaml` is a documented hard limit; `null`
+means no documented limit (the provider imposes none, or does not publish one). Guessing
+a ceiling is worse than omitting it: an invented cap silently forces extra round trips,
+and a missing cap produces a 422 from the provider.
+
+`BaseDecisionModel` therefore separates two concerns:
+
+1. **Validation** (`validate_request`): raises a descriptive `ValueError` before any
+   network call when the question count, a `Choice` option count, or a `Score` level
+   count exceeds the model's documented limit.
+2. **Auto-chunking** (`batch_invoke` / `abatch_invoke`): slices a request on
+   `batch_size or recommended_batch_size or max_questions` and merges the results.
+
+`recommended_batch_size` is an application batching policy, not a model limit. It is
+what keeps a large request safe on a model whose only real bound is the context window —
+200 questions against Jev are legal in one call, but are sent 32 at a time by policy so
+latency, memory and observability stay bounded.
 
 ### Python Usage Example
 ```python

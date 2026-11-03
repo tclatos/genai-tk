@@ -96,7 +96,7 @@ class LayaDecisionModel(BaseDecisionModel):
         **kwargs: Any,
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
-        self.validate_question_count(request)
+        self.validate_request(request)
 
         if self.mode == "server" and self._http_client is not None:
             return self._http_client.invoke(request, config=config, **kwargs)

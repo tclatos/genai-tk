@@ -35,6 +35,9 @@ class DecisionModelInfo(BaseModel):
     model: str
     context_length: int | None = None
     max_questions: int | None = None
+    max_options: int | None = None
+    max_levels: int | None = None
+    recommended_batch_size: int | None = None
     description: str | None = None
 
     @field_validator("id")
@@ -102,6 +105,9 @@ def _read_decision_models_list() -> list[DecisionModelInfo]:
             continue
         ctx = entry.get("context_length")
         max_q = entry.get("max_questions")
+        max_opts = entry.get("max_options")
+        max_lvls = entry.get("max_levels")
+        batch_size = entry.get("recommended_batch_size")
         desc = entry.get("description")
         providers = entry.get("providers", [])
         for prov_item in providers:
@@ -114,6 +120,9 @@ def _read_decision_models_list() -> list[DecisionModelInfo]:
                             model=str(model_name),
                             context_length=ctx,
                             max_questions=max_q,
+                            max_options=max_opts,
+                            max_levels=max_lvls,
+                            recommended_batch_size=batch_size,
                             description=desc,
                         )
                     )
@@ -179,6 +188,12 @@ class DecisionModelFactory(BaseModel):
 
         if info.max_questions is not None:
             kwargs.setdefault("max_questions", info.max_questions)
+        if info.max_options is not None:
+            kwargs.setdefault("max_options", info.max_options)
+        if info.max_levels is not None:
+            kwargs.setdefault("max_levels", info.max_levels)
+        if info.recommended_batch_size is not None:
+            kwargs.setdefault("recommended_batch_size", info.recommended_batch_size)
 
         # Dynamic class resolution via provider info
         try:

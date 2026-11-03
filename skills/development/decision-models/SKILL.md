@@ -112,15 +112,50 @@ print(res.choices["dept"].choice)  # "billing"
 print(res.nouls["refund"].noul)  # e.g. 0.8899
 ```
 
-## Question Limits & Batching
+## Limits & Batching
 
-Decision models impose different per-request limits:
-- **Cloudflare Clef / Clef-flash**: Enforced at **64 questions max** by Workers AI backend.
-- **TypeSafe Jev**: Recommended up to **32 questions** for optimal latency/consistency (allows more on OpenRouter).
-- **Perplexity Decider**: Up to **128 questions**.
-- **OpenAI GPT-6 Luna Decisions**: Up to **200 questions**.
+Decision models are capped on **four independent axes**. Providers bound them
+separately, so a model can accept any number of questions while still capping the
+options inside a single `Choice`:
 
-Every decision model in `genai-tk` has a configured `max_questions` property. If a request exceeds `model.max_questions`, a descriptive `ValueError` is raised before making network calls. Use `model.batch_invoke(request)` or `await model.abatch_invoke(request)` to automatically slice questions into batches and merge all results.
+| Axis | Meaning |
+|---|---|
+| `context_length` | Tokens accepted in one request |
+| `max_questions` | Questions in one request |
+| `max_options` | Options inside a single `Choice` question |
+| `max_levels` | Levels inside a single `Score` question |
+
+**TypeSafe Jev** publishes no cap on the number of questions per request — any number
+is accepted as long as the request fits the context (64k tokens per request, with
+`state` + the longest single question capped at 32k). Its real per-question limits are
+**255 options** per `Choice` and **2–10 levels** per `Score`. An optional long-context
+mode raises both context limits to 262k when the request carries the
+`TypeSafe-Danger-Zone-Long-Context: true` header, at the cost of speed and accuracy.
+
+**Cloudflare Clef / Clef-flash** do cap the question count: **1–64 questions per call**,
+enforced by the API itself (`maxProperties: 64`), plus **255 options** and **10 levels**
+per question. This is a hard constraint, not a batching recommendation.
+
+For Laya, Solar Decide, Mercury Decide, Perplexity Decider and the OpenAI decision
+models the provider publishes no per-question caps, so none are enforced locally.
+
+Limits live in `config/providers/decision_models.yaml`. A number is a documented hard
+limit; `null` means no documented limit (either the provider imposes none, or it is not
+published) — never a guess. `validate_request()` raises a descriptive `ValueError`
+before any network call when a request exceeds a configured limit.
+
+`recommended_batch_size` is separate from all of the above: it is an application
+batching policy, not a model limit. `batch_invoke()` slices on
+`batch_size or recommended_batch_size or max_questions`, which is what keeps a large
+request safe on a model whose only real bound is the context window:
+
+```python
+# 200 questions on Jev: no hard cap, but chunked 32 at a time by policy
+response = model.batch_invoke(request)
+
+# Override the policy per call
+response = model.batch_invoke(request, batch_size=64)
+```
 
 ## Chat Model Fallback Adapter
 

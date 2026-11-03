@@ -33,15 +33,39 @@ class BaseDecisionModel(RunnableSerializable[ClassifierRequest, ClassifierRespon
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
     max_questions: int | None = None
+    max_options: int | None = None
+    max_levels: int | None = None
+    recommended_batch_size: int | None = None
 
-    def validate_question_count(self, request: ClassifierRequest) -> None:
-        """Validate that the number of questions does not exceed max_questions."""
+    def validate_request(self, request: ClassifierRequest) -> None:
+        """Validate a request against the model's documented question, option and level limits.
+
+        Limits are independent: a provider may accept any number of questions while
+        still capping the options inside one Choice or the levels inside one Score.
+        A limit left as ``None`` is not checked, because the provider publishes none.
+        """
+        model_name = getattr(self, "model", self.__class__.__name__)
+
         if self.max_questions is not None and len(request.questions) > self.max_questions:
-            model_name = getattr(self, "model", self.__class__.__name__)
             raise ValueError(
                 f"Decision model '{model_name}' accepts at most {self.max_questions} questions per request, "
                 f"but {len(request.questions)} were provided. Consider chunking questions into batches."
             )
+
+        for question_id, question in request.questions.items():
+            if isinstance(question, Choice) and self.max_options is not None:
+                if len(question.criteria) > self.max_options:
+                    raise ValueError(
+                        f"Decision model '{model_name}' accepts at most {self.max_options} options per Choice "
+                        f"question, but question '{question_id}' has {len(question.criteria)}. "
+                        f"Consider narrowing the candidate set or chaining Choice questions."
+                    )
+            elif isinstance(question, Score) and self.max_levels is not None:
+                if len(question.criteria) > self.max_levels:
+                    raise ValueError(
+                        f"Decision model '{model_name}' accepts at most {self.max_levels} levels per Score "
+                        f"question, but question '{question_id}' has {len(question.criteria)}."
+                    )
 
     @contextmanager
     def _trace_scope(self, request: ClassifierRequest) -> Generator[Any, None, None]:
@@ -105,9 +129,9 @@ class BaseDecisionModel(RunnableSerializable[ClassifierRequest, ClassifierRespon
         config: RunnableConfig | None = None,
         **kwargs: Any,
     ) -> ClassifierResponse:
-        """Execute questions in batches if they exceed batch_size (or self.max_questions)."""
+        """Execute questions in batches if they exceed batch_size, recommended_batch_size or max_questions."""
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
-        limit = batch_size or self.max_questions
+        limit = batch_size or self.recommended_batch_size or self.max_questions
         if limit is None or len(request.questions) <= limit:
             return self.invoke(request, config=config, **kwargs)
 
@@ -150,9 +174,9 @@ class BaseDecisionModel(RunnableSerializable[ClassifierRequest, ClassifierRespon
         config: RunnableConfig | None = None,
         **kwargs: Any,
     ) -> ClassifierResponse:
-        """Execute questions asynchronously in batches if they exceed batch_size (or self.max_questions)."""
+        """Execute questions asynchronously in batches if they exceed batch_size, recommended_batch_size or max_questions."""
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
-        limit = batch_size or self.max_questions
+        limit = batch_size or self.recommended_batch_size or self.max_questions
         if limit is None or len(request.questions) <= limit:
             return await self.ainvoke(request, config=config, **kwargs)
 

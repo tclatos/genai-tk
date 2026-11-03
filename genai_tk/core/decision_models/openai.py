@@ -120,7 +120,7 @@ class OpenAIDecisionModel(BaseDecisionModel):
         **kwargs: Any,
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
-        self.validate_question_count(request)
+        self.validate_request(request)
         with self._trace_scope(request) as handle:
             client = self._get_client()
             converted_questions = self._convert_questions(request)
@@ -138,7 +138,7 @@ class OpenAIDecisionModel(BaseDecisionModel):
         **kwargs: Any,
     ) -> ClassifierResponse:
         request = input if isinstance(input, ClassifierRequest) else ClassifierRequest.model_validate(input)
-        self.validate_question_count(request)
+        self.validate_request(request)
         with self._trace_scope(request) as handle:
             client = self._get_client()
             converted_questions = self._convert_questions(request)

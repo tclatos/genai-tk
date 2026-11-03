@@ -338,3 +338,106 @@ def test_laya_decision_model_router_mode_e2e() -> None:
     assert res.choices["department"].choice == "billing"
     assert "refund_requested" in res.nouls
     assert 0.0 <= res.nouls["refund_requested"].noul <= 1.0
+
+
+@pytest.mark.unit
+def test_max_options_validation() -> None:
+    """A Choice wider than max_options is rejected; one exactly at the cap passes."""
+    fake = FakeDecisionModel(max_options=255)
+
+    at_cap = Choice(instructions="Pick one", criteria={f"opt_{i}": f"Option {i}" for i in range(255)})
+    fake.validate_request(ClassifierRequest(state="x", questions={"c": at_cap}))
+
+    over_cap = Choice(instructions="Pick one", criteria={f"opt_{i}": f"Option {i}" for i in range(256)})
+    with pytest.raises(ValueError, match="at most 255 options per Choice"):
+        fake.validate_request(ClassifierRequest(state="x", questions={"c": over_cap}))
+
+
+@pytest.mark.unit
+def test_max_levels_validation() -> None:
+    """A Score with more levels than max_levels is rejected; one exactly at the cap passes."""
+    fake = FakeDecisionModel(max_levels=10)
+
+    at_cap = Score(instructions="Rate", criteria=[f"level {i}" for i in range(10)])
+    fake.validate_request(ClassifierRequest(state="x", questions={"s": at_cap}))
+
+    over_cap = Score(instructions="Rate", criteria=[f"level {i}" for i in range(11)])
+    with pytest.raises(ValueError, match="at most 10 levels per Score"):
+        fake.validate_request(ClassifierRequest(state="x", questions={"s": over_cap}))
+
+
+@pytest.mark.unit
+def test_option_and_level_limits_are_independent_of_question_count() -> None:
+    """A model with no question cap still enforces its per-question option and level caps."""
+    fake = FakeDecisionModel(max_questions=None, max_options=255, max_levels=10)
+
+    many_questions = {f"q_{i}": Noul(instructions=f"Is {i} true?") for i in range(300)}
+    fake.validate_request(ClassifierRequest(state="x", questions=many_questions))
+
+    with pytest.raises(ValueError, match="at most 255 options per Choice"):
+        fake.validate_request(
+            ClassifierRequest(
+                state="x",
+                questions={"wide": Choice(instructions="Pick", criteria={f"o{i}": f"Option {i}" for i in range(300)})},
+            )
+        )
+
+
+@pytest.mark.unit
+def test_jev_question_count_is_not_capped_but_clef_is() -> None:
+    """The registry distinguishes Jev's context-bounded question count from Clef's hard cap of 64."""
+    known = DecisionModelFactory.get_known_models_dict()
+
+    jev = known["jev@openrouter"]
+    assert jev.max_questions is None, "Jev documents no cap on questions per request"
+    assert jev.max_options == 255
+    assert jev.max_levels == 10
+    assert jev.recommended_batch_size == 32
+
+    clef = known["clef_flash@openrouter"]
+    assert clef.max_questions == 64, "Clef's 64-question ceiling is a hard API constraint"
+    assert clef.max_options == 255
+    assert clef.max_levels == 10
+
+    # Constructed without contacting the provider: only local validation runs.
+    jev_model = get_decision_model("jev@openrouter")
+    jev_model.validate_request(
+        ClassifierRequest(state="x", questions={f"q_{i}": Noul(instructions="?") for i in range(200)})
+    )
+
+    clef_model = get_decision_model("clef_flash@openrouter")
+    with pytest.raises(ValueError, match="at most 64 questions"):
+        clef_model.validate_request(
+            ClassifierRequest(state="x", questions={f"q_{i}": Noul(instructions="?") for i in range(65)})
+        )
+
+
+@pytest.mark.unit
+def test_recommended_batch_size_chunks_when_there_is_no_hard_cap() -> None:
+    """recommended_batch_size drives batch_invoke chunking for models with no question cap."""
+    fake = FakeDecisionModel(max_questions=None, recommended_batch_size=32)
+    questions = {f"q_{i}": Noul(instructions=f"Is {i} true?") for i in range(100)}
+    req = ClassifierRequest(state="Test policy batching", questions=questions)
+
+    resp = fake.batch_invoke(req)
+    assert len(resp.answers) == 100
+    # Tokens: 10 per sub-request * 4 chunks (32 + 32 + 32 + 4) = 40
+    assert resp.usage.input_tokens == 40
+
+
+@pytest.mark.unit
+def test_registry_limits_are_threaded_into_instances() -> None:
+    """Registry limits reach the constructed model, so validation uses configured values."""
+    fake = get_decision_model("fake")
+    assert fake.max_questions == 32
+    assert fake.max_options == 255
+    assert fake.max_levels == 10
+    assert fake.recommended_batch_size == 32
+
+    with pytest.raises(ValueError, match="at most 255 options per Choice"):
+        fake.validate_request(
+            ClassifierRequest(
+                state="x",
+                questions={"wide": Choice(instructions="Pick", criteria={f"o{i}": f"Opt {i}" for i in range(256)})},
+            )
+        )

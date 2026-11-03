@@ -2,92 +2,167 @@
 # Decision Models (System One) Registry
 ########################
 
-# Registered Decision Models (OpenRouter, TypeSafe, etc.)
+# Registered Decision Models (OpenRouter, TypeSafe, EdenAI, Laya, OpenAI, ...)
+
+# Providers cap four different things independently, so they are recorded on four
+# separate axes. Conflating them produces guards that reject valid requests and
+# accept invalid ones:
+#
+#   context_length   tokens accepted in one request
+#   max_questions    questions in one request
+#   max_options      options inside a single Choice question
+#   max_levels       levels inside a single Score question
+#
+# A number is a documented hard limit and is enforced client-side before the call
+# (see BaseDecisionModel.validate_request). null means "no documented limit" - which
+# covers both "the provider imposes none" (Jev question count) and "not published"
+# (Laya option count). In neither case do we invent a ceiling.
+#
+# recommended_batch_size is NOT a model limit. It is the application batching policy
+# used by batch_invoke() to slice large requests, and it is the only thing keeping a
+# big request safe on a model whose real bound is the context window.
 
 decision_models:
   registry:
+    # ── Cloudflare Clef ───────────────────────────────────────────────────────
+    # Source: Cloudflare Workers AI model card. The question count is a hard API
+    # constraint (the `questions` object is `maxProperties: 64`), not a policy.
+    # Choice options / Score levels follow the System One contract (255 / 10).
     - model_id: clef_flash
       providers:
         - openrouter: cloudflare/clef-flash
       context_length: 65536
       max_questions: 64
-      description: "Cloudflare Clef Flash 9B decision model (fast, sub-100ms, multimodal, max 64 questions)"
+      max_options: 255
+      max_levels: 10
+      recommended_batch_size: 64
+      description: "Cloudflare Clef Flash 9B decision model (fast, sub-100ms, multimodal, 64 questions/request)"
 
     - model_id: clef
       providers:
         - openrouter: cloudflare/clef
       context_length: 65536
       max_questions: 64
-      description: "Cloudflare Clef 27B decision model (max 64 questions)"
+      max_options: 255
+      max_levels: 10
+      recommended_batch_size: 64
+      description: "Cloudflare Clef 27B decision model (64 questions/request)"
 
+    # ── TypeSafe Jev ──────────────────────────────────────────────────────────
+    # Source: TypeSafe docs. Models page: "There is no separate limit on the number
+    # of questions in a request" - any number is accepted as long as the request fits
+    # the context, so max_questions is deliberately null. Choice page: up to 255
+    # options. Score page: at least two levels, at most 10. Context is 64k tokens per
+    # request, with state + the longest single question capped at 32k. An optional
+    # long-context mode raises both to 262k via the
+    # `TypeSafe-Danger-Zone-Long-Context: true` request header, at the cost of speed
+    # and accuracy; we do not enable it implicitly.
     - model_id: jev
       providers:
         - openrouter: typesafe/jev-1.13
         - typesafe: jev-latest
         - edenai: typesafe/jev-latest
       context_length: 64000
-      max_questions: 32
-      description: "TypeSafe Jev System One model (recommended up to 32 questions per request)"
+      max_questions: null
+      max_options: 255
+      max_levels: 10
+      recommended_batch_size: 32
+      description: "TypeSafe Jev System One model (no question-count limit, context-bounded; 255 options / 10 levels)"
 
+    # ── Laya ──────────────────────────────────────────────────────────────────
+    # Question, option and level caps are not published, so none are enforced. The
+    # context window is the real bound.
     - model_id: laya
       providers:
         - laya: laya
       context_length: 1024
-      max_questions: 64
+      max_questions: null
+      max_options: null
+      max_levels: null
+      recommended_batch_size: 64
       description: "Laya multilingual zero-latency System One decision model with Router (ModernBERT/mmBERT)"
 
     - model_id: laya_multilingual
       providers:
         - laya: multilingual
       context_length: 8192
-      max_questions: 64
+      max_questions: null
+      max_options: null
+      max_levels: null
+      recommended_batch_size: 64
       description: "Laya Multilingual model (mmBERT-base, 100+ languages, up to 8k context)"
 
     - model_id: laya_typed
       providers:
         - laya: typed-decisions
       context_length: 1024
-      max_questions: 64
+      max_questions: null
+      max_options: null
+      max_levels: null
+      recommended_batch_size: 64
       description: "Laya Typed Decisions fine-tuned model (0.766 benchmark accuracy)"
 
+    # ── Other hosted / open decision models ───────────────────────────────────
+    # Caps not published by the provider: none enforced, batching policy only.
     - model_id: solar_decide_flash
       providers:
         - openrouter: upstage/solar-decide-flash
       context_length: 524288
-      max_questions: 64
-      description: "Upstage Solar Decide Flash (524K context, max 64 questions)"
+      max_questions: null
+      max_options: null
+      max_levels: null
+      recommended_batch_size: 64
+      description: "Upstage Solar Decide Flash (524K context)"
 
     - model_id: mercury_decide
       providers:
         - openrouter: inception/mercury-decide:free
       context_length: 65536
-      max_questions: 64
+      max_questions: null
+      max_options: null
+      max_levels: null
+      recommended_batch_size: 64
       description: "Inception Mercury Decide (Free tier)"
 
     - model_id: pplx_decider
       providers:
         - openrouter: perplexity/pplx-decider-v1.1-27b
       context_length: 262144
-      max_questions: 128
-      description: "Perplexity Decider V1.1 27B (max 128 questions)"
+      max_questions: null
+      max_options: null
+      max_levels: null
+      recommended_batch_size: 128
+      description: "Perplexity Decider V1.1 27B"
 
     - model_id: gpt_6_luna
       providers:
         - openai: gpt-6-luna
       context_length: 128000
-      max_questions: 64
+      max_questions: null
+      max_options: null
+      max_levels: null
+      recommended_batch_size: 64
       description: "OpenAI Decisions model (gpt-6-luna)"
 
     - model_id: gpt_6_sol
       providers:
         - openai: gpt-6-sol
       context_length: 128000
-      max_questions: 64
+      max_questions: null
+      max_options: null
+      max_levels: null
+      recommended_batch_size: 64
       description: "OpenAI Decisions model (gpt-6-sol)"
 
+    # ── Test implementation ───────────────────────────────────────────────────
+    # Caps are ours to choose: mirror the System One contract (Jev/Clef) so that
+    # tests exercise the same guardrails as the hosted models.
     - model_id: fake_decision
       providers:
         - fake: fake_decision
       context_length: 4096
       max_questions: 32
+      max_options: 255
+      max_levels: 10
+      recommended_batch_size: 32
       description: "Fake deterministic decision model for offline unit tests"
