@@ -58,7 +58,7 @@ async def astream_turn(
     try:
         async for event in harness.astream_auip(query, thread_id=thread_id):
             if json_output:
-                console.print(event.model_dump_json())
+                console.print(event.model_dump_json(), soft_wrap=True, markup=False, highlight=False, emoji=False)
                 continue
             renderer.render_event(event)
     finally:

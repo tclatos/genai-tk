@@ -35,6 +35,9 @@ class DockerAioSettings(BaseModel):
 
     image: str = "ghcr.io/agent-infra/sandbox:latest"
     startup_timeout: float = 60.0
+    cpu_limit: float = Field(default=1.0, gt=0, allow_inf_nan=False)
+    memory_limit_mb: int = Field(default=2048, ge=128)
+    max_command_response_bytes: int = Field(default=16_777_216, gt=0)
     work_dir: str = "/home/user"
     env_vars: dict[str, str] = Field(default_factory=dict)
     opensandbox_server_url: str = "http://localhost:8080"

@@ -52,7 +52,6 @@ async def test_profiles_endpoint(test_app) -> None:
 @pytest.mark.asyncio
 async def test_ag_ui_stream_endpoint(test_app, monkeypatch) -> None:
     from collections.abc import AsyncIterator
-    from unittest.mock import MagicMock
 
     from genai_tk.agents.harness.events import EndEvent, TokenEvent
 

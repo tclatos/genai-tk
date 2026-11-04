@@ -155,7 +155,7 @@ total_revenue = float(df["revenue"].sum())
 
 @pytest.mark.unit
 def test_python_executor_tool_sync() -> None:
-    tool = create_python_executor_tool(additional_authorized_imports=["pandas"])
+    tool = create_python_executor_tool(additional_authorized_imports=["pandas"], executor_type="local")
     code = """
 import pandas as pd
 
@@ -172,7 +172,7 @@ int(series.sum())
 @pytest.mark.asyncio
 @pytest.mark.unit
 async def test_python_executor_tool_async() -> None:
-    tool = create_python_executor_tool(authorized_imports=["pandas"])
+    tool = create_python_executor_tool(authorized_imports=["pandas"], executor_type="local")
     code = """
 import pandas as pd
 
@@ -300,7 +300,7 @@ round(gm, 4)
 
 @pytest.mark.unit
 def test_final_answer_tool_output_marker() -> None:
-    tool = create_python_executor_tool()
+    tool = create_python_executor_tool(executor_type="local")
     result = tool.invoke({"code": "final_answer(9.7)"})
     assert "FINAL ANSWER:\n9.7" in result
     assert "Result:" not in result
@@ -308,7 +308,7 @@ def test_final_answer_tool_output_marker() -> None:
 
 @pytest.mark.unit
 def test_final_answer_not_called_runs_normally() -> None:
-    tool = create_python_executor_tool()
+    tool = create_python_executor_tool(executor_type="local")
     result = tool.invoke({"code": "21 * 2"})
     assert "FINAL ANSWER" not in result
     assert "Result:\n42" in result

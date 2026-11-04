@@ -140,6 +140,11 @@ uv run cli agents run "Web Browser" "Go to atos.net" --llm gpt_41mini@openai
 uv run cli agents run research "..." --json                # raw NDJSON events
 ```
 
+`--json` writes each AUIP event as one physical JSON line, independent of terminal
+width. Event strings preserve literal markup tags, emoji shortcodes, and escaped
+newlines, so scripts can parse records without terminal formatting changing their
+contents.
+
 Cross-harness flags on `run` cover framework-specific behaviour:
 
 ```bash

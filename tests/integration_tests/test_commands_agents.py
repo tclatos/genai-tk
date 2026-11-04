@@ -16,7 +16,8 @@ import typer
 from typer.testing import CliRunner
 
 from genai_tk.agents.commands_agents import AgentCommands
-from genai_tk.agents.harness import EndEvent, TokenEvent
+from genai_tk.agents.harness import BaseHarness, EndEvent, StreamEvent, TokenEvent
+from genai_tk.protocols.auip.models import AuipEndEvent, AuipTokenEvent
 
 
 @pytest.fixture
@@ -32,20 +33,23 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
-class _FakeHarness:
-    """Minimal stand-in harness yielding one token then ending."""
+class _FakeHarness(BaseHarness):
+    """Yield deterministic events through the real harness AUIP adapter."""
 
     name = "fake"
 
     def __init__(self, text: str = "42") -> None:
         self._text = text
 
-    async def astream(self, message: str, *, thread_id: str | None = None) -> AsyncIterator:
+    async def astream(
+        self,
+        message: str,
+        *,
+        thread_id: str | None = None,
+        context: object | None = None,
+    ) -> AsyncIterator[StreamEvent]:
         yield TokenEvent(text=self._text)
         yield EndEvent()
-
-    async def aclose(self) -> None:
-        return None
 
 
 class TestAgentsGroupHelp:
@@ -79,14 +83,14 @@ class TestRunCommand:
     def test_run_with_fake_harness(self, agents_app, runner) -> None:
         with patch("genai_tk.agents.harness.create_harness", return_value=_FakeHarness("hello")):
             result = runner.invoke(agents_app, ["agents", "run", "simple", "hi"])
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.exception or result.output
         assert "hello" in result.stdout
 
     def test_run_default_profile_when_omitted(self, agents_app, runner) -> None:
         # No positional profile → default profile is resolved; the query comes via stdin.
         with patch("genai_tk.agents.harness.create_harness", return_value=_FakeHarness("ok")):
             result = runner.invoke(agents_app, ["agents", "run"], input="hi")
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.exception or result.output
         assert "Using default profile" in result.stdout
         assert "ok" in result.stdout
 
@@ -96,7 +100,7 @@ class TestRunCommand:
                 agents_app,
                 ["agents", "run", "research", "hi", "--mode", "ultra", "--sandbox", "docker", "--mcp", "tavily-mcp"],
             )
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.exception or result.output
         _key, kwargs = mock_ch.call_args
         assert kwargs.get("mode_override") == "ultra"
         assert kwargs.get("sandbox_override") == "docker"
@@ -125,18 +129,24 @@ class TestRunCommand:
         assert result.exit_code == 1
         assert "query" in result.stdout.lower() or "error" in result.stdout.lower()
 
-    def test_run_json_output(self, agents_app, runner) -> None:
-        with patch("genai_tk.agents.harness.create_harness", return_value=_FakeHarness("jsontext")):
+    @pytest.mark.parametrize(
+        "text",
+        ["jsontext", "long response " * 40, "[bold]literal[/bold] :smile:\nnext line"],
+        ids=["plain", "long", "literal"],
+    )
+    def test_run_json_output(self, agents_app, runner, text: str) -> None:
+        with patch("genai_tk.agents.harness.create_harness", return_value=_FakeHarness(text)):
             result = runner.invoke(agents_app, ["agents", "run", "simple", "hi", "--json"])
-        assert result.exit_code == 0
-        # NDJSON events are printed one per line; the token event carries the text.
-        assert "jsontext" in result.stdout
+        assert result.exit_code == 0, result.exception or result.output
+        token_line, end_line = result.stdout.splitlines()
+        assert AuipTokenEvent.model_validate_json(token_line).text == text
+        assert AuipEndEvent.model_validate_json(end_line).type == "turn.end"
 
     def test_run_renders_markdown_nicely(self, agents_app, runner) -> None:
         md_content = "# Service Level Agreement\n\n- 99.9% availability\n- 4-hour response\n"
         with patch("genai_tk.agents.harness.create_harness", return_value=_FakeHarness(md_content)):
             result = runner.invoke(agents_app, ["agents", "run", "simple", "hi"])
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.exception or result.output
         assert "Service Level Agreement" in result.stdout
         # Rendered markdown converts bullet list to bullet symbol
         assert "•" in result.stdout
@@ -145,7 +155,7 @@ class TestRunCommand:
         md_content = "# Service Level Agreement\n\n- 99.9% availability\n- 4-hour response\n"
         with patch("genai_tk.agents.harness.create_harness", return_value=_FakeHarness(md_content)):
             result = runner.invoke(agents_app, ["agents", "run", "simple", "hi", "--raw"])
-        assert result.exit_code == 0
+        assert result.exit_code == 0, result.exception or result.output
         # Raw mode preserves literal markdown syntax
         assert "# Service Level Agreement" in result.stdout
         assert "- 99.9% availability" in result.stdout

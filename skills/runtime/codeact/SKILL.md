@@ -1,15 +1,15 @@
 ---
 name: codeact
-description: Execute multi-step reasoning, data retrieval, and calculations via Python code blocks in a safe sandbox. Minimizes agentic loop turns by running tools (like web search) inside Python. Activate when user requests "use codeact skill" or needs programmatic multi-step problem solving.
+description: Execute multi-step reasoning, data retrieval, and calculations through Python code blocks in an isolated executor. Compose registered tools in Python, respect execution boundaries, and avoid replaying uncertain side effects. Activate for CodeAct or programmatic multi-step problem solving.
 ---
 
 # CodeAct: Code Acts as Agents
 
-CodeAct is a SmolAgents-inspired paradigm where actions are composed and executed as **Python code blocks** inside a safe sandbox. Instead of making discrete tool calls in the outer agentic loop, the agent writes Python scripts that invoke tools as ordinary functions, manipulate data, and perform calculations directly in Python.
+CodeAct is a SmolAgents-inspired paradigm where actions are composed as **Python code blocks** in a dedicated container by default. The agent writes scripts that invoke registered tools as callable proxies, manipulate data, and perform calculations in Python. Explicit local mode is trusted host execution, not an isolation boundary.
 
 ## Core Principle: Minimize Agentic Loop Turns
 
-The primary goal of CodeAct is to **minimize expensive LLM round-trips** and **eliminate arithmetic/reasoning errors** by delegating logic to the Python interpreter:
+The primary goal of CodeAct is to **minimize LLM round-trips** and make calculations reproducible. Validate source data, formulas, and numerical assumptions even when the code runs successfully:
 
 1. **Zero Discrete Outer Tool Calls**: External tools (e.g. `web_search`, `fetch_webpage`, file readers, database queries) MUST NOT be invoked as top-level agent tool calls. They are exposed as plain Python functions inside the `python_interpreter` environment.
 2. **Unified Execution in Minimal Turns**: Rather than taking multiple turns for searches and computations (Turn 1: search bridge → Turn 2: search speed → Turn 3: compute → Turn 4: answer), write a unified Python script that searches, extracts values, computes the result, and terminates with `final_answer(...)` in a single execution.
@@ -21,7 +21,7 @@ The primary goal of CodeAct is to **minimize expensive LLM round-trips** and **e
 
 - The only action tool the agent uses in the outer loop is `python_interpreter`.
 - All sibling tools registered in the profile (e.g. `web_search`) are automatically bound into the Python sandbox namespace as ordinary callables.
-- Standard safe libraries (`math`, `json`, `datetime`, `itertools`, `re`, `collections`, `statistics`, `random`, etc.) are pre-imported or importable.
+- Container code can import libraries installed in its image; import what the code needs explicitly. Trusted local mode has a separate import allowlist.
 - State and variables persist across multiple code execution turns in the same session.
 
 ### 2. The Execution Protocol
@@ -36,7 +36,8 @@ The primary goal of CodeAct is to **minimize expensive LLM round-trips** and **e
 3. **Execute via `python_interpreter`**: Run the code block in the sandbox.
 4. **Evaluate output**:
    - If `final_answer(...)` was called, the execution terminates and returns the result.
-   - If an exception occurs, read the traceback, correct the script, and re-execute.
+   - For ordinary code exceptions, inspect completed tool actions before correcting and retrying.
+   - On timeout or infrastructure failure, stop and report the failure. The executor is invalidated; do not replay the block or change to local mode.
 
 ## Comprehensive Example: Multi-Step Retrieval & Calculation
 
@@ -110,7 +111,7 @@ Task completed in **1 single turn**.
 | Batch queries and calculations in a unified script | ❌ Taking 4–5 separate turns for individual lookups |
 | Perform all math, unit conversions, and rounding in Python | ❌ Doing mental arithmetic or calculating in prose tokens |
 | Terminate with `final_answer(result)` | ❌ Outputting prose answers without calling `final_answer` |
-| Inspect tracebacks on error and fix code in the next block | ❌ Giving up or guessing when an error occurs |
+| Inspect code errors and completed actions before retrying | ❌ Replaying side effects after timeout or an uncertain result |
 
 ---
 
@@ -124,9 +125,10 @@ agents:
     harness: langchain
     type: deep
     name: "CodeAct"
-    description: "Solves tasks by writing Python code in a sandbox; tools are in-process functions"
+    description: "Solves tasks with isolated Python and registered tool proxies"
     tools:
       - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+          executor_type: docker
           tools:
             - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
     skill_directories:
@@ -142,6 +144,7 @@ agents:
       3. Minimize turns: Batch data retrieval, parsing, and arithmetic into a single unified Python script whenever possible.
       4. Use `print()` to record intermediate observations.
       5. Conclude by calling `final_answer(result)` with your final answer.
+      6. On timeout or infrastructure failure, stop and report it; do not replay the block or switch to local execution.
 ```
 
 ### Subagent with CodeAct Only
@@ -157,12 +160,14 @@ agents:
         description: "CodeAct subagent for code-based reasoning"
         tools:
           - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+              executor_type: docker
               tools:
                 - genai_tk.agents.tools.langchain.search_tools_factory.create_search_tool
         system_prompt: |
           Solve tasks via Python code executed in python_interpreter.
           web_search(...) is available as a function in code.
           Print observations. Call final_answer(x) to return x.
+          Stop on timeout or infrastructure failure; do not replay side effects.
 ```
 
 ---
@@ -173,7 +178,7 @@ agents:
 
 - `print(...)` – Print observations (captured as logs).
 - `final_answer(value)` – Signal completion; return `value`.
-- Standard library: `math`, `json`, `datetime`, `itertools`, `re`, `collections`, `statistics`, `random`, etc. (see `BASE_BUILTIN_MODULES` in the executor).
+- Import standard-library modules such as `math` or `json` explicitly. Container availability depends on its Python image; trusted local mode is limited by `BASE_BUILTIN_MODULES` and explicit extra permissions.
 
 ### Registered Tools (Via Interpreter Configuration)
 
@@ -190,46 +195,61 @@ print(page[:500])
 
 ### Custom Imports
 
-Declare additional authorized imports in the profile:
+For trusted **local** development only, declare extra import permissions in the
+profile. The factory no longer authorizes packages simply because they happen to
+be installed. Docker execution uses image-installed packages and OS isolation,
+not the local AST import policy:
 
 ```yaml
 agents:
   my_agent:
     tools:
       - genai_tk.agents.tools.python_executor.tool.create_python_executor_tools:
+          executor_type: local  # Explicitly trusted host execution only
           additional_authorized_imports:
             - pandas
             - numpy
-            - requests
 ```
 
 ---
 
 ## Safety
 
-The executor uses **AST-based interpretation** (not `eval`), providing:
-
-- **Blocked operations**: No `exec()`, `__import__()`, `os.system()`, etc. in user code.
-- **Sandboxed imports**: Only authorized modules can be imported.
-- **Timeout enforcement**: Long-running code is interrupted (default: 30 seconds).
-- **Dunder method restrictions**: Unsafe magic methods are blocked.
-- **Operator count limits**: Runaway loops are halted.
+- The Python factory defaults to a dedicated Docker backend and never falls back
+  to the host after an error. Do not bypass this by selecting local mode.
+- Default executor sessions omit configured environment variables and mounts.
+  Access granted through a caller-supplied backend is an explicit trust decision.
+- Container code runs in a stateful child process with a wall deadline and
+  bounded output. A timeout invalidates the executor and retires its owned
+  container; a caller supplying a backend is responsible for retiring that
+  runtime after timeout. Cleanup failures require intervention.
+- Registered host tools are explicit capabilities. Their requests/results pass
+  through the existing sandbox command transport as bounded JSON, without an
+  executor host HTTP listener. Their own permissions and side effects still apply.
+- Variables persist only within the session. Reset clears variables and
+  agent-defined functions; revoked host tools cannot be used through old aliases.
+- Local AST restrictions are development safeguards, not a security boundary.
+  Its thread timeout cannot stop a running native call or host tool.
 
 ---
 
 ## Error Handling and Retry
 
-If code raises an exception:
+When execution fails:
 
-1. **Traceback capture**: The full exception traceback is captured.
-2. **Observation**: The traceback becomes the next observation, given back to the LLM.
-3. **Retry mandate**: The agent is expected to revise the code and retry.
+1. Read the bounded error observation and distinguish a normal code error from
+   timeout, worker, or transport failure.
+2. Before retrying a code error, inspect which host tool actions already completed.
+   Do not repeat writes, purchases, or other side effects solely because the block failed.
+3. Stop after timeout or infrastructure failure and report the uncertain outcome.
+   A host tool may continue after its await is cancelled. The caller must decide
+   whether a new session and a retry are appropriate.
 
 ---
 
 ## See Also
 
-- **SmolAgents**: https://github.com/agentic-ai/smolagents
+- **SmolAgents**: [huggingface/smolagents](https://github.com/huggingface/smolagents)
 - **Executor module**: `genai_tk.agents.tools.python_executor`
 - **Factory function**: `genai_tk.agents.tools.python_executor.create_python_executor_tools`
-- **Documentation**: `docs/codeact.md`
+- **Documentation**: [CodeAct](../../../docs/codeact.md)
