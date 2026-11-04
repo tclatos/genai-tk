@@ -389,16 +389,20 @@ GENAITK_PROFILE=local  # optional: select profile
 
 Behind a corporate HTTP proxy, declare the hosts that must bypass it in YAML —
 `net.proxy_bypass_hosts` (a list of hostnames, on top of built-in defaults:
-loopback, models.dev, common LLM gateways). The `NO_PROXY`/`no_proxy` variables
+loopback, models.dev, common LLM gateways, Hugging Face Hub, PyPI, and GitHub). The `NO_PROXY`/`no_proxy` variables
 are derived at config-load time by *merging* into the current environment —
 never persisted to a project `.env` (which would shadow `~/.env`):
 
 ```yaml
 # config/app_conf.yaml
 net:
+  # Optional: completely purge ambient HTTP(S)_PROXY variables if direct egress is active
+  disable_proxy: false
+
+  # Optional: project-specific extra host bypasses merged on top of built-in defaults
   proxy_bypass_hosts:
-    - huggingface.co
-    - pypi.org
+    - internal.registry.corp
+    - database-proxy.local
 ```
 
 `cli info doctor` probes which hosts need a bypass; `--fix` persists the

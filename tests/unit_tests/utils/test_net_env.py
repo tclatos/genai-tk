@@ -98,4 +98,7 @@ class TestDefaultBypassHosts:
         assert "localhost" in hosts
         assert "127.0.0.1" in hosts
         assert "::1" in hosts
+        assert "huggingface.co" in hosts
+        assert "pypi.org" in hosts
+        assert "github.com" in hosts
         assert "*********" not in hosts

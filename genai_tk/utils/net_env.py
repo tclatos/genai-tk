@@ -36,17 +36,34 @@ from loguru import logger
 
 LOOPBACK_HOSTS: tuple[str, ...] = ("localhost", "127.0.0.1", "::1")
 
-# Hosts that must always bypass an HTTP proxy: loopback names plus the API
-# endpoints genai-tk itself talks to (models.dev catalogue, common LLM gateways).
+# Hosts that must always bypass an HTTP proxy: loopback names, LLM gateways,
+# model registries (Hugging Face Hub), package registries (PyPI), and code assets (GitHub).
 # Extend per project via the config key ``net.proxy_bypass_hosts``.
 DEFAULT_BYPASS_HOSTS: tuple[str, ...] = (
     *LOOPBACK_HOSTS,
+    # Common LLM gateways & model catalogues
     "models.dev",
     "openrouter.ai",
+    "api.openai.com",
+    "api.anthropic.com",
     "api.deepinfra.com",
     "api.edenai.run",
     "api.eu.edenai.run",
     "api.smith.langchain.com",
+    # Hugging Face Hub (Docling artifacts, model weights, tokenizers)
+    "huggingface.co",
+    ".hf.co",
+    "hf.co",
+    "cas-bridge.xethub.hf.co",
+    "cdn-lfs.huggingface.co",
+    # Python package repositories
+    "pypi.org",
+    "files.pythonhosted.org",
+    # GitHub endpoints
+    "github.com",
+    ".github.com",
+    "raw.githubusercontent.com",
+    "objects.githubusercontent.com",
 )
 
 HostStatus = Literal["proxy_ok", "bypass_needed", "unreachable"]
