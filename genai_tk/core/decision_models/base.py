@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import abc
+import sys
 from contextlib import contextmanager
 from typing import Any, Generator
 
 from langchain_core.runnables import RunnableConfig, RunnableSerializable
+from loguru import logger
 from pydantic import ConfigDict
 
 from genai_tk.core.decision_models.types import (
@@ -69,20 +71,56 @@ class BaseDecisionModel(RunnableSerializable[ClassifierRequest, ClassifierRespon
 
     @contextmanager
     def _trace_scope(self, request: ClassifierRequest) -> Generator[Any, None, None]:
-        """Wrap decision model execution in a NeMo Relay Evaluator scope if available."""
+        """Wrap decision model execution in a NeMo Relay Evaluator scope if available.
+
+        The scope is strictly best-effort observability and must never affect the
+        decision itself. Two hazards are handled explicitly:
+
+        - **A scope open/close failure must not fail the call.** NeMo Relay keeps
+          its scope stack in native thread-local storage, so a handle opened on
+          one thread cannot be closed on another (``pop`` raises ``not found``).
+          Concurrent decision calls from worker threads — e.g. the document
+          navigator scoring several documents in parallel — hit exactly that,
+          which used to abort the model call after the HTTP response had already
+          been received.
+        - **Exactly one ``yield``.** The previous implementation had a second
+          ``yield`` in its ``except`` branch, so any failure raised while closing
+          the scope made ``contextlib`` raise ``RuntimeError: generator didn't
+          stop`` (or ``... after throw()``) instead of the real error, and killed
+          the call. That masked message is what surfaced as an in-agent
+          ``navigate_folder`` failure.
+        """
+        scope_cm: Any = None
+        handle: Any = None
         try:
             import nemo_relay
 
             model_name = getattr(self, "model", self.__class__.__name__)
-            with nemo_relay.scope.scope(
+            scope_cm = nemo_relay.scope.scope(
                 name=f"decision.{model_name}",
                 scope_type=nemo_relay.ScopeType.Evaluator,
                 input={"questions": list(request.questions.keys())},
                 metadata={"decision_model": model_name},
-            ) as handle:
-                yield handle
-        except (ImportError, Exception):
-            yield None
+            )
+            handle = scope_cm.__enter__()
+        except Exception as exc:  # noqa: BLE001 - tracing must never fail the call
+            logger.debug("Decision-model tracing scope unavailable: {}: {}", type(exc).__name__, exc)
+            scope_cm, handle = None, None
+
+        try:
+            yield handle
+        finally:
+            if scope_cm is not None:
+                # Close with the in-flight exception (if any) so the scope's
+                # status is recorded, but never let the close failure escape:
+                # the return value is ignored, so the exception is not suppressed.
+                exc_info = sys.exc_info()
+                try:
+                    scope_cm.__exit__(*exc_info) if exc_info[0] is not None else scope_cm.__exit__(None, None, None)
+                except Exception as close_exc:  # noqa: BLE001 - tracing must never fail the call
+                    logger.debug(
+                        "Decision-model tracing scope close failed: {}: {}", type(close_exc).__name__, close_exc
+                    )
 
     def _emit_trace_event(self, handle: Any, response: ClassifierResponse) -> None:
         """Emit a decision.verdict event if NeMo Relay is active."""

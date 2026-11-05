@@ -9,9 +9,11 @@ Two capture modes:
 - **Per-session store** (default, ``setup_nemo_relay()`` with no ``atof_path``):
   each top-level agent scope (a run) is written under
   ``<data_root>/trajectories/<root_uuid>/events.jsonl`` with a sibling
-  ``meta.json`` summary, and one line per run is appended to
+  ``meta.json`` summary, and exactly one line per run is upserted into
   ``<data_root>/trajectories/index.jsonl``. Events are grouped to their root
-  scope by walking the ``parent_uuid`` chain. This is the source-of-truth store
+  scope by walking the ``parent_uuid`` chain, and every run keeps a single
+  aggregate for the process, so ``meta.json`` / ``index.jsonl`` / ``events.jsonl``
+  always report the same call and token counts. This is the source-of-truth store
   consumed by ``genai_tk.extra.monitoring.trajectory_store`` and the ``cli trajectory``
   command group.
 - **Single-file** (``setup_nemo_relay(atof_path=...)``): appends every event
@@ -37,6 +39,12 @@ from typing import Any
 from loguru import logger
 
 _SUBSCRIBER_NAME = "genai-tk-atof"
+
+# At most this many runs keep their events file open at once. A session normally
+# has one run, so this only matters when several agents share a process; beyond
+# it the least-recently-used run is finalized (meta + index line) and reopened on
+# demand, which never resets its aggregate.
+_MAX_OPEN_RUNS = 8
 
 
 def _default_store_dir() -> Path:
@@ -114,120 +122,198 @@ class _SessionRun:
 
 
 class _StoreState:
-    """Per-session store capture state."""
+    """Per-session store capture state.
+
+    Events are grouped into runs by walking the ``parent_uuid`` chain, and every
+    run keeps **one** aggregate for the whole process — a run is never split.
+    Two properties make the stored numbers match ``events.jsonl``:
+
+    - **Late parents.** Subscribers are called from several threads, so a child
+      scope's event can arrive before its parent's first event. A parent that is
+      not known yet is attributed to the run that is already open instead of
+      being mistaken for a new root. NeMo Relay's decision-model evaluator
+      scopes are emitted from worker threads and carry a parent id that never
+      appears as an event uuid at all, which is exactly this case; a top-level
+      ``agent`` scope start still defines a run.
+    - **One index line per run.** ``index.jsonl`` is upserted, so re-finalizing a
+      run rewrites its line instead of appending a second, partial one. An Alko
+      classification was rotated mid-flight and reported 5 + 9 LLM calls and
+      116 668 + 465 731 prompt tokens in two lines for one 14-call run, so any
+      dashboard reading a single line understated the run by 60%.
+    """
 
     def __init__(self, store_dir: Path) -> None:
         self.store_dir = store_dir
         self._lock = threading.Lock()
-        # uuid -> parent_uuid (ancestry within the current run)
-        self.parents: dict[str, str | None] = {}
-        # uuid -> root_uuid (cache)
+        # uuid -> root_uuid (the run a scope belongs to)
         self.roots: dict[str, str] = {}
-        self.current: _SessionRun | None = None
-        self.current_file: Any = None
-        self.current_dir: Path | None = None
+        # root_uuid -> aggregate / run directory / open events file
+        self.runs: dict[str, _SessionRun] = {}
+        self.run_dirs: dict[str, Path] = {}
+        self.files: dict[str, Any] = {}
+        # root uuids by recency of use (most recently used last)
+        self.order: list[str] = []
 
-    def _root_of(self, uuid: str, parent_uuid: str | None) -> str:
-        """Resolve the root scope uuid for an event by walking the parent chain."""
-        if uuid in self.roots:
-            return self.roots[uuid]
+    def _root_of(self, event: dict[str, Any]) -> str:
+        """Resolve which run a scope event belongs to, tolerating a late parent.
+
+        A scope's run is inherited from its parent's own resolution, which is
+        cached when that parent's first event is processed. Walking the raw
+        parent chain instead would let a *child* of an unattributed scope define a
+        run of its own — the exact failure that split the Alko run in two.
+        """
+        uuid = str(event["uuid"])
+        parent_uuid = event.get("parent_uuid")
+        cached = self.roots.get(uuid)
+        if cached is not None:
+            return cached
+
+        is_run_start = (
+            event.get("kind") == "scope" and event.get("category") == "agent" and event.get("scope_category") == "start"
+        )
         if parent_uuid is None:
             root = uuid
+        elif parent_uuid in self.roots:
+            root = self.roots[parent_uuid]
+        elif is_run_start or not self.order:
+            # A top-level agent scope whose own parent is the LangGraph trace
+            # root: that parent is never instrumented, so the run is named after
+            # it (and it is the first event of a session).
+            root = str(parent_uuid)
         else:
-            root = self.roots.get(parent_uuid, parent_uuid)
-            # Walk up until we find an ancestor with no parent.
-            while True:
-                p = self.parents.get(root)
-                if p is None or root == p:
-                    break
-                root = p
+            # The parent scope's own event has not been delivered (or never will
+            # be). Attribute this event to the run that is already open rather
+            # than inventing a run for the parent.
+            root = self.order[-1]
+            logger.debug(
+                "trajectory store: unknown parent {} on {} — attributing to run {}",
+                parent_uuid,
+                event.get("name"),
+                root,
+            )
         self.roots[uuid] = root
         return root
 
-    def _close_current(self) -> None:
-        """Finalize the current run: write meta.json + index line, close file."""
-        if self.current is None:
-            return
-        if self.current.ended_at is None:
-            # The root agent-scope-end event never arrived (e.g. process exit
-            # before the agent scope was popped); fall back to wall-clock now
-            # so meta.json / index lines never carry a null ended_at.
-            self.current.ended_at = _now_iso()
-        try:
-            if self.current_dir is not None:
-                (self.current_dir / "meta.json").write_text(
-                    json.dumps(self.current.meta(self.current_dir), indent=2), encoding="utf-8"
-                )
-                with (self.store_dir / "index.jsonl").open("a", encoding="utf-8") as idx:
-                    idx.write(json.dumps(self.current.index_line(self.current_dir)) + "\n")
-        except Exception as exc:  # noqa: BLE001
-            logger.debug(f"NeMo Relay store finalize failed: {exc}")
-        if self.current_file is not None:
+    def _touch(self, root: str) -> None:
+        """Mark *root* as the most recently used run."""
+        if root in self.order:
+            self.order.remove(root)
+        self.order.append(root)
+
+    def _run_for(self, root: str, event: dict[str, Any]) -> _SessionRun:
+        """Return the aggregate for *root*, creating the run the first time it is seen."""
+        run = self.runs.get(root)
+        if run is None:
+            run_dir = self.store_dir / root
+            run_dir.mkdir(parents=True, exist_ok=True)
+            run = _SessionRun(root, str(event.get("name") or "agent"), str(event.get("timestamp") or _now_iso()))
+            self.runs[root] = run
+            self.run_dirs[root] = run_dir
+        return run
+
+    def _file_for(self, root: str) -> Any:
+        """Return *root*'s open events file, capping how many handles stay open."""
+        handle = self.files.get(root)
+        if handle is not None:
+            return handle
+        handle = (self.run_dirs[root] / "events.jsonl").open("a", encoding="utf-8")
+        self.files[root] = handle
+        while len(self.files) > _MAX_OPEN_RUNS:
+            stale = next((r for r in self.order if r in self.files and r != root), None)
+            if stale is None:
+                break
+            self._finalize(stale)
+        return handle
+
+    def _finalize(self, root: str) -> None:
+        """Write *root*'s meta.json, upsert its index line and close its file."""
+        run = self.runs.get(root)
+        run_dir = self.run_dirs.get(root)
+        if run is not None and run_dir is not None:
+            if run.ended_at is None:
+                # No event carried a timestamp; fall back to wall-clock now so
+                # meta.json / index lines never carry a null ended_at.
+                run.ended_at = _now_iso()
             try:
-                self.current_file.close()
+                (run_dir / "meta.json").write_text(json.dumps(run.meta(run_dir), indent=2), encoding="utf-8")
+                self._upsert_index_line(run.index_line(run_dir))
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(f"NeMo Relay store finalize failed: {exc}")
+        handle = self.files.pop(root, None)
+        if handle is not None:
+            try:
+                handle.close()
             except Exception:  # noqa: BLE001
                 pass
-        self.current_file = None
-        self.current = None
-        self.current_dir = None
+        if root in self.order:
+            self.order.remove(root)
+
+    def _upsert_index_line(self, line: dict[str, Any]) -> None:
+        """Write *line* into ``index.jsonl``, replacing any existing line for that run."""
+        index = self.store_dir / "index.jsonl"
+        run_id = line.get("run_id")
+        kept: list[str] = []
+        if index.exists():
+            for existing in index.read_text(encoding="utf-8").splitlines():
+                if not existing.strip():
+                    continue
+                try:
+                    if json.loads(existing).get("run_id") == run_id:
+                        continue
+                except Exception:  # noqa: BLE001
+                    pass
+                kept.append(existing)
+        kept.append(json.dumps(line))
+        tmp = index.with_name(index.name + ".tmp")
+        tmp.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        tmp.replace(index)
 
     def write(self, event: dict[str, Any], raw: str) -> None:
-        """Route one event to its run's events.jsonl, opening/rotating as needed."""
+        """Route one event to its run's events.jsonl, aggregating as it goes."""
         with self._lock:
             uuid = event.get("uuid")
-            parent = event.get("parent_uuid")
             if not isinstance(uuid, str):
                 return
-            self.parents[uuid] = parent
-            root = self._root_of(uuid, parent)
+            root = self._root_of(event)
+            run = self._run_for(root, event)
+            self._touch(root)
+            handle = self._file_for(root)
 
-            if self.current is None or self.current.root_uuid != root:
-                self._close_current()
-                run_dir = self.store_dir / root
-                run_dir.mkdir(parents=True, exist_ok=True)
-                self.current_dir = run_dir
-                self.current_file = (run_dir / "events.jsonl").open("a", encoding="utf-8")
-                # Root scope name + start ts from the root event itself.
-                name = str(event.get("name") or "agent")
-                ts = str(event.get("timestamp") or _now_iso())
-                self.current = _SessionRun(root, name, ts)
+            # The run's window ends at its last event; an agent scope end is the
+            # usual last event, but the trace root is not always instrumented.
+            ts = event.get("timestamp")
+            if isinstance(ts, str) and ts:
+                run.ended_at = ts
 
             # Aggregate from this event.
             kind = event.get("kind")
             cat = event.get("category")
             sc = event.get("scope_category")
             if kind == "scope" and sc == "start":
-                self.current.n_scopes += 1
+                run.n_scopes += 1
                 if cat == "llm":
-                    self.current.n_llm += 1
+                    run.n_llm += 1
                 elif cat == "tool":
-                    self.current.n_tool += 1
+                    run.n_tool += 1
                     if isinstance(event.get("name"), str):
-                        self.current.tools.append(event["name"])
+                        run.tools.append(event["name"])
             elif kind == "scope" and sc == "end":
                 if cat == "llm":
                     cp = event.get("category_profile") or {}
                     ar = cp.get("annotated_response") or {}
                     usage = ar.get("usage") or {}
                     if isinstance(usage, dict):
-                        self.current.prompt_tokens += int(usage.get("prompt_tokens") or 0)
-                        self.current.completion_tokens += int(usage.get("completion_tokens") or 0)
-                    # If the scope end carries ERROR status, mark the run errored.
-                    meta = event.get("metadata") or {}
-                    if isinstance(meta, dict) and meta.get("otel.status_code") == "ERROR":
-                        self.current.status = "error"
-                elif cat == "agent" and self.current.root_uuid == uuid:
-                    # Last agent-end for the root wins (middleware before_agent
-                    # hooks push/pop agent scopes with the same uuid first).
-                    self.current.ended_at = str(event.get("timestamp") or _now_iso())
-                    meta = event.get("metadata") or {}
-                    if isinstance(meta, dict) and meta.get("otel.status_code") == "ERROR":
-                        self.current.status = "error"
+                        run.prompt_tokens += int(usage.get("prompt_tokens") or 0)
+                        run.completion_tokens += int(usage.get("completion_tokens") or 0)
+                # If a scope end carries ERROR status, mark the run errored.
+                meta = event.get("metadata") or {}
+                if isinstance(meta, dict) and meta.get("otel.status_code") == "ERROR":
+                    run.status = "error"
             elif kind == "mark":
                 if event.get("name") == "skill.load":
                     data = event.get("data") or {}
                     if isinstance(data, dict) and isinstance(data.get("skill_name"), str):
-                        self.current.skills.append(data["skill_name"])
+                        run.skills.append(data["skill_name"])
                 else:
                     mmeta = event.get("metadata") or {}
                     if isinstance(mmeta, dict) and mmeta.get("deepagents_kind") == "skill":
@@ -237,27 +323,28 @@ class _StoreState:
                         data = event.get("data") or {}
                         skills = data.get("skills") if isinstance(data, dict) else None
                         if isinstance(skills, list):
-                            self.current.deepagent_skills.extend(s for s in skills if isinstance(s, str))
+                            run.deepagent_skills.extend(s for s in skills if isinstance(s, str))
 
             try:
-                self.current_file.write(raw + "\n")
-                self.current_file.flush()
+                handle.write(raw + "\n")
+                handle.flush()
             except Exception as exc:  # noqa: BLE001
                 logger.debug(f"NeMo Relay store write failed: {exc}")
 
     def flush(self) -> None:
-        """Flush the current run's file (keeps the run open)."""
+        """Flush every open run's file (keeps the runs open)."""
         with self._lock:
-            if self.current_file is not None:
+            for handle in list(self.files.values()):
                 try:
-                    self.current_file.flush()
+                    handle.flush()
                 except Exception:  # noqa: BLE101
                     pass
 
     def close(self) -> None:
-        """Finalize and close the current run."""
+        """Finalize and close every run."""
         with self._lock:
-            self._close_current()
+            for root in list(self.runs):
+                self._finalize(root)
 
 
 # ── Single-file state (spike / tests) ────────────────────────────────────────

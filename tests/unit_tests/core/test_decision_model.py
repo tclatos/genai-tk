@@ -441,3 +441,81 @@ def test_registry_limits_are_threaded_into_instances() -> None:
                 questions={"wide": Choice(instructions="Pick", criteria={f"o{i}": f"Opt {i}" for i in range(256)})},
             )
         )
+
+
+# ── Tracing must never break a decision ──────────────────────────────────────
+
+
+class _RaisingDecisionModel(FakeDecisionModel):
+    """Fake model whose body raises after the tracing scope is open."""
+
+    def invoke(self, input, config=None, **kwargs):  # type: ignore[no-untyped-def]
+        request = ClassifierRequest.model_validate(input)
+        with self._trace_scope(request):
+            raise ValueError("decision backend unavailable")
+
+
+def _decision_request() -> ClassifierRequest:
+    return ClassifierRequest(state="x", questions={"q": Noul(instructions="Is it relevant?")})
+
+
+@pytest.mark.unit
+def test_tracing_scope_close_failure_does_not_fail_the_decision(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failing scope close must not abort the call.
+
+    NeMo Relay's scope stack is native thread-local, so a handle pushed on one
+    thread cannot be popped on another. The close failure used to be re-raised as
+    ``RuntimeError: generator didn't stop`` (the scope contextmanager yielded
+    twice), which killed a document navigation after the decision had already
+    been computed.
+    """
+    pytest.importorskip("nemo_relay")
+    import nemo_relay.scope as scope_module
+
+    def failing_pop(handle, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("not found: scope handle not found")
+
+    monkeypatch.setattr(scope_module, "pop", failing_pop, raising=True)
+
+    response = FakeDecisionModel(fixed_noul=0.9).invoke(_decision_request())
+    assert response.nouls["q"].noul == 0.9
+
+
+@pytest.mark.unit
+def test_tracing_scope_does_not_mask_a_body_exception() -> None:
+    """The real error must propagate, not a contextlib 'generator didn't stop'."""
+    pytest.importorskip("nemo_relay")
+    with pytest.raises(ValueError, match="decision backend unavailable"):
+        _RaisingDecisionModel().invoke(_decision_request())
+
+
+@pytest.mark.unit
+def test_tracing_scope_opens_exactly_once_and_closes_cleanly() -> None:
+    """One yield, one close: the handle is real and re-entering is not possible."""
+    pytest.importorskip("nemo_relay")
+    model = FakeDecisionModel()
+    scope = model._trace_scope(_decision_request())
+    handle = scope.__enter__()
+    assert handle is not None
+    scope.__exit__(None, None, None)  # must not raise
+
+
+@pytest.mark.unit
+def test_concurrent_decision_calls_from_worker_threads_all_succeed() -> None:
+    """Concurrent decision calls across threads keep working with tracing active.
+
+    This is the navigator's shape: one decision call per document on a worker
+    thread, all sharing the process-wide Relay scope stack.
+    """
+    pytest.importorskip("nemo_relay")
+    from concurrent.futures import ThreadPoolExecutor
+
+    model = FakeDecisionModel(fixed_noul=0.8)
+
+    def call(_: int) -> float:
+        return model.invoke(_decision_request()).nouls["q"].noul
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        scores = list(pool.map(call, range(6)))
+
+    assert scores == [0.8] * 6

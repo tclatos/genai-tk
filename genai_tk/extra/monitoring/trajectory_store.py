@@ -351,11 +351,17 @@ class TrajectoryStore:
         return out
 
     def _read_index(self) -> list[RunSummary]:
-        """Parse ``index.jsonl`` into summaries (empty if absent)."""
+        """Parse ``index.jsonl`` into one summary per run (empty if absent).
+
+        A run may appear more than once: the write side used to append a partial
+        line every time it rotated, so one 14-call run was recorded as two lines
+        holding 5 and 9 calls. The **last** line for a run id wins, because it is
+        the one written with the final aggregate.
+        """
         idx = self.root / "index.jsonl"
         if not idx.exists():
             return []
-        out: list[RunSummary] = []
+        by_run: dict[str, RunSummary] = {}
         for line in idx.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
@@ -364,22 +370,21 @@ class TrajectoryStore:
             except Exception:  # noqa: BLE001
                 logger.debug("trajectory_store: skipping unparseable index line")
                 continue
-            out.append(
-                RunSummary(
-                    run_id=str(d.get("run_id") or ""),
-                    profile=str(d.get("profile") or ""),
-                    started_at=str(d.get("started_at") or ""),
-                    ended_at=d.get("ended_at"),
-                    status=str(d.get("status") or "ok"),
-                    n_llm_calls=int(d.get("n_llm_calls") or 0),
-                    n_tool_calls=int(d.get("n_tool_calls") or 0),
-                    total_prompt_tokens=int(d.get("total_prompt_tokens") or 0),
-                    total_completion_tokens=int(d.get("total_completion_tokens") or 0),
-                    tools=list(d.get("tools") or []),
-                    skills_loaded=list(d.get("skills_loaded") or []),
-                )
+            summary = RunSummary(
+                run_id=str(d.get("run_id") or ""),
+                profile=str(d.get("profile") or ""),
+                started_at=str(d.get("started_at") or ""),
+                ended_at=d.get("ended_at"),
+                status=str(d.get("status") or "ok"),
+                n_llm_calls=int(d.get("n_llm_calls") or 0),
+                n_tool_calls=int(d.get("n_tool_calls") or 0),
+                total_prompt_tokens=int(d.get("total_prompt_tokens") or 0),
+                total_completion_tokens=int(d.get("total_completion_tokens") or 0),
+                tools=list(d.get("tools") or []),
+                skills_loaded=list(d.get("skills_loaded") or []),
             )
-        return out
+            by_run[summary.run_id] = summary
+        return list(by_run.values())
 
     # ── single run ───────────────────────────────────────────────────────────
 
