@@ -9,7 +9,7 @@ set script-interpreter := ['uv', 'run', '--script']
 set positional-arguments
 
 pkg_name := "genai_tk"
-streamlit_entry := "genai_tk/webapp/main/streamlit.py"
+streamlit_entry := "genai_tk/ui/streamlit/apps/streamlit.py"
 deer_flow_repo := "https://github.com/bytedance/deer-flow.git"
 deer_flow_dir := "ext/deer-flow"
 

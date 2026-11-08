@@ -49,7 +49,7 @@ lint-skills:
 
 # Launch Streamlit webapp (entry point discovered from genai-tk package)
 webapp:
-    entry=$(uv run python -c 'import pathlib, genai_tk; print(pathlib.Path(genai_tk.__file__).parent / "webapp/main/streamlit.py")') && uv run python -m streamlit run "$entry"
+    entry=$(uv run python -c 'import pathlib, genai_tk; print(pathlib.Path(genai_tk.__file__).parent / "ui/streamlit/apps/streamlit.py")') && uv run python -m streamlit run "$entry"
 
 # ── Project-specific ─────────────────────────────────────────────────────────
 

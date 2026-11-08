@@ -484,7 +484,7 @@ own navigation using the `genai_tk://` prefix — no copy-pasting, no wrappers:
 ```yaml
 # config/app_conf.yaml in your project
 ui:
-  pages_dir: myapp/webapp/pages
+  pages_dir: myapp/ui/streamlit/pages
   navigation:
     agents:
       - genai_tk://demos/agent.py              # served from the installed package

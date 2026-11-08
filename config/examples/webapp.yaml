@@ -9,7 +9,7 @@ ui:
   # Leave as null to show no logo.
   logo: null
 
-  pages_dir: ${paths.project}/browser_control/webapp/pages
+  pages_dir: ${paths.project}/browser_control/ui/streamlit/pages
   navigation:
     demos:
       - demos/hello_agent.py
@@ -21,7 +21,7 @@ ui:
   # When left unset, only the built-in agent demos are shown.
   # -------------------------------------------------------------------------
 
-  # pages_dir: genai_blueprint/webapp/pages   # example
+  # pages_dir: genai_blueprint/ui/streamlit/pages   # example
   # navigation:
   #   demos:
   #     - genai_tk://demos/agent.py

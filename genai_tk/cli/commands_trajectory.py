@@ -164,7 +164,7 @@ class TrajectoryCommands(CliTopCommand):
             ] = None,
         ) -> None:
             """Launch interactive TUI trajectory navigator."""
-            from genai_tk.cli.trajectory_tui import TrajectoryTuiApp
+            from genai_tk.ui.textual.apps.trajectory_tui import TrajectoryTuiApp
 
             app = TrajectoryTuiApp(initial_run_id=run_id, store=store())
             app.run()

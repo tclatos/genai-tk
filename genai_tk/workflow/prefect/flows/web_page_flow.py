@@ -20,8 +20,8 @@ from prefect import flow, task
 from prefect.task_runners import ThreadPoolTaskRunner
 from pydantic import BaseModel
 
+from genai_tk.extra.markdownize.web_fetcher import get_web_page_fetcher
 from genai_tk.utils.hashing import buffer_digest
-from genai_tk.web.fetchers import get_web_page_fetcher
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 from genai_tk.workflow.force import ForceStage, stage_active
 from genai_tk.workflow.registry import workflow

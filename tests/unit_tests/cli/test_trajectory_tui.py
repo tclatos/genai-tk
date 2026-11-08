@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from textual.widgets import Tree
 
-from genai_tk.cli.trajectory_tui import TrajectoryTuiApp
 from genai_tk.extra.monitoring.trajectory_store import TrajectoryStore
+from genai_tk.ui.textual.apps.trajectory_tui import TrajectoryTuiApp
 from tests.unit_tests.utils.test_trajectory_store import (
     _ROOT,
     _RUN_ID_PARENT,

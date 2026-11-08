@@ -46,6 +46,24 @@ The toolkit provides 8 document converter engines in `genai_tk.extra.markdownize
 | `llm` | LangChain LLM factory async batch multimodal transcription | Images, PDFs, text, code, HTML | Provider API key |
 | `docling` | IBM Docling fully local parser (layout analysis, TableFormer tables, EasyOCR/Tesseract) | PDF, Word, PPT, Excel, OpenDoc, HTML, EPUB, images, CSV | `genai-tk[docling]` (local, no API key) |
 
+## Web Page Fetchers (`genai_tk.extra.markdownize.web_fetcher`)
+
+For converting live web pages or URLs into Markdown, the toolkit provides `WebPageFetcher` implementations:
+
+| Fetcher | Engine | Requirements | Best For |
+|---|---|---|---|
+| `bs` / `beautifulsoup` | `httpx` + BeautifulSoup + `markdownify` | Built-in | Fast, local scraping of static HTML pages |
+| `tavily` | Tavily Extract API | `TAVILY_API_KEY` | JavaScript-heavy or single-page applications |
+
+```python
+from genai_tk.extra.markdownize import get_web_page_fetcher
+
+fetcher = get_web_page_fetcher("bs")
+markdown = fetcher.fetch("https://example.com/article")
+```
+
+Used by the `web_page_flow` Prefect flow for automated ingestion of URL route rules.
+
 ### Converter Registry (config-driven)
 
 `ConverterFactory.create(name)` instantiates converters **only** from the `markdownize_converters`

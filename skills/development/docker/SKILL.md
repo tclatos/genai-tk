@@ -64,7 +64,7 @@ ARG EXTRA_COPY_DIRS=""
 
 - If `STREAMLIT_ENTRY` is non-empty: Dockerfile uses `/app/${STREAMLIT_ENTRY}`
 - If empty: resolved at runtime via `python -c "import genai_tk; …"` from the installed package
-- genai-tk itself: sets `streamlit_entry := "genai_tk/webapp/main/streamlit.py"` explicitly (doubles as the `webapp` recipe arg)
+- genai-tk itself: sets `streamlit_entry := "genai_tk/ui/streamlit/apps/streamlit.py"` explicitly (doubles as the `webapp` recipe arg)
 
 ## Adding Docker Support to a New Project
 

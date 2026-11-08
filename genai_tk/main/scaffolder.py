@@ -204,7 +204,7 @@ class ProjectScaffolder:
                 lstrip_blocks=True,
             )
             for tpl_name, out_rel in {
-                "webapp/pages/demos/hello_agent.py.j2": f"{pkg}/webapp/pages/demos/hello_agent.py",
+                "ui/streamlit/pages/demos/hello_agent.py.j2": f"{pkg}/ui/streamlit/pages/demos/hello_agent.py",
                 "main/streamlit.py.j2": f"{pkg}/main/streamlit.py",
             }.items():
                 try:
@@ -216,7 +216,22 @@ class ProjectScaffolder:
             pass
 
     def _get_package_subdirs(self) -> list[str]:
-        return ["commands", "tools", "webapp", "webapp/pages", "webapp/pages/demos", "main"]
+        return [
+            "commands",
+            "tools",
+            "ui",
+            "ui/streamlit",
+            "ui/streamlit/apps",
+            "ui/streamlit/pages",
+            "ui/streamlit/pages/demos",
+            "ui/streamlit/components",
+            "ui/streamlit/utils",
+            "ui/textual",
+            "ui/textual/apps",
+            "ui/textual/screens",
+            "ui/textual/components",
+            "main",
+        ]
 
     def _copy_skills(self) -> None:
         """Copy tiered skills from genai-tk and optionally merge from genai-graph."""
@@ -393,7 +408,7 @@ class ProjectScaffolder:
                 return
 
         new_nav = (
-            f"  pages_dir: ${{paths.project}}/{self.package_name}/webapp/pages\n"
+            f"  pages_dir: ${{paths.project}}/{self.package_name}/ui/streamlit/pages\n"
             f"  navigation:\n"
             f"    demos:\n"
             f"      - demos/hello_agent.py\n"

@@ -13,9 +13,16 @@ from genai_tk.extra.markdownize.llm_converter import LLMConverter
 from genai_tk.extra.markdownize.markitdown_converter import MarkItDownConverter
 from genai_tk.extra.markdownize.mistral_ocr_converter import MistralOCRConverter
 from genai_tk.extra.markdownize.selector import ConverterRule, MarkdownizeProfile
+from genai_tk.extra.markdownize.web_fetcher import (
+    BsFetcher,
+    TavilyFetcher,
+    WebPageFetcher,
+    get_web_page_fetcher,
+)
 
 __all__ = [
     "AnyDocConverter",
+    "BsFetcher",
     "ConverterFactory",
     "ConverterRule",
     "DoclingConverter",
@@ -27,4 +34,7 @@ __all__ = [
     "MarkItDownConverter",
     "MessyExcelConverter",
     "MistralOCRConverter",
+    "TavilyFetcher",
+    "WebPageFetcher",
+    "get_web_page_fetcher",
 ]

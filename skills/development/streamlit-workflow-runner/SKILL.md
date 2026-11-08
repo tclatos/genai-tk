@@ -16,7 +16,7 @@ version: "1.0"
 ## Quick Example
 
 ```python
-from genai_tk.utils.streamlit.workflow_runner import WorkflowRunner
+from genai_tk.ui.streamlit.utils.workflow_runner import WorkflowRunner
 import streamlit as st
 
 st.title("Run My Workflow")

@@ -176,8 +176,8 @@ factory. See [Design 10: Agent-User Interaction Protocol (AUIP)](design/10_agent
 
 ## Streamlit Workbench
 
-The unified demo page (`genai_tk/webapp/pages/demos/agent.py`) renders through
-`genai_tk.webapp.ui_components.harness_workbench`:
+The unified demo page (`genai_tk/ui/streamlit/pages/demos/agent.py`) renders through
+`genai_tk.ui.streamlit.components.harness_workbench`:
 
 - `Artifact`, `ToolDetail`, `TraceStep`, `TurnResult` — shared Pydantic models
 - `stream_harness_turn(harness, message, thread_id=..., response_placeholder=...)`

@@ -405,7 +405,7 @@ already forwards LangChain `AgentMiddleware` instances to the underlying
 see [middleware-pii-and-routing.md](middleware-pii-and-routing.md).
 
 **Streamlit:** the unified `🤖 Agent` demo page (`agent.py`) renders through
-the shared `genai_tk.webapp.ui_components.harness_workbench` module (trace
+the shared `genai_tk.ui.streamlit.components.harness_workbench` module (trace
 phase cards, chat transcript, artifact gallery) driven by the same event
 stream — see [webapp.md](webapp.md).
 

@@ -183,7 +183,7 @@ import 'deploy/docker.just'
 |---|---|
 | `streamlit_entry` set in justfile | Used as-is (`/app/<entry>`) |
 | `streamlit_entry` empty (default) | Auto-detected: `python -c "import genai_tk; …"` finds the installed webapp |
-| Building genai-tk itself | `streamlit_entry = "genai_tk/webapp/main/streamlit.py"` (explicit in justfile) |
+| Building genai-tk itself | `streamlit_entry = "genai_tk/ui/streamlit/apps/streamlit.py"` (explicit in justfile) |
 
 This means scaffolded apps that use genai-tk's built-in webapp (with their own pages registered via genai-tk's page discovery) work without any extra configuration.
 
@@ -205,7 +205,7 @@ sudo docker build …
 
 ### genai-tk itself
 
-Built with `extras=all,monitoring` and `install_node=true` (some Streamlit components need Node.js). Entry: `genai_tk/webapp/main/streamlit.py`.
+Built with `extras=all,monitoring` and `install_node=true` (some Streamlit components need Node.js). Entry: `genai_tk/ui/streamlit/apps/streamlit.py`.
 
 ### rfq_pricing
 

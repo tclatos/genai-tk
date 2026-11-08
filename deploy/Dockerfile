@@ -114,8 +114,8 @@ RUN --mount=from=builder,source=/app,target=/build \
 
 # Resolve the streamlit entry point:
 #   - if STREAMLIT_ENTRY is set explicitly, use it
-#   - otherwise default to <PKG_NAME>/webapp/main/streamlit.py
-ENV _STREAMLIT_ENTRY=${STREAMLIT_ENTRY:-${PKG_NAME}/webapp/main/streamlit.py}
+#   - otherwise default to <PKG_NAME>/ui/streamlit/apps/streamlit.py
+ENV _STREAMLIT_ENTRY=${STREAMLIT_ENTRY:-${PKG_NAME}/ui/streamlit/apps/streamlit.py}
 
 ENV PYTHONPATH="/app" \
     REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \

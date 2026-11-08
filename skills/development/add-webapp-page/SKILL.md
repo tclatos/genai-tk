@@ -9,11 +9,11 @@ Follow these steps to add a new Streamlit page to a genai-tk project.
 
 ## Prerequisites
 - The project was initialized with `cli init` (has `config/webapp.yaml`)
-- The project has a `<package>/webapp/pages/` directory
+- The project has a `<package>/ui/streamlit/pages/` directory
 
 ## Step 1: Create the Streamlit Page
 
-Create a new file in `<package>/webapp/pages/demos/my_page.py`:
+Create a new file in `<package>/ui/streamlit/pages/demos/my_page.py`:
 
 ```python
 """My custom Streamlit page."""
@@ -22,7 +22,7 @@ import streamlit as st
 from streamlit import session_state as sss
 
 from genai_tk.core.factories.llm_factory import get_llm
-from genai_tk.webapp.ui_components.llm_selector import render_llm_selector
+from genai_tk.ui.streamlit.components.llm_selector import render_llm_selector
 
 st.set_page_config(page_title="My Page", page_icon="🔧", layout="wide")
 st.title("🔧 My Page")
@@ -63,7 +63,7 @@ Edit `config/webapp.yaml` to add the page to navigation:
 
 ```yaml
 ui:
-  pages_dir: <package_name>/webapp/pages
+  pages_dir: <package_name>/ui/streamlit/pages
   navigation:
     demos:
       - demos/my_page.py
@@ -92,15 +92,15 @@ just webapp
 ## Available UI Components (from genai_tk)
 
 ```python
-from genai_tk.webapp.ui_components.llm_selector import render_llm_selector
-from genai_tk.webapp.ui_components.agent_layout import render_agent_sidebar
-from genai_tk.webapp.ui_components.message_renderer import render_message_with_mermaid
+from genai_tk.ui.streamlit.components.llm_selector import render_llm_selector
+from genai_tk.ui.streamlit.components.agent_layout import render_agent_sidebar
+from genai_tk.ui.streamlit.components.message_renderer import render_message_with_mermaid
 
 # For agent pages: build a BaseHarness (LangChainHarness / DeerFlowHarness or
 # create_harness(profile_key)) and render it with the shared workbench —
 # see docs/harness.md and the built-in agent.py page.
 from genai_tk.agents.harness import create_harness
-from genai_tk.webapp.ui_components.harness_workbench import (
+from genai_tk.ui.streamlit.components.harness_workbench import (
     render_trace_panel,
     render_artifact,
     render_artifact_gallery,

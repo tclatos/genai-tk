@@ -10,7 +10,7 @@ of the box:
 | ⚙️ **Prefect Workflow Demo** | Workflow | Live Prefect flow execution trace with real-time task progress polling |
 
 The agent demo page renders through the shared
-`genai_tk.webapp.ui_components.harness_workbench` module (trace phase cards +
+`genai_tk.ui.streamlit.components.harness_workbench` module (trace phase cards +
 chat + artifact gallery), driven by the harness event model described in
 [agents.md](agents.md#harness-layer-agentsharness) — one visual model for
 every agent runtime instead of one page per framework.
@@ -67,7 +67,7 @@ just webapp
 
 This runs:
 ```
-uv run python -m streamlit run <genai_tk-package>/webapp/main/streamlit.py
+uv run python -m streamlit run <genai_tk-package>/ui/streamlit/apps/streamlit.py
 ```
 
 Open <http://localhost:8501> in your browser.
@@ -121,7 +121,7 @@ in your `config/webapp.yaml`:
 ```yaml
 ui:
   app_name: My Project
-  pages_dir: myapp/webapp/pages   # path to your pages directory
+  pages_dir: myapp/ui/streamlit/pages   # path to your pages directory
   navigation:
     demos:
       - demos/my_custom_agent.py
@@ -146,7 +146,7 @@ as an editable local path, or declared as a workspace dependency.
 ```yaml
 # config/app_conf.yaml (or webapp.yaml) in your downstream project
 ui:
-  pages_dir: ${paths.src}/webapp/pages   # your own pages directory
+  pages_dir: ${paths.src}/ui/streamlit/pages   # your own pages directory
   navigation:
     agents:
       - genai_tk://demos/agent.py   # ← installed genai-tk Agent page
