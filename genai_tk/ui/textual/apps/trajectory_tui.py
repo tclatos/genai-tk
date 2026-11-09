@@ -155,12 +155,19 @@ class TrajectoryTuiApp(App[None]):
     """
 
     BINDINGS = [
-        Binding("ctrl+q", "quit", "Quit", show=True, priority=True),
-        Binding("q", "quit", "Quit", show=False),
+        Binding("q", "quit", "Quit", show=True),
+        Binding("ctrl+q", "quit", "Quit", show=False),
         Binding("tab", "toggle_focus", "Switch Pane", show=True),
         Binding("r", "reload_run", "Reload", show=True),
         Binding("d", "toggle_dark", "Dark Mode", show=False),
     ]
+
+    def action_quit(self) -> None:
+        """Quit one level at a time: dismiss modal if open, otherwise exit to shell."""
+        if len(self.screen_stack) > 1:
+            self.pop_screen()
+        else:
+            self.exit()
 
     def __init__(
         self,

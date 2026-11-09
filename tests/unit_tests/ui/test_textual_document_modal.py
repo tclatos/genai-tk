@@ -4,7 +4,8 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 
-from genai_tk.ui.textual.constants import STANDARD_QUIT_BINDINGS
+from genai_tk.ui.textual.base import BaseTuiApp
+from genai_tk.ui.textual.constants import QUIT_COMMANDS, STANDARD_QUIT_BINDINGS
 from genai_tk.ui.textual.screens.document_modal import DocumentViewerModal
 from genai_tk.ui.textual.screens.document_resolver import (
     open_document_modal,
@@ -12,10 +13,8 @@ from genai_tk.ui.textual.screens.document_resolver import (
 )
 
 
-class DummyModalHostApp(App[None]):
+class DummyModalHostApp(BaseTuiApp):
     """Dummy app for testing modal screens and standard quit bindings."""
-
-    BINDINGS = [*STANDARD_QUIT_BINDINGS]
 
     def compose(self) -> ComposeResult:
         yield Static("Main Screen Content", id="main-content")
@@ -23,17 +22,17 @@ class DummyModalHostApp(App[None]):
 
 @pytest.mark.asyncio
 async def test_standard_quit_bindings() -> None:
-    """Ensure standard quit bindings include ctrl+q with priority."""
+    """Ensure standard quit bindings include q as primary and ctrl+q as alternative."""
     keys = {b.key: b for b in STANDARD_QUIT_BINDINGS}
-    assert "ctrl+q" in keys
-    assert keys["ctrl+q"].priority is True
-    assert keys["ctrl+q"].action == "quit"
     assert "q" in keys
+    assert keys["q"].action == "quit"
+    assert "ctrl+q" in keys
+    assert "/q" in QUIT_COMMANDS
 
 
 @pytest.mark.asyncio
 async def test_document_viewer_modal_push_and_dismiss() -> None:
-    """Test pushing and dismissing DocumentViewerModal."""
+    """Test pushing and dismissing DocumentViewerModal with ESC and q (one level at a time)."""
     app = DummyModalHostApp()
     async with app.run_test() as pilot:
         assert len(app.screen_stack) == 1
@@ -55,6 +54,43 @@ async def test_document_viewer_modal_push_and_dismiss() -> None:
 
         assert len(app.screen_stack) == 1
         assert not isinstance(app.screen, DocumentViewerModal)
+        assert not app._exit
+
+        # Push again and test 'q' closes modal without exiting the app
+        modal2 = DocumentViewerModal(
+            title="Test Document 2",
+            content="Content 2",
+        )
+        app.push_screen(modal2)
+        await pilot.pause()
+        assert len(app.screen_stack) == 2
+
+        await pilot.press("q")
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
+        assert not app._exit
+
+
+@pytest.mark.asyncio
+async def test_quit_one_level_at_a_time() -> None:
+    """Test action_quit dismisses top modal when open, and only exits app when at root."""
+    app = DummyModalHostApp()
+    async with app.run_test() as pilot:
+        modal = DocumentViewerModal(title="Test", content="Content")
+        app.push_screen(modal)
+        await pilot.pause()
+        assert len(app.screen_stack) == 2
+
+        # action_quit on modal pops screen
+        app.action_quit()
+        await pilot.pause()
+        assert len(app.screen_stack) == 1
+        assert not app._exit
+
+        # action_quit at root exits app
+        app.action_quit()
+        await pilot.pause()
+        assert app._exit
 
 
 @pytest.mark.asyncio

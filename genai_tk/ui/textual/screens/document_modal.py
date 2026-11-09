@@ -79,9 +79,8 @@ class DocumentViewerModal(ModalScreen[None]):
 
     BINDINGS = [
         Binding("escape", "dismiss_modal", "Close", show=True),
+        Binding("q", "dismiss_modal", "Close", show=True),
         Binding("enter", "dismiss_modal", "Close", show=False),
-        Binding("q", "dismiss_modal", "Close", show=False),
-        Binding("ctrl+q", "quit_app", "Quit", show=True, priority=True),
     ]
 
     def __init__(
@@ -109,7 +108,7 @@ class DocumentViewerModal(ModalScreen[None]):
                     yield Static(f"[dim]{self.doc_subtitle}[/dim]", id="modal-subtitle")
             with VerticalScroll(id="modal-scroll"):
                 yield Markdown(self.doc_content, id="modal-markdown")
-            yield Static("[bold][Esc/Enter/q][/bold] Close  |  [bold][^Q][/bold] Quit", id="modal-footer")
+            yield Static("[bold][Esc/q][/bold] Close", id="modal-footer")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle Close button click."""
@@ -119,7 +118,3 @@ class DocumentViewerModal(ModalScreen[None]):
     def action_dismiss_modal(self) -> None:
         """Dismiss the modal screen and return to caller."""
         self.dismiss()
-
-    def action_quit_app(self) -> None:
-        """Exit the application immediately."""
-        self.app.exit()
