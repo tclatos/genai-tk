@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ## [Unreleased]
 
+### Added
+
+- **Generic Textual TUI Document Viewer & Universal Quit Bindings**:
+  - Added [genai_tk/ui/textual/constants.py](genai_tk/ui/textual/constants.py) introducing `STANDARD_QUIT_BINDINGS` (`ctrl+q` with `priority=True` to quit reliably regardless of focused widgets, plus `q` as fallback).
+  - Added [genai_tk/ui/textual/screens/document_modal.py](genai_tk/ui/textual/screens/document_modal.py) implementing `DocumentViewerModal`, a reusable `ModalScreen` displaying Markdown or raw document/section contents with scrollable formatting, close button, and keyboard shortcuts (`Esc`, `Enter`, `q`, `^Q`).
+  - Added [genai_tk/ui/textual/screens/document_resolver.py](genai_tk/ui/textual/screens/document_resolver.py) exposing `resolve_document_or_section` and `open_document_modal` to parse `doc://`, `section://`, `file://` URIs and resolve content from Kùzu/Ladybug graphs (`reconstruct_document`, `get_section_content`, `reconstruct_section`) or local files.
+  - Updated `TrajectoryTuiApp` in [genai_tk/ui/textual/apps/trajectory_tui.py](genai_tk/ui/textual/apps/trajectory_tui.py) with standard quit bindings.
+
 ### Changed
 
 - **Web Fetchers Relocated to `extra.markdownize`**: Moved `genai_tk/web/fetchers.py` to [genai_tk/extra/markdownize/web_fetcher.py](genai_tk/extra/markdownize/web_fetcher.py), collocating web-page-to-markdown extraction engines (`BsFetcher`, `TavilyFetcher`, `get_web_page_fetcher`) directly with the markdownize document conversion toolkit. Removed the empty `genai_tk/web/` directory and updated `web_page_flow` and unit tests.

@@ -155,7 +155,8 @@ class TrajectoryTuiApp(App[None]):
     """
 
     BINDINGS = [
-        Binding("q", "quit", "Quit", show=True),
+        Binding("ctrl+q", "quit", "Quit", show=True, priority=True),
+        Binding("q", "quit", "Quit", show=False),
         Binding("tab", "toggle_focus", "Switch Pane", show=True),
         Binding("r", "reload_run", "Reload", show=True),
         Binding("d", "toggle_dark", "Dark Mode", show=False),
