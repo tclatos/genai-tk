@@ -1,3 +1,11 @@
+# LightOn OCT V3
+- https://developers.lighton.ai/tutorials/parse
+
+# New Decision Models
+perplexity/pplx-decider-v1.2
+perplexity/pplx-decider-flash-v1.2
+microsoft/microsoft-decision-1
+
 
 
 

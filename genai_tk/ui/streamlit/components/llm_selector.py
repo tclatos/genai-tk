@@ -377,3 +377,7 @@ def llm_selector_widget(w: DeltaGenerator) -> None:
     if final_id != current_llm:
         global_config().set("llm.models.default", final_id)
         w.success(f"✓ {final_id}")
+
+
+# Alias for backward compatibility
+render_llm_selector = llm_selector_widget

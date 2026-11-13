@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.widgets import Static
 
 from genai_tk.ui.textual.base import BaseTuiApp

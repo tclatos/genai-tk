@@ -91,6 +91,27 @@ def render_message_with_mermaid(content: Union[str, list, dict], container: Unio
             container.markdown(text_after)
 
 
+def extract_mermaid_blocks(content: str) -> list[str]:
+    """Extract Mermaid diagram code blocks from message text.
+
+    Args:
+        content: Message text that may contain fenced or bare Mermaid blocks.
+
+    Returns:
+        List of Mermaid diagram code strings without fences.
+    """
+    if not isinstance(content, str):
+        content = str(content)
+
+    fenced_pattern = r"```mermaid\s*\n(.*?)\n```"
+    fenced_matches = [m.group(1).strip() for m in re.finditer(fenced_pattern, content, flags=re.DOTALL)]
+    if fenced_matches:
+        return fenced_matches
+
+    bare_pattern = r"(?:^|\n)((?:graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|gitGraph|mindmap|timeline|sankey|block).*?)(?=\n\n[A-Z]|\n[A-Z][a-z]+\s+[a-z]|$)"
+    return [m.group(1).strip() for m in re.finditer(bare_pattern, content, flags=re.DOTALL)]
+
+
 def _fix_mermaid_labels(mermaid_code: str) -> str:
     """Fix Mermaid labels by adding quotes around labels with special characters.
 

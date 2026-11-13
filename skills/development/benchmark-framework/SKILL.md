@@ -52,8 +52,15 @@ uv run cli bench report -p mistral_glm --json                         # export s
 
 # 6. Question and trajectory inspection
 uv run cli bench questions -p mistral_glm                             # tabular view
-uv run cli bench questions -p mistral_glm -t                          # interactive Textual TUI
-uv run cli bench questions -p mistral_glm -t --trajectory             # TUI with live trajectory replay
+uv run cli bench questions -p mistral_glm -q UID0056                  # single question view with trajectory
+
+# 7. Interactive Terminal TUI browser
+uv run cli bench tui -p mistral_glm                                   # interactive Textual TUI browser
+uv run cli bench tui -p mistral_glm -q UID0056                        # launch focused on specific question
+
+# 8. Interactive Streamlit Web Dashboard
+uv run cli bench web -p decision_fast                                 # interactive Streamlit dashboard
+uv run cli bench web -p decision_fast --port 8502                     # custom port
 ```
 
 ---
