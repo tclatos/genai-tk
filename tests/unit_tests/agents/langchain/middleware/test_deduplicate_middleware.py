@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from langchain_core.messages import ToolMessage
 
 from genai_tk.agents.langchain.middleware.deduplicate_middleware import DeduplicateToolCallsMiddleware
 
@@ -29,10 +30,13 @@ def test_deduplicate_middleware_stub_mode() -> None:
     assert res1 == "Result for get_document_toc:{'doc_id': 'doc123'}"
     assert call_count == 1
 
-    # Second identical call: should intercept and return stub notice without calling handler
+    # Second identical call: should intercept and return stub notice without calling handler.
+    # The stub must be a ToolMessage: downstream middleware (deepagents eviction) asserts
+    # the result type and a plain string crashes the whole run.
     res2 = mw.wrap_tool_call(req1, mock_handler)
-    assert "[Notice: Duplicate call to 'get_document_toc'" in res2
-    assert "doc123" in res2
+    assert isinstance(res2, ToolMessage)
+    assert "[Notice: Duplicate call to 'get_document_toc'" in res2.content
+    assert "doc123" in res2.content
     assert call_count == 1  # handler was not called again
 
     # Different arguments: handler should be called
@@ -86,7 +90,8 @@ async def test_deduplicate_middleware_async() -> None:
     assert call_count == 1
 
     res2 = await mw.awrap_tool_call(req, async_mock_handler)
-    assert "[Notice: Duplicate call to 'get_folder_toc'" in res2
+    assert isinstance(res2, ToolMessage)
+    assert "[Notice: Duplicate call to 'get_folder_toc'" in res2.content
     assert call_count == 1
 
 
@@ -109,13 +114,15 @@ def test_deduplicate_middleware_circuit_breaker() -> None:
 
     # Call 2: duplicate notice
     res2 = mw.wrap_tool_call(req, mock_handler)
-    assert "[Notice: Duplicate call to 'search_sections'" in res2
+    assert isinstance(res2, ToolMessage)
+    assert "[Notice: Duplicate call to 'search_sections'" in res2.content
     assert call_count == 1
 
     # Call 3: circuit breaker triggered
     res3 = mw.wrap_tool_call(req, mock_handler)
-    assert "[Circuit Breaker: You have called 'search_sections' with arguments {'query': 'Table 1'} 3 times." in res3
-    assert "Further duplicate calls are blocked." in res3
+    assert isinstance(res3, ToolMessage)
+    assert "[Circuit Breaker: You have called 'search_sections' with arguments {'query': 'Table 1'} 3 times." in res3.content
+    assert "Further duplicate calls are blocked." in res3.content
     assert call_count == 1
 
 

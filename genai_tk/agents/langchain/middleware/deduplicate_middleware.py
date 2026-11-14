@@ -23,10 +23,12 @@ Example YAML configuration::
 from __future__ import annotations
 
 import json
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from langchain.agents.middleware import AgentMiddleware
+from langchain_core.messages import ToolMessage
 from loguru import logger
 
 _DEFAULT_DEDUP_TOOLS = frozenset(
@@ -102,6 +104,21 @@ class DeduplicateToolCallsMiddleware(AgentMiddleware):
             f"Please refer to the earlier '{tool_name}' output to select section IDs or continue.]"
         )
 
+    def _stub_message(self, request: Any, tool_name: str, tool_args: Any, count: int) -> ToolMessage:
+        """Build the duplicate-call stub as a real ``ToolMessage``.
+
+        Downstream middleware in the stack (e.g. deepagents' large-result
+        eviction) asserts that every ``wrap_tool_call`` result is a
+        ``ToolMessage`` or ``Command`` — a plain string crashes the run with
+        ``Unreachable code reached in _aintercept_large_tool_result``.
+        """
+        tool_call_id = (getattr(request, "tool_call", {}) or {}).get("id", "") or str(uuid.uuid4())
+        return ToolMessage(
+            content=self._format_stub(tool_name, tool_args, count),
+            tool_call_id=tool_call_id,
+            name=tool_name,
+        )
+
     def wrap_tool_call(self, request: Any, handler: Callable[[Any], Any]) -> Any:
         """Intercept sync tool execution and deduplicate if previously called."""
         tool_name, tool_args = self._extract_tool_metadata(request)
@@ -120,7 +137,7 @@ class DeduplicateToolCallsMiddleware(AgentMiddleware):
                 self.mode,
             )
             if self.mode == "stub":
-                return self._format_stub(tool_name, tool_args, count)
+                return self._stub_message(request, tool_name, tool_args, count)
             return self._cache[key]
 
         # First time invocation: execute tool and cache response
@@ -147,7 +164,7 @@ class DeduplicateToolCallsMiddleware(AgentMiddleware):
                 self.mode,
             )
             if self.mode == "stub":
-                return self._format_stub(tool_name, tool_args, count)
+                return self._stub_message(request, tool_name, tool_args, count)
             return self._cache[key]
 
         # First time invocation: execute tool and cache response
