@@ -421,6 +421,64 @@ def create_skill_skeleton(name: str, dest_root: Path, description: str = "", tag
 # ---------------------------------------------------------------------------
 
 
+def bundled_skill_roots() -> dict[str, Path]:
+    """Return the bundled-skill root directories of every library that ships skills.
+
+    ``genai_tk`` ships categorised skills in ``genai_tk/skills``; ``genai_graph``
+    ships runtime skills auto-injected into every docgraph agent in
+    ``genai_graph/agent/skills``. Both resolve from the installed (usually
+    editable) package location, so they are the live upstream copies that
+    applications should stay in sync with.
+    """
+    from importlib.resources import files as pkg_files
+
+    roots: dict[str, Path] = {}
+    for pkg, *parts in (("genai_tk", "skills"), ("genai_graph", "agent", "skills")):
+        try:
+            traversable = pkg_files(pkg)
+            for part in parts:
+                traversable = traversable / part
+            root = Path(str(traversable))
+            if root.is_dir():
+                roots[pkg] = root
+        except Exception:
+            continue
+    return roots
+
+
+def find_shadowed_local_skills(project_dir: Path) -> list[str]:
+    """Return drift warnings for project-local skills that shadow a bundled skill.
+
+    A local skill with the same name as a library-bundled skill silently
+    overrides the bundled copy for that project (``discover_all_skills`` resolves
+    name collisions in favour of the local entry). When the two differ, the
+    project runs stale discipline. Returns one warning per shadowed local skill
+    whose SKILL.md differs from the bundled version; in-sync shadows are fine.
+    """
+    local_by_name = {
+        s.name: s for s in discover_all_skills(project_dir) if s.source in ("custom", "community", "git", "skillssh")
+    }
+    warnings: list[str] = []
+    for pkg, root in bundled_skill_roots().items():
+        for upstream_md in sorted(root.rglob("SKILL.md")):
+            name = upstream_md.parent.name
+            local_skill = local_by_name.get(name)
+            if local_skill is None:
+                continue
+            local_md = local_skill.path / "SKILL.md"
+            if not local_md.exists():
+                continue
+            if local_md.read_text(encoding="utf-8") == upstream_md.read_text(encoding="utf-8"):
+                continue
+            upstream_fm = parse_frontmatter(upstream_md)
+            version = f"v{upstream_fm['version']}" if upstream_fm.get("version") else "the bundled copy"
+            warnings.append(
+                f"local skill '{name}' ({local_skill.path}) differs from the {pkg} {version} "
+                f"({upstream_md.parent}) — update or delete the local copy to stay in sync"
+            )
+    return warnings
+
+
 def list_bundled_skills() -> list[SkillInfo]:
     """Return all skills shipped inside the genai_tk package."""
     from importlib.resources import files as pkg_files

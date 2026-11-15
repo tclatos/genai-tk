@@ -490,3 +490,83 @@ class TestSandboxInit:
                 assert not dep.lower().startswith(pkg), (
                     f"{pkg!r} must not be in [project.dependencies] — it belongs in the 'harnessing' optional extra"
                 )
+
+
+class TestFindShadowedLocalSkills:
+    """`find_shadowed_local_skills` warns when a local skill shadows a changed bundled one."""
+
+    def _write_upstream(self, root: Path, body: str) -> Path:
+        upstream = root / "decision-navigation"
+        upstream.mkdir(parents=True)
+        (upstream / "SKILL.md").write_text(
+            dedent(
+                """\
+                ---
+                name: decision-navigation
+                description: Evidence-pack answering loop for decision-model navigation.
+                version: 1.1.0
+                ---
+
+                # upstream body
+                """
+            )
+            + body,
+            encoding="utf-8",
+        )
+        return root
+
+    def _write_local(self, project_dir: Path, body: str) -> Path:
+        local = project_dir / "skills" / "custom" / "decision-navigation"
+        local.mkdir(parents=True)
+        (local / "SKILL.md").write_text(
+            dedent(
+                """\
+                ---
+                name: decision-navigation
+                description: Evidence-pack answering loop for decision-model navigation.
+                ---
+
+                # local body
+                """
+            )
+            + body,
+            encoding="utf-8",
+        )
+        return local
+
+    def test_warns_when_local_copy_differs(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from genai_tk.main import skills_manager
+
+        upstream_root = self._write_upstream(tmp_path / "pkg", body="")
+        self._write_local(tmp_path / "proj", body="")
+        monkeypatch.setattr(skills_manager, "bundled_skill_roots", lambda: {"genai_graph": upstream_root})
+
+        drift = skills_manager.find_shadowed_local_skills(tmp_path / "proj")
+        assert len(drift) == 1
+        assert "decision-navigation" in drift[0]
+        assert "v1.1.0" in drift[0] and "genai_graph" in drift[0]
+
+    def test_in_sync_local_copy_is_not_reported(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from genai_tk.main import skills_manager
+
+        upstream_root = self._write_upstream(tmp_path / "pkg", body="")
+        local = self._write_local(tmp_path / "proj", body="")
+        (local / "SKILL.md").write_text(
+            (upstream_root / "decision-navigation" / "SKILL.md").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        monkeypatch.setattr(skills_manager, "bundled_skill_roots", lambda: {"genai_graph": upstream_root})
+
+        assert skills_manager.find_shadowed_local_skills(tmp_path / "proj") == []
+
+    def test_unrelated_local_skills_are_ignored(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        from genai_tk.main import skills_manager
+
+        upstream_root = self._write_upstream(tmp_path / "pkg", body="")
+        my_skill = tmp_path / "proj" / "skills" / "custom" / "my-own-skill"
+        my_skill.mkdir(parents=True)
+        (my_skill / "SKILL.md").write_text(
+            "---\nname: my-own-skill\ndescription: mine\n---\n\n# mine\n", encoding="utf-8"
+        )
+        monkeypatch.setattr(skills_manager, "bundled_skill_roots", lambda: {"genai_graph": upstream_root})
+
+        assert skills_manager.find_shadowed_local_skills(tmp_path / "proj") == []

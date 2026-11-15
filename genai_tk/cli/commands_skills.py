@@ -262,6 +262,13 @@ class SkillsCommands(CliTopCommand):
             all_skills: Annotated[
                 bool, typer.Option("--all", "-a", help="Validate all skills including bundled.")
             ] = False,
+            check_upstream: Annotated[
+                bool,
+                typer.Option(
+                    "--check-upstream",
+                    help="Also warn when a local skill shadows a different bundled copy (genai_tk / genai_graph).",
+                ),
+            ] = False,
         ) -> None:
             """Validate SKILL.md structure and frontmatter."""
             from genai_tk.main.skills_manager import discover_all_skills, validate_skill
@@ -298,6 +305,16 @@ class SkillsCommands(CliTopCommand):
                 raise typer.Exit(1)
             else:
                 console.print(f"\n[green]All {len(skills)} skill(s) are valid.[/green]")
+
+            if check_upstream:
+                from genai_tk.main.skills_manager import find_shadowed_local_skills
+
+                drift = find_shadowed_local_skills(project_dir)
+                if drift:
+                    for warning in drift:
+                        console.print(f"[yellow]▲ upstream drift:[/yellow] {warning}")
+                else:
+                    console.print("[green]No local skill shadows a different bundled version.[/green]")
 
         @cli_app.command("info")
         def skill_info(
