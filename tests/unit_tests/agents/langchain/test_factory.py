@@ -504,3 +504,31 @@ def test_load_skills_as_prompt_strips_front_matter(tmp_path: Path) -> None:
 
 def test_load_skills_as_prompt_returns_none_when_no_skills(tmp_path: Path) -> None:
     assert _load_skills_as_prompt([str(tmp_path)]) is None
+
+
+# --------------------------------------------------------------------------- #
+# Helpers: _resolve_skill_dirs — package: references
+# --------------------------------------------------------------------------- #
+
+
+def test_resolve_skill_dirs_package_reference_resolves_inside_installed_library() -> None:
+    sources = _resolve_skill_dirs(["package:genai_tk/skills/runtime"])
+
+    assert sources, "the genai_tk skills/runtime dir exists in the editable checkout"
+    assert any(s.endswith("runtime") for s in sources)
+
+
+def test_resolve_skill_dirs_drops_unresolvable_package_reference() -> None:
+    assert _resolve_skill_dirs(["package:no_such_pkg_zzz/skills"]) == []
+
+
+def test_resolve_skill_dirs_mixin_plain_and_package_entries(tmp_path: Path) -> None:
+    local = tmp_path / "custom"
+    local.mkdir()
+    (local / "my-skill").mkdir()
+    (local / "my-skill" / "SKILL.md").write_text("---\nname: my-skill\ndescription: d\n---\n\n# body", encoding="utf-8")
+
+    sources = _resolve_skill_dirs([str(local), "package:genai_tk/skills/runtime"])
+
+    assert str(local) in sources
+    assert any(s.endswith("runtime") for s in sources)
