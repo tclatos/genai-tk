@@ -20,6 +20,16 @@ Example YAML config::
           - "**/hr/**"
           - "**/confidential/**"
 
+Content sensitivity can be assessed either by the default regex/Presidio scorer or,
+when ``decision_model`` is set, by a System One decision model (default: Laya,
+local in-process router)::
+
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware.SensitivityRouterMiddleware
+        safe_llm: ollama_local
+        decision_model: laya@laya
+        sensitivity_threshold: 0.5
+
 Example programmatic usage::
 
     ```python
@@ -47,6 +57,7 @@ from langchain_core.messages import ToolMessage
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from genai_tk.agents.langchain.middleware.decision_model_scorer import DecisionModelSensitivityScorer
 from genai_tk.agents.langchain.middleware.sensitivity_scorer import (
     DefaultSensitivityScorer,
     SensitivityScorer,
@@ -86,6 +97,24 @@ class SensitivityRouterConfig(BaseModel):
             "Glob patterns for RAG document source paths that unconditionally trigger "
             "routing to the safe LLM (e.g. '**/hr/**', '**/confidential/**')"
         ),
+    )
+    decision_model: str | None = Field(
+        default=None,
+        description=(
+            "Decision model id or tag (e.g. 'laya@laya') used to assess message "
+            "sensitivity.  When set, a DecisionModelSensitivityScorer replaces the "
+            "``scorer_class`` regex/Presidio scorer."
+        ),
+    )
+    decision_model_kwargs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Keyword arguments forwarded to the decision model factory (e.g. device, preload)",
+    )
+    sensitivity_threshold: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Probability above which the decision model considers a message sensitive",
     )
 
 
@@ -186,12 +215,16 @@ class SensitivityRouterMiddleware(AgentMiddleware):
             return True, "sensitive RAG source previously encountered"
 
         # 2. Content-based routing
-        if self._config.sensitive_source_patterns or True:  # always evaluate content
-            text = self._extract_text(request)
-            if text:
+        text = self._extract_text(request)
+        if text:
+            try:
                 assessment = self._scorer.assess(text)
-                if assessment.is_sensitive:
-                    return True, f"sensitive content detected (score={assessment.score:.2f}, level={assessment.level})"
+            except Exception as exc:
+                # Fail-closed: on scorer failure, keep the message on the safe LLM.
+                logger.warning(f"[SensitivityRouter] Sensitivity assessment failed ({exc}) — routing to safe LLM")
+                return True, f"sensitivity assessment failed: {exc}"
+            if assessment.is_sensitive:
+                return True, f"sensitive content detected (score={assessment.score:.2f}, level={assessment.level})"
 
         return False, ""
 
@@ -295,7 +328,14 @@ class SensitivityRouterMiddleware(AgentMiddleware):
         return self._safe_model
 
     def _build_scorer(self) -> SensitivityScorer:
-        """Instantiate the scorer from the qualified class path."""
+        """Instantiate the scorer: decision model first, then qualified class path."""
+        if self._config.decision_model is not None:
+            return DecisionModelSensitivityScorer(
+                model_id=self._config.decision_model,
+                model_kwargs=dict(self._config.decision_model_kwargs),
+                threshold=self._config.sensitivity_threshold,
+            )
+
         if (
             self._config.scorer_class
             == "genai_tk.agents.langchain.middleware.sensitivity_scorer:DefaultSensitivityScorer"

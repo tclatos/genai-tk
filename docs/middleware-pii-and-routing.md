@@ -209,6 +209,35 @@ middleware = SensitivityRouterMiddleware(config=config, scorer=scorer)
 
 When no `scorer` is passed, the middleware builds one from `config.scorer_class` and `config.scorer_kwargs` (useful for YAML-driven setups).
 
+### Decision-Model-Based Sensitivity (System One)
+
+Instead of the regex/Presidio scorer, content sensitivity can be assessed by a [System One decision model](design/04_decision_models_system1.md). Setting `decision_model` swaps in a `DecisionModelSensitivityScorer`, which sends the message as decision state and asks one binary (`Noul`) question returning the calibrated probability that the message is sensitive:
+
+```python
+config = SensitivityRouterConfig(
+    safe_llm="ollama_local",
+    decision_model="laya@laya",       # local, in-process router (default when enabling)
+    sensitivity_threshold=0.5,        # p(sensitive) above which the message is routed
+)
+middleware = SensitivityRouterMiddleware(config=config)
+```
+
+YAML equivalent:
+
+```yaml
+middlewares:
+  - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware:SensitivityRouterMiddleware
+    safe_llm: ollama_local
+    decision_model: laya@laya
+    sensitivity_threshold: 0.5
+```
+
+Notes:
+- Scorer resolution priority: explicit `scorer` instance → `decision_model` → `scorer_class`.
+- `decision_model_kwargs` (e.g. `device`, `preload`) is forwarded to the decision model factory. Use `preload: true` in latency-sensitive services so route models are loaded up front instead of on first use.
+- If the assessment fails (e.g. model unavailable), the middleware **fails closed**: the call is routed to the safe LLM rather than sent to the default one.
+- On CPU, the Laya router costs ~0.8 ms per character (see [benchmarks](benchmarks_sensitivity_routing.md)); the regex/Presidio baseline is 60–170× faster but limited to known patterns. See the benchmark report for the latency/quality trade-off.
+
 ### YAML Configuration
 
 ```yaml
@@ -372,6 +401,7 @@ Unit tests are located in:
 - `tests/unit_tests/agents/langchain/middleware/test_anonymization_middleware.py` (19 tests)
 - `tests/unit_tests/agents/langchain/middleware/test_sensitivity_router_middleware.py` (20 tests)
 - `tests/unit_tests/agents/langchain/middleware/test_sensitivity_scorer.py` (24 tests)
+- `tests/unit_tests/agents/langchain/middleware/test_decision_model_scorer.py` (14 tests, includes Laya local e2e)
 
 Run all middleware tests:
 ```bash
