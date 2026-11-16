@@ -1,4 +1,17 @@
-# Review LLM selection for BAML  (in baml_util.py)
+
+
+# Router
+Improve our SensitivityRouterMiddleware so it can use our newly introduced Decision Model.
+Use Laya (local) as default for test.
+Do some test to evaluate performances - ie time to classify - accorfins the the length of the message.
+
+
+# Various; 
+- Review LLM selection for BAML  (in baml_util.py)
+- Review skill : doc and use by skill.md
+- Tester laya en local + perf
+- Consider Spacy for rfq_analyst/core/discovery_classifier.py
+
 
 # LightOn OCT V3
 - https://developers.lighton.ai/tutorials/parse

@@ -7,6 +7,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Added
 
+- **Excel Binary Workbook (`.xlsb`) & Macro Workbook (`.xlsm`) Markdownize Support**:
+  - Added `pyxlsb>=1.0.10` dependency to [pyproject.toml](pyproject.toml) to support fast reading and conversion of complex financial and presales workbooks (such as `GPA Solution *.xlsb`).
+  - Updated [config/markdownize.yaml](config/markdownize.yaml) route rules across `fast`, `medium`, and `best` profiles to map `**/*.{xlsx,xls,ods,xlsb,xlsm}` directly to `messy_xls` and `via_pdf` converters.
+
 - **Generic Textual TUI Document Viewer & Universal Quit Bindings**:
   - Added [genai_tk/ui/textual/constants.py](genai_tk/ui/textual/constants.py) introducing `STANDARD_QUIT_BINDINGS` (`ctrl+q` with `priority=True` to quit reliably regardless of focused widgets, plus `q` as fallback).
   - Added [genai_tk/ui/textual/screens/document_modal.py](genai_tk/ui/textual/screens/document_modal.py) implementing `DocumentViewerModal`, a reusable `ModalScreen` displaying Markdown or raw document/section contents with scrollable formatting, close button, and keyboard shortcuts (`Esc`, `Enter`, `q`, `^Q`).

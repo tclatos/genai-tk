@@ -52,14 +52,14 @@ markdownize_converters:
 markdownize_profiles:
   fast:
     rules:
-      - pathspec: "**/*.{xlsx,xls,ods}"
+      - pathspec: "**/*.{xlsx,xls,ods,xlsb,xlsm}"
         converter: messy_xls
       - pathspec: "**/*"
         converter: markitdown
 
   medium:
     rules:
-      - pathspec: "**/*.{xlsx,xls,ods}"
+      - pathspec: "**/*.{xlsx,xls,ods,xlsb,xlsm}"
         converter: messy_xls
       - pathspec: "**/*.{ppt,pptx,odp,doc,docx,odt,rtf}"
         converter: via_pdf
@@ -70,7 +70,7 @@ markdownize_profiles:
 
   best:
     rules:
-      - pathspec: "**/*.{ppt,pptx,odp,doc,docx,odt,rtf,xlsx,xls,ods}"
+      - pathspec: "**/*.{ppt,pptx,odp,doc,docx,odt,rtf,xlsx,xls,ods,xlsb,xlsm}"
         converter: via_pdf
       - pathspec: "**/*.pdf"
         converter: mistral_ocr
