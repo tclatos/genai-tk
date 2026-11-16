@@ -33,8 +33,10 @@ Note:
 """
 
 import json
+import os
 import sys
-from typing import Annotated
+from pathlib import Path
+from typing import Annotated, Any
 
 import typer
 from loguru import logger
@@ -56,12 +58,16 @@ class BamlCommands(CliTopCommand):
         @cli_app.command("run")
         def run(
             function_name: Annotated[
-                str,
-                typer.Argument(help="BAML function name to execute (e.g., ExtractResume, FakeResume)"),
-            ],
+                str | None,
+                typer.Argument(help="BAML function name to execute (e.g., ExtractRailwayObjects, ExtractResume)"),
+            ] = None,
             input_text: Annotated[
                 str | None,
-                typer.Option("--input", "-i", help="Input text to process (if not provided, reads from stdin)"),
+                typer.Option("--input", "-i", help="Input text or file path to process (if not provided, reads from stdin)"),
+            ] = None,
+            file_path: Annotated[
+                str | None,
+                typer.Option("--file", "-f", help="Input file path (PDF, text, Markdown) to process"),
             ] = None,
             config_name: Annotated[
                 str,
@@ -104,6 +110,9 @@ class BamlCommands(CliTopCommand):
                 # Output to stdout
                 uv run cli baml run ExtractResume -i "John Smith; SW engineer"
 
+                # Run on a PDF file
+                uv run cli baml run ExtractRailwayObjects -i ./diagram.pdf
+
                 # Save to file with config variables
                 uv run cli baml run ExtractResume -i "John Smith; SW engineer" \\
                     --out-dir '${paths.data_root}' --out-file result.json
@@ -119,44 +128,76 @@ class BamlCommands(CliTopCommand):
             """
             console = Console()
 
-            # Validate output parameters
-            if (output_dir and not output_file) or (output_file and not output_dir):
-                console.print(
-                    "[red]Error: Both --out-dir and --out-file must be specified together, or both omitted[/red]"
-                )
-                raise typer.Exit(1)
+            if file_path:
+                input_text = file_path
+
+            if output_dir and not output_file:
+                # Default output filename from input file stem or 'result.json'
+                cand_name = file_path or input_text or function_name
+                if cand_name and Path(os.path.expandvars(cand_name)).is_file():
+                    output_file = f"{Path(os.path.expandvars(cand_name)).stem}.json"
+                else:
+                    output_file = f"{function_name or 'result'}.json"
+            elif output_file and not output_dir:
+                output_dir = "."
 
             if output_file and not output_file.endswith(".json"):
                 console.print("[red]Error: Output filename must have .json extension[/red]")
                 raise typer.Exit(1)
 
-            # Get input from stdin if not provided
-            if input_text is None:
-                if not sys.stdin.isatty():
-                    input_text = sys.stdin.read().strip()
-                else:
-                    console.print("[red]Error: No input provided. Use --input/-i or pipe input via stdin[/red]")
-                    raise typer.Exit(1)
+            # If function_name is passed as a file path and input_text was not specified, treat it as input_text
+            if function_name:
+                cand = Path(os.path.expandvars(function_name)).expanduser()
+                if cand.is_file() or any(
+                    function_name.lower().endswith(ext) for ext in [".pdf", ".md", ".txt", ".json"]
+                ):
+                    if input_text is None:
+                        input_text = function_name
+                        function_name = None
 
-            if not input_text:
-                console.print("[red]Error: Input text cannot be empty[/red]")
-                raise typer.Exit(1)
+            # Get input from stdin if piped
+            if input_text is None and not sys.stdin.isatty():
+                input_text = sys.stdin.read().strip()
+
+            # Try to resolve defaults from structured config if not provided
+            if function_name is None:
+                try:
+                    from genai_tk.config_mgmt.config_mngr import global_config
+                    from genai_tk.extra.structured.baml_util import StructuredConfig
+
+                    configs = global_config().section_dict("structured", StructuredConfig, inject_name=False)
+                    if config_name in configs and getattr(configs[config_name], "default_function", None):
+                        function_name = configs[config_name].default_function
+                except Exception:
+                    pass
+
+            if llm is None:
+                try:
+                    from genai_tk.config_mgmt.config_mngr import global_config
+                    from genai_tk.extra.structured.baml_util import StructuredConfig
+
+                    configs = global_config().section_dict("structured", StructuredConfig, inject_name=False)
+                    if config_name in configs and getattr(configs[config_name], "llm", None):
+                        llm = configs[config_name].llm
+                except Exception:
+                    pass
+                if llm is None:
+                    llm = "gemini-3.8-flash@openrouter"
 
             # Build workflow invocation parameters
-            cli_overrides = {
-                "input_text": input_text,
-                "function_name": function_name,
+            cli_overrides: dict[str, Any] = {
                 "config_name": config_name,
                 "force": force,
             }
-
-            if llm:
+            if input_text is not None:
+                cli_overrides["input_text"] = input_text
+            if function_name is not None:
+                cli_overrides["function_name"] = function_name
+            if llm is not None:
                 cli_overrides["llm"] = llm
-
-            if output_dir:
+            if output_dir is not None:
                 cli_overrides["output_dir"] = output_dir
-
-            if output_file:
+            if output_file is not None:
                 cli_overrides["output_file"] = output_file
 
             # Resolve and run the workflow

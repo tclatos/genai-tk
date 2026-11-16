@@ -39,6 +39,8 @@ class StructuredConfig(BaseModel):
     """Typed configuration for a single ``structured`` YAML entry."""
 
     baml_client: str
+    llm: str = "default"
+    default_function: str | None = None
 
 
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
@@ -229,6 +231,7 @@ def create_baml_client_registry(llm_identifier: str, temperature: float = 0.0) -
 
         cr = ClientRegistry()
         cr.add_llm_client(name=_BAML_RUNTIME_CLIENT_NAME, provider=provider, options=options)
+        cr.add_llm_client(name="VisionModel", provider=provider, options=options)
         cr.set_primary(_BAML_RUNTIME_CLIENT_NAME)
         return cr
     except Exception as e:
@@ -275,18 +278,27 @@ def load_and_validate_baml_function(
     return baml_function, return_type, baml_types, baml_async_client
 
 
-def create_baml_options(llm: str | None = "default") -> dict[str, Any] | None:
+def create_baml_options(llm: str | None = "default", config_name: str = "default") -> dict[str, Any] | None:
     """Create BAML options dict with client registry for the specified LLM.
 
     Args:
         llm: LLM identifier (resolves configured default when "default", or None to keep raw client defaults)
+        config_name: Structured config name to look up default LLM if llm is "default"
 
     Returns:
         Dict with client_registry or None if no LLM specified
     """
-    if llm is not None:
-        return {"client_registry": create_baml_client_registry(llm)}
-    return None
+    if llm is None:
+        return None
+    if llm == "default":
+        try:
+            configs = global_config().section_dict("structured", StructuredConfig, inject_name=False)
+            cfg = configs.get(config_name)
+            if cfg and cfg.llm:
+                llm = cfg.llm
+        except Exception:
+            pass
+    return {"client_registry": create_baml_client_registry(llm)}
 
 
 def get_function_parameters(baml_async_client: Any, function_name: str) -> list[str]:
@@ -425,7 +437,7 @@ async def baml_invoke(
     baml_function, return_type, baml_types, baml_async_client = result
 
     # Create BAML options if LLM is specified
-    baml_options = create_baml_options(llm)
+    baml_options = create_baml_options(llm, config_name=config_name)
 
     # Get function parameters to determine how to call it
     func_params = get_function_parameters(baml_async_client, function_name)
@@ -439,8 +451,34 @@ async def baml_invoke(
     else:
         # Function takes arguments - map params dict to actual parameter names
         # Support generic '__input__' key that maps to first parameter
+        params = dict(params)
         if "__input__" in params and func_params:
-            params = {func_params[0]: params["__input__"]}
+            input_val = params.pop("__input__")
+            if func_params[0] not in params:
+                params[func_params[0]] = input_val
+
+        if func_params:
+            first_param = func_params[0]
+            val = params.get(first_param)
+            if isinstance(val, (str, Path)):
+                candidate = Path(os.path.expandvars(str(val))).expanduser()
+                if candidate.is_file():
+                    if candidate.suffix.lower() == ".pdf":
+                        import base64
+
+                        import baml_py
+
+                        pdf_b64 = base64.b64encode(candidate.read_bytes()).decode("ascii")
+                        params[first_param] = baml_py.Pdf.from_base64(pdf_b64)
+                    if "source_id" in func_params and (params.get("source_id") in (None, "source")):
+                        params["source_id"] = candidate.name
+
+        for p in func_params:
+            if p not in params:
+                if p in ("source_id", "source", "filename", "file_name"):
+                    params[p] = params.get("source_id") or params.get("doc_id") or "source"
+                elif p in ("doc_id", "document_id"):
+                    params[p] = params.get("doc_id") or params.get("source_id") or "doc"
 
         # Validate parameter types against the real BAML function signature.
         # If a parameter expects a Pydantic model but receives a plain str,
@@ -478,10 +516,20 @@ async def baml_invoke(
         has_relay = False
 
     if has_relay:
+        # Sanitize input for nemo_relay (media objects like baml_py.Pdf cannot be JSON-serialized)
+        relay_input: dict[str, Any] = {}
+        for k, v in params.items():
+            if type(v).__module__.startswith("baml_py") or "Pdf" in type(v).__name__ or "Image" in type(v).__name__:
+                relay_input[k] = f"<{type(v).__name__}>"
+            elif isinstance(v, bytes):
+                relay_input[k] = f"<bytes: {len(v)}>"
+            else:
+                relay_input[k] = v
+
         with nemo_relay.scope.scope(
             name=f"baml.{function_name}",
             scope_type=nemo_relay.ScopeType.Function,
-            input=params,
+            input=relay_input,
             metadata={"config_name": config_name, "framework": "baml", "llm": llm},
         ):
             if not func_params:

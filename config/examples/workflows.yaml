@@ -167,29 +167,31 @@ workflows:
     description: "Extract structured data from files (Markdown/PDF) using BAML"
     run: genai_tk.workflow.prefect.flows.baml_flow.baml_structured_extraction_flow
     with:
-      sources: "${values.sources}"
-      json_output_dir: "${values.json_output_dir}"
+      base_dir: "${values.base_dir}"
+      output_dir: "${values.output_dir}"
       cache_dir: "${values.cache_dir}"
       pathspecs: "${values.pathspecs}"
       batch_size: "${values.batch_size}"
+      force: "${values.force}"
       function_name: "${values.function_name}"
       config_name: "${values.config_name}"
       llm: "${values.llm}"
     defaults:
       batch_size: 5
+      force: false
       function_name: ExtractRainbow
       config_name: default
       llm: default
       cache_dir: null
       pathspecs: ["**/*.md"]
     params:
-      sources: {required: true}
-      json_output_dir: {required: true}
+      base_dir: {required: true}
+      output_dir: {required: true}
       function_name: {required: true}
     presets:
       default:
-        sources: "${paths.data_root}"
-        json_output_dir: "${paths.data_root}/structured"
+        base_dir: "${paths.data_root}"
+        output_dir: "${paths.data_root}/structured"
         pathspecs: ["**/*.md"]
         function_name: ExtractRainbow
 

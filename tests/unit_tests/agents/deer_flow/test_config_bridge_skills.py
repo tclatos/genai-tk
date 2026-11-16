@@ -82,3 +82,55 @@ def test_write_config_missing_skills_directory_logs_debug_not_warning(tmp_path: 
     assert any("Skills directory not found" in m for m in warnings.missing_skill_directories)
     # No WARNING-level log emitted for the missing skills dir.
     assert not any("Skills directory not found" in m for m in _warning_messages(records))
+
+
+# ---------------------------------------------------------------------------
+# deepagents-layout discovery + staging
+# ---------------------------------------------------------------------------
+
+
+def _write_deepagents_skill(root: Path, name: str, body: str = "demo") -> Path:
+    skill = root / name
+    skill.mkdir(parents=True)
+    (skill / "SKILL.md").write_text(f"---\nname: {name}\ndescription: demo\n---\n\n# {name}\n{body}", encoding="utf-8")
+    return skill
+
+
+def test_load_skills_discovers_deepagents_layout_as_custom(tmp_path: Path) -> None:
+    """Directories with direct skill subdirs (no public/custom) map to custom/<name>."""
+    from genai_tk.agents.deer_flow.config_bridge import load_skills_from_directories
+
+    _write_deepagents_skill(tmp_path / "pkg-skills", "decision-navigation")
+    _write_deepagents_skill(tmp_path / "pkg-skills", "document-graph-tools")
+
+    skills = load_skills_from_directories([str(tmp_path / "pkg-skills")])
+
+    assert sorted(skills) == ["custom/decision-navigation", "custom/document-graph-tools"]
+
+
+def test_setup_stages_non_category_sources_into_deerflow_layout(tmp_path: Path) -> None:
+    """Sources without public/custom categories are staged into one mounted root."""
+    import yaml
+
+    from genai_tk.agents.deer_flow.config_bridge import setup_deer_flow_config
+
+    pkg_skills = tmp_path / "pkg-skills"
+    _write_deepagents_skill(pkg_skills, "decision-navigation")
+    classic_root = tmp_path / "classic-skills"
+    classic = classic_root / "custom" / "my-skill"
+    classic.mkdir(parents=True)
+    (classic / "SKILL.md").write_text("---\nname: my-skill\ndescription: demo\n---\n\n# mine\n", encoding="utf-8")
+
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+    config_path, _ext, _warnings = setup_deer_flow_config(
+        skill_directories=[str(classic_root), str(pkg_skills)],
+        config_dir=str(out_dir),
+    )
+
+    cfg = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    mounted_root = Path(cfg["skills"]["path"])
+    # All sources staged: classic skills keep their category, deepagents ones land under custom/.
+    assert (mounted_root / "custom" / "my-skill" / "SKILL.md").is_file()
+    assert (mounted_root / "custom" / "decision-navigation" / "SKILL.md").is_file()
+    assert not (mounted_root / "public").exists()  # public category only when a source ships it

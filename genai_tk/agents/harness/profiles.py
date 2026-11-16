@@ -217,9 +217,20 @@ def _load_unified_file(path: Path) -> tuple[dict[str, Any], AgentDefaultsConfig 
         if "name" not in candidate:
             candidate["name"] = key
         try:
-            profiles[key] = _adapter.validate_python(candidate)
+            profile = _adapter.validate_python(candidate)
         except Exception as e:
             logger.warning(f"Skipping agent profile '{key}': {e}")
+            continue
+        # Meta-harness skill-source resolution: `package:` references are turned
+        # into plain paths HERE so every harness (langchain, deerflow, docgraph)
+        # receives resolved filesystem entries and none needs to know the scheme.
+        if profile.skill_directories:
+            from genai_tk.agents.skill_sources import resolve_skill_sources  # noqa: PLC0415
+
+            resolved_dirs = resolve_skill_sources(list(profile.skill_directories))
+            if resolved_dirs != list(profile.skill_directories):
+                profile.skill_directories = resolved_dirs
+        profiles[key] = profile
 
     if not default_profile_key and "default" in profiles:
         default_profile_key = "default"

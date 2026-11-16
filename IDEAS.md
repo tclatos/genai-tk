@@ -1,3 +1,5 @@
+# Review LLM selection for BAML  (in baml_util.py)
+
 # LightOn OCT V3
 - https://developers.lighton.ai/tutorials/parse
 

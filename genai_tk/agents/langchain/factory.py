@@ -465,37 +465,6 @@ def _skill_names_in_sources(sources: list[str]) -> list[str]:
     return names
 
 
-def _resolve_package_dir(entry: str) -> str | None:
-    """Resolve a ``package:<distribution>/<subpath>`` entry to a filesystem path.
-
-    Lets a profile reference skills shipped inside a library (e.g.
-    ``package:genai_graph/agent/skills``) independently of the install mode —
-    editable checkouts resolve to the live source, wheels to site-packages.
-    Returns None when the package or path does not exist.
-    """
-    if not entry.startswith("package:"):
-        return None
-    from importlib.resources import files as pkg_files  # noqa: PLC0415
-    from pathlib import Path  # noqa: PLC0415
-
-    parts = entry[len("package:") :].strip("/").split("/")
-    if not parts or not parts[0]:
-        logger.warning("Invalid package skill reference '{}' (expected package:<name>/<path>).", entry)
-        return None
-    try:
-        traversable = pkg_files(parts[0])
-        for part in parts[1:]:
-            traversable = traversable / part
-        path = Path(str(traversable))
-    except Exception as exc:
-        logger.warning("Package skill reference '{}' could not be resolved: {}", entry, exc)
-        return None
-    if not path.is_dir():
-        logger.warning("Package skill reference '{}' does not point at an existing directory.", entry)
-        return None
-    return str(path)
-
-
 def _resolve_skill_dirs(skill_directories: list[str]) -> list[str]:
     """Resolve ``${...}`` variable interpolation in skill directory paths and expand
     to the level that deepagents' ``SkillsMiddleware`` expects.
@@ -531,16 +500,14 @@ def _resolve_skill_dirs(skill_directories: list[str]) -> list[str]:
         resolved = list(skill_directories)
 
     # Translate ``package:`` references to real paths; unresolvable ones are
-    # dropped (they carry their own specific warning).
-    resolved_dirs: list[str] = []
-    for entry in resolved:
-        package_dir = _resolve_package_dir(entry)
-        if package_dir:
-            resolved_dirs.append(package_dir)
-        elif not entry.startswith("package:"):
-            resolved_dirs.append(entry)
+    # dropped (they carry their own specific warning). Resolution also happens
+    # at the harness-agnostic profile layer; this repeat is a safety net for
+    # profiles constructed programmatically.
+    from genai_tk.agents.skill_sources import resolve_skill_sources  # noqa: PLC0415
 
-    existing = [d for d in dict.fromkeys(resolved_dirs) if Path(d).is_dir()]
+    resolved_dirs = resolve_skill_sources(resolved)
+
+    existing = [d for d in resolved_dirs if Path(d).is_dir()]
     missing = [d for d in resolved_dirs if d not in existing]
     if missing:
         logger.warning("Skill directories not found (will be ignored): {}", missing)

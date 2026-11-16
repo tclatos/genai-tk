@@ -78,6 +78,8 @@ def resolve_files(
         logger.error("base_dir does not exist: {}", root)
         return []
     if not root.is_dir():
+        if root.is_file():
+            return [root]
         logger.error("base_dir is not a directory: {}", root)
         return []
 

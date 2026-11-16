@@ -106,6 +106,35 @@ def _check_external_symlinks(skills_path: Path, sandbox: str, warnings: ConfigSe
             warnings.external_symlinks.append(msg)
 
 
+def _stage_deerflow_skills(sources: list[Path]) -> Path:
+    """Copy skill sources into one directory laid out as DeerFlow expects.
+
+    DeerFlow mounts a single skills root and reads skills at
+    ``<root>/<category>/<skill-name>/SKILL.md``. Sources that already carry the
+    ``public/`` / ``custom/`` category layout are copied per category; sources
+    with direct skill subdirectories (the deepagents layout used by genai-graph's
+    bundled skills) land under ``custom/``. Returns the staged root.
+    """
+    import shutil
+
+    staged_root = Path(tempfile.mkdtemp(prefix="deerflow-skills-"))
+    for src in sources:
+        has_categories = (src / "public").is_dir() or (src / "custom").is_dir()
+        if has_categories:
+            for category in ("public", "custom"):
+                category_dir = src / category
+                if not category_dir.is_dir():
+                    continue
+                for skill_path in category_dir.iterdir():
+                    if skill_path.is_dir() and not skill_path.name.startswith("."):
+                        shutil.copytree(skill_path, staged_root / category / skill_path.name, dirs_exist_ok=True)
+        else:
+            for skill_path in src.iterdir():
+                if skill_path.is_dir() and not skill_path.name.startswith(".") and (skill_path / "SKILL.md").is_file():
+                    shutil.copytree(skill_path, staged_root / "custom" / skill_path.name, dirs_exist_ok=True)
+    return staged_root
+
+
 def load_skills_from_directories(
     skill_directories: list[str], warnings: ConfigSetupWarnings | None = None
 ) -> list[str]:
@@ -113,6 +142,11 @@ def load_skills_from_directories(
 
     Looks for ``public/`` and ``custom/`` sub-directories inside each directory
     and returns skill identifiers in the form ``category/skill-name``.
+    Directories without those categories (the deepagents layout: direct skill
+    subdirectories containing a ``SKILL.md``) are also accepted — their skills
+    are reported as ``custom/<skill-name>``. Note the identifiers only matter
+    for the enabled-skills state: the sandbox reads skill content from the
+    mounted root produced by :func:`_stage_deerflow_skills`.
 
     Args:
         skill_directories: Paths to search (may contain ``${paths.project}``).
@@ -147,6 +181,14 @@ def load_skills_from_directories(
             for skill_path in category_dir.iterdir():
                 if skill_path.is_dir() and not skill_path.name.startswith("."):
                     skills.append(f"{category}/{skill_path.name}")
+
+        # deepagents layout (direct skill subdirs, no categories): report as
+        # custom/<name> — the staged root (see _stage_deerflow_skills) makes the
+        # content physically match this identifier.
+        if not (skill_dir / "public").exists() and not (skill_dir / "custom").exists():
+            for skill_path in skill_dir.iterdir():
+                if skill_path.is_dir() and not skill_path.name.startswith(".") and (skill_path / "SKILL.md").is_file():
+                    skills.append(f"custom/{skill_path.name}")
 
     trace_loading = OmegaConf.select(config, "deerflow.skills.trace_loading", default=True)
     if trace_loading and skills:
@@ -600,21 +642,38 @@ def setup_deer_flow_config(
     if config_dir is None:
         config_dir = tempfile.mkdtemp(prefix="deer_flow_")
 
-    # Resolve the first skills directory so write_deer_flow_config can use it as the
-    # Docker volume mount path.  agents/deerflow.yaml is NOT merged into get_raw_config(),
-    # so the path must be threaded through explicitly.
-    resolved_skills_path: str | None = None
-    effective_skill_dirs = skill_directories or []
+    # Resolve the skills directories so write_deer_flow_config can use the root as
+    # the sandbox volume mount path.  agents/deerflow.yaml is NOT merged into
+    # get_raw_config(), so the path must be threaded through explicitly.
+    effective_skill_dirs = list(skill_directories or [])
     if not effective_skill_dirs:
         _cfg = get_raw_config()
         _default_dirs = OmegaConf.select(_cfg, "deerflow.skills.directories")
         if _default_dirs:
             effective_skill_dirs = list(_default_dirs)
+
     if effective_skill_dirs:
-        _first: str = effective_skill_dirs[0]
-        if "${paths.project}" in _first:
-            _first = _first.replace("${paths.project}", str(paths_config().project))
-        resolved_skills_path = str(Path(_first).expanduser().resolve())
+        # Interpolate ${paths.project}, then translate `package:` references
+        # (defensive: the profiles layer normally already resolved them).
+        project_path = paths_config().project
+        entries = [str(d).replace("${paths.project}", str(project_path)) for d in effective_skill_dirs]
+        from genai_tk.agents.skill_sources import resolve_skill_sources  # noqa: PLC0415
+
+        effective_skill_dirs = resolve_skill_sources(entries)
+        sources = [Path(d).expanduser().resolve() for d in effective_skill_dirs]
+
+        # DeerFlow mounts ONE skills root and requires the public/custom category
+        # layout. Sources without it (deepagents-style, e.g. genai-graph bundled
+        # skills) — and every other source, so all skills stay readable — are
+        # staged into a single root laid out as DeerFlow expects. Classic setups
+        # whose sources all carry categories keep using them directly.
+        needs_staging = any(not (s / "public").is_dir() and not (s / "custom").is_dir() for s in sources)
+        if needs_staging:
+            staged_root = _stage_deerflow_skills(sources)
+            logger.info("Staged DeerFlow skills from {} source(s) into {}", len(sources), staged_root)
+            sources = [staged_root]
+            effective_skill_dirs = [str(staged_root)]
+        resolved_skills_path = str(sources[0])
 
     config_path = write_deer_flow_config(
         config_dir=config_dir,
@@ -628,7 +687,7 @@ def setup_deer_flow_config(
 
     extensions_config = generate_extensions_config(mcp_server_names)
 
-    # Determine skills to enable from the resolved effective_skill_dirs.
+    # Determine skills to enable from the resolved (possibly staged) sources.
     skills_to_enable = enabled_skills or []
     if not enabled_skills:
         if effective_skill_dirs:

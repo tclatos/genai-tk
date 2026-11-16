@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -167,7 +168,11 @@ async def _process_single_file_task(
     else:
         input_doc = file_info.content_text
 
-    params: dict[str, Any] = {"__input__": input_doc}
+    params: dict[str, Any] = {
+        "__input__": input_doc,
+        "source_id": upath.name,
+        "doc_id": upath.stem,
+    }
     try:
         result = await baml_invoke(function_name, params, config_name, llm)
     except Exception as exc:
@@ -399,7 +404,25 @@ async def _process_single_input_task(
                 except Exception:
                     return json_text, existing_manifest.model_name, str(existing_entry.output_path)
 
-    params: dict[str, Any] = {"__input__": input_text}
+    expanded_path = Path(os.path.expandvars(input_text)).expanduser()
+    if expanded_path.is_file():
+        is_pdf = expanded_path.suffix.lower() in PDF_EXTENSIONS
+        if is_pdf:
+            import base64
+
+            import baml_py
+
+            pdf_b64 = base64.b64encode(expanded_path.read_bytes()).decode("ascii")
+            input_doc: Any = baml_py.Pdf.from_base64(pdf_b64)
+        else:
+            input_doc = expanded_path.read_text(encoding="utf-8")
+        params: dict[str, Any] = {
+            "__input__": input_doc,
+            "source_id": expanded_path.name,
+            "doc_id": expanded_path.stem,
+        }
+    else:
+        params = {"__input__": input_text, "source_id": "input", "doc_id": "input"}
     result = await baml_invoke(function_name, params, config_name, llm)
 
     # If no output directory specified, just return the result
@@ -458,13 +481,30 @@ def baml_single_input_flow(
         where result is the BAML output
     """
 
+    if not llm or llm == "default":
+        from genai_tk.config_mgmt.config_mngr import global_config
+        from genai_tk.extra.structured.baml_util import StructuredConfig
+
+        try:
+            configs = global_config().section_dict("structured", StructuredConfig, inject_name=False)
+            if config_name in configs and configs[config_name].llm:
+                llm = configs[config_name].llm
+        except Exception:
+            pass
+        if not llm or llm == "default":
+            llm = "gemini-3.8-flash@openrouter"
+
     resolved_llm: str | None = None
-    if llm and llm != "default":
+    if llm:
         resolved_llm = LlmFactory(llm=llm).get_id()
         logger.info("Resolved BAML LLM override '{}' -> '{}'", llm, resolved_llm)
 
     # Compute input hash for caching
-    input_hash = _compute_hash(input_text.encode("utf-8"))
+    expanded_path = Path(os.path.expandvars(input_text)).expanduser()
+    if expanded_path.is_file():
+        input_hash = _compute_hash(expanded_path.read_bytes())
+    else:
+        input_hash = _compute_hash(input_text.encode("utf-8"))
 
     # Resolve output directory if provided
     resolved_output_dir: str | None = None
