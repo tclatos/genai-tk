@@ -64,7 +64,7 @@ def test_ensure_libreoffice_available_raises_when_missing(monkeypatch: pytest.Mo
 
 @pytest.mark.parametrize(
     ("suffix", "expected"),
-    [(s, True) for s in SUPPORTED_EXTENSIONS] + [(".pdf", False), (".docx", False), (".txt", False)],
+    [(s, True) for s in sorted(SUPPORTED_EXTENSIONS)] + [(".pdf", False), (".docx", False), (".txt", False)],
 )
 def test_is_office_convertible(suffix: str, expected: bool) -> None:
     assert _is_office_convertible(Path(f"file{suffix}")) is expected

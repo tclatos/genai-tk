@@ -43,6 +43,7 @@ nlp:
         fast_model: claude-haiku@openrouter
         # Vision model for image analysis (image descriptions, query_image)
         default_vlm: gemini-2.5-flash@openrouter
+        multimedia: gemini35flash@openrouter
       cache: sqlite
       cache_path: data/llm_cache/langchain.db
     embeddings:
@@ -113,6 +114,7 @@ nlp:
         cheap_model: claude-haiku@openrouter
         fast_model: claude-haiku@openrouter
         default_vlm: parrot_local@fake
+        multimedia: gemini35flash@openrouter
     embeddings:
       models:
         # Tests must not require provider API keys: the pytest profile's
@@ -218,3 +220,4 @@ cli:
     - genai_tk.cli.commands_monitoring.MonitoringCommands
     - genai_tk.cli.commands_trajectory.TrajectoryCommands
     - browser_control.commands.example_commands.ExampleCommands
+

@@ -266,6 +266,36 @@ def _classify_and_format_block(block: list[list[str]]) -> str:
     return "\n".join(md_lines) + "\n"
 
 
+def _convert_xls_to_temp_xlsx(xls_path: Path) -> tuple[Path, Path | None]:
+    """Convert .xls workbook to standard openpyxl .xlsx."""
+    import shutil
+    import subprocess
+    import tempfile
+
+    try:
+        header = xls_path.read_bytes()[:4]
+    except Exception:
+        header = b""
+
+    if header == b"PK\x03\x04":
+        tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        tmp_path = Path(tmp.name)
+        tmp.close()
+        shutil.copyfile(xls_path, tmp_path)
+        return tmp_path, tmp_path
+
+    libreoffice_cmd = shutil.which("libreoffice") or shutil.which("soffice")
+    if libreoffice_cmd:
+        tmp_dir = Path(tempfile.mkdtemp())
+        cmd = [libreoffice_cmd, "--headless", "--convert-to", "xlsx", str(xls_path), "--outdir", str(tmp_dir)]
+        subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        converted = tmp_dir / f"{xls_path.stem}.xlsx"
+        if converted.exists():
+            return converted, tmp_dir
+
+    return xls_path, None
+
+
 def _convert_xlsb_to_temp_xlsx(xlsb_path: Path) -> Path:
     """Convert binary .xlsb workbook to standard openpyxl .xlsx."""
     import tempfile
@@ -307,6 +337,14 @@ def excel_to_markdown_messy_xls(path: Path) -> str:
         except Exception:
             # Fall back to opening directly if pyxlsb is not available
             pass
+    elif path.suffix.lower() == ".xls":
+        try:
+            converted, cleanup_target = _convert_xls_to_temp_xlsx(path)
+            if converted != path:
+                target_path = converted
+                tmp_to_cleanup = cleanup_target
+        except Exception:
+            pass
 
     try:
         workbook = openpyxl.load_workbook(target_path, data_only=True)
@@ -331,7 +369,12 @@ def excel_to_markdown_messy_xls(path: Path) -> str:
         return "\n\n".join(md_parts)
     finally:
         if tmp_to_cleanup and tmp_to_cleanup.exists():
-            tmp_to_cleanup.unlink(missing_ok=True)
+            if tmp_to_cleanup.is_dir():
+                import shutil
+
+                shutil.rmtree(tmp_to_cleanup, ignore_errors=True)
+            else:
+                tmp_to_cleanup.unlink(missing_ok=True)
 
 
 class MessyExcelConverter(DocumentConverter):

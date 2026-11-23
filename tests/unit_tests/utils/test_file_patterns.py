@@ -86,11 +86,11 @@ class TestResolveFiles:
         result = resolve_files(str(tmp_path), pathspecs=["**/*.txt"])
         assert all(isinstance(p, Path) for p in result)
 
-    def test_not_a_directory_returns_empty(self, tmp_path: Path) -> None:
+    def test_single_file_returns_file(self, tmp_path: Path) -> None:
         f = tmp_path / "file.txt"
         f.write_text("content")
         result = resolve_files(str(f))
-        assert result == []
+        assert result == [f]
 
     def test_multiple_patterns(self, tmp_path: Path) -> None:
         (tmp_path / "a.txt").write_text("text")

@@ -17,10 +17,12 @@ class AzureEmbeddingsWrapper(Embeddings):
         *,
         model: str,
         api_key: SecretStr | None = None,
+        cache: str | None = None,
         **kwargs: Any,
     ) -> Embeddings:
         from langchain_openai import AzureOpenAIEmbeddings
 
+        _ = cache  # Local model cache directory is not used by Azure OpenAI
         name, _, api_version = model.partition("/")
         return AzureOpenAIEmbeddings(
             azure_deployment=name,

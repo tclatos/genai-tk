@@ -123,13 +123,13 @@ async def test_mistral_ocr_with_image_extraction_real_pdf(tmp_path: Path) -> Non
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_llm_pdf_conversion(sample_pdf_path: Path) -> None:
-    """Test LLM multimodal base64 PDF conversion if default LLM is configured."""
+    """Test LLM multimodal base64 PDF conversion if multimedia LLM is configured."""
     try:
-        converter = LLMConverter(llm="default")
+        converter = LLMConverter(llm="multimedia")
         text = await converter.convert(sample_pdf_path)
         assert len(text) > 50
     except Exception as exc:
-        pytest.skip(f"Default LLM not available or does not support PDF vision input: {exc}")
+        pytest.skip(f"Multimedia LLM not available or does not support PDF vision input: {exc}")
 
 
 @pytest.fixture(scope="module")

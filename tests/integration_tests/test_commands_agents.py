@@ -16,7 +16,7 @@ import typer
 from typer.testing import CliRunner
 
 from genai_tk.agents.commands_agents import AgentCommands
-from genai_tk.agents.harness import EndEvent, TokenEvent
+from genai_tk.agents.harness import BaseHarness, EndEvent, TokenEvent
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def runner() -> CliRunner:
     return CliRunner()
 
 
-class _FakeHarness:
+class _FakeHarness(BaseHarness):
     """Minimal stand-in harness yielding one token then ending."""
 
     name = "fake"
@@ -40,7 +40,9 @@ class _FakeHarness:
     def __init__(self, text: str = "42") -> None:
         self._text = text
 
-    async def astream(self, message: str, *, thread_id: str | None = None) -> AsyncIterator:
+    async def astream(
+        self, message: str, *, thread_id: str | None = None, context: object | None = None
+    ) -> AsyncIterator:
         yield TokenEvent(text=self._text)
         yield EndEvent()
 

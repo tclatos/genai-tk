@@ -39,7 +39,7 @@ Output ONLY the resulting Markdown content without conversational preamble, comm
 class LLMConverter(DocumentConverter):
     """Document converter that invokes multimodal or text LLMs via the LangChain LLM factory."""
 
-    llm: str = Field(default="default", description="LLM identifier or tag to resolve via LLM factory")
+    llm: str = Field(default="multimedia", description="LLM identifier or tag to resolve via LLM factory")
     prompt_template: str | None = Field(default=None, description="Custom prompt instructions for Markdown extraction")
     max_concurrency: int = Field(default=5, description="Maximum concurrent async LLM invocations")
     temperature: float = Field(default=0.0, description="Model sampling temperature")

@@ -23,6 +23,50 @@ from genai_tk.core.providers.mixins import (
 )
 
 
+def _patch_langchain_openai_client_cache() -> None:
+    """Ensure langchain-openai's cached async httpx client does not leak across different event loops.
+
+    langchain-openai uses an @lru_cache over _get_default_async_httpx_client.
+    When multiple asyncio event loops run in the same process (e.g. separate
+    async tests or multiple asyncio.run() calls), the cached client retains
+    connections bound to dead event loops, raising 'RuntimeError: Event loop is closed'.
+    Scoping the cache by running event loop prevents connection pool leakage.
+    """
+    try:
+        from langchain_openai.chat_models import _client_utils
+        from langchain_openai.chat_models import base as lc_base
+    except (ImportError, ModuleNotFoundError):
+        return
+
+    orig_get = getattr(lc_base, "_get_default_async_httpx_client", None)
+    if orig_get is None or getattr(orig_get, "_genai_tk_loop_aware", False):
+        return
+
+    _loop_clients: dict[tuple[Any, str | None, Any, tuple], Any] = {}
+
+    def _loop_aware_get_default_async_httpx_client(
+        base_url: str | None,
+        timeout: Any,
+        socket_options: tuple = (),
+    ) -> Any:
+        try:
+            import asyncio
+
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        key = (loop, base_url, timeout, socket_options)
+        if key not in _loop_clients:
+            _loop_clients[key] = _client_utils._build_async_httpx_client(base_url, timeout, socket_options)
+        return _loop_clients[key]
+
+    _loop_aware_get_default_async_httpx_client._genai_tk_loop_aware = True  # type: ignore[attr-defined]
+    lc_base._get_default_async_httpx_client = _loop_aware_get_default_async_httpx_client
+
+
+_patch_langchain_openai_client_cache()
+
+
 class BaseOpenAIChat(ChatOpenAI):
     """Base OpenAI-compatible chat model for providers exposing OpenAI-compatible endpoints."""
 

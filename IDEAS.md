@@ -3,7 +3,8 @@
 # Router
 Improve our SensitivityRouterMiddleware so it can use our newly introduced Decision Model.
 Use Laya (local) as default for test.
-Do some test to evaluate performances - ie time to classify - accorfins the the length of the message.
+Do some test to evaluate performances on our CPU - ie time to classify - according to the length of the message.
+Write a report. 
 
 
 # Various; 

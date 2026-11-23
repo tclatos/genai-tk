@@ -73,7 +73,7 @@ class TestProjectScaffolder:
         assert (pkg / "commands" / "agent_commands.py").exists()
         assert (pkg / "tools" / "example_tool.py").exists()
         assert (pkg / "main" / "streamlit.py").exists()
-        assert (pkg / "webapp" / "pages" / "demos" / "hello_agent.py").exists()
+        assert (pkg / "ui" / "streamlit" / "pages" / "demos" / "hello_agent.py").exists()
         assert (project_dir / "pyproject.toml").exists()
         assert (project_dir / "README.md").exists()
         assert (project_dir / "AGENTS.md").exists()
@@ -131,7 +131,7 @@ class TestProjectScaffolder:
         scaffolder.scaffold()
 
         webapp = (project_dir / "config" / "webapp.yaml").read_text()
-        assert "pages_dir: ${paths.project}/test_project/webapp/pages" in webapp
+        assert "pages_dir: ${paths.project}/test_project/ui/streamlit/pages" in webapp
         assert "demos/hello_agent.py" in webapp
 
     def test_scaffold_ensures_package_mode_in_pyproject(self, project_dir: Path):

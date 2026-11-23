@@ -399,6 +399,38 @@ def test_openai_compatible_edenai_injects_reasoning_effort() -> None:
     assert call_kwargs["extra_body"]["extra_body"] == {"enable_thinking": False, "thinking": {"type": "disabled"}}
 
 
+def test_openrouter_routing_strips_default_quantization_listconfig() -> None:
+    """OpenRouterRoutingMixin must strip internal default_quantization and convert ListConfig."""
+    import json
+
+    from omegaconf import ListConfig
+
+    from genai_tk.core.providers.mixins import OpenRouterRoutingMixin
+
+    quant_list = ListConfig(["fp8", "unknown", "fp16"])
+
+    # Case 1: openai/* model with no routing_strategy -> extra_body must be removed completely
+    create_params: dict = {"extra_body": {"default_quantization": quant_list}}
+    OpenRouterRoutingMixin.apply_routing(
+        create_params,
+        routing_strategy=None,
+        model_name="openai/gpt-oss-120b",
+        extra_body_default=create_params.get("extra_body"),
+    )
+    assert "extra_body" not in create_params
+
+    # Case 2: non-openai/anthropic/mistralai model -> quantizations must be a plain JSON-serializable list
+    create_params_other: dict = {"extra_body": {"default_quantization": quant_list}}
+    OpenRouterRoutingMixin.apply_routing(
+        create_params_other,
+        routing_strategy=None,
+        model_name="qwen/qwen3-32b",
+        extra_body_default=create_params_other.get("extra_body"),
+    )
+    assert create_params_other["extra_body"] == {"provider": {"quantizations": ["fp8", "unknown", "fp16"]}}
+    json.dumps(create_params_other["extra_body"])
+
+
 def test_warn_when_reasoning_requested_on_non_thinking_model(fake_llm_id) -> None:
     """Factory should warn when reasoning options are requested on a non-thinking model."""
     from unittest.mock import patch

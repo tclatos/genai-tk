@@ -478,13 +478,35 @@ class TrajectoryStore:
                 elif cat == "tool":
                     # Tool start `data` is the args dict directly (e.g.
                     # {"message": "hello"}). Tool end `data` is a serialized
-                    # ToolMessage whose content is nested under data.data.content.
+                    # ToolMessage whose content is under data.content (or data.data.content,
+                    # or data.result.value.content).
                     edata = e.get("data") or {}
                     nested = edata.get("data") if isinstance(edata, dict) else None
                     if not isinstance(nested, dict):
                         nested = {}
-                    result = _stringify(nested.get("content"))
-                    tool_call_id = nested.get("tool_call_id")
+                    result_val = (
+                        edata.get("content")
+                        if isinstance(edata, dict) and "content" in edata
+                        else nested.get("content")
+                    )
+                    if result_val is None and isinstance(edata, dict):
+                        res = edata.get("result")
+                        if isinstance(res, dict):
+                            val = res.get("value")
+                            if isinstance(val, dict):
+                                c = val.get("content")
+                                if isinstance(c, dict):
+                                    result_val = c.get("value")
+                                elif c is not None:
+                                    result_val = c
+                    result = _stringify(result_val)
+                    cp = e.get("category_profile") or {}
+                    tool_call_id = (
+                        (cp.get("tool_call_id") if isinstance(cp, dict) else None)
+                        or nested.get("tool_call_id")
+                        or (edata.get("tool_call_id") if isinstance(edata, dict) else None)
+                        or ((edata.get("cache") or {}).get("tool_call_id") if isinstance(edata, dict) else None)
+                    )
                     sdata = start.get("data") or {}
                     args = sdata if isinstance(sdata, dict) else {}
                     tool_calls.append(

@@ -43,7 +43,7 @@ markdownize_converters:
   llm:
     class: genai_tk.extra.markdownize.llm_converter.LLMConverter
     params:
-      llm: default
+      llm: multimedia
       max_concurrency: 5
 
 # Built-in markdownize profiles (packaged with genai_tk, loaded via importlib.resources).

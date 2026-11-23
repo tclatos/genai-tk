@@ -68,3 +68,20 @@ def test_fastembed_local_model_uses_configured_cache(monkeypatch) -> None:
     assert isinstance(embedder, FakeFastEmbedEmbeddings)
     assert captured_kwargs["model_name"] == LOCAL_FASTEMBED_MODEL
     assert captured_kwargs["cache_dir"] == EMBEDDINGS_CACHE_DIR
+
+
+def test_azure_embeddings_wrapper_does_not_forward_cache_to_model_kwargs(monkeypatch) -> None:
+    """AzureEmbeddingsWrapper.create must not pass 'cache' into AzureOpenAIEmbeddings.model_kwargs."""
+    from pydantic import SecretStr
+
+    from genai_tk.core.providers.embeddings import AzureEmbeddingsWrapper
+
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com/")
+    embedder = AzureEmbeddingsWrapper.create(
+        model="ada_002/2023-05-15",
+        api_key=SecretStr("test-key"),
+        base_url=None,
+        cache="data/hf_models",
+    )
+
+    assert "cache" not in getattr(embedder, "model_kwargs", {})

@@ -467,12 +467,19 @@ class EmbeddingsFactory(BaseModel):
             cls = ImportResolver.import_from_qualified(embeddings_class_path)
             if cls is not None:
                 if hasattr(cls, "create") and callable(cls.create):
-                    return cls.create(
-                        model=self.info.model,
-                        api_key=api_key,
-                        base_url=self.info.get_api_base(),
-                        cache=embeddings_config().cache,
-                    )
+                    import inspect
+
+                    create_kwargs: dict[str, Any] = {
+                        "model": self.info.model,
+                        "api_key": api_key,
+                        "base_url": self.info.get_api_base(),
+                        "cache": embeddings_config().cache,
+                    }
+                    sig = inspect.signature(cls.create)
+                    has_var_kwargs = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                    if not has_var_kwargs:
+                        create_kwargs = {k: v for k, v in create_kwargs.items() if k in sig.parameters}
+                    return cls.create(**create_kwargs)
                 # Try standard instantiations
                 try:
                     kwargs: dict[str, Any] = {}
@@ -480,7 +487,13 @@ class EmbeddingsFactory(BaseModel):
                         kwargs["api_key"] = api_key
                     if self.info.get_api_base():
                         kwargs["base_url"] = self.info.get_api_base()
-                    if self.info.model:
+                    if (
+                        hasattr(cls, "model_fields") and "model_name" in cls.model_fields
+                    ) or self.info.provider == "local":
+                        kwargs["model_name"] = self.info.model
+                        if embeddings_config().cache:
+                            kwargs["cache_dir"] = embeddings_config().cache
+                    elif self.info.model:
                         # `model` is the langchain-openai parameter name. Passing
                         # `model_name` (or `cache_dir`) as well makes pydantic models
                         # with extra='allow' fold them into model_kwargs, which are

@@ -30,6 +30,18 @@ from genai_tk.utils.hashing import buffer_digest
 from genai_tk.workflow.flow_cache.manifest import ManifestCache
 
 
+def _safe_resolve_file(text: str) -> Path | None:
+    if "\n" in text or len(text) > 1024:
+        return None
+    try:
+        p = Path(os.path.expandvars(text)).expanduser()
+        if p.is_file():
+            return p
+    except OSError:
+        pass
+    return None
+
+
 class BamlExtractionManifestEntry(BaseModel):
     """A single BAML extraction result entry in the manifest."""
 
@@ -404,8 +416,8 @@ async def _process_single_input_task(
                 except Exception:
                     return json_text, existing_manifest.model_name, str(existing_entry.output_path)
 
-    expanded_path = Path(os.path.expandvars(input_text)).expanduser()
-    if expanded_path.is_file():
+    expanded_path = _safe_resolve_file(input_text)
+    if expanded_path is not None:
         is_pdf = expanded_path.suffix.lower() in PDF_EXTENSIONS
         if is_pdf:
             import base64
@@ -491,17 +503,15 @@ def baml_single_input_flow(
                 llm = configs[config_name].llm
         except Exception:
             pass
-        if not llm or llm == "default":
-            llm = "gemini-3.8-flash@openrouter"
 
     resolved_llm: str | None = None
-    if llm:
+    if llm and llm != "default":
         resolved_llm = LlmFactory(llm=llm).get_id()
         logger.info("Resolved BAML LLM override '{}' -> '{}'", llm, resolved_llm)
 
     # Compute input hash for caching
-    expanded_path = Path(os.path.expandvars(input_text)).expanduser()
-    if expanded_path.is_file():
+    expanded_path = _safe_resolve_file(input_text)
+    if expanded_path is not None:
         input_hash = _compute_hash(expanded_path.read_bytes())
     else:
         input_hash = _compute_hash(input_text.encode("utf-8"))

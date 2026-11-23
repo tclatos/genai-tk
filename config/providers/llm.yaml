@@ -75,3 +75,7 @@ llm:
     - model_id: kimi-2.5  
       providers:
         - edenai: amazon/moonshotai.kimi-k2.5
+
+    - model_id: gemini35flash
+      providers:
+        - openrouter: google/gemini-3.5-flash

@@ -38,6 +38,19 @@ class SeedHandlingMixin:
         return out
 
 
+def _to_plain_container(value: Any) -> Any:
+    """Recursively convert OmegaConf DictConfig/ListConfig (even inside plain dicts/lists) to plain Python types."""
+    from omegaconf import DictConfig, ListConfig, OmegaConf
+
+    if isinstance(value, (DictConfig, ListConfig)):
+        return OmegaConf.to_container(value, resolve=True)
+    if isinstance(value, dict):
+        return {k: _to_plain_container(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_to_plain_container(v) for v in value]
+    return value
+
+
 class OpenRouterRoutingMixin:
     """Applies provider routing and quantization preferences for OpenRouter."""
 
@@ -51,14 +64,8 @@ class OpenRouterRoutingMixin:
     ) -> None:
         extra_body: dict[str, Any] = {}
         if extra_body_default:
-            try:
-                from omegaconf import OmegaConf
-
-                extra_body = OmegaConf.to_container(extra_body_default, resolve=True) or {}
-                if not isinstance(extra_body, dict):
-                    extra_body = {}
-            except Exception:
-                extra_body = extra_body_default.copy()
+            plain_default = _to_plain_container(extra_body_default)
+            extra_body = plain_default if isinstance(plain_default, dict) else {}
             vendor = model_name.partition("/")[0]
             if vendor not in ["openai", "anthropic", "mistralai"]:
                 default_quantization = extra_body.pop("default_quantization", [])
@@ -71,15 +78,9 @@ class OpenRouterRoutingMixin:
 
         existing_extra = create_params.get("extra_body", {})
         if isinstance(existing_extra, dict):
-            try:
-                from omegaconf import OmegaConf
-
-                existing_clean = OmegaConf.to_container(existing_extra, resolve=True)
-                if isinstance(existing_clean, dict):
-                    existing_extra = existing_clean
-            except Exception:
-                pass
-            extra_body.update(existing_extra)
+            plain_existing = _to_plain_container(existing_extra)
+            if isinstance(plain_existing, dict):
+                extra_body.update(plain_existing)
 
         # default_quantization is genai-tk internal config, not an OpenRouter API field
         extra_body.pop("default_quantization", None)
@@ -110,6 +111,8 @@ class OpenRouterRoutingMixin:
 
         if extra_body:
             create_params["extra_body"] = extra_body
+        else:
+            create_params.pop("extra_body", None)
 
 
 class EdenAIRoutingMixin:

@@ -461,8 +461,16 @@ async def baml_invoke(
             first_param = func_params[0]
             val = params.get(first_param)
             if isinstance(val, (str, Path)):
-                candidate = Path(os.path.expandvars(str(val))).expanduser()
-                if candidate.is_file():
+                candidate: Path | None = None
+                val_str = str(val)
+                if "\n" not in val_str and len(val_str) < 1024:
+                    try:
+                        p = Path(os.path.expandvars(val_str)).expanduser()
+                        if p.is_file():
+                            candidate = p
+                    except OSError:
+                        pass
+                if candidate is not None:
                     if candidate.suffix.lower() == ".pdf":
                         import base64
 
