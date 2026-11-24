@@ -151,7 +151,6 @@ class TestReactAgent:
 
 
 @pytest.mark.real_models
-@pytest.mark.requires_feature("harnessing")
 class TestDeepAgentLocal:
     """Deep agents running entirely on the host machine (no Docker container).
 
@@ -316,7 +315,6 @@ class TestNamedProfiles:
         assert "42" in result, f"Expected '42' — got: {result!r}"
 
     @pytest.mark.real_models
-    @pytest.mark.requires_feature("harnessing")
     @pytest.mark.timeout(180)
     async def test_coding_profile_generates_code(self) -> None:
         """'Coding' profile (deep) generates Python code when asked.
@@ -390,7 +388,6 @@ class TestSkillsLoading:
         assert str(tmp_path) in result[0] or Path(result[0]).parent == tmp_path
 
     @pytest.mark.real_models
-    @pytest.mark.requires_feature("harnessing")
     @pytest.mark.timeout(120)
     async def test_agent_initializes_with_skill_directories(self, tmp_path: Path) -> None:
         """Deep agent initializes without error when skill_directories are configured.
@@ -425,7 +422,6 @@ class TestSkillsLoading:
             await backend_obj.stop()  # type: ignore[attr-defined]
 
     @pytest.mark.real_models
-    @pytest.mark.requires_feature("harnessing")
     @pytest.mark.timeout(240)
     async def test_skill_content_accessible_to_agent(self, tmp_path: Path) -> None:
         """Agent can read a custom SKILL.md and uses its content in its reply.
@@ -493,7 +489,7 @@ class TestSkillsLoading:
 
 @pytest.mark.real_models
 @pytest.mark.docker
-@pytest.mark.requires_feature("harnessing")
+@pytest.mark.requires_feature("aio-sandbox")
 class TestDockerSandbox:
     """Deep agent tests inside a real Docker sandbox container.
 

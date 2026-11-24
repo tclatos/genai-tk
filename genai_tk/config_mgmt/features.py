@@ -50,11 +50,17 @@ class FeatureInfo(BaseModel):
 # Keep in sync manually (or use `cli features check` once that command exists).
 # ---------------------------------------------------------------------------
 FEATURES: dict[str, FeatureInfo] = {
-    "harnessing": FeatureInfo(
-        description="Agent sandbox, DeerFlow harness, DeepAgents SDK",
-        packages=["deepagents", "agent-sandbox", "opensandbox", "deerflow-harness"],
-        check_modules=["deepagents", "agent_sandbox", "opensandbox", "deerflow"],
-        install_cmd='uv sync --extra harnessing  # or: uv add "genai-tk[harnessing]"',
+    "aio-sandbox": FeatureInfo(
+        description="Agent AIO sandbox HTTP client and OpenSandbox container manager",
+        packages=["agent-sandbox", "opensandbox", "opensandbox-server"],
+        check_modules=["agent_sandbox", "opensandbox"],
+        install_cmd='uv sync --extra aio-sandbox  # or: uv add "genai-tk[aio-sandbox]"',
+    ),
+    "deerflow": FeatureInfo(
+        description="DeerFlow agent harness and TUI client",
+        packages=["deerflow-harness"],
+        check_modules=["deerflow"],
+        install_cmd='uv sync --extra deerflow  # or: uv add "genai-tk[deerflow]"',
     ),
     "browser": FeatureInfo(
         description="Browser automation (Playwright)",

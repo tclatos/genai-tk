@@ -151,10 +151,10 @@ class TestInfoDoctor:
         monkeypatch.setattr(commands_info, "_doctor_run_checks", lambda *, offline, timeout: results)
 
     def test_all_pass_exits_zero(self, info_app, runner, monkeypatch) -> None:
-        self._patch_checks(monkeypatch, [_check("harnessing feature"), _check("prefect server")])
+        self._patch_checks(monkeypatch, [_check("optional features"), _check("prefect server")])
         result = runner.invoke(info_app, ["info", "doctor"])
         assert result.exit_code == 0
-        assert "harnessing feature" in result.stdout
+        assert "optional features" in result.stdout
         assert "All checks passed" in result.stdout
 
     def test_failure_exits_one_and_prints_hint(self, info_app, runner, monkeypatch) -> None:
@@ -245,7 +245,7 @@ class TestDoctorRunChecks:
     def test_offline_smoke_produces_all_check_families(self) -> None:
         results = _doctor_run_checks(offline=True, timeout=0.5)
         names = {r.name for r in results}
-        assert "harnessing feature" in names
+        assert "optional features" in names
         assert "prefect server" in names
         assert "models.dev cache" in names
         assert "proxy bypass for localhost" in names

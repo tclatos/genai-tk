@@ -229,7 +229,7 @@ def test_build_tui_client_passes_only_supported_kwargs() -> None:
 
 def test_run_deerflow_tui_launches_app(monkeypatch, tmp_path) -> None:
     """run_deerflow_tui prepares the profile, wraps the client in a Session, and runs the TUI."""
-    # Bypass the harnessing feature gate and runtime prep so no real deerflow
+    # Bypass the deerflow feature gate and runtime prep so no real deerflow
     # config/model/Textual run is needed.
     monkeypatch.setattr("genai_tk.agents.deer_flow.tui.require_feature", lambda *a, **k: None)
 

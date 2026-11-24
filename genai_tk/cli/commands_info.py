@@ -49,26 +49,17 @@ class CheckResult(BaseModel):
 
 
 def _doctor_check_features() -> list[CheckResult]:
-    """Check optional-feature availability, with harnessing as the hard requirement."""
-    from genai_tk.config_mgmt.features import FEATURES, available_features, is_available, missing_features
+    """Check optional-feature availability."""
+    from genai_tk.config_mgmt.features import available_features, missing_features
 
     results: list[CheckResult] = []
-    harnessing_ok = is_available("harnessing")
-    results.append(
-        CheckResult(
-            name="harnessing feature",
-            ok=harnessing_ok,
-            detail="installed" if harnessing_ok else "missing — deep agents will fail with ImportError",
-            hint="" if harnessing_ok else FEATURES["harnessing"].install_cmd,
-        )
-    )
-    missing = [f for f in missing_features() if f != "harnessing"]
+    missing = missing_features()
     detail = f"installed: {', '.join(available_features()) or '—'}"
     if missing:
         detail += f" | missing: {', '.join(missing)}"
     results.append(
         CheckResult(
-            name="other optional features",
+            name="optional features",
             ok=True,
             warn=bool(missing),
             detail=detail,
@@ -582,7 +573,7 @@ class InfoCommands(CliTopCommand):
         ) -> None:
             """Pre-flight the environment: features, profile models & middleware, Prefect, model cache, proxy.
 
-            Checks exactly the failure modes hit in past projects: harnessing extra missing,
+            Checks exactly the failure modes hit in past projects: optional extras missing,
             models referenced by agent profiles not declared in llm.yaml, stale middleware
             class paths, unreachable Prefect server, absent models.dev cache, and corporate
             proxies blocking localhost or LLM API hosts.

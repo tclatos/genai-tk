@@ -198,8 +198,8 @@ class TestCreateBackend:
     async def test_aio_sandbox_instantiates_and_starts(self) -> None:
         from genai_tk.config_mgmt.features import is_available
 
-        if not is_available("harnessing"):
-            pytest.skip("Optional feature 'harnessing' not installed — run: uv sync --extra harnessing")
+        if not is_available("aio-sandbox"):
+            pytest.skip("Optional feature 'aio-sandbox' not installed — run: uv sync --extra aio-sandbox")
 
         from unittest.mock import AsyncMock, patch
 
@@ -221,8 +221,8 @@ class TestCreateBackend:
     async def test_aio_sandbox_default_config(self) -> None:
         from genai_tk.config_mgmt.features import is_available
 
-        if not is_available("harnessing"):
-            pytest.skip("Optional feature 'harnessing' not installed — run: uv sync --extra harnessing")
+        if not is_available("aio-sandbox"):
+            pytest.skip("Optional feature 'aio-sandbox' not installed — run: uv sync --extra aio-sandbox")
 
         from unittest.mock import AsyncMock, patch
 

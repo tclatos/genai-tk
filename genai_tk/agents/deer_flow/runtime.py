@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 class DeerFlowNotInstalledError(RuntimeError):
-    """Raised when the 'harnessing' feature (deerflow-harness) is not installed."""
+    """Raised when the 'deerflow' feature (deerflow-harness) is not installed."""
 
 
 def require_deer_flow_installed() -> None:
@@ -39,9 +39,9 @@ def require_deer_flow_installed() -> None:
     """
     from genai_tk.config_mgmt.features import is_available
 
-    if not is_available("harnessing"):
+    if not is_available("deerflow"):
         raise DeerFlowNotInstalledError(
-            "Feature 'harnessing' is not installed. Install with: uv sync --extra harnessing"
+            "Feature 'deerflow' is not installed. Install with: uv sync --extra deerflow"
         )
 
 
@@ -137,7 +137,7 @@ def validate_docker_sandbox() -> None:
     if not check_docker_available():
         reasons.append("Docker is not available (docker CLI not found or daemon not running)")
     if not check_agent_sandbox_importable():
-        reasons.append("'agent-sandbox' package is not installed — install with: uv add agent-sandbox")
+        reasons.append("'agent-sandbox' package is not installed — install with: uv sync --extra aio-sandbox")
     if reasons:
         raise DockerSandboxError(reasons)
 

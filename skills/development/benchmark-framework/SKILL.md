@@ -111,12 +111,16 @@ For document understanding benchmarks requiring visual chart, diagram, or line p
 
 ## Agent Harnessing & Dependency Prerequisites
 
-When using `type: deep` agents with sandboxing and filesystem capabilities (e.g. DeepAgents SDK):
-- Ensure the `harnessing` extra dependencies are installed:
+When using `type: deep` agents with sandboxing (e.g. AIO sandbox):
+- `deepagents` is installed by default in core dependencies.
+- For containerized sandboxes, install the `aio-sandbox` extra:
   ```bash
-  uv sync --extra harnessing
+  uv sync --extra aio-sandbox
   ```
-- This provides `deepagents`, `deerflow-harness`, and `agent-sandbox` needed for deep agent planning and execution.
+- For DeerFlow profiles, install the `deerflow` extra:
+  ```bash
+  uv sync --extra deerflow
+  ```
 
 ---
 

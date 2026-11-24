@@ -76,7 +76,7 @@ full_answer = await astream_turn(harness, query, show_trace=True)
 
 `genai-tk` natively supports the [AG-UI protocol](https://github.com/ag-ui-protocol/ag-ui) standard via `harness_events_to_ag_ui()` ([genai_tk/protocols/auip/ag_ui_bridge.py](/home/tcl/prj/genai-tk/genai_tk/protocols/auip/ag_ui_bridge.py)) and the built-in server in [genai_tk/protocols/auip/server.py](/home/tcl/prj/genai-tk/genai_tk/protocols/auip/server.py).
 
-> **Troubleshooting:** an empty chat usually means agent creation failed (e.g. missing optional extra). Run `uv sync --extra harnessing`; errors are shown in the chat and server log.
+> **Troubleshooting:** an empty chat usually means agent creation failed (e.g. missing optional extra). Check server log or install needed extra (e.g. `uv sync --extra deerflow`); errors are shown in the chat and server log.
 
 ### 1. Launching the AUIP / AG-UI Server
 

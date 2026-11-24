@@ -11,9 +11,9 @@ import pytest
 
 from genai_tk.config_mgmt.features import is_available
 
-if not is_available("harnessing"):
+if not is_available("aio-sandbox"):
     pytest.skip(
-        "Optional feature 'harnessing' not installed — run: uv sync --extra harnessing", allow_module_level=True
+        "Optional feature 'aio-sandbox' not installed — run: uv sync --extra aio-sandbox", allow_module_level=True
     )
 
 from deepagents.backends.protocol import (  # noqa: E402

@@ -1,7 +1,7 @@
 """Integration tests for EmbeddedDeerFlowClient with real LLM.
 
 These tests require:
-- The harnessing feature installed: ``uv sync --extra harnessing``
+- The deerflow feature installed: ``uv sync --extra deerflow``
 - A configured LLM available (uses the default profile)
 
 Run with:

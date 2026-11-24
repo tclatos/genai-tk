@@ -85,8 +85,8 @@ cli docgraph agent "..." --profile docgraph --skill-dir ./extra-skills --recursi
    folder_id=..., extra_skill_dirs=[...])` then `run_docgraph_agent`. The generic
    `genai_graph/agent/skills` are injected automatically; pass the project's
    use-case skills via `extra_skill_dirs` or list them in the profile.
-4. Install the `harnessing` extra (`uv sync --extra harnessing`) — `deepagents` is
-   required for `type: deep` agents.
+4. `deepagents` is installed by default in core dependencies (`uv sync`) — no extra
+   required for local deep agents.
 5. Declare **every** model the profile references explicitly in
    `config/providers/llm.yaml` — never rely on models.dev fuzzy resolution
    (the cache is unavailable offline, and fuzzy matches can pick the wrong

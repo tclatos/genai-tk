@@ -15,7 +15,7 @@ Architecture:
     - Streamlit UI:    genai_tk/webapp/pages/demos/agent.py
 
 Quickstart:
-    1. ``cli init --extra harnessing`` (installs deerflow-harness)
+    1. ``uv sync --extra deerflow`` (installs deerflow-harness)
     2. ``cli agents list``
     3. ``cli agents run "Research Assistant" --chat``
 """

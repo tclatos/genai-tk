@@ -77,6 +77,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 mkdir my-genai-project && cd my-genai-project
 uv init
 
+# TEMPORY FIX: Add  Prefec-YAML manually
+uv add git+https://github.com/tclatos/prefect-yaml@main
 # Add genai-tk from GitHub
 uv add git+https://github.com/tclatos/genai-tk@main
 
@@ -91,7 +93,7 @@ If you are contributing to or extending `genai-tk` directly:
 ```bash
 git clone https://github.com/tclatos/genai-tk.git && cd genai-tk
 uv sync              # core + development dependencies
-uv sync --all-groups # + postgres, browser, evals, harnessing
+uv sync --all-groups # + postgres, browser, evals, aio-sandbox, deerflow
 
 # Using your clone in another project (local editable dependency):
 # uv add --editable /path/to/genai-tk
@@ -147,7 +149,7 @@ uv run cli info config-keys llm
 
 #### What to look for during exploration:
 
-- **`cli info doctor`**: Runs automated pre-flight checks against your environment. It reports which optional extras (`harnessing`, `browser`, `nlp`, `postgres`, etc.) are installed, verifies that external provider hosts (`models.dev`, `openrouter.ai`, `edenai.run`) are reachable from your network, validates local model cache freshness, checks your `NO_PROXY` settings, and confirms Prefect server status.
+- **`cli info doctor`**: Runs automated pre-flight checks against your environment. It reports which optional extras (`aio-sandbox`, `deerflow`, `browser`, `nlp`, `postgres`, etc.) are installed, verifies that external provider hosts (`models.dev`, `openrouter.ai`, `edenai.run`) are reachable from your network, validates local model cache freshness, checks your `NO_PROXY` settings, and confirms Prefect server status.
 - **`cli info config`**: Displays your active context (`local`, `prod`, `pytest`), the default LLM and Embeddings model IDs, all configured model aliases/tags (`fast_model`, `safe_llm`, `cheap_model`, `fake`), and the status of detected API keys.
 - **`cli info models`**: Browses the unified catalog of over 1,000 LLMs and embeddings models across 100+ providers powered by `models.dev`, including context window sizes, maximum tokens, and pricing details.
 - **`cli info config-keys`**: Shows the full provenance of your configuration. Running `cli info config-keys <key>` (such as `cli info config-keys llm`) prints the merged, resolved YAML content for that section and indicates which files contributed to it.
@@ -236,7 +238,7 @@ Three agent frameworks (ReAct, DeepAgents, DeerFlow) sharing YAML profiles, LLM 
 - **Shared harness layer** — one `BaseHarness` interface and event model across LangChain and DeerFlow; `cli agents run` works seamlessly across both
 - **4-Tier Skills system** — progressive disclosure of domain knowledge via `SKILL.md` files; managed with `cli skills`
 - **Two web UIs** — a built-in **Streamlit** webapp (`just webapp`) and a standalone **React** client served through the **AUIP / AG-UI** gateway; both render the same harness events (see [Web UIs](#web-uis-streamlit-and-auip--ag-ui))
-- **AUIP / AG-UI server** — `cli auip serve` exposes any agent profile over the standard [AG-UI protocol](https://github.com/ag-ui-protocol/ag-ui) (SSE) for web UIs such as [auip-client](https://github.com/tclatos/auip-client); needs `uv sync --extra harnessing`. See [Design 10](docs/design/10_agent_user_interaction_protocol.md)
+- **AUIP / AG-UI server** — `cli auip serve` exposes any agent profile over the standard [AG-UI protocol](https://github.com/ag-ui-protocol/ag-ui) (SSE) for web UIs such as [auip-client](https://github.com/tclatos/auip-client); deep agents are included by default, DeerFlow profiles need `uv sync --extra deerflow`. See [Design 10](docs/design/10_agent_user_interaction_protocol.md)
 - **Docker sandbox & browser control** — isolated code execution and Playwright automation
 - **MCP servers** — Model Context Protocol tool integrations
 - **MCP** — consume MCP servers as tools, or expose agents as MCP servers (`cli mcpserver`)
@@ -297,7 +299,7 @@ uv run cli init --name "My Agent App"
 uv run cli init --name "My Benchmark Suite" --with-graph --graph-path ../genai-graph
 
 # Optional: install extras during init
-uv run cli init --extra harnessing --extra browser
+uv run cli init --extra deerflow --extra browser
 
 # 4. Sync dependencies and run
 uv sync
@@ -498,7 +500,7 @@ custom pages, and running from a new project via `cli init --name "My Project"`.
 ### AUIP / AG-UI server and web client
 
 ```bash
-uv sync --extra harnessing                    # deep agents / DeerFlow need this extra
+uv sync                                       # deep agents are installed by default; add --extra deerflow for DeerFlow
 uv run cli auip serve --profile research      # default profile; --port to change
 uv run cli auip info                          # show endpoints and settings
 ```
@@ -652,7 +654,7 @@ agents:
 **Setup** (one-time):
 
 ```bash
-cli init --extra harnessing   # installs deerflow-harness as a regular uv dependency
+uv sync --extra deerflow   # installs deerflow-harness as an optional uv dependency
 ```
 
 No `DEER_FLOW_PATH` env var is needed — `deerflow-harness` is a regular Python package.

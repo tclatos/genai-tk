@@ -2479,6 +2479,7 @@ dependencies = [
     { name = "bm25s" },
     { name = "chonkie" },
     { name = "ddgs" },
+    { name = "deepagents" },
     { name = "devtools" },
     { name = "fastembed" },
     { name = "fuzzysearch" },
@@ -2539,11 +2540,15 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+aio-sandbox = [
+    { name = "agent-sandbox" },
+    { name = "opensandbox" },
+    { name = "opensandbox-server" },
+]
 all = [
     { name = "agent-sandbox" },
     { name = "baml-py" },
     { name = "chromadb" },
-    { name = "deepagents" },
     { name = "deerflow-harness", extra = ["tui"] },
     { name = "docling" },
     { name = "easyocr" },
@@ -2571,16 +2576,12 @@ chromadb = [
     { name = "chromadb" },
     { name = "langchain-chroma" },
 ]
+deerflow = [
+    { name = "deerflow-harness", extra = ["tui"] },
+]
 docling = [
     { name = "docling" },
     { name = "easyocr" },
-]
-harnessing = [
-    { name = "agent-sandbox" },
-    { name = "deepagents" },
-    { name = "deerflow-harness", extra = ["tui"] },
-    { name = "opensandbox" },
-    { name = "opensandbox-server" },
 ]
 monitoring = [
     { name = "langfuse" },
@@ -2628,7 +2629,7 @@ evals = [
 requires-dist = [
     { name = "abbreviations", specifier = ">=0.2.5" },
     { name = "ag-ui-protocol", specifier = ">=1.0.0" },
-    { name = "agent-sandbox", marker = "extra == 'harnessing'", specifier = ">=0.0.24" },
+    { name = "agent-sandbox", marker = "extra == 'aio-sandbox'", specifier = ">=0.0.24" },
     { name = "baml-py", marker = "extra == 'baml'", specifier = "==0.223.0" },
     { name = "bcrypt", specifier = ">=4.0" },
     { name = "beartype", specifier = ">=0.21.0" },
@@ -2636,14 +2637,14 @@ requires-dist = [
     { name = "chonkie", specifier = ">=1.5.2" },
     { name = "chromadb", marker = "extra == 'chromadb'", specifier = ">=1.0" },
     { name = "ddgs", specifier = ">=9.7.0" },
-    { name = "deepagents", marker = "extra == 'harnessing'", specifier = ">=0.7.13" },
-    { name = "deerflow-harness", extras = ["tui"], marker = "extra == 'harnessing'", git = "https://github.com/bytedance/deer-flow?subdirectory=backend%2Fpackages%2Fharness&rev=795af20a6b79b22fd9e95f674554605c5bfb6cdc" },
+    { name = "deepagents", specifier = ">=0.7.13" },
+    { name = "deerflow-harness", extras = ["tui"], marker = "extra == 'deerflow'", git = "https://github.com/bytedance/deer-flow?subdirectory=backend%2Fpackages%2Fharness&rev=795af20a6b79b22fd9e95f674554605c5bfb6cdc" },
     { name = "devtools", specifier = ">=0.12.2" },
     { name = "docling", marker = "extra == 'docling'", specifier = ">=2.130" },
     { name = "easyocr", marker = "extra == 'docling'", specifier = ">=1.7" },
     { name = "fastembed", specifier = ">=0.8.0" },
     { name = "fuzzysearch", specifier = ">=0.8.0" },
-    { name = "genai-tk", extras = ["harnessing", "browser", "nlp", "postgres", "streamlit", "baml", "chromadb", "docling"], marker = "extra == 'all'" },
+    { name = "genai-tk", extras = ["aio-sandbox", "deerflow", "browser", "nlp", "postgres", "streamlit", "baml", "chromadb", "docling"], marker = "extra == 'all'" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "jinaai", specifier = ">=0.2.10" },
     { name = "jinja2", specifier = ">=3.1.0" },
@@ -2681,8 +2682,8 @@ requires-dist = [
     { name = "openai", specifier = ">=1.80.0" },
     { name = "openinference-instrumentation-langchain", marker = "extra == 'monitoring'", specifier = ">=0.1" },
     { name = "openpyxl", specifier = ">=3.1.5" },
-    { name = "opensandbox", marker = "extra == 'harnessing'", specifier = ">=0.1.5" },
-    { name = "opensandbox-server", marker = "extra == 'harnessing'", specifier = ">=0.1.7" },
+    { name = "opensandbox", marker = "extra == 'aio-sandbox'", specifier = ">=0.1.5" },
+    { name = "opensandbox-server", marker = "extra == 'aio-sandbox'", specifier = ">=0.1.7" },
     { name = "opentelemetry-exporter-otlp", marker = "extra == 'monitoring'", specifier = ">=1.25" },
     { name = "opentelemetry-sdk", marker = "extra == 'monitoring'", specifier = ">=1.25" },
     { name = "pathspec", specifier = ">=1.0.2,<1.1.1" },
@@ -2716,7 +2717,7 @@ requires-dist = [
     { name = "xxhash", specifier = ">=3.6.0" },
     { name = "zvec", specifier = ">=0.5.0" },
 ]
-provides-extras = ["harnessing", "browser", "nlp", "postgres", "streamlit", "baml", "chromadb", "docling", "monitoring", "all"]
+provides-extras = ["aio-sandbox", "deerflow", "browser", "nlp", "postgres", "streamlit", "baml", "chromadb", "docling", "monitoring", "all"]
 
 [package.metadata.requires-dev]
 dev = [

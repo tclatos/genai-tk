@@ -119,7 +119,7 @@ cli agents list
 | `--verbose` | `-v` | false | Enable DEBUG logging |
 
 > DeerFlow native-web-UI config generation (`--generate-config`) is no longer a
-> CLI flag. DeerFlow setup is covered by `cli init --extra harnessing`.
+> CLI flag. DeerFlow setup is covered by `uv sync --extra deerflow` (or `cli init --extra deerflow`).
 
 ### Chat commands (in REPL)
 
@@ -156,7 +156,7 @@ slash-command palette, and thread switching. genai-tk exposes it as
 DeerFlow harness:
 
 ```bash
-uv sync --extra harnessing
+uv sync --extra deerflow
 uv run cli agents tui simple-deerflow
 ```
 

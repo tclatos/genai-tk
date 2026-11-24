@@ -10,7 +10,7 @@ Usage:
     cli init -t workflow-app                    # workflow scaffold
     cli init -t minimal                         # config + justfile only
     cli init --force                            # overwrite existing files
-    cli init --extra harnessing                 # also install DeerFlow / DeepAgents harness
+    cli init --extra aio-sandbox                # also install AIO sandbox backend
 """
 
 from __future__ import annotations
@@ -107,7 +107,8 @@ def _copy_tree(src_traversable, dest: Path, force: bool, written_ref) -> None:
 # Features that can be installed at init time via `--extra`.
 # Keys must match [project.optional-dependencies] extras in pyproject.toml.
 _INSTALLABLE_EXTRAS: dict[str, str] = {
-    "harnessing": "Agent sandbox, DeerFlow harness, DeepAgents CLI, SmolAgents, ",
+    "aio-sandbox": "AIO sandbox (OpenSandbox, agent-sandbox client)",
+    "deerflow": "DeerFlow agent harness and TUI",
     "browser": "Browser automation (Playwright)",
     "nlp": "NLP with spaCy and English language models (~500 MB)",
     "postgres": "PostgreSQL vector store",
@@ -172,10 +173,12 @@ def _print_next_steps(app_name: str, installed_extras: list[str], with_graph: bo
     console.print("  [cyan]cli skills add --skillssh langchain-ai/langchain-skills[/cyan]  [dim](LangChain)[/dim]")
     console.print("  [dim]Browse: https://www.skills.sh · npx skills add <owner/repo>[/dim]")
 
-    if "harnessing" in installed_extras:
-        console.print("\n[bold]Harnessing (DeerFlow / Sandbox):[/bold] installed.")
+    if "aio-sandbox" in installed_extras:
+        console.print("\n[bold]AIO Sandbox:[/bold] installed.")
         console.print("  Start sandbox server: [dim]opensandbox-server start[/dim]")
         console.print("  Then set sandbox: [dim]type: aio_sandbox[/dim] in your agent profile YAML.")
+    if "deerflow" in installed_extras:
+        console.print("\n[bold]DeerFlow harness:[/bold] installed.")
     console.print("\n[dim]Docs: AGENTS.md · docs/SKILLS.md · docs/EXTENDING.md[/dim]\n")
 
 
@@ -261,7 +264,7 @@ class InitCommands(CliTopCommand):
                     help=(
                         "Optional feature extra to install (repeatable). "
                         f"Choices: {', '.join(_INSTALLABLE_EXTRAS)}. "
-                        "Example: --extra harnessing --extra browser"
+                        "Example: --extra aio-sandbox --extra browser"
                     ),
                 ),
             ] = None,
@@ -275,8 +278,8 @@ class InitCommands(CliTopCommand):
                 cli init --with-graph                   # scaffold with genai-graph & benchmark support
                 cli init --with-graph --graph-path /path/to/genai-graph
                 cli init --force                        # overwrite existing files
-                cli init --extra harnessing             # also install harnessing feature
-                cli init --extra harnessing --extra browser  # install multiple features
+                cli init --extra aio-sandbox            # also install AIO sandbox backend
+                cli init --extra deerflow --extra browser  # install multiple features
             """
             if ctx.invoked_subcommand is not None:
                 return

@@ -49,8 +49,9 @@ dependencies = [
     "litellm>=1.82.5",               # Unified LLM API (100+ models)
     "mistralai>=1.7.0",              # Official Mistral AI client
     # ============================================
-    # Agent Frameworks (core only — harnessing extras are optional)
+    # Agent Frameworks (deep agents are in core; aio-sandbox & deerflow are optional)
     # ============================================
+    "deepagents>=0.7.13",                 # Deep agents SDK — planning, sub-agents, skills, backends
     "langgraph-checkpoint-sqlite>=3.0.3", # SQLite checkpoint persistence for LangGraph
     "langchain-mcp-adapters>=0.1",        # Model Context Protocol adapters
     "mcp[cli]>=2.0.0",                    # Model Context Protocol core (MCP 2.0+)
@@ -122,15 +123,15 @@ Repository = "https://github.com/tclatos/genai-tk"
 # Install everything: uv add "genai-tk[all]"
 # ============================================
 
-# Agentic harness: sandbox, DeerFlow, DeepAgents
-harnessing = [
-
-    "deepagents>=0.7.13",        # Deep agents SDK — planning, sub-agents, skills, sandbox backends
-                                 # 0.7.13 floor: raw tool results are coerced to ToolMessage in the
-                                 # eviction middleware instead of raising AssertionError (OfficeQA bug).
+# AIO sandbox (OpenSandbox, agent-sandbox client)
+aio-sandbox = [
     "agent-sandbox>=0.0.24",     # AIO sandbox HTTP SDK client
     "opensandbox>=0.1.5",        # Container lifecycle manager
     "opensandbox-server>=0.1.7", # OpenSandbox REST server
+]
+
+# DeerFlow agent harness
+deerflow = [
     # Pinned to a tested commit (not `rev = "main"`) because genai-tk's harness layer
     # reaches into private DeerFlowClient internals (`_agent`, `_checkpointer`) — see
     # tests/unit_tests/agents/test_deerflow_contract.py. Bump deliberately and re-run
@@ -185,7 +186,7 @@ monitoring = [
 ]
 
 # Everything (for full installs / CI images)
-all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb,docling]"]
+all = ["genai-tk[aio-sandbox,deerflow,browser,nlp,postgres,streamlit,baml,chromadb,docling]"]
 
 [dependency-groups]
 # Developer-only groups (NOT published to PyPI).

@@ -61,7 +61,7 @@ def _deer_flow_module_prefix() -> str:
     """Return the Python module prefix for deer-flow tool/sandbox imports.
 
     Always returns ``deerflow`` — the deerflow-harness package is the only
-    supported installation method (``uv sync --extra harnessing``).
+    supported installation method (``uv sync --extra deerflow``).
     """
     return "deerflow"
 

@@ -75,7 +75,7 @@ class SandboxBrowserSession:
 
         from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
 
-        require_feature("harnessing", context="sandbox browser session")
+        require_feature("aio-sandbox", context="sandbox browser session")
         require_feature("browser", context="sandbox browser session")
         from agent_sandbox import Sandbox  # noqa: PLC0415
         from playwright.async_api import async_playwright  # noqa: PLC0415

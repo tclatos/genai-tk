@@ -20,7 +20,7 @@ uv run cli init --name "My AI Project"
 uv run cli init --name "My Benchmark Suite" --with-graph --graph-path ../genai-graph
 
 # Optional: install extras during init
-uv run cli init --extra harnessing --extra browser
+uv run cli init --extra deerflow --extra browser
 
 # Done!
 uv sync
@@ -47,7 +47,7 @@ just run                           # start the application
 | `--name` | `-n` | Human-readable project name (determines package name). |
 | `--with-graph` | `-g` | Enable `genai-graph` dependency, benchmark framework CLI (`cli bench`), starter `adapter.py`, and `config/bench.yaml`. |
 | `--graph-path` | | Path to local editable `genai-graph` checkout (defaults to `../genai-graph`). |
-| `--extra` | `-e` | Install optional extras at init time (repeatable: `harnessing`, `browser`, `nlp`, `postgres`, `streamlit`, `baml`, `chromadb`). |
+| `--extra` | `-e` | Install optional extras at init time (repeatable: `aio-sandbox`, `deerflow`, `browser`, `nlp`, `postgres`, `streamlit`, `baml`, `chromadb`). |
 | `--force` | `-f` | Overwrite existing files. |
 
 ---

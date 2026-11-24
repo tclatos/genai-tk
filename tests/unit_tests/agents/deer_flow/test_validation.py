@@ -251,9 +251,9 @@ class TestDockerSandboxValidation:
         assert "test reason" in str(error)
         assert "sandbox: local" in str(error)
 
-    @pytest.mark.skipif(not check_agent_sandbox_importable(), reason="agent-sandbox extra (harnessing) not installed")
+    @pytest.mark.skipif(not check_agent_sandbox_importable(), reason="agent-sandbox extra (aio-sandbox) not installed")
     def test_check_agent_sandbox_importable_real(self):
-        """agent-sandbox should be importable when the harnessing extra is installed."""
+        """agent-sandbox should be importable when the aio-sandbox extra is installed."""
         assert check_agent_sandbox_importable() is True
 
 

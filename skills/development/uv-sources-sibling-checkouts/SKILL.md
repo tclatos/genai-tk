@@ -17,9 +17,9 @@ three failure modes that each cost hours of debugging.
 
 uv applies an override to *every* requirement for that package — including the
 consumer project's own forwarded `genai-tk[<extra>]` extras — and an override
-without extras **silently strips them**. Worse, `uv sync --extra harnessing`
+without extras **silently strips them**. Worse, `uv sync --extra deerflow`
 still "succeeds" (it considers the already-wrong lockfile consistent), so
-nothing warns you until deep agents die at import time.
+nothing warns you until features die at import time.
 
 ```toml
 # WRONG — consumer pyproject.toml
@@ -34,10 +34,10 @@ override adds nothing and breaks extras forwarding.
 ### Symptom
 
 ```text
-ImportError: Optional feature 'harnessing' is not installed
+ImportError: Optional feature 'deerflow' is not installed
 ```
 
-…even though `uv sync --extra harnessing` exits 0.
+…even though `uv sync --extra deerflow` exits 0.
 
 ## Rule 2 — Never bake `[tool.uv.sources]` for a dependency in a *library*
 
@@ -78,9 +78,9 @@ resolves from git. A direct URL requirement inside package metadata (e.g. an
 extra) is honored in every resolution context.
 
 ```toml
-# genai-tk/pyproject.toml — the proven shape (harnessing extra)
+# genai-tk/pyproject.toml — the proven shape (deerflow extra)
 [project.optional-dependencies]
-harnessing = [
+deerflow = [
     # Direct URL requirement, pinned to a tested commit — not [tool.uv.sources].
     "deerflow-harness[tui] @ git+https://github.com/bytedance/deer-flow@<tested-rev>#subdirectory=backend/packages/harness",
 ]
@@ -142,7 +142,8 @@ prefect-yaml = { path = "../prefect-yaml", editable = true }
 
 [project.optional-dependencies]
 # Forward genai-tk optional extras — install with: uv sync --extra <name>
-harnessing = ["genai-tk[harnessing]"]
+deerflow = ["genai-tk[deerflow]"]
+aio-sandbox = ["genai-tk[aio-sandbox]"]
 docling = ["genai-tk[docling]"]
 ```
 

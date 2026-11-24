@@ -29,8 +29,8 @@ deerflow:
   # below for skill-discovery (enabling) but are NOT auto-mounted in Docker.
   skills:
     directories:
-      - ${paths.project}/ext/deer-flow/skills  # Docker mount — real files, no external symlinks
-#      - ${paths.project}/skills/custom          # Custom project skills (enabling only, not Docker-mounted)
+#      - ${paths.project}/ext/deer-flow/skills  # Docker mount — real files, no external symlinks
+       - ${paths.project}/skills/custom          # Custom project skills (enabling only, not Docker-mounted)
 
     container_path: /mnt/skills
     trace_loading: true

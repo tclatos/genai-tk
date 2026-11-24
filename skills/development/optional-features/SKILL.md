@@ -33,7 +33,7 @@ my-feature = [
     "another-package>=2.0",
 ]
 # Keep `all` up to date:
-all = ["genai-tk[harnessing,browser,nlp,postgres,streamlit,baml,chromadb,my-feature]"]
+all = ["genai-tk[aio-sandbox,deerflow,browser,nlp,postgres,streamlit,baml,chromadb,my-feature]"]
 ```
 
 Rule: `[project.optional-dependencies]` is for **end users** (published to PyPI).
@@ -100,25 +100,23 @@ ImportError: Optional feature 'my-feature' (required by: MyClass.create) is not 
   Install with: uv sync --extra my-feature  # or: uv add "genai-tk[my-feature]"
 ```
 
-### Deep-agent entry points (`harnessing`)
+### Deep agents vs Optional Extras (`aio-sandbox`, `deerflow`)
 
-`type: deep` agents depend on the `harnessing` extra (`deepagents`, sandboxes).
-Gate every function that constructs a deep agent or imports `deepagents` so a
-missing extra surfaces as the fix instruction instead of a
-`ModuleNotFoundError` traceback:
+`deepagents` is installed by default in core `[project.dependencies]`, so local deep agents work out-of-the-box.
+Containerized sandboxes (`agent-sandbox`, `opensandbox`) and DeerFlow require their respective extras:
 
 ```python
-def create_docgraph_agent(profile, ...):
+def create_sandbox_backend(config, ...):
     from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
 
-    require_feature("harnessing", context="create_docgraph_agent")
-    from deepagents import create_deep_agent  # noqa: PLC0415 — safe: gated above
+    require_feature("aio-sandbox", context="create_sandbox_backend")
+    from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
     ...
 ```
 
 Read the raised ImportError as an instruction, not an error to wrap or re-raise
 as a generic failure: it already contains the exact install command. Surface it
-verbatim in CLI output. `cli info doctor` reports whether `harnessing` is
+verbatim in CLI output. `cli info doctor` reports whether optional features are
 importable before anything launches, so users hit the message early.
 
 ---
@@ -152,13 +150,13 @@ Use `pytest.skip(allow_module_level=True)` instead:
 import pytest
 from genai_tk.config_mgmt.features import is_available
 
-if not is_available("harnessing"):
+if not is_available("aio-sandbox"):
     pytest.skip(
-        "Optional feature 'harnessing' not installed — run: uv sync --extra harnessing",
+        "Optional feature 'aio-sandbox' not installed — run: uv sync --extra aio-sandbox",
         allow_module_level=True,
     )
 
-# Only reached when harnessing is installed:
+# Only reached when aio-sandbox is installed:
 from deepagents.backends.protocol import SandboxBackendProtocol  # noqa: E402
 from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend  # noqa: E402
 ```
@@ -166,7 +164,7 @@ from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend  # noqa: E402
 The test is **skipped** (not failed) when the feature is absent, with a message:
 
 ```
-SKIPPED — Optional feature 'harnessing' not installed — run: uv sync --extra harnessing
+SKIPPED — Optional feature 'aio-sandbox' not installed — run: uv sync --extra aio-sandbox
 ```
 
 ---
@@ -187,7 +185,7 @@ SKIPPED — Optional feature 'harnessing' not installed — run: uv sync --extra
 from genai_tk.config_mgmt.features import available_features, missing_features, is_available
 
 print(available_features())  # ['baml', 'browser', 'chromadb', ...]
-print(missing_features())  # ['harnessing', 'nlp', ...]
+print(missing_features())  # ['aio-sandbox', 'deerflow', 'nlp', ...]
 print(is_available("baml"))  # True / False
 ```
 
@@ -200,16 +198,16 @@ print(is_available("baml"))  # True / False
 uv sync --extra browser
 
 # Install multiple features
-uv sync --extra harnessing --extra browser
+uv sync --extra deerflow --extra browser
 
 # Install everything
 uv sync --extra all
 
 # During project init
-cli init --extra harnessing --extra browser
+cli init --extra deerflow --extra browser
 
 # In a downstream project using genai-tk
-uv add "genai-tk[harnessing,browser]"
+uv add "genai-tk[deerflow,browser]"
 ```
 
 ---
@@ -218,7 +216,8 @@ uv add "genai-tk[harnessing,browser]"
 
 | Feature | Packages | Notes |
 |---------|----------|-------|
-| `harnessing` | deepagents, agent-sandbox, opensandbox, deerflow-harness | Heavy — includes Docker sandbox |
+| `aio-sandbox` | agent-sandbox, opensandbox, opensandbox-server | AIO sandbox client & OpenSandbox server |
+| `deerflow` | deerflow-harness | DeerFlow harness and TUI client |
 | `browser` | playwright | Run `uv run playwright install chromium` after install |
 | `nlp` | spacy, presidio-analyzer, presidio-anonymizer | spaCy model (e.g. en_core_web_md) downloaded on first use |
 | `postgres` | langchain-postgres, psycopg, psycopg2-binary | Requires PostgreSQL server |

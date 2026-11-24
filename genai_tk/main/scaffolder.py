@@ -495,7 +495,8 @@ class ProjectScaffolder:
                 "# NOTE: do not add [tool.uv] override-dependencies for genai-tk — overrides strip\n"
                 "# the extras below. Pin local checkouts via [tool.uv.sources] instead.\n"
                 "[project.optional-dependencies]\n"
-                'harnessing = ["genai-tk[harnessing]"]\n'
+                'aio-sandbox = ["genai-tk[aio-sandbox]"]\n'
+                'deerflow    = ["genai-tk[deerflow]"]\n'
                 'browser    = ["genai-tk[browser]"]\n'
                 'nlp        = ["genai-tk[nlp]"]\n'
                 'postgres   = ["genai-tk[postgres]"]\n'

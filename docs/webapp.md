@@ -41,8 +41,8 @@ uv add git+https://github.com/tclatos/genai-tk@main
 uv run cli init                # copies default config/ tree + writes justfile
 uv run cli init --name "My Project"  # optionally set the app title
 
-# 3. (Optional) Also install the DeerFlow / DeepAgents harness (sandbox, DeerFlow, DeepAgents SDK)
-uv run cli init --extra harnessing
+# 3. (Optional) Also install DeerFlow or Sandbox extras
+uv run cli init --extra deerflow
 ```
 
 `cli init` is idempotent — re-running it skips files that already exist unless
@@ -73,9 +73,9 @@ uv run python -m streamlit run <genai_tk-package>/ui/streamlit/apps/streamlit.py
 Open <http://localhost:8501> in your browser.
 
 > **Prerequisites**: selecting a DeerFlow profile on the Agent page requires
-> the `harnessing` extra (`uv run cli init --extra harnessing` or
-> `uv sync --extra harnessing`). No `DEER_FLOW_PATH` env var is needed —
-> `deerflow-harness` is a regular Python dependency.
+> the `deerflow` extra (`uv run cli init --extra deerflow` or
+> `uv sync --extra deerflow`). No `DEER_FLOW_PATH` env var is needed —
+> `deerflow-harness` is a regular Python dependency. LangChain deep agents are installed by default.
 
 ---
 

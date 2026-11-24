@@ -110,7 +110,8 @@ Extras control which optional dependencies are installed. They match the extras 
 | `postgres` | PostgreSQL vector store |
 | `baml` | BAML structured extraction |
 | `chromadb` | ChromaDB vector store |
-| `harnessing` | DeerFlow, DeepAgents, sandbox |
+| `aio-sandbox` | Container/AIO sandbox |
+| `deerflow` | DeerFlow harness and TUI |
 | `browser` | Playwright |
 | `monitoring` | LangFuse, OpenTelemetry |
 | `all` | All of the above |

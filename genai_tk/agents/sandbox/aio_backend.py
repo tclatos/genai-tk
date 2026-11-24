@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 
 from genai_tk.config_mgmt.features import require_feature
 
-require_feature("harnessing", context="genai_tk.agents.sandbox.aio_backend")
+require_feature("aio-sandbox", context="genai_tk.agents.sandbox.aio_backend")
 
 from deepagents.backends.protocol import (  # noqa: E402
     EditResult,
@@ -176,7 +176,7 @@ class AioSandboxBackend(SandboxBackendProtocol, BaseModel):
         except ImportError as exc:
             from genai_tk.config_mgmt.features import require_feature  # noqa: PLC0415
 
-            require_feature("harnessing", context="AioSandboxBackend.start")
+            require_feature("aio-sandbox", context="AioSandboxBackend.start")
             raise RuntimeError("unexpected") from exc
 
         server_url = self.config.opensandbox_server_url

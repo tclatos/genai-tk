@@ -350,3 +350,29 @@ agents:
       - "Analyze Apple stock performance over the last year"
       - "Compare Tesla and Ford stock trends"
       - "Create investment analysis report for Microsoft"
+  Privacy-Safe Research:
+    harness: langchain
+    type: deep
+    name: "Privacy-Safe Research"
+    description: "Web research with PII anonymization and sensitivity-based LLM routing"
+    plan_mode: false
+    sandbox: local
+    tool_groups:
+      - web
+    mcp_servers:
+      - tavily-mcp
+    # Reuses the exact same LangChain AgentMiddleware classes used by
+    # `cli agents run` — see docs/middleware-pii-and-routing.md.
+    middlewares:
+      - class: genai_tk.agents.langchain.middleware.anonymization_middleware.AnonymizationMiddleware
+        analyzed_fields: [PERSON, EMAIL_ADDRESS, PHONE_NUMBER, CREDIT_CARD]
+        fuzzy_deanonymize: true
+      - class: genai_tk.agents.langchain.middleware.sensitivity_router_middleware.SensitivityRouterMiddleware
+        safe_llm: gpt_41mini@openai
+        sensitive_source_patterns: ["**/hr/**", "**/confidential/**"]
+    features:
+      - "🔒 PII Anonymization"
+      - "🧭 Sensitivity Routing"
+      - "🌐 Web Search"
+    examples:
+      - "My name is Alice Martin, email alice@example.com — research recent AI safety papers"

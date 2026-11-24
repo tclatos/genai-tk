@@ -290,11 +290,11 @@ langfuse-server-status:
 # ─── Deer-flow ──────────────────────────────────────────────────────────────
 
 [group('DeerFlow')]
-[doc('Install DeerFlow harness and harnessing extras')]
+[doc('Install DeerFlow harness extra')]
 deer-flow-install:
-    uv sync --extra harnessing
+    uv sync --extra deerflow
     @echo ""
-    @echo "✓ DeerFlow (deerflow-harness) installed via harnessing extra."
+    @echo "✓ DeerFlow (deerflow-harness) installed via deerflow extra."
     @echo "  Verify with: cli agents list"
 
 # ─── Maintenance ────────────────────────────────────────────────────────────

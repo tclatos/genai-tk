@@ -11,7 +11,7 @@ constructor — the TUI drives ``client.stream()`` directly and only overrides
 
 Exposed through ``cli agents tui <profile>`` (see
 :mod:`genai_tk.agents.harness.commands`). ``textual`` is a core genai-tk
-dependency; only the ``harnessing`` extra (deerflow-harness) is optional, gated
+dependency; only the ``deerflow`` extra (deerflow-harness) is optional, gated
 by :func:`require_feature`.
 
 Example:
@@ -141,7 +141,7 @@ def run_deerflow_tui(
     """
     import asyncio
 
-    require_feature("harnessing", context="cli agents tui")
+    require_feature("deerflow", context="cli agents tui")
 
     from genai_tk.agents.deer_flow.runtime import build_cli_middlewares, prepare_profile
 

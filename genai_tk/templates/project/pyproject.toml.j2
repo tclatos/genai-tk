@@ -29,8 +29,9 @@ prefect-yaml = { git = "https://github.com/tclatos/prefect-yaml", branch = "main
 
 # Forward genai-tk optional extras — install with: uv sync --extra <name>
 [project.optional-dependencies]
-harnessing = ["genai-tk[harnessing]"]
-browser    = ["genai-tk[browser]"]
+aio-sandbox = ["genai-tk[aio-sandbox]"]
+deerflow    = ["genai-tk[deerflow]"]
+browser     = ["genai-tk[browser]"]
 nlp        = ["genai-tk[nlp]"]
 postgres   = ["genai-tk[postgres]"]
 streamlit  = ["genai-tk[streamlit]"]

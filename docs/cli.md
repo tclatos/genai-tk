@@ -178,7 +178,7 @@ Diagnoses the failure modes that have hit past projects before they occur at run
 
 | Check | What it verifies |
 |-------|------------------|
-| Features | `harnessing` extra installed (hard requirement for deep agents); other optional features present |
+| Features | Optional features (`aio-sandbox`, `deerflow`, `browser`, `nlp`, etc.) present; deep agents are included in core |
 | Agent profiles | Every profile's LLM id resolves in llm.yaml, middleware class paths import, skill directories exist |
 | Prefect | Managed Prefect server reachable (or auto-start enabled) |
 | models.dev cache | Local model catalogue exists, parses, and is populated |
