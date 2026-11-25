@@ -575,6 +575,8 @@ def _setup_relay_otlp(
         # Use OpenInference convention which Langfuse natively maps
         otel_cfg = nemo_relay.OpenTelemetryConfig("openinference", endpoint)
         otel_cfg.service_name = resolved_service or "genai-tk"
+        if endpoint.startswith("http://"):
+            otel_cfg.allow_insecure = True
         for k, v in headers.items():
             otel_cfg.set_header(k, v)
 

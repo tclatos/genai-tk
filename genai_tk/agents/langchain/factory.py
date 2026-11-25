@@ -123,12 +123,10 @@ async def create_langchain_agent(
 
     backend: Any = None
     if profile.type == "deep":
-        from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend  # noqa: PLC0415
-
         # For AIO sandbox backends, resolve skill volume mounts BEFORE starting
         # the container — Sandbox.create() requires volumes at creation time.
         backend = await instantiate_backend(backend_cfg)
-        if isinstance(backend, AioSandboxBackend) and profile.skill_directories:
+        if backend is not None and hasattr(backend, "add_volume") and profile.skill_directories:
             from pathlib import Path as _Path  # noqa: PLC0415
 
             skill_dirs = _resolve_skill_dirs(profile.skill_directories)
@@ -267,7 +265,6 @@ async def _create_deep_agent(
     from deepagents import create_deep_agent
 
     from genai_tk.agents.langchain.config import filesystem_backend_with_artifacts
-    from genai_tk.agents.sandbox.aio_backend import AioSandboxBackend
 
     skill_dirs = _resolve_skill_dirs(profile.skill_directories)
 
@@ -282,7 +279,7 @@ async def _create_deep_agent(
     # For AioSandboxBackend: volumes were already mounted before container start
     # (done in create_langchain_agent).  Just compute the container paths.
     relative_skills: list[str] | None = None
-    if skill_dirs and isinstance(backend, AioSandboxBackend):
+    if skill_dirs and hasattr(backend, "add_volume"):
         relative_skills = [f"/mnt/skills/{Path(d).name}" for d in skill_dirs]
     elif skill_dirs and backend is not None:
         # FilesystemBackend: convert to backend-relative paths

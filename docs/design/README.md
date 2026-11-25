@@ -20,6 +20,7 @@ The core architecture is presented in a didactic, numbered sequence designed for
 | **08** | [08_document_processing_pipeline.md](08_document_processing_pipeline.md) | **Document Processing Pipeline**: Multi-tier converter ladder (Docling, Mistral OCR, MarkItDown), HTML table preservation and splitting for RAG, BAML structured extraction, and NLP pipelines. |
 | **09** | [09_observability_and_trajectories.md](09_observability_and_trajectories.md) | **Observability, Trajectories & Evaluation**: NeMo Relay OTLP telemetry exporting to Langfuse, Agent Trajectory Observability Format (ATOF), terminal TUI explorer (`cli trajectory`), and Decision Model evaluators. |
 | **10** | [10_agent_user_interaction_protocol.md](10_agent_user_interaction_protocol.md) | **Agent-User Interaction Protocol (AUIP) & Multimodal Frontends**: Decoupling execution from presentation, NeMo Relay lifecycle bridge, retirement of `RichToolCallMiddleware`, and client adapters (Console, TUI, Streamlit, Remote Web). |
+| **11** | [11_openshell_runtime.md](11_openshell_runtime.md) | **OpenShell Runtime Integration (WIP)**: Whole-worker containment, endpoint-bound provider credentials, policy and lifecycle design, limitations, and deployment steps for scaffolded genai-tk projects. |
 
 ---
 
