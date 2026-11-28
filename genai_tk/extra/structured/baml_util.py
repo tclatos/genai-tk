@@ -26,6 +26,7 @@ from loguru import logger  # noqa: E402
 from pydantic import BaseModel  # noqa: E402
 
 from genai_tk.config_mgmt.config_mngr import global_config  # noqa: E402
+from genai_tk.extra.structured.config import StructuredConfig  # noqa: E402
 from genai_tk.extra.structured.exceptions import (  # noqa: E402
     BamlClientLoadError,
     BamlFunctionNotFoundError,
@@ -33,15 +34,6 @@ from genai_tk.extra.structured.exceptions import (  # noqa: E402
 )
 from genai_tk.utils.hashing import buffer_digest  # noqa: E402
 from genai_tk.utils.pydantic_utils.common import validate_pydantic_model  # noqa: E402
-
-
-class StructuredConfig(BaseModel):
-    """Typed configuration for a single ``structured`` YAML entry."""
-
-    baml_client: str
-    llm: str = "default"
-    default_function: str | None = None
-
 
 _VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)")
 
@@ -99,6 +91,8 @@ def load_baml_client(config_name: str = "default") -> tuple[Any, Any]:
             f"Please configure it in YAML config file (overrides.yaml or else)"
         )
     baml_client_package = configs[config_name].baml_client
+    if not baml_client_package:
+        raise ValueError(f"BAML client package not configured in 'structured.{config_name}.baml_client'.")
 
     logger.debug("Loading BAML client from package: {}", baml_client_package)
 

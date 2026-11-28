@@ -92,6 +92,12 @@ FEATURES: dict[str, FeatureInfo] = {
         check_modules=["baml_py"],
         install_cmd='uv sync --extra baml  # or: uv add "genai-tk[baml]"',
     ),
+    "linkml": FeatureInfo(
+        description="LinkML structured data extraction, Pydantic generation, and SchemaView",
+        packages=["linkml", "linkml-runtime", "json-repair"],
+        check_modules=["linkml", "linkml_runtime", "json_repair"],
+        install_cmd='uv sync --extra linkml  # or: uv add "genai-tk[linkml]"',
+    ),
     "chromadb": FeatureInfo(
         description="ChromaDB vector database",
         packages=["chromadb", "langchain-chroma"],

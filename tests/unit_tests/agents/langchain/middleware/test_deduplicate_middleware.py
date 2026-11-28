@@ -121,7 +121,10 @@ def test_deduplicate_middleware_circuit_breaker() -> None:
     # Call 3: circuit breaker triggered
     res3 = mw.wrap_tool_call(req, mock_handler)
     assert isinstance(res3, ToolMessage)
-    assert "[Circuit Breaker: You have called 'search_sections' with arguments {'query': 'Table 1'} 3 times." in res3.content
+    assert (
+        "[Circuit Breaker: You have called 'search_sections' with arguments {'query': 'Table 1'} 3 times."
+        in res3.content
+    )
     assert "Further duplicate calls are blocked." in res3.content
     assert call_count == 1
 

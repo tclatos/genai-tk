@@ -40,9 +40,7 @@ def require_deer_flow_installed() -> None:
     from genai_tk.config_mgmt.features import is_available
 
     if not is_available("deerflow"):
-        raise DeerFlowNotInstalledError(
-            "Feature 'deerflow' is not installed. Install with: uv sync --extra deerflow"
-        )
+        raise DeerFlowNotInstalledError("Feature 'deerflow' is not installed. Install with: uv sync --extra deerflow")
 
 
 def get_default_profile_name() -> str | None:

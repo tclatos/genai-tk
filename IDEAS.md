@@ -1,3 +1,15 @@
+# Have a code scafolfing separate project
+ex: https://github.com/linkml/linkml-project-copier
+
+# Skill over MCP
+https://gofastmcp.com/docs/servers/skills
+
+
+
+
+# Sandbox
+- Study https://github.com/boxlite-ai/boxlite 
+
 
 
 # Router

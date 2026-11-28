@@ -1,0 +1,36 @@
+id: https://example.org/tests/resume
+name: resume
+description: Schema for candidate resume extraction.
+imports:
+  - linkml:types
+prefixes:
+  resume: https://example.org/tests/resume/
+  linkml: https://w3id.org/linkml/
+default_prefix: resume
+default_range: string
+
+classes:
+  Resume:
+    tree_root: true
+    description: Candidate resume containing contact and background details.
+    attributes:
+      name:
+        range: string
+        required: true
+        description: name of the candidate
+        annotations:
+          prompt: "Full name of the candidate"
+      email:
+        range: string
+        required: true
+        description: email address of the candidate
+      experience:
+        range: string
+        multivalued: true
+        inlined_as_list: true
+        description: List of professional work experiences
+      skills:
+        range: string
+        multivalued: true
+        inlined_as_list: true
+        description: List of skills and competencies

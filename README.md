@@ -16,7 +16,7 @@ flowchart TD
     subgraph Core["1. Core & Extraction (IoC)"]
         LLM["Inversion of Control (IoC) Provider Registry<br/>(OpenAI, Anthropic, Mistral, Groq, Laya, EdenAI, ...)"]
         DECIDE["Fast System 1 Decision Models (Clef, Laya, Jev)"]
-        BAML["BAML Structured Data Extraction"]
+        BAML["LinkML & BAML Structured Data Extraction"]
         NLP["NLP & Presidio PII Anonymization"]
         VEC["Vector Stores (Chroma, PgVector, ZVec)"]
     end
@@ -249,8 +249,8 @@ Orchestrate multi-step AI pipelines with Prefect and a YAML DSL for composable, 
 - **Workflow DSL** — YAML-configured steps, dependencies, and sub-workflows (no boilerplate Python needed)
 - **Document Pipeline** — Markdownize OCR ladder (Mistral OCR → Docling → MarkItDown), chunking (Chonkie)
 - **RAG pipeline** — full retrieval pipeline with BM25 + dense hybrid search and cross-encoder rerankers
-- **Structured extraction** — BAML-based extraction with compile-time type-safe schemas and streaming
-- See: `cli workflow`, `cli prefect`, [docs/workflows.md](docs/workflows.md), [docs/prefect.md](docs/prefect.md), [docs/baml.md](docs/baml.md)
+- **Structured extraction** — LinkML & BAML extraction with compile-time Pydantic generation, SchemaView metadata, and robust schema-mode recovery
+- See: `cli linkml`, `cli baml`, `cli workflow`, `cli prefect`, [docs/linkml.md](docs/linkml.md), [docs/workflows.md](docs/workflows.md), [docs/prefect.md](docs/prefect.md), [docs/baml.md](docs/baml.md)
 
 ### 📊 **Monitoring, Trajectory & Evaluation**
 Built-in tracing for all LLM calls, agents, and benchmark evaluations across observability backends.
@@ -266,7 +266,7 @@ Built-in tracing for all LLM calls, agents, and benchmark evaluations across obs
 Skills provide agents with **procedural knowledge on demand** using the [skills.sh](https://www.skills.sh) standard. Skills are organized into four distinct tiers:
 
 1. **`skills/runtime/`** (*Solve user problems*): Capabilities invoked by agents during runs (e.g. `browser-automation`, `codeact`, `ppt-generation`, `query-writing`, `schema-exploration`).
-2. **`skills/development/`** (*Improve & extend the toolkit*): Recipes and guides for developers (e.g. `benchmark-framework`, `agent-profiles`, `add-tool`, `add-skill`, `cli-and-scaffolding`, `rag-systems`, `workflow-engine`, `baml-structured-extraction`).
+2. **`skills/development/`** (*Improve & extend the toolkit*): Recipes and guides for developers (e.g. `benchmark-framework`, `agent-profiles`, `add-tool`, `add-skill`, `cli-and-scaffolding`, `rag-systems`, `workflow-engine`, `linkml-structured-extraction`, `baml-structured-extraction`).
 3. **`skills/governance/`** (*Maintain consistency, quality & security*): Standards, test guidelines, and audits (e.g. `evaluation-testing`, `repo-map`, `pii-anonymization`, `code-review-excellence`).
 4. **`skills/vendor/`** (*Imported third-party packages*): External skills managed without direct edits (e.g. `atos-slidev`).
 
@@ -829,6 +829,7 @@ Ships with ready-to-use flows:
 |------|---------|-----|
 | **markdownize** | Documents → Markdown (MarkItDown, MessyExcel, EdgeParse, Mistral OCR, LightOn, AnyDoc, LLM) | `cli workflow run markdownize` |
 | **office2pdf** | Office docs (PPT/Excel) → PDF | `cli workflow run office2pdf` |
+| **linkml** | LinkML structured extraction | `cli linkml run`, `cli linkml extract` |
 | **baml** | Structured extraction | `cli baml run` |
 | **rag** | RAG indexing + retrieval | `cli rag add-files` |
 
@@ -922,6 +923,7 @@ See [docs/configuration.md](docs/configuration.md) for the full reference.
 | Workflow DSL | `cli workflow` | `resolve_workflow_invocation()` | [docs/workflows.md](docs/workflows.md) |
 | Prefect flows | `cli tools *` | `run_flow_ephemeral()` | [docs/prefect.md](docs/prefect.md) |
 | RAG pipeline | `cli rag` | `RetrieverFactory` | [docs/rag.md](docs/rag.md) |
+| LinkML extraction | `cli linkml` | `PydanticStructuredProcessor`, `LinkMLContract` | [docs/linkml.md](docs/linkml.md) |
 | BAML extraction | `cli baml` | `BamlStructuredProcessor` | [docs/baml.md](docs/baml.md) |
 | Document loaders | — | `MarkdownLoader` | [docs/workflows.md](docs/workflows.md) |
 

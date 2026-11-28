@@ -215,6 +215,137 @@ workflows:
         function_name: ExtractRainbow
 
   # ---------------------------------------------------------------------------
+  # LinkML structured extraction workflows
+  # ---------------------------------------------------------------------------
+
+  linkml_extract:
+    description: "Extract structured data from files (Markdown/PDF/text) using LinkML & Pydantic"
+    run: genai_tk.workflow.prefect.flows.structured_flow.structured_extraction_flow
+    with:
+      base_dir: "${values.base_dir}"
+      output_dir: "${values.output_dir}"
+      config_name: "${values.config_name}"
+      schema_path: "${values.schema_path}"
+      root_class: "${values.root_class}"
+      generated_module: "${values.generated_module}"
+      prompt: "${values.prompt}"
+      llm: "${values.llm}"
+      pathspecs: "${values.pathspecs}"
+      batch_size: "${values.batch_size}"
+      force: "${values.force}"
+    defaults:
+      config_name: default
+      llm: default
+      batch_size: 5
+      force: false
+      pathspecs: ["**/*.md"]
+      schema_path: null
+      root_class: null
+      generated_module: null
+      prompt: null
+    params:
+      base_dir: {required: true}
+      output_dir: {required: true}
+    presets:
+      resume:
+        config_name: resume
+        base_dir: "${paths.data_root}"
+        output_dir: "${paths.data_root}/structured"
+      delivery_note:
+        config_name: delivery_note
+        base_dir: "${paths.data_root}"
+        output_dir: "${paths.data_root}/structured"
+
+  linkml_run:
+    description: "Extract structured data from a single text or file input using LinkML & Pydantic"
+    run: genai_tk.workflow.prefect.flows.structured_flow.structured_single_input_flow
+    with:
+      input_text: "${values.input_text}"
+      config_name: "${values.config_name}"
+      schema_path: "${values.schema_path}"
+      root_class: "${values.root_class}"
+      generated_module: "${values.generated_module}"
+      prompt: "${values.prompt}"
+      llm: "${values.llm}"
+      output_dir: "${values.output_dir}"
+      output_file: "${values.output_file}"
+      force: "${values.force}"
+    defaults:
+      config_name: default
+      llm: default
+      schema_path: null
+      root_class: null
+      generated_module: null
+      prompt: null
+      output_dir: null
+      output_file: null
+      force: false
+    params:
+      input_text: {required: true}
+    presets:
+      resume:
+        config_name: resume
+      delivery_note:
+        config_name: delivery_note
+
+  # Aliases for linkml_extract and linkml_run
+  structured_extract:
+    description: "Alias for linkml_extract"
+    run: genai_tk.workflow.prefect.flows.structured_flow.structured_extraction_flow
+    with:
+      base_dir: "${values.base_dir}"
+      output_dir: "${values.output_dir}"
+      config_name: "${values.config_name}"
+      schema_path: "${values.schema_path}"
+      root_class: "${values.root_class}"
+      generated_module: "${values.generated_module}"
+      prompt: "${values.prompt}"
+      llm: "${values.llm}"
+      pathspecs: "${values.pathspecs}"
+      batch_size: "${values.batch_size}"
+      force: "${values.force}"
+    defaults:
+      config_name: default
+      llm: default
+      batch_size: 5
+      force: false
+      pathspecs: ["**/*.md"]
+      schema_path: null
+      root_class: null
+      generated_module: null
+      prompt: null
+    params:
+      base_dir: {required: true}
+      output_dir: {required: true}
+
+  structured_run:
+    description: "Alias for linkml_run"
+    run: genai_tk.workflow.prefect.flows.structured_flow.structured_single_input_flow
+    with:
+      input_text: "${values.input_text}"
+      config_name: "${values.config_name}"
+      schema_path: "${values.schema_path}"
+      root_class: "${values.root_class}"
+      generated_module: "${values.generated_module}"
+      prompt: "${values.prompt}"
+      llm: "${values.llm}"
+      output_dir: "${values.output_dir}"
+      output_file: "${values.output_file}"
+      force: "${values.force}"
+    defaults:
+      config_name: default
+      llm: default
+      schema_path: null
+      root_class: null
+      generated_module: null
+      prompt: null
+      output_dir: null
+      output_file: null
+      force: false
+    params:
+      input_text: {required: true}
+
+  # ---------------------------------------------------------------------------
   # JSON → tabular (CSV / Excel) workflows
   # ---------------------------------------------------------------------------
 

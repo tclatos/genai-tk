@@ -216,8 +216,8 @@ Instead of the regex/Presidio scorer, content sensitivity can be assessed by a [
 ```python
 config = SensitivityRouterConfig(
     safe_llm="ollama_local",
-    decision_model="laya@laya",       # local, in-process router (default when enabling)
-    sensitivity_threshold=0.5,        # p(sensitive) above which the message is routed
+    decision_model="laya@laya",  # local, in-process router (default when enabling)
+    sensitivity_threshold=0.5,  # p(sensitive) above which the message is routed
 )
 middleware = SensitivityRouterMiddleware(config=config)
 ```

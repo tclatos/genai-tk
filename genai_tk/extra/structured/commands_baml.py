@@ -63,7 +63,9 @@ class BamlCommands(CliTopCommand):
             ] = None,
             input_text: Annotated[
                 str | None,
-                typer.Option("--input", "-i", help="Input text or file path to process (if not provided, reads from stdin)"),
+                typer.Option(
+                    "--input", "-i", help="Input text or file path to process (if not provided, reads from stdin)"
+                ),
             ] = None,
             file_path: Annotated[
                 str | None,

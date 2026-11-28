@@ -1,0 +1,9 @@
+{
+  "order_number": "MISSING_DELIVERY_NOTE_NUMBER",
+  "lines": [
+    {
+      "product_number": "ART-001",
+      "quantity": "not_a_number"
+    }
+  ]
+}

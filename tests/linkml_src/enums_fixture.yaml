@@ -1,0 +1,37 @@
+id: https://example.org/tests/enums_fixture
+name: enums_fixture
+description: Focused schema to verify enum and permissible-value description preservation.
+imports:
+  - linkml:types
+prefixes:
+  enums_fix: https://example.org/tests/enums_fixture/
+  linkml: https://w3id.org/linkml/
+default_prefix: enums_fix
+default_range: string
+
+classes:
+  EnumItem:
+    tree_root: true
+    description: An item with an enumerated status.
+    attributes:
+      item_id:
+        range: string
+        required: true
+        description: Unique item identifier
+      status:
+        range: ProcessingStatus
+        required: true
+        description: Current processing status
+
+enums:
+  ProcessingStatus:
+    description: Lifecycle processing status of an item.
+    permissible_values:
+      PENDING:
+        description: Awaiting initial review or ingestion.
+      IN_PROGRESS:
+        description: Active processing is ongoing.
+      COMPLETED:
+        description: Successfully analyzed and validated.
+      FAILED:
+        description: Extraction or validation encountered an unrecoverable error.

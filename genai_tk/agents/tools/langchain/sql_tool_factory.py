@@ -5,16 +5,13 @@ with LangChain agents. The factory creates tools that combine SQL querying
 capabilities with language model-based natural language processing.
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
 from genai_tk.extra.langgraphs.sql_agent import create_sql_querying_graph
-
-if TYPE_CHECKING:
-    from langchain_community.utilities.sql_database import SQLDatabase
 
 
 def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | str = "default") -> list[BaseTool]:
@@ -54,7 +51,18 @@ def create_sql_toolkit_tools(database_uri: str, llm: BaseChatModel | str = "defa
 
     db = SQLDatabase.from_uri(database_uri, sample_rows_in_table_info=3)
     toolkit = SQLDatabaseToolkit(db=db, llm=llm)
-    return toolkit.get_tools()
+    tools = toolkit.get_tools()
+
+    # QuerySQLCheckerTool stores the LLM twice (directly and through an LLMChain).
+    # LangSmith's Pydantic serializer warns for those private model internals
+    # whenever the tool is included in a trace. Keep the implementation in the
+    # closure and expose a plain function tool to tracing instead.
+    for index, tool_instance in enumerate(tools):
+        if tool_instance.name != "sql_db_query_checker":
+            continue
+        tools[index] = _trace_safe_sql_query_checker(tool_instance)
+
+    return tools
 
 
 class SQLToolConfig(BaseModel):
@@ -70,6 +78,18 @@ class SQLToolConfig(BaseModel):
         default_factory=list, description="List of example queries with 'input' and 'query' keys"
     )
     top_k: int = Field(default=10, description="Maximum number of results to return")
+
+
+def _trace_safe_sql_query_checker(checker: BaseTool) -> BaseTool:
+    """Wrap a query checker without exposing its LLM model internals to tracers."""
+
+    @tool("sql_db_query_checker")
+    def sql_query_checker(query: str) -> str:
+        """Double-check a SQL query before executing it."""
+        return str(checker._run(query))  # pyright: ignore[reportPrivateUsage]
+
+    sql_query_checker.description = checker.description
+    return sql_query_checker
 
 
 class SQLToolFactory:
@@ -117,6 +137,8 @@ class SQLToolFactory:
             ValueError: If database URI is invalid or database is inaccessible
             ConnectionError: If unable to connect to the database
         """
+        from langchain_community.utilities.sql_database import SQLDatabase  # noqa: PLC0415
+
         # Validate database connection
         try:
             db = SQLDatabase.from_uri(config.database_uri)

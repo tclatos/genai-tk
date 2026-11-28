@@ -1,0 +1,54 @@
+id: https://example.org/tests/delivery_note
+name: delivery_note
+description: Schema for extracting structured data from delivery notes in English, French, or German.
+imports:
+  - linkml:types
+prefixes:
+  dn: https://example.org/tests/delivery_note/
+  linkml: https://w3id.org/linkml/
+default_prefix: dn
+default_range: string
+
+classes:
+  DeliveryNoteLine:
+    description: A product line item on a delivery note.
+    attributes:
+      product_number:
+        range: string
+        required: true
+        description: "product or item reference number (EN: product number / part number, FR: numéro de produit / référence article, DE: Artikelnummer / Produktnummer / HTZ)"
+      quantity:
+        range: float
+        required: true
+        description: "quantity delivered (EN: quantity, FR: quantité, DE: Menge)"
+      lot_number:
+        range: string
+        required: false
+        description: "manufacturing lot or batch number, if present (EN: lot/batch number, FR: numéro de lot, DE: Chargennummer)"
+      serial_number:
+        range: string
+        required: false
+        description: "individual unit serial number, if present (EN: serial number, FR: numéro de série, DE: Seriennummer)"
+      order_number:
+        range: string
+        required: false
+        description: "customer or supplier order reference, if present (EN: order number / PO number, FR: numéro de commande, DE: Bestellnummer)"
+
+  DeliveryNote:
+    tree_root: true
+    description: Delivery note document representation.
+    attributes:
+      delivery_note_number:
+        range: string
+        required: true
+        description: "unique identifier of the delivery note (EN: delivery note number, FR: numéro de BL / bon de livraison, DE: Lieferscheinnummer, lieferung)"
+      order_number:
+        range: string
+        required: false
+        description: "customer or supplier order reference, if present (EN: order number / PO number, FR: numéro de commande, DE: Bestellnummer)"
+      lines:
+        range: DeliveryNoteLine
+        multivalued: true
+        inlined_as_list: true
+        required: true
+        description: "list of product lines on the delivery note"

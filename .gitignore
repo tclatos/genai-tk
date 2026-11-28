@@ -107,6 +107,8 @@ node_modules/
 
 # Data and cache directories
 data/
+!tests/data/
+!tests/data/Chinook.sqlite
 cache/
 temp/
 tmp/

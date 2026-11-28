@@ -218,6 +218,18 @@ test-install:
 skills:
     uv run cli skills list
 
+# ─── LinkML ─────────────────────────────────────────────────────────────────
+
+[group('LinkML')]
+[doc('Generate Pydantic v2 models from LinkML schema')]
+linkml-generate schema target:
+    uv run cli linkml generate {{ schema }} --out {{ target }}
+
+[group('LinkML')]
+[doc('Validate that generated Pydantic code matches LinkML schema (CI drift check)')]
+linkml-validate-drift schema target:
+    uv run cli linkml validate-drift {{ schema }} {{ target }}
+
 [group('Skills')]
 [doc('Validate all skills')]
 lint-skills:

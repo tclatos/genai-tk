@@ -227,6 +227,38 @@ See [agents.md](agents.md) for full agent configuration reference, including the
 
 ---
 
+### `linkml` — Structured Output with LinkML & Pydantic
+
+The `cli linkml` command group provides structured data extraction, schema management,
+code generation, and CI drift detection using LinkML and Pydantic v2.
+
+See [linkml.md](linkml.md) for the complete integration guide and schema authoring.
+
+```bash
+# Run extraction on single input text or file
+uv run cli linkml run resume -i "John Smith; SW engineer"
+
+# Save single result to JSON
+uv run cli linkml run resume -i "John Smith" --out-dir ./output --out-file result.json
+
+# Batch extract from a directory
+uv run cli linkml extract ./docs ./output --config resume --pathspec '**/*.md'
+
+# Generate Pydantic v2 models at build time
+uv run cli linkml generate schema/resume.yaml --out src/generated/resume.py
+
+# Check CI drift between schema and generated code
+uv run cli linkml validate-drift schema/resume.yaml src/generated/resume.py
+
+# View schema documentation and enum glossary
+uv run cli linkml show-docs schema/resume.yaml
+uv run cli linkml show-glossary schema/enums.yaml
+```
+
+Extraction commands delegate to `cli workflow run linkml_run` and `cli workflow run linkml_extract`.
+
+---
+
 ### `baml` — Structured Output (BAML)
 
 > **Note**: The BAML CLI commands now delegate to the workflow engine for composability and caching.

@@ -10,14 +10,18 @@ by the ``harness:`` field, with the ``agent_defaults:`` block applied to
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
+from langchain_core.language_models.chat_models import BaseChatModel
 
 from genai_tk.agents.deer_flow.profile import DeerFlowProfile
 from genai_tk.agents.harness import list_harness_profiles
 from genai_tk.agents.harness.langchain_harness import LangChainHarness
 from genai_tk.agents.harness.profiles import load_agent_profiles
 from genai_tk.agents.langchain.config import AgentProfileConfig
+from genai_tk.agents.tools.langchain.shared_config_loader import process_langchain_tools_from_config
+from genai_tk.agents.tools.tool_specs import UnifiedToolSpec
 
 _BUNDLED_AGENTS_DIR = Path(__file__).resolve().parents[4] / "config" / "examples" / "agents"
 
@@ -69,6 +73,22 @@ def test_unified_loader_exposes_deerflow_profiles_unchanged() -> None:
     assert wb.mode == "flash"
     assert wb.sandbox == "local"
     assert wb.tool_groups == ["web"]
+
+
+def test_chinook_sql_tool_config_loads_database_tool() -> None:
+    """The SQL factory receives its config object and creates the database tool."""
+    profiles, _defaults, _ = load_agent_profiles(str(_BUNDLED_AGENTS_DIR))
+    profile = profiles["chinook"]
+    assert isinstance(profile, AgentProfileConfig)
+
+    tool_spec = profile.tools[0]
+    assert isinstance(tool_spec, UnifiedToolSpec)
+    assert tool_spec.target == "genai_tk.agents.tools.langchain.sql_tool_factory.create_sql_tool_from_config"
+    assert set(tool_spec.extra_params) == {"config"}
+    assert tool_spec.extra_params["config"]["top_k"] == 15
+
+    tools = process_langchain_tools_from_config(profile.tools, llm=MagicMock(spec=BaseChatModel))
+    assert [tool.name for tool in tools] == ["query_chinook"]
 
 
 def test_registry_list_harness_profiles_returns_both_harnesses() -> None:

@@ -89,3 +89,57 @@ class BamlInvocationError(BamlError):
         self.function_name = function_name
         self.original_error = original_error
         super().__init__(f"BAML function '{function_name}' failed: {reason}")
+
+
+class LinkMLError(StructuredOutputError):
+    """Base exception for LinkML-related errors."""
+
+
+class LinkMLSchemaNotFoundError(LinkMLError):
+    """The requested LinkML schema file was not found."""
+
+    def __init__(self, schema_path: str, reason: str = "") -> None:
+        self.schema_path = schema_path
+        msg = f"LinkML schema not found at '{schema_path}'"
+        if reason:
+            msg += f": {reason}"
+        super().__init__(msg)
+
+
+class LinkMLDriftError(LinkMLError):
+    """Drift detected between LinkML schema and generated Pydantic code."""
+
+    def __init__(self, schema_path: str, target_file: str, diff_summary: str = "") -> None:
+        self.schema_path = schema_path
+        self.target_file = target_file
+        self.diff_summary = diff_summary
+        msg = f"LinkML code drift detected between '{schema_path}' and '{target_file}'."
+        if diff_summary:
+            msg += f"\n{diff_summary}"
+        super().__init__(msg)
+
+
+class ModelCapabilityError(StructuredOutputError):
+    """Selected model lacks required capability (e.g. PDF/vision/structured output)."""
+
+    def __init__(self, model_id: str, required_capability: str, details: str = "") -> None:
+        self.model_id = model_id
+        self.required_capability = required_capability
+        msg = f"Model '{model_id}' lacks required capability '{required_capability}'."
+        if details:
+            msg += f" {details}"
+        super().__init__(msg)
+
+
+class LinkMLExtractionError(LinkMLError):
+    """LinkML extraction failed after retries or due to invalid output."""
+
+    def __init__(self, model_name: str, reason: str, raw_output: str | None = None) -> None:
+        self.model_name = model_name
+        self.reason = reason
+        self.raw_output = raw_output
+        super().__init__(f"LinkML extraction for '{model_name}' failed: {reason}")
+
+
+# Backward-compatibility alias
+StructuredExtractionError = LinkMLExtractionError

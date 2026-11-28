@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, TypeVar, overload
 
-from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 from pydantic import BaseModel
 
@@ -165,7 +164,6 @@ def load_yaml_configs(
             raise ConfigTypeError(yaml_path.name, expected_type=dict, actual_type=type(resolved))
 
         if top_level_key not in resolved:
-            logger.debug(f"Skipping '{yaml_path}': no '{top_level_key}' key found")
             continue
 
         value = resolved[top_level_key]

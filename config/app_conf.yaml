@@ -19,6 +19,20 @@ nlp:
     en: en_core_web_md
     fr: fr_core_news_sm
 
+linkml:
+  resume:
+    schema: tests/linkml_src/resume.yaml
+    root_class: Resume
+    generated_module: tests.generated.resume
+    prompt: tests/prompts/resume.md
+    llm: default
+  delivery_note:
+    schema: tests/linkml_src/delivery_note.yaml
+    root_class: DeliveryNote
+    generated_module: tests.generated.delivery_note
+    prompt: tests/prompts/delivery_note.md
+    llm: default
+
 
 # :merge: lists gitignore-style patterns (relative to this directory) for YAML
 # files to load and deep-merge into the config, in sorted order.
@@ -212,6 +226,7 @@ cli:
     - genai_tk.agents.commands_agents.AgentCommands
     - genai_tk.agents.sandbox.cli_commands.SandboxCommands
     - genai_tk.extra.structured.commands_baml.BamlCommands
+    - genai_tk.extra.structured.commands_linkml.LinkMLCommands
     - genai_tk.workflow.rag.commands_rag.RagCommands
     - genai_tk.protocols.mcp.cli_commands.McpCommands
     - genai_tk.protocols.auip.cli_commands.AuipCommands

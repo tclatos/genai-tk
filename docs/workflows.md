@@ -93,6 +93,8 @@ Run `cli workflow list` to see all of them with their presets.
 | `markdownize` | Convert PDF/DOCX/PPTX/ODP → Markdown | `batch_size: 5`, `pdf_converter: mistral` |
 | `office2pdf` | Convert PPT/PPTX/ODP/XLSX/XLS → PDF via LibreOffice | `pathspecs: ["**/*.pptx", "**/*.ppt", "**/*.odp", "**/*.xlsx", "**/*.xls"]` |
 | `rag_ingest` | Chunk, embed, and upsert documents into vector store | `force: false` |
+| `linkml_extract` | Structured extraction from Markdown/PDF via LinkML & Pydantic | `config_name: default` |
+| `linkml_run` | Structured extraction from single input text or file via LinkML | `config_name: default` |
 | `baml_extract` | Structured extraction from Markdown via BAML | `function_name: required` |
 | `anonymize` | PII anonymization with Presidio | `base_dir: required` |
 | `baml_to_table` | BAML extraction + flatten to CSV/XLSX | `output_file: required` |

@@ -30,6 +30,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) — [Semantic V
 
 ### Fixed
 
+- **Chinook SQL tool registration**: Corrected the bundled `chinook` agent profile so `top_k` is nested in the SQL
+  factory's `config` argument, imported `SQLDatabase` at runtime in the factory, and restored the Chinook database
+  fixture referenced by the profile. The profile now instantiates its database-query tool instead of leaving the agent
+  with zero tools.
+- **Text-to-SQL trace warnings**: The bundled SQL toolkit now wraps its query checker as a plain LangChain function
+  tool so LangSmith can serialize traces without Pydantic warnings, and the `text2sql` profile points at the existing
+  runtime SQL skills. Configuration-directory scans now silently skip files that do not contain the requested
+  top-level section, avoiding repetitive debug noise under `--verbose`.
 - **Streamlit UI Component Export Consistency**: Exported `llm_selector_widget` alongside backward-compatible alias `render_llm_selector` in [genai_tk/ui/streamlit/components/__init__.py](genai_tk/ui/streamlit/components/__init__.py) and [genai_tk/ui/streamlit/components/llm_selector.py](genai_tk/ui/streamlit/components/llm_selector.py). Added `extract_mermaid_blocks()` in [genai_tk/ui/streamlit/components/message_renderer.py](genai_tk/ui/streamlit/components/message_renderer.py) to resolve missing import references.
 - **Corporate Proxy Bypass Expansion & `net.disable_proxy` Support**: In [genai_tk/config_mgmt/config_mngr/proxy_bypass.py](genai_tk/config_mgmt/config_mngr/proxy_bypass.py) and [genai_tk/utils/net_env.py](genai_tk/utils/net_env.py), expanded `DEFAULT_BYPASS_HOSTS` to include Hugging Face Hub (`huggingface.co`, `.hf.co`, `cas-bridge.xethub.hf.co`, `cdn-lfs.huggingface.co`), package indexes (`pypi.org`, `files.pythonhosted.org`), and GitHub assets (`github.com`, `.github.com`). This ensures tools such as Docling model artifact downloads via `huggingface_hub` and HTTP clients bypass non-functioning corporate proxies. Added `net.disable_proxy` boolean configuration support in [genai_tk/config_mgmt/config_mngr/proxy_bypass.py](genai_tk/config_mgmt/config_mngr/proxy_bypass.py) to completely purge ambient proxy environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `http_proxy`, `https_proxy`, `WSL_PAC_URL`) from `os.environ` when direct network egress is available.
 - **Direct Git Requirement for `prefect-yaml` in Core Dependencies**: Declared `prefect-yaml @ git+https://github.com/tclatos/prefect-yaml@main` directly in [pyproject.toml](pyproject.toml) `dependencies` so consuming projects installing `genai-tk` via Git resolve the modern Prefect 3 repository directly instead of attempting to resolve the obsolete `prefect-yaml` package from PyPI.

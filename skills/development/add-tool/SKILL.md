@@ -78,6 +78,17 @@ See `genai_tk/agents/tools/tool_specs.py` for the unified spec format. Any Pytho
 qualified name (tool instance, tool class, function, or factory) is automatically
 resolved without requiring explicit discriminators.
 
+When a factory accepts one configuration object, keep all fields for that object
+under its declared parameter name rather than alongside it:
+
+```yaml
+tools:
+  - genai_tk.agents.tools.langchain.sql_tool_factory.create_sql_tool_from_config:
+      config:
+        database_uri: sqlite:///example.db
+        top_k: 15
+```
+
 ## Step 3: Test the Tool Directly
 
 ```python

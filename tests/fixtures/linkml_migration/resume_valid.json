@@ -1,0 +1,14 @@
+{
+  "name": "John Smith",
+  "email": "john.smith@example.com",
+  "experience": [
+    "Senior Software Engineer at TechCorp (2020-2024)",
+    "Backend Developer at CloudSolutions (2017-2020)"
+  ],
+  "skills": [
+    "Python",
+    "Rust",
+    "Docker",
+    "PostgreSQL"
+  ]
+}

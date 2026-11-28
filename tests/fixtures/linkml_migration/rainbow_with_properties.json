@@ -1,0 +1,47 @@
+{
+  "opportunity": {
+    "name": "Cloud Transformation Project",
+    "opportunity_id": "OPP-9876",
+    "status": "Active",
+    "customer": {
+      "name": "Acme Corp",
+      "segment": "Financial Services",
+      "employees": [
+        {
+          "name": "Alice Contact",
+          "organization": "Acme Corp",
+          "contact_type": "Client",
+          "p_role_": "Sponsor"
+        }
+      ]
+    }
+  },
+  "team": [
+    {
+      "name": "Bob Lead",
+      "organization": "Atos",
+      "contact_type": "Internal",
+      "p_role_": "Lead"
+    }
+  ],
+  "partners": [
+    {
+      "name": "CloudPartner Inc",
+      "p_role_": "Subcontractor"
+    }
+  ],
+  "risks": [
+    {
+      "risk_category": "BudgetRisk",
+      "p_mitigation_strategy_": "Reserve",
+      "p_risk_description_": "Budget overruns due to scope additions"
+    }
+  ],
+  "competitors": [
+    {
+      "name": "Capgemini",
+      "p_name_": "Capgemini",
+      "p_comment_": "Incumbent on existing legacy apps"
+    }
+  ]
+}

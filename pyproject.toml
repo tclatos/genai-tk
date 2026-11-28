@@ -171,6 +171,13 @@ streamlit = ["streamlit>=1.49", "streamlit-monaco>=0.1.3"]
 # BAML structured extraction — baml-py ships both the runtime and the baml-cli command
 baml = ["baml-py==0.223.0"]
 
+# LinkML structured extraction and schema tooling
+linkml = [
+    "linkml>=1.12.0",
+    "linkml-runtime>=1.12.0",
+    "json-repair>=0.64.0",
+]
+
 # ChromaDB vector database
 chromadb = ["chromadb>=1.0", "langchain-chroma>=1.0"]
 
@@ -186,7 +193,7 @@ monitoring = [
 ]
 
 # Everything (for full installs / CI images)
-all = ["genai-tk[aio-sandbox,deerflow,browser,nlp,postgres,streamlit,baml,chromadb,docling]"]
+all = ["genai-tk[aio-sandbox,deerflow,browser,nlp,postgres,streamlit,baml,chromadb,docling,linkml]"]
 
 [dependency-groups]
 # Developer-only groups (NOT published to PyPI).
@@ -272,6 +279,7 @@ exclude = [
     "notebooks/", # Jupyter notebooks (may have parse errors)
     "examples/notebooks/",
     ".venv/",
+    "tests/generated/",
 ]
 
 [tool.ruff.format]

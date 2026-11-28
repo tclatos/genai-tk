@@ -24,6 +24,7 @@ Read the closest doc first, then inspect the matching implementation paths. Do n
 | MCP exposure | `docs/mcp-servers.md` | `genai_tk/mcp/`, `config/examples/tk_servers.yaml`, `tests/unit_tests/mcp/` |
 | Browser automation | `docs/browser_control.md`, `docs/sandbox_support.md` | `genai_tk/agents/tools/sandbox_browser/`, `genai_tk/agents/tools/direct_browser/`, `genai_tk/agents/sandbox/` |
 | Webapp | `docs/webapp.md` | `genai_tk/webapp/`, `config/webapp.yaml` |
+| LinkML / Structured | `docs/linkml.md` | `genai_tk/extra/structured/`, `genai_tk/workflow/prefect/flows/structured_flow.py` |
 | BAML | `docs/baml.md` | `genai_tk/extra/structured/`, `genai_tk/workflow/prefect/flows/baml_flow.py` |
 | Evaluation/testing | `docs/TESTING_GUIDE.md`, `docs/evaluation_testing.md` | `tests/`, `pyproject.toml` dependency groups |
 

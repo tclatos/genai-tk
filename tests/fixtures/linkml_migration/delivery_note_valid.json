@@ -1,0 +1,27 @@
+{
+  "delivery_note_number": "BL-2024-00123",
+  "order_number": "CMD-9876",
+  "lines": [
+    {
+      "product_number": "ART-001",
+      "quantity": 10.0,
+      "lot_number": "LOT-2024A",
+      "serial_number": null,
+      "order_number": null
+    },
+    {
+      "product_number": "ART-002",
+      "quantity": 2.0,
+      "lot_number": "LOT-2024B",
+      "serial_number": "SN-00045",
+      "order_number": null
+    },
+    {
+      "product_number": "ART-003",
+      "quantity": 5.0,
+      "lot_number": null,
+      "serial_number": null,
+      "order_number": null
+    }
+  ]
+}
